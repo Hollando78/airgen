@@ -1,0 +1,25 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Builds
+dist
+build
+
+# Env
+.env
+.env.*
+
+# Logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Misc
+.DS_Store
+.idea
+.vscode
+workspace/**
+!workspace/.gitkeep

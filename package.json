@@ -1,0 +1,11 @@
+{
+  "name": "airgen-starter",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "scripts": {
+    "build": "pnpm -C packages/req-qa build && pnpm -C backend build",
+    "dev": "pnpm -C backend dev",
+    "test": "pnpm -C packages/req-qa test"
+  }
+}
