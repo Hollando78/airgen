@@ -338,8 +338,7 @@ export async function deleteDocumentSection(sectionId: string): Promise<void> {
     await session.executeWrite(async (tx: ManagedTransaction) => {
       const query = `
         MATCH (section:DocumentSection {id: $sectionId})
-        OPTIONAL MATCH (section)-[:HAS_REQUIREMENT]->(req:Requirement)
-        DETACH DELETE section, req
+        DETACH DELETE section
       `;
 
       await tx.run(query, { sectionId });
@@ -745,7 +744,7 @@ export async function createDocument(params: {
           updatedAt: $now
         })
         MERGE (project)-[:HAS_DOCUMENT]->(document)
-        WITH document
+        WITH project, document
         OPTIONAL MATCH (project)-[:HAS_FOLDER]->(parent:Folder {slug: $parentFolder})
         FOREACH (p IN CASE WHEN parent IS NOT NULL THEN [parent] ELSE [] END |
           MERGE (p)-[:CONTAINS_DOCUMENT]->(document)
@@ -952,7 +951,7 @@ export async function softDeleteFolder(tenant: string, projectKey: string, folde
     const node = result.records[0].get("folder");
     const folderCount = result.records[0].get("folderCount").toNumber();
     const documentCount = result.records[0].get("documentCount").toNumber();
-    return mapFolder(node, folderCount, documentCount);
+    return mapFolder(node, documentCount, folderCount);
   } finally {
     await session.close();
   }
@@ -991,7 +990,7 @@ export async function createFolder(params: {
           updatedAt: $now
         })
         MERGE (project)-[:HAS_FOLDER]->(folder)
-        WITH folder
+        WITH project, folder
         OPTIONAL MATCH (project)-[:HAS_FOLDER]->(parent:Folder {slug: $parentFolder})
         FOREACH (p IN CASE WHEN parent IS NOT NULL THEN [parent] ELSE [] END |
           MERGE (p)-[:CONTAINS_FOLDER]->(folder)

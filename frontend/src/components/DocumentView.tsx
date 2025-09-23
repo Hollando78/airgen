@@ -264,7 +264,7 @@ export function DocumentView({
           padding: "16px"
         }}>
           <h3 style={{ margin: "0 0 16px 0", fontSize: "16px" }}>Document Sections</h3>
-          {sections
+          {[...sections]
             .sort((a, b) => a.order - b.order)
             .map(section => (
             <div
@@ -396,7 +396,7 @@ export function DocumentView({
 }
 
 interface RequirementsTableProps {
-  section: DocumentSection;
+  section: DocumentSectionWithRequirements;
   tenant: string;
   project: string;
   onAddRequirement: () => void;
@@ -462,7 +462,7 @@ function RequirementsTable({ section, tenant, project, onAddRequirement }: Requi
                 </td>
               </tr>
             ) : (
-              section.requirements.map((req, index) => (
+              section.requirements.map((req: RequirementRecord, index: number) => (
                 <tr key={req.id} style={{
                   backgroundColor: index % 2 === 0 ? "white" : "#f8f9fa"
                 }}>

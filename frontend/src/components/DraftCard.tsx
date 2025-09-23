@@ -68,7 +68,7 @@ export function DraftCard({ draft, tenant, project, documentSlug, onPersist }: D
       return onPersist({
         tenant,
         projectKey: project,
-        documentSlug,
+        documentSlug: documentSlug ?? undefined,
         title,
         text,
         pattern,

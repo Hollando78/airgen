@@ -1,32 +1,293 @@
-import { useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  MarkerType,
+  type Connection,
+  type Edge,
+  type EdgeChange,
+  type Node,
+  type NodeChange,
+  type OnSelectionChangeParams,
+  useNodesState,
+  useEdgesState
+} from "@xyflow/react";
 import { useTenantProjectDocument } from "../components/TenantProjectDocumentSelector";
-import { useArchitecture, type ArchComponent } from "../hooks/useArchitecture";
+import {
+  useArchitecture,
+  type SysmlBlock,
+  type SysmlConnector,
+  type BlockKind
+} from "../hooks/useArchitecture";
+import { SysmlBlockNode } from "../components/architecture/SysmlBlockNode";
+import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel";
+import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
 
-const COMPONENT_TYPES = [
-  { value: 'frontend', label: 'Frontend', color: '#3b82f6' },
-  { value: 'backend', label: 'Backend', color: '#10b981' },
-  { value: 'database', label: 'Database', color: '#f59e0b' },
-  { value: 'service', label: 'Service', color: '#8b5cf6' },
-  { value: 'external', label: 'External', color: '#6b7280' }
-] as const;
+type BlockPreset = {
+  label: string;
+  kind: BlockKind;
+  stereotype: string;
+  description?: string;
+};
+
+const BLOCK_PRESETS: BlockPreset[] = [
+  { label: "System Block", kind: "system", stereotype: "block", description: "Top-level system context" },
+  { label: "Subsystem", kind: "subsystem", stereotype: "subsystem", description: "Logical subsystem" },
+  { label: "Software Component", kind: "component", stereotype: "component", description: "Software or service component" },
+  { label: "Actor", kind: "actor", stereotype: "actor", description: "External actor or user" },
+  { label: "External System", kind: "external", stereotype: "external", description: "Outside system boundary" }
+];
+
+const nodeTypes = { sysmlBlock: SysmlBlockNode };
+
+const DEBUG_ARCHITECTURE = false;
+
+function mapConnectorToEdge(connector: SysmlConnector): Edge {
+  const kind = connector.kind;
+  const isFlow = kind === "flow";
+  const isDependency = kind === "dependency";
+  const isAssociation = kind === "association";
+  const strokeColor = isFlow ? "#2563eb" : isDependency ? "#0f172a" : "#334155";
+
+  return {
+    id: connector.id,
+    source: connector.source,
+    target: connector.target,
+    sourceHandle: connector.sourcePortId ?? undefined,
+    targetHandle: connector.targetPortId ?? undefined,
+    label: connector.label,
+    type: isFlow ? "smoothstep" : "straight",
+    animated: isFlow,
+    style: {
+      strokeWidth: 2,
+      strokeDasharray: isDependency ? "6 4" : isAssociation ? "4 3" : undefined,
+      stroke: strokeColor
+    },
+    labelStyle: { fontSize: 12, fill: "#0f172a", fontWeight: 500 },
+    labelBgPadding: [6, 4],
+    labelBgBorderRadius: 4,
+    labelBgStyle: { fill: "#ffffff", stroke: "#e2e8f0", strokeWidth: 1 },
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: strokeColor,
+      width: 22,
+      height: 22
+    },
+    markerStart: kind === "composition"
+      ? { type: MarkerType.ArrowClosed, color: strokeColor, width: 18, height: 18 }
+      : undefined
+  } satisfies Edge;
+}
 
 export function ArchitectureRoute(): JSX.Element {
   const { tenant, project } = useTenantProjectDocument();
-  const { 
-    architecture, 
-    addComponent, 
-    updateComponent, 
-    clearArchitecture, 
-    hasChanges 
+  const {
+    architecture,
+    addBlock,
+    updateBlock,
+    updateBlockPosition,
+    updateBlockSize,
+    removeBlock,
+    addPort,
+    updatePort,
+    removePort,
+    addConnector,
+    updateConnector,
+    removeConnector,
+    clearArchitecture,
+    hasChanges
   } = useArchitecture(tenant, project);
-  const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [showAddComponent, setShowAddComponent] = useState(false);
-  const [newComponent, setNewComponent] = useState({
-    name: '',
-    type: 'frontend' as const,
-    description: ''
-  });
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
+
+  const [nodes, setNodes, onNodesStateChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesStateChange] = useEdgesState<Edge>([]);
+
+
+  useEffect(() => {
+    if (selectedBlockId && !architecture.blocks.some(block => block.id === selectedBlockId)) {
+      setSelectedBlockId(null);
+    }
+  }, [architecture.blocks, selectedBlockId]);
+
+  useEffect(() => {
+    if (selectedConnectorId && !architecture.connectors.some(connector => connector.id === selectedConnectorId)) {
+      setSelectedConnectorId(null);
+    }
+  }, [architecture.connectors, selectedConnectorId]);
+
+  useLayoutEffect(() => {
+    setNodes(prevNodes => {
+      const prevLookup = new Map(prevNodes.map(node => [node.id, node]));
+
+      return architecture.blocks.map(block => {
+        const prev = prevLookup.get(block.id);
+
+        return {
+          ...prev,
+          id: block.id,
+          type: "sysmlBlock",
+          position: block.position,
+          data: {
+            block
+          },
+          style: {
+            width: block.size.width,
+            height: block.size.height,
+            padding: 0,
+            border: "none",
+            background: "transparent"
+          },
+          width: prev?.width,
+          height: prev?.height,
+          selected: block.id === selectedBlockId
+        } satisfies Node;
+      });
+    });
+  }, [architecture.blocks, selectedBlockId, setNodes]);
+
+  useEffect(() => {
+    setEdges(prevEdges => {
+      const prevLookup = new Map(prevEdges.map(edge => [edge.id, edge]));
+
+      return architecture.connectors.map(connector => {
+        const prev = prevLookup.get(connector.id);
+
+        return {
+          ...prev,
+          ...mapConnectorToEdge(connector),
+          selected: connector.id === selectedConnectorId
+        } satisfies Edge;
+      });
+    });
+  }, [architecture.connectors, selectedConnectorId, setEdges]);
+
+  const handleSelectionChange = useCallback(
+    ({ nodes: selectedNodes, edges: selectedEdges }: OnSelectionChangeParams) => {
+      const firstNodeId = selectedNodes[0]?.id ?? null;
+      const firstEdgeId = selectedEdges[0]?.id ?? null;
+
+      if (DEBUG_ARCHITECTURE) {
+        console.debug("[Architecture] selection change", {
+          nodeIds: selectedNodes.map(node => node.id),
+          edgeIds: selectedEdges.map(edge => edge.id)
+        });
+      }
+
+      if (firstNodeId) {
+        setSelectedBlockId(firstNodeId);
+        setSelectedConnectorId(null);
+      } else if (firstEdgeId) {
+        setSelectedConnectorId(firstEdgeId);
+        setSelectedBlockId(null);
+      } else {
+        setSelectedBlockId(null);
+        setSelectedConnectorId(null);
+      }
+    },
+    [setEdges, setNodes]
+  );
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      if (DEBUG_ARCHITECTURE) {
+        console.debug("[Architecture] nodes change", changes);
+      }
+      onNodesStateChange(changes);
+
+      changes.forEach(change => {
+        if (change.type === "position") {
+          const nextPosition = change.position ?? change.positionAbsolute;
+          if (nextPosition && !change.dragging) {
+            updateBlockPosition(change.id, nextPosition);
+          }
+        }
+        if (change.type === "dimensions" && change.dimensions) {
+          updateBlockSize(change.id, {
+            width: change.dimensions.width,
+            height: change.dimensions.height
+          });
+        }
+      });
+    },
+    [onNodesStateChange, updateBlockPosition, updateBlockSize]
+  );
+
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      onEdgesStateChange(changes);
+
+      changes.forEach(change => {
+        if (change.type === "remove") {
+          removeConnector(change.id);
+        }
+      });
+    },
+    [onEdgesStateChange, removeConnector]
+  );
+
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      const newId = addConnector({
+        source: connection.source,
+        target: connection.target,
+        sourcePortId: connection.sourceHandle ?? null,
+        targetPortId: connection.targetHandle ?? null
+      });
+      setSelectedConnectorId(newId);
+      setSelectedBlockId(null);
+      setNodes(prevNodes => prevNodes.map(node => ({
+        ...node,
+        selected: false
+      })));
+      setEdges(prevEdges => prevEdges.map(edge => ({
+        ...edge,
+        selected: false
+      })));
+    },
+    [addConnector, setEdges, setNodes]
+  );
+
+  const handleAddBlock = useCallback(
+    (preset: BlockPreset) => {
+      const offset = architecture.blocks.length;
+      const id = addBlock({
+        name: preset.label,
+        kind: preset.kind,
+        stereotype: preset.stereotype,
+        description: preset.description,
+        position: {
+          x: 160 + offset * 60 + Math.random() * 40,
+          y: 160 + offset * 40 + Math.random() * 40
+        }
+      });
+
+      setSelectedBlockId(id);
+      setSelectedConnectorId(null);
+      setNodes(prevNodes => prevNodes.map(node => ({
+        ...node,
+        selected: node.id === id
+      })));
+      setEdges(prevEdges => prevEdges.map(edge => ({
+        ...edge,
+        selected: false
+      })));
+    },
+    [addBlock, architecture.blocks.length, setEdges, setNodes]
+  );
+
+  const selectedBlock = useMemo(
+    () => architecture.blocks.find(block => block.id === selectedBlockId) ?? null,
+    [architecture.blocks, selectedBlockId]
+  );
+
+  const selectedConnector = useMemo(
+    () => architecture.connectors.find(connector => connector.id === selectedConnectorId) ?? null,
+    [architecture.connectors, selectedConnectorId]
+  );
 
   if (!tenant || !project) {
     return (
@@ -39,223 +300,145 @@ export function ArchitectureRoute(): JSX.Element {
     );
   }
 
-  const handleAddComponent = () => {
-    if (!newComponent.name.trim()) return;
-    
-    addComponent({
-      name: newComponent.name.trim(),
-      type: newComponent.type,
-      x: 100,
-      y: 100,
-      description: newComponent.description.trim() || undefined
-    });
-    
-    setNewComponent({ name: '', type: 'frontend', description: '' });
-    setShowAddComponent(false);
-  };
-
-  const handleComponentDrag = (componentId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    const component = architecture.components.find(c => c.id === componentId);
-    if (!component) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    setDragOffset({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    });
-    setSelectedComponent(componentId);
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const canvas = document.querySelector('.architecture-canvas') as HTMLElement;
-      if (!canvas) return;
-      
-      const canvasRect = canvas.getBoundingClientRect();
-      const newX = moveEvent.clientX - canvasRect.left - dragOffset.x;
-      const newY = moveEvent.clientY - canvasRect.top - dragOffset.y;
-      
-      updateComponent(componentId, {
-        x: Math.max(0, newX),
-        y: Math.max(0, newY)
-      });
-    };
-
-    const handleMouseUp = () => {
-      setSelectedComponent(null);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const getComponentTypeInfo = (type: string) => {
-    return COMPONENT_TYPES.find(t => t.value === type) || COMPONENT_TYPES[0];
-  };
-
   return (
     <div className="panel-stack">
       <div className="panel">
         <div className="panel-header">
           <div>
-            <h1>System Architecture</h1>
-            <p>Define components and connections for {project}</p>
+            <h1>SysML Architecture</h1>
+            <p>Model the block definition diagram for {project}</p>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => setShowAddComponent(true)}
-              className="primary-button"
-            >
-              + Add Component
-            </button>
-            <button
-              onClick={clearArchitecture}
-              className="ghost-button"
-              disabled={!hasChanges}
-            >
+          <div className="architecture-toolbar">
+            {BLOCK_PRESETS.map(preset => (
+              <button
+                key={preset.kind}
+                className="ghost-button"
+                onClick={() => handleAddBlock(preset)}
+                title={`Add ${preset.label}`}
+              >
+                {preset.label}
+              </button>
+            ))}
+            <span style={{ width: "1px", height: "24px", background: "#dbeafe" }} />
+            <button className="ghost-button" onClick={clearArchitecture} disabled={!hasChanges}>
               Clear All
             </button>
           </div>
         </div>
 
-        {showAddComponent && (
-          <div className="panel" style={{ background: '#f8f9fa', border: '1px solid #e9ecef' }}>
-            <h3>Add Component</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
-                <label>Name *</label>
-                <input
-                  type="text"
-                  value={newComponent.name}
-                  onChange={e => setNewComponent(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g., User Service, React App"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label>Type</label>
-                <select
-                  value={newComponent.type}
-                  onChange={e => setNewComponent(prev => ({ ...prev, type: e.target.value as any }))}
-                >
-                  {COMPONENT_TYPES.map(type => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label>Description</label>
-              <input
-                type="text"
-                value={newComponent.description}
-                onChange={e => setNewComponent(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Optional description"
+        <div className="architecture-workspace">
+          <div className="architecture-canvas-shell">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              onNodesChange={handleNodesChange}
+              onEdgesChange={handleEdgesChange}
+              onConnect={handleConnect}
+              onPaneClick={() => {
+                setSelectedBlockId(null);
+                setSelectedConnectorId(null);
+                setNodes(prevNodes => prevNodes.map(node => ({
+                  ...node,
+                  selected: false
+                })));
+                setEdges(prevEdges => prevEdges.map(edge => ({
+                  ...edge,
+                  selected: false
+                })));
+              }}
+              onNodeClick={(event: ReactMouseEvent, node: Node) => {
+                event.stopPropagation();
+                if (DEBUG_ARCHITECTURE) {
+                  console.debug("[Architecture] onNodeClick", node.id);
+                }
+                setSelectedBlockId(node.id);
+                setSelectedConnectorId(null);
+              }}
+              onEdgeClick={(event: ReactMouseEvent, edge: Edge) => {
+                event.stopPropagation();
+                if (DEBUG_ARCHITECTURE) {
+                  console.debug("[Architecture] onEdgeClick", edge.id);
+                }
+                setSelectedConnectorId(edge.id);
+                setSelectedBlockId(null);
+                setEdges(prevEdges => prevEdges.map(existing => ({
+                  ...existing,
+                  selected: existing.id === edge.id
+                })));
+                setNodes(prevNodes => prevNodes.map(existing => ({
+                  ...existing,
+                  selected: false
+                })));
+              }}
+              onNodesDelete={(nodesToDelete: Node[]) =>
+                nodesToDelete.forEach(node => removeBlock(node.id))
+              }
+              onEdgesDelete={(edgesToDelete: Edge[]) =>
+                edgesToDelete.forEach(edge => removeConnector(edge.id))
+              }
+              onSelectionChange={handleSelectionChange}
+              fitView
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background color="#e2e8f0" gap={20} size={1} />
+              <MiniMap
+                nodeColor={node => {
+                  const block = architecture.blocks.find(b => b.id === node.id);
+                  if (!block) return "#e2e8f0";
+                  switch (block.kind) {
+                    case "system":
+                      return "#2563eb";
+                    case "subsystem":
+                      return "#7c3aed";
+                    case "actor":
+                      return "#f97316";
+                    case "external":
+                      return "#64748b";
+                    default:
+                      return "#16a34a";
+                  }
+                }}
               />
-            </div>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button onClick={handleAddComponent} className="primary-button">
-                Add Component
-              </button>
-              <button onClick={() => setShowAddComponent(false)} className="ghost-button">
-                Cancel
-              </button>
-            </div>
+              <Controls position="bottom-right" showInteractive={false} />
+            </ReactFlow>
           </div>
-        )}
 
-        <div 
-          className="architecture-canvas"
-          style={{
-            position: 'relative',
-            minHeight: '500px',
-            background: '#fafafa',
-            border: '2px dashed #e2e8f0',
-            borderRadius: '8px',
-            overflow: 'hidden'
-          }}
-        >
-          {architecture.components.length === 0 ? (
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center',
-              color: '#64748b'
-            }}>
-              <h3>No components yet</h3>
-              <p>Add components to visualize your system architecture</p>
-            </div>
-          ) : (
-            architecture.components.map(component => {
-              const typeInfo = getComponentTypeInfo(component.type);
-              return (
-                <div
-                  key={component.id}
-                  style={{
-                    position: 'absolute',
-                    left: component.x,
-                    top: component.y,
-                    background: typeInfo.color,
-                    color: 'white',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    cursor: 'move',
-                    minWidth: '120px',
-                    textAlign: 'center',
-                    boxShadow: selectedComponent === component.id 
-                      ? '0 4px 12px rgba(0,0,0,0.3)' 
-                      : '0 2px 4px rgba(0,0,0,0.1)',
-                    border: selectedComponent === component.id ? '2px solid #fff' : 'none'
-                  }}
-                  onMouseDown={e => handleComponentDrag(component.id, e)}
-                  title={component.description}
-                >
-                  <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
-                    {component.name}
-                  </div>
-                </div>
-              );
-            })
-          )}
+          <div className="architecture-sidebars">
+            {selectedBlock && (
+              <BlockDetailsPanel
+                block={selectedBlock}
+                onUpdate={updates => updateBlock(selectedBlock.id, updates)}
+                onUpdatePosition={position => updateBlockPosition(selectedBlock.id, position)}
+                onUpdateSize={size => updateBlockSize(selectedBlock.id, size)}
+                onRemove={() => removeBlock(selectedBlock.id)}
+                onAddPort={port => addPort(selectedBlock.id, port)}
+                onUpdatePort={(portId, updates) => updatePort(selectedBlock.id, portId, updates)}
+                onRemovePort={portId => removePort(selectedBlock.id, portId)}
+              />
+            )}
+
+            {selectedConnector && (
+              <ConnectorDetailsPanel
+                connector={selectedConnector}
+                onUpdate={updates => updateConnector(selectedConnector.id, updates)}
+                onRemove={() => removeConnector(selectedConnector.id)}
+              />
+            )}
+
+            {!selectedBlock && !selectedConnector && (
+              <div className="architecture-hint">
+                <h3>Workspace tips</h3>
+                <ul>
+                  <li>Use the palette to add SysML blocks.</li>
+                  <li>Drag handles between blocks or ports to create connectors.</li>
+                  <li>Select a block or connector to edit details here.</li>
+                  <li>Drag blocks or resize them to express containment.</li>
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
-
-        {architecture.components.length > 0 && (
-          <div className="panel" style={{ marginTop: '16px' }}>
-            <h3>Components ({architecture.components.length})</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-              {architecture.components.map(component => {
-                const typeInfo = getComponentTypeInfo(component.type);
-                return (
-                  <div key={component.id} style={{
-                    padding: '12px',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '6px',
-                    background: '#fff'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '12px',
-                        height: '12px',
-                        background: typeInfo.color,
-                        borderRadius: '2px'
-                      }} />
-                      <strong>{component.name}</strong>
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                      {typeInfo.label}
-                      {component.description && ` • ${component.description}`}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
