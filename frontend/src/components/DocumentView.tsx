@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { AddSectionModal } from "./AddSectionModal";
 import { AddRequirementModal } from "./AddRequirementModal";
+import { EditRequirementModal } from "./EditRequirementModal";
 import type { DocumentRecord, RequirementRecord, RequirementPattern, VerificationMethod, DocumentSectionRecord } from "../types";
 
 interface DocumentSectionWithRequirements extends DocumentSectionRecord {
@@ -27,6 +28,10 @@ export function DocumentView({
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [showAddSectionModal, setShowAddSectionModal] = useState(false);
   const [showAddRequirementModal, setShowAddRequirementModal] = useState(false);
+  const [editRequirementModal, setEditRequirementModal] = useState<{
+    isOpen: boolean;
+    requirement: RequirementRecord | null;
+  }>({ isOpen: false, requirement: null });
   const [draggedSection, setDraggedSection] = useState<string | null>(null);
 
   // Fetch document details
@@ -47,13 +52,14 @@ export function DocumentView({
 
   // Mutations for section operations
   const createSectionMutation = useMutation({
-    mutationFn: (newSection: { name: string; description: string }) =>
+    mutationFn: (newSection: { name: string; description: string; shortCode?: string }) =>
       api.createDocumentSection({
         tenant,
         projectKey: project,
         documentSlug,
         name: newSection.name,
         description: newSection.description,
+        shortCode: newSection.shortCode,
         order: sections.length + 1
       }),
     onSuccess: () => {
@@ -81,8 +87,39 @@ export function DocumentView({
         pattern: requirement.pattern,
         verification: requirement.verification
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+    onSuccess: async (response, variables) => {
+      // Invalidate sections query to get fresh data
+      await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+      
+      // Immediately update local state to show the new requirement
+      setSections(prevSections => 
+        prevSections.map(section => 
+          section.id === variables.sectionId 
+            ? { ...section, requirements: [...section.requirements, response.requirement] }
+            : section
+        )
+      );
+    }
+  });
+
+  const updateRequirementMutation = useMutation({
+    mutationFn: (params: { requirementId: string; updates: { title?: string; text?: string; pattern?: RequirementPattern; verification?: VerificationMethod; } }) =>
+      api.updateRequirement(tenant, project, params.requirementId, params.updates),
+    onSuccess: async (response, variables) => {
+      // Invalidate sections query to get fresh data
+      await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+      
+      // Immediately update local state to show the updated requirement
+      setSections(prevSections => 
+        prevSections.map(section => ({
+          ...section,
+          requirements: section.requirements.map(req => 
+            req.id === variables.requirementId ? response.requirement : req
+          )
+        }))
+      );
+      
+      setEditRequirementModal({ isOpen: false, requirement: null });
     }
   });
 
@@ -114,7 +151,7 @@ export function DocumentView({
     }
   }, [sectionsQuery.data, api]);
 
-  const handleAddSection = (newSection: { name: string; description: string }) => {
+  const handleAddSection = (newSection: { name: string; description: string; shortCode?: string }) => {
     createSectionMutation.mutate(newSection, {
       onSuccess: (response) => {
         setSelectedSection(response.section.id);
@@ -136,6 +173,24 @@ export function DocumentView({
       pattern: newReq.pattern,
       verification: newReq.verification,
       sectionId: selectedSection
+    });
+  };
+
+  const handleEditRequirement = (requirement: RequirementRecord) => {
+    setEditRequirementModal({ isOpen: true, requirement });
+  };
+
+  const handleUpdateRequirement = (updates: {
+    title?: string;
+    text?: string;
+    pattern?: RequirementPattern;
+    verification?: VerificationMethod;
+  }) => {
+    if (!editRequirementModal.requirement) return;
+
+    updateRequirementMutation.mutate({
+      requirementId: editRequirementModal.requirement.id,
+      updates
     });
   };
 
@@ -234,7 +289,23 @@ export function DocumentView({
             <span>{document?.name}</span>
           </div>
           
-          <h1 style={{ margin: 0, fontSize: "24px" }}>{document?.name}</h1>
+          <h1 style={{ margin: 0, fontSize: "24px" }}>
+            {document?.name}
+            {document?.shortCode && (
+              <span style={{ 
+                fontSize: "12px", 
+                backgroundColor: "#e0f2fe", 
+                color: "#0369a1", 
+                padding: "4px 8px", 
+                borderRadius: "6px",
+                fontWeight: "600",
+                textTransform: "uppercase",
+                marginLeft: "12px"
+              }}>
+                {document.shortCode}
+              </span>
+            )}
+          </h1>
           <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "14px" }}>
             {document?.description || "No description provided"}
           </p>
@@ -313,6 +384,20 @@ export function DocumentView({
                 </span>
                 <div style={{ fontWeight: "bold", fontSize: "14px", flex: 1 }}>
                   {section.name}
+                  {section.shortCode && (
+                    <span style={{ 
+                      fontSize: "10px", 
+                      backgroundColor: "#e0f2fe", 
+                      color: "#0369a1", 
+                      padding: "2px 6px", 
+                      borderRadius: "4px",
+                      fontWeight: "600",
+                      textTransform: "uppercase",
+                      marginLeft: "8px"
+                    }}>
+                      {section.shortCode}
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
@@ -351,6 +436,7 @@ export function DocumentView({
               tenant={tenant}
               project={project}
               onAddRequirement={() => setShowAddRequirementModal(true)}
+              onEditRequirement={handleEditRequirement}
             />
           ) : selectedSection ? (
             <div style={{
@@ -391,6 +477,13 @@ export function DocumentView({
         onClose={() => setShowAddRequirementModal(false)}
         onAdd={handleAddRequirement}
       />
+
+      <EditRequirementModal
+        isOpen={editRequirementModal.isOpen}
+        requirement={editRequirementModal.requirement}
+        onClose={() => setEditRequirementModal({ isOpen: false, requirement: null })}
+        onUpdate={handleUpdateRequirement}
+      />
     </div>
   );
 }
@@ -400,9 +493,10 @@ interface RequirementsTableProps {
   tenant: string;
   project: string;
   onAddRequirement: () => void;
+  onEditRequirement: (requirement: RequirementRecord) => void;
 }
 
-function RequirementsTable({ section, tenant, project, onAddRequirement }: RequirementsTableProps) {
+function RequirementsTable({ section, tenant, project, onAddRequirement, onEditRequirement }: RequirementsTableProps) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
       {/* Table Header */}
@@ -509,13 +603,17 @@ function RequirementsTable({ section, tenant, project, onAddRequirement }: Requi
                     ) : "—"}
                   </td>
                   <td style={{ border: "1px solid #e2e8f0", padding: "12px", textAlign: "center" }}>
-                    <button style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: "4px",
-                      borderRadius: "3px"
-                    }}>
+                    <button 
+                      onClick={() => onEditRequirement(req)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "4px",
+                        borderRadius: "3px"
+                      }}
+                      title="Edit requirement"
+                    >
                       ✏️
                     </button>
                   </td>

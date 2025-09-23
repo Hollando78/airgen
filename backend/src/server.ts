@@ -24,6 +24,7 @@ import {
   listProjects,
   listBaselines,
   createDocument,
+  updateDocument,
   listDocuments,
   getDocument,
   updateDocumentFolder,
@@ -36,6 +37,8 @@ import {
   updateDocumentSection,
   deleteDocumentSection,
   listSectionRequirements,
+  updateFolder,
+  updateRequirement,
   createArchitectureBlock,
   getArchitectureBlocks,
   updateArchitectureBlock,
@@ -117,6 +120,7 @@ const documentSchema = z.object({
   projectKey: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
+  shortCode: z.string().optional(),
   parentFolder: z.string().optional()
 });
 
@@ -134,6 +138,7 @@ const documentSectionSchema = z.object({
   documentSlug: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
+  shortCode: z.string().optional(),
   order: z.number().int().min(0)
 });
 
@@ -305,6 +310,26 @@ app.get("/requirements/:tenant/:project/:ref", async (req, reply) => {
   return { record, markdown };
 });
 
+app.patch("/requirements/:tenant/:project/:requirementId", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    requirementId: z.string().min(1)
+  });
+  const bodySchema = z.object({
+    title: z.string().min(3).optional(),
+    text: z.string().min(10).optional(),
+    pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional(),
+    verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional()
+  });
+  const params = paramsSchema.parse(req.params);
+  const body = bodySchema.parse(req.body);
+  
+  const requirement = await updateRequirement(params.tenant, params.project, params.requirementId, body);
+  if (!requirement) return reply.status(404).send({ error: "Requirement not found" });
+  return { requirement };
+});
+
 app.post("/baseline", async (req) => {
   const payload = baselineSchema.parse(req.body);
   const record = await createBaseline({
@@ -342,6 +367,7 @@ app.post("/documents", async (req) => {
     projectKey: payload.projectKey,
     name: payload.name,
     description: payload.description,
+    shortCode: payload.shortCode,
     parentFolder: payload.parentFolder
   });
   return { document };
@@ -373,12 +399,28 @@ app.patch("/documents/:tenant/:project/:documentSlug", async (req, reply) => {
     documentSlug: z.string().min(1)
   });
   const bodySchema = z.object({
+    name: z.string().optional(),
+    description: z.string().optional(),
+    shortCode: z.string().optional(),
     parentFolder: z.string().optional().nullable()
   });
   const params = paramsSchema.parse(req.params);
   const body = bodySchema.parse(req.body);
   
-  const document = await updateDocumentFolder(params.tenant, params.project, params.documentSlug, body.parentFolder);
+  let document;
+  if (body.parentFolder !== undefined) {
+    // Handle folder update separately
+    document = await updateDocumentFolder(params.tenant, params.project, params.documentSlug, body.parentFolder);
+  } else {
+    // Handle general document updates
+    const { name, description, shortCode } = body;
+    document = await updateDocument(params.tenant, params.project, params.documentSlug, {
+      name,
+      description,
+      shortCode
+    });
+  }
+  
   if (!document) return reply.status(404).send({ error: "Document not found" });
   return { document };
 });
@@ -400,6 +442,24 @@ app.get("/folders/:tenant/:project", async (req) => {
   const params = paramsSchema.parse(req.params);
   const folders = await listFolders(params.tenant, params.project);
   return { folders };
+});
+
+app.patch("/folders/:tenant/:project/:folderSlug", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    folderSlug: z.string().min(1)
+  });
+  const bodySchema = z.object({
+    name: z.string().min(1).optional(),
+    description: z.string().optional()
+  });
+  const params = paramsSchema.parse(req.params);
+  const body = bodySchema.parse(req.body);
+  
+  const folder = await updateFolder(params.tenant, params.project, params.folderSlug, body);
+  if (!folder) return reply.status(404).send({ error: "Folder not found" });
+  return { folder };
 });
 
 app.delete("/documents/:tenant/:project/:documentSlug", async (req, reply) => {
@@ -435,6 +495,7 @@ app.post("/sections", async (req) => {
     documentSlug: payload.documentSlug,
     name: payload.name,
     description: payload.description,
+    shortCode: payload.shortCode,
     order: payload.order
   });
   return { section };

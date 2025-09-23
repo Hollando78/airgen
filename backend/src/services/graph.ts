@@ -1,4 +1,5 @@
 import neo4j, { Driver, Session, ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
+import crypto from "crypto";
 import { config } from "../config.js";
 import {
   RequirementRecord,
@@ -294,6 +295,7 @@ export async function createDocumentSection(params: {
   documentSlug: string;
   name: string;
   description?: string;
+  shortCode?: string;
   order: number;
 }): Promise<DocumentSectionRecord> {
   const tenantSlug = slugify(params.tenant);
@@ -310,6 +312,7 @@ export async function createDocumentSection(params: {
           id: $sectionId,
           name: $name,
           description: $description,
+          shortCode: $shortCode,
           documentSlug: $documentSlug,
           tenant: $tenant,
           projectKey: $projectKey,
@@ -328,6 +331,7 @@ export async function createDocumentSection(params: {
         sectionId,
         name: params.name,
         description: params.description ?? null,
+        shortCode: params.shortCode ?? null,
         tenant: params.tenant,
         projectKey: params.projectKey,
         order: params.order,
@@ -436,6 +440,9 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
   const tenantSlug = slugify(input.tenant || config.defaultTenant);
   const projectSlug = slugify(input.projectKey);
   const now = new Date().toISOString();
+  
+  // Generate unique hash ID for this requirement
+  const hashId = crypto.randomBytes(8).toString('hex');
 
   const session = getSession();
   try {
@@ -445,15 +452,47 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
           ON CREATE SET tenant.name = $tenantName, tenant.createdAt = $now
         MERGE (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})
           ON CREATE SET project.key = $projectKey, project.createdAt = $now
-        SET project.requirementCounter = coalesce(project.requirementCounter, 0) + 1
-        WITH tenant, project, project.requirementCounter AS counter
-        WITH tenant, project, counter,
+        
+        // Get document and section if specified
+        OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
+        OPTIONAL MATCH (section:DocumentSection {id: $sectionId})
+        
+        // Increment appropriate counter and generate ref
+        WITH tenant, project, document, section,
+             CASE 
+               WHEN document IS NOT NULL THEN 
+                 CASE WHEN section IS NOT NULL THEN
+                   // Document + Section: use both short codes
+                   coalesce(document.shortCode, 'DOC') + '-' + coalesce(section.shortCode, 'SEC')
+                 ELSE
+                   // Document only: use document short code
+                   coalesce(document.shortCode, 'DOC')
+                 END
+               ELSE
+                 // No document: use project prefix
+                 'REQ-' + toUpper(replace($projectSlug, '-', ''))
+             END AS prefix
+        
+        // Set counter on appropriate entity
+        FOREACH (doc IN CASE WHEN document IS NOT NULL THEN [document] ELSE [] END |
+          SET doc.requirementCounter = coalesce(doc.requirementCounter, 0) + 1
+        )
+        FOREACH (proj IN CASE WHEN document IS NULL THEN [project] ELSE [] END |
+          SET proj.requirementCounter = coalesce(proj.requirementCounter, 0) + 1
+        )
+        
+        WITH tenant, project, document, section, prefix,
+             CASE WHEN document IS NOT NULL 
+               THEN coalesce(document.requirementCounter, 1)
+               ELSE coalesce(project.requirementCounter, 1)
+             END AS counter
+        
+        WITH tenant, project, document, section, prefix, counter,
              right('000' + toString(counter), 3) AS padded,
-             toUpper(replace($projectSlug, '-', '')) AS upper
-        WITH tenant, project, counter, padded, upper,
-             'REQ-' + upper + '-' + padded AS ref
+             prefix + '-' + padded AS ref
         CREATE (requirement:Requirement {
           id: $tenantSlug + ':' + $projectSlug + ':' + ref,
+          hashId: $hashId,
           ref: ref,
           tenant: $tenantSlug,
           projectKey: $projectSlug,
@@ -490,6 +529,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
         tenantName: input.tenant,
         projectSlug,
         projectKey: input.projectKey,
+        hashId,
         title: input.title,
         text: input.text,
         pattern: input.pattern ?? null,
@@ -800,6 +840,7 @@ export async function createDocument(params: {
   projectKey: string;
   name: string;
   description?: string;
+  shortCode?: string;
   parentFolder?: string;
 }): Promise<DocumentRecord> {
   const tenantSlug = slugify(params.tenant);
@@ -821,6 +862,7 @@ export async function createDocument(params: {
           slug: $documentSlug,
           name: $name,
           description: $description,
+          shortCode: $shortCode,
           tenant: $tenantSlug,
           projectKey: $projectSlug,
           parentFolder: $parentFolder,
@@ -844,6 +886,7 @@ export async function createDocument(params: {
         documentSlug,
         name: params.name,
         description: params.description ?? null,
+        shortCode: params.shortCode ?? null,
         parentFolder: params.parentFolder ?? null,
         now
       });
@@ -909,6 +952,49 @@ export async function getDocument(tenant: string, projectKey: string, documentSl
     const node = result.records[0].get("document");
     const count = result.records[0].get("requirementCount").toNumber();
     return mapDocument(node, count);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function updateDocument(tenant: string, projectKey: string, documentSlug: string, updates: {
+  name?: string;
+  description?: string;
+  shortCode?: string;
+}): Promise<DocumentRecord | null> {
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(projectKey);
+  const session = getSession();
+
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const setClause = Object.entries(updates)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, _]) => `document.${key} = $${key}`)
+        .join(', ');
+
+      if (!setClause) {
+        throw new Error("No valid updates provided");
+      }
+
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
+        SET ${setClause}, document.updatedAt = $now
+        RETURN document
+      `;
+
+      const res = await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        documentSlug,
+        ...updates,
+        now: new Date().toISOString()
+      });
+
+      return res.records.length > 0 ? res.records[0].get("document") : null;
+    });
+
+    return result ? transformDocumentRecord(result) : null;
   } finally {
     await session.close();
   }
@@ -1132,6 +1218,107 @@ export async function listFolders(tenant: string, projectKey: string): Promise<F
     }
 
     return folders;
+  } finally {
+    await session.close();
+  }
+}
+
+export async function updateFolder(tenant: string, projectKey: string, folderSlug: string, updates: {
+  name?: string;
+  description?: string;
+}): Promise<FolderRecord | null> {
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(projectKey);
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const setClause = Object.entries(updates)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, _]) => `folder.${key} = $${key}`)
+        .join(', ');
+      
+      if (!setClause) {
+        throw new Error("No valid updates provided");
+      }
+
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_FOLDER]->(folder:Folder {slug: $folderSlug})
+        WHERE folder.deletedAt IS NULL
+        SET ${setClause}, folder.updatedAt = $now
+        OPTIONAL MATCH (folder)-[:CONTAINS_FOLDER]->(subfolder:Folder)
+        WHERE subfolder.deletedAt IS NULL
+        OPTIONAL MATCH (folder)-[:CONTAINS_DOCUMENT]->(document:Document)
+        WHERE document.deletedAt IS NULL
+        RETURN folder, count(DISTINCT subfolder) AS folderCount, count(DISTINCT document) AS documentCount
+      `;
+
+      return await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        folderSlug,
+        now: new Date().toISOString(),
+        ...updates
+      });
+    });
+
+    if (result.records.length === 0) {
+      return null;
+    }
+
+    const record = result.records[0];
+    const node = record.get("folder");
+    const folderCount = record.get("folderCount").toNumber();
+    const documentCount = record.get("documentCount").toNumber();
+    return mapFolder(node, documentCount, folderCount);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function updateRequirement(tenant: string, projectKey: string, requirementId: string, updates: {
+  title?: string;
+  text?: string;
+  pattern?: RequirementPattern;
+  verification?: VerificationMethod;
+}): Promise<RequirementRecord | null> {
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(projectKey);
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const setClause = Object.entries(updates)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, _]) => `requirement.${key} = $${key}`)
+        .join(', ');
+      
+      if (!setClause) {
+        throw new Error("No valid updates provided");
+      }
+
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        MATCH (requirement:Requirement {id: $requirementId})
+        WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
+        SET ${setClause}, requirement.updatedAt = $now
+        RETURN requirement
+      `;
+
+      return await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        requirementId,
+        now: new Date().toISOString(),
+        ...updates
+      });
+    });
+
+    if (result.records.length === 0) {
+      return null;
+    }
+
+    const record = result.records[0];
+    const node = record.get("requirement");
+    return mapRequirement(node);
   } finally {
     await session.close();
   }

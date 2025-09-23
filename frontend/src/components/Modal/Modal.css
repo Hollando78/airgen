@@ -1,0 +1,378 @@
+/* Modal System - Professional Design */
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+  animation: modal-backdrop-enter 200ms ease-out forwards;
+  color: #0f172a; /* Ensure dark text by default */
+}
+
+@keyframes modal-backdrop-enter {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+}
+
+.modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transform: scale(0.95) translateY(20px);
+  opacity: 0;
+  animation: modal-enter 250ms ease-out 50ms forwards;
+  color: #0f172a; /* Force dark text in modal */
+}
+
+@keyframes modal-enter {
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Modal Sizes */
+.modal--small {
+  width: 100%;
+  max-width: 400px;
+}
+
+.modal--medium {
+  width: 100%;
+  max-width: 500px;
+}
+
+.modal--large {
+  width: 100%;
+  max-width: 700px;
+}
+
+.modal--xlarge {
+  width: 100%;
+  max-width: 900px;
+}
+
+/* Header */
+.modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 24px 0 24px;
+  margin-bottom: 24px;
+}
+
+.modal__title-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
+  margin: 0;
+  margin-bottom: 4px;
+}
+
+.modal__subtitle {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.modal__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+  margin-left: 16px;
+}
+
+.modal__close:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.modal__close:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Body */
+.modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px;
+  min-height: 0;
+}
+
+/* Footer */
+.modal__footer {
+  padding: 20px 24px 24px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+/* Form Styling within Modals */
+.modal .form-group {
+  margin-bottom: 20px;
+}
+
+.modal .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.modal .form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151 !important; /* Force dark label text */
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.modal .form-label--required::after {
+  content: " *";
+  color: #ef4444 !important;
+}
+
+.modal .form-input,
+.modal .form-textarea,
+.modal .form-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  background: white;
+  color: #1f2937 !important; /* Force dark input text */
+  transition: all 150ms ease;
+  font-family: inherit;
+}
+
+.modal .form-input:focus,
+.modal .form-textarea:focus,
+.modal .form-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.modal .form-input::placeholder,
+.modal .form-textarea::placeholder {
+  color: #9ca3af;
+}
+
+.modal .form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.modal .form-help {
+  display: block;
+  font-size: 12px;
+  color: #6b7280 !important; /* Force readable help text */
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+.modal .form-error {
+  display: block;
+  font-size: 12px;
+  color: #ef4444 !important; /* Force readable error text */
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+/* Compact Form Layout */
+.modal .form-row {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.modal .form-row .form-group {
+  margin-bottom: 0;
+}
+
+/* Button Styling */
+.modal .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: all 150ms ease;
+  border: 1px solid transparent;
+  min-height: 36px;
+  min-width: 80px;
+  gap: 6px;
+}
+
+.modal .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modal .btn--primary {
+  background: #3b82f6;
+  color: white !important; /* White text is OK on dark blue background */
+  border-color: #3b82f6;
+}
+
+.modal .btn--primary:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.modal .btn--primary:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.modal .btn--secondary {
+  background: white;
+  color: #374151 !important; /* Force dark button text */
+  border-color: #d1d5db;
+}
+
+.modal .btn--secondary:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.modal .btn--secondary:focus {
+  outline: 2px solid #6b7280;
+  outline-offset: 2px;
+}
+
+/* Loading state */
+.modal .btn--loading {
+  position: relative;
+  color: transparent;
+}
+
+.modal .btn--loading::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: btn-spin 0.8s linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Utility Classes */
+.space-y-4 > * + * {
+  margin-top: 16px;
+}
+
+.space-y-6 > * + * {
+  margin-top: 24px;
+}
+
+/* FINAL MODAL TEXT SAFETY NET */
+/* Ensure absolutely no white text on modal light backgrounds */
+.modal {
+  /* Override any inherited white text */
+  --text-color: #0f172a;
+}
+
+.modal *, 
+.modal *::before, 
+.modal *::after {
+  /* Force inheritance of dark text color unless specifically overridden for buttons */
+  color: var(--text-color) !important;
+}
+
+/* Allow white text only on dark button backgrounds */
+.modal .btn--primary,
+.modal .btn--primary *,
+.modal .primary-button,
+.modal .primary-button *,
+.modal button[style*="background: #"],
+.modal button[style*="background-color: #"] {
+  color: white !important;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .modal-backdrop {
+    padding: 16px;
+  }
+  
+  .modal {
+    border-radius: 12px;
+  }
+  
+  .modal__header {
+    padding: 20px 20px 0 20px;
+    margin-bottom: 20px;
+  }
+  
+  .modal__body {
+    padding: 0 20px;
+  }
+  
+  .modal__footer {
+    padding: 16px 20px 20px 20px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  
+  .modal .btn {
+    width: 100%;
+  }
+  
+  .modal .form-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}

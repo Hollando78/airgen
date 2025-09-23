@@ -26,6 +26,7 @@ import {
 import { SysmlBlockNode } from "../components/architecture/SysmlBlockNode";
 import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
+import { DocumentView } from "../components/DocumentView";
 
 type BlockPreset = {
   label: string;
@@ -107,6 +108,11 @@ export function ArchitectureRoute(): JSX.Element {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [minimapOpen, setMinimapOpen] = useState(true);
+  const [openedDocumentFromArchitecture, setOpenedDocumentFromArchitecture] = useState<string | null>(null);
+
+  // Debounced update refs
+  const positionUpdateTimeouts = useRef<Map<string, number>>(new Map());
+  const sizeUpdateTimeouts = useRef<Map<string, number>>(new Map());
 
   const [nodes, setNodes, onNodesStateChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesStateChange] = useEdgesState<Edge>([]);
@@ -117,8 +123,49 @@ export function ArchitectureRoute(): JSX.Element {
     enabled: Boolean(tenant && project)
   });
 
-  const documents = documentsQuery.data?.documents ?? [];
+  const documents = useMemo(() => 
+    documentsQuery.data?.documents ?? [], 
+    [documentsQuery.data?.documents]
+  );
 
+  const handleOpenDocumentFromArchitecture = useCallback((documentSlug: string) => {
+    setOpenedDocumentFromArchitecture(documentSlug);
+  }, []);
+
+  // Debounced update functions to prevent API flooding
+  const debouncedUpdateBlockPosition = useCallback((blockId: string, position: { x: number; y: number }) => {
+    const timeouts = positionUpdateTimeouts.current;
+    
+    // Clear existing timeout for this block
+    if (timeouts.has(blockId)) {
+      clearTimeout(timeouts.get(blockId)!);
+    }
+    
+    // Set new timeout
+    const timeout = setTimeout(() => {
+      updateBlockPosition(blockId, position);
+      timeouts.delete(blockId);
+    }, 300); // 300ms debounce
+    
+    timeouts.set(blockId, timeout);
+  }, [updateBlockPosition]);
+
+  const debouncedUpdateBlockSize = useCallback((blockId: string, size: { width: number; height: number }) => {
+    const timeouts = sizeUpdateTimeouts.current;
+    
+    // Clear existing timeout for this block
+    if (timeouts.has(blockId)) {
+      clearTimeout(timeouts.get(blockId)!);
+    }
+    
+    // Set new timeout
+    const timeout = setTimeout(() => {
+      updateBlockSize(blockId, size);
+      timeouts.delete(blockId);
+    }, 300); // 300ms debounce
+    
+    timeouts.set(blockId, timeout);
+  }, [updateBlockSize]);
 
   useEffect(() => {
     if (selectedBlockId && !architecture.blocks.some(block => block.id === selectedBlockId)) {
@@ -131,6 +178,19 @@ export function ArchitectureRoute(): JSX.Element {
       setSelectedConnectorId(null);
     }
   }, [architecture.connectors, selectedConnectorId]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      // Clear all position update timeouts
+      positionUpdateTimeouts.current.forEach(timeout => clearTimeout(timeout));
+      positionUpdateTimeouts.current.clear();
+      
+      // Clear all size update timeouts
+      sizeUpdateTimeouts.current.forEach(timeout => clearTimeout(timeout));
+      sizeUpdateTimeouts.current.clear();
+    };
+  }, []);
 
   useLayoutEffect(() => {
     setNodes(prevNodes => {
@@ -145,7 +205,9 @@ export function ArchitectureRoute(): JSX.Element {
           type: "sysmlBlock",
           position: block.position,
           data: {
-            block
+            block,
+            documents,
+            onOpenDocument: handleOpenDocumentFromArchitecture
           },
           style: {
             width: block.size.width,
@@ -160,7 +222,7 @@ export function ArchitectureRoute(): JSX.Element {
         } satisfies Node;
       });
     });
-  }, [architecture.blocks, selectedBlockId]);
+  }, [architecture.blocks, selectedBlockId, documents, handleOpenDocumentFromArchitecture]);
 
   useEffect(() => {
     setEdges(prevEdges => {
@@ -215,18 +277,20 @@ export function ArchitectureRoute(): JSX.Element {
         if (change.type === "position") {
           const nextPosition = change.position ?? change.positionAbsolute;
           if (nextPosition && !change.dragging) {
-            updateBlockPosition(change.id, nextPosition);
+            // Use debounced update to prevent API flooding
+            debouncedUpdateBlockPosition(change.id, nextPosition);
           }
         }
         if (change.type === "dimensions" && change.dimensions) {
-          updateBlockSize(change.id, {
+          // Use debounced update to prevent API flooding
+          debouncedUpdateBlockSize(change.id, {
             width: change.dimensions.width,
             height: change.dimensions.height
           });
         }
       });
     },
-    [onNodesStateChange, updateBlockPosition, updateBlockSize]
+    [onNodesStateChange, debouncedUpdateBlockPosition, debouncedUpdateBlockSize]
   );
 
   const handleEdgesChange = useCallback(
@@ -501,6 +565,15 @@ export function ArchitectureRoute(): JSX.Element {
           </div>
         </div>
       </div>
+
+      {openedDocumentFromArchitecture && tenant && project && (
+        <DocumentView
+          tenant={tenant}
+          project={project}
+          documentSlug={openedDocumentFromArchitecture}
+          onClose={() => setOpenedDocumentFromArchitecture(null)}
+        />
+      )}
     </div>
   );
 }

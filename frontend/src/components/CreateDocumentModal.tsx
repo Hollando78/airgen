@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
+import { Modal, TextInput, TextArea, Select, Button } from "./Modal";
 import type { FolderRecord } from "../types";
 
 interface CreateDocumentModalProps {
+  isOpen: boolean;
   tenant: string;
   project: string;
   parentFolder?: string;
@@ -12,6 +14,7 @@ interface CreateDocumentModalProps {
 }
 
 export function CreateDocumentModal({
+  isOpen,
   tenant,
   project,
   parentFolder,
@@ -20,6 +23,7 @@ export function CreateDocumentModal({
 }: CreateDocumentModalProps): JSX.Element {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [shortCode, setShortCode] = useState("");
   const [selectedFolder, setSelectedFolder] = useState(parentFolder || "");
   const api = useApiClient();
   const queryClient = useQueryClient();
@@ -38,90 +42,114 @@ export function CreateDocumentModal({
         projectKey: project,
         name: name.trim(),
         description: description.trim() || undefined,
+        shortCode: shortCode.trim() || undefined,
         parentFolder: selectedFolder || undefined
       });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["documents", tenant, project] });
       onCreated?.(data.document.slug);
-      onClose();
+      handleClose();
     }
   });
+
+  const handleClose = () => {
+    setName("");
+    setDescription("");
+    setShortCode("");
+    setSelectedFolder(parentFolder || "");
+    onClose();
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createMutation.mutate();
   };
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Create Document</h2>
-          <button type="button" onClick={onClose} className="ghost-button">×</button>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="modal-body">
-          <div className="form-field">
-            <label htmlFor="doc-name">Document Name *</label>
-            <input
-              id="doc-name"
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g., User Interface, Backend API"
-              required
-              autoFocus
-            />
-          </div>
-          
-          <div className="form-field">
-            <label htmlFor="doc-description">Description</label>
-            <textarea
-              id="doc-description"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Brief description of this document's scope"
-              rows={3}
-            />
-          </div>
+  const folderOptions = [
+    { value: "", label: "No parent folder (root level)" },
+    ...(foldersQuery.data?.folders.map(folder => ({
+      value: folder.slug,
+      label: folder.name
+    })) || [])
+  ];
 
-          <div className="form-field">
-            <label htmlFor="doc-folder">Parent Folder (optional)</label>
-            <select
-              id="doc-folder"
-              value={selectedFolder}
-              onChange={e => setSelectedFolder(e.target.value)}
-            >
-              <option value="">No parent folder (root level)</option>
-              {foldersQuery.data?.folders.map(folder => (
-                <option key={folder.slug} value={folder.slug}>
-                  {folder.name}
-                </option>
-              ))}
-            </select>
+  const footer = (
+    <>
+      <Button variant="secondary" onClick={handleClose}>
+        Cancel
+      </Button>
+      <Button 
+        type="submit" 
+        loading={createMutation.isPending}
+        disabled={!name.trim()}
+        onClick={handleSubmit}
+      >
+        Create Document
+      </Button>
+    </>
+  );
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="Create Document"
+      subtitle="Add a new requirements document to organize your project"
+      size="medium"
+      footer={footer}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <TextInput
+          label="Document Name"
+          required
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g., User Requirements Document, Software Requirements"
+          autoFocus
+        />
+        
+        <div className="form-row">
+          <TextInput
+            label="Short Code"
+            value={shortCode}
+            onChange={e => setShortCode(e.target.value.toUpperCase())}
+            placeholder="e.g., URD, SRS"
+            maxLength={10}
+            style={{ textTransform: "uppercase" }}
+            help="Used for requirement IDs (e.g., URD-FUN-001)"
+          />
+          <Select
+            label="Parent Folder"
+            value={selectedFolder}
+            onChange={e => setSelectedFolder(e.target.value)}
+            options={folderOptions}
+            help="Optional organization folder"
+          />
+        </div>
+
+        <TextArea
+          label="Description"
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Brief description of this document's scope and purpose..."
+          rows={3}
+          help="Helps team members understand what this document contains"
+        />
+
+        {createMutation.isError && (
+          <div style={{ 
+            padding: "12px", 
+            backgroundColor: "#fef2f2", 
+            border: "1px solid #fecaca", 
+            borderRadius: "8px",
+            color: "#dc2626",
+            fontSize: "14px"
+          }}>
+            {createMutation.error?.message || "Failed to create document"}
           </div>
-          
-          <div className="form-actions">
-            <button type="button" onClick={onClose} className="ghost-button">
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={!name.trim() || createMutation.isPending}
-              className="primary-button"
-            >
-              {createMutation.isPending ? "Creating..." : "Create Document"}
-            </button>
-          </div>
-          
-          {createMutation.isError && (
-            <div className="error-message">
-              {createMutation.error?.message || "Failed to create document"}
-            </div>
-          )}
-        </form>
-      </div>
-    </div>
+        )}
+      </form>
+    </Modal>
   );
 }

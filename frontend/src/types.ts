@@ -58,6 +58,7 @@ export type ApplyFixResponse = {
 
 export type RequirementRecord = {
   id: string;
+  hashId: string;
   ref: string;
   tenant: string;
   projectKey: string;
@@ -141,6 +142,7 @@ export type DocumentRecord = {
   slug: string;
   name: string;
   description?: string | null;
+  shortCode?: string | null;
   tenant: string;
   projectKey: string;
   parentFolder?: string | null;
@@ -167,6 +169,7 @@ export type DocumentSectionRecord = {
   id: string;
   name: string;
   description?: string | null;
+  shortCode?: string | null;
   documentSlug: string;
   tenant: string;
   projectKey: string;
@@ -205,6 +208,7 @@ export type CreateSectionRequest = {
   documentSlug: string;
   name: string;
   description?: string;
+  shortCode?: string;
   order: number;
 };
 

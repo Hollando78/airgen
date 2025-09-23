@@ -120,6 +120,7 @@ export function TenantProjectDocumentSelector(): JSX.Element {
 
       {showCreateDocModal && tpState.tenant && tpState.project && (
         <CreateDocumentModal
+          isOpen={showCreateDocModal}
           tenant={tpState.tenant}
           project={tpState.project}
           onClose={() => setShowCreateDocModal(false)}

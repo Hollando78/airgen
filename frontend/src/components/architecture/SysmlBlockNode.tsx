@@ -1,9 +1,12 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, NodeResizer, Position } from "@xyflow/react";
 import type { SysmlBlock } from "../../hooks/useArchitecture";
+import type { DocumentRecord } from "../../types";
 
 export type SysmlBlockNodeData = {
   block: SysmlBlock;
+  documents?: DocumentRecord[];
+  onOpenDocument?: (documentSlug: string) => void;
 };
 
 function formatStereotype(value?: string) {
@@ -13,9 +16,14 @@ function formatStereotype(value?: string) {
 }
 
 export function SysmlBlockNode({ id, data, selected }: NodeProps) {
-  const { block } = data as SysmlBlockNodeData;
+  const { block, documents = [], onOpenDocument } = data as SysmlBlockNodeData;
   const leftPorts = block.ports.filter(port => port.direction !== "out");
   const rightPorts = block.ports.filter(port => port.direction !== "in");
+  
+  // Get linked documents
+  const linkedDocuments = documents.filter(doc => 
+    block.documentIds?.includes(doc.id)
+  );
 
   const baseHeight = 56;
   const portSpacing = 22;
@@ -38,8 +46,37 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
         cursor: "pointer"
       }}
     >
-      <NodeResizer minHeight={120} minWidth={200} isVisible={selected} lineStyle={{ stroke: "#2563eb" }} handleStyle={{ fill: "#2563eb" }} />
-      <div style={{ padding: "12px 16px", position: "relative", height: "100%" }}>
+      <NodeResizer 
+        minHeight={140} 
+        minWidth={220} 
+        maxWidth={500}
+        maxHeight={400}
+        isVisible={selected}
+        shouldResize={() => true}
+        lineStyle={{ 
+          stroke: "#2563eb", 
+          strokeWidth: 2,
+          strokeDasharray: "4 4"
+        }} 
+        handleStyle={{ 
+          fill: "#2563eb", 
+          stroke: "#ffffff",
+          strokeWidth: 2,
+          width: 16, 
+          height: 16,
+          borderRadius: 3,
+          cursor: "nwse-resize"
+        }}
+        lineClassName="node-resizer-line"
+        handleClassName="node-resizer-handle"
+      />
+      <div style={{ 
+        padding: "12px 16px", 
+        position: "relative", 
+        height: "100%",
+        pointerEvents: "auto",
+        overflow: "hidden"
+      }}>
         <div style={{ fontSize: "12px", textTransform: "uppercase", color: "#475569", letterSpacing: "0.08em" }}>
           {formatStereotype(block.stereotype)}
         </div>
@@ -47,6 +84,75 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
         {block.description && (
           <div style={{ marginTop: "8px", fontSize: "12px", color: "#6b7280" }}>{block.description}</div>
         )}
+        
+        {linkedDocuments.length > 0 && (
+          <div style={{ marginTop: "12px", borderTop: "1px solid #e2e8f0", paddingTop: "8px" }}>
+            <div style={{ 
+              fontSize: "11px", 
+              color: "#64748b", 
+              marginBottom: "6px",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px"
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14,2 14,8 20,8"/>
+              </svg>
+              Documents ({linkedDocuments.length})
+            </div>
+            <div style={{ display: "grid", gap: "4px" }}>
+              {linkedDocuments.map(doc => (
+                <button
+                  key={doc.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenDocument?.(doc.slug);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    fontSize: "12px",
+                    background: "#dbeafe",
+                    borderRadius: "6px",
+                    padding: "6px 8px",
+                    border: "1px solid #bfdbfe",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    width: "100%",
+                    textAlign: "left"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#bfdbfe";
+                    e.currentTarget.style.borderColor = "#93c5fd";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#dbeafe";
+                    e.currentTarget.style.borderColor = "#bfdbfe";
+                  }}
+                  title={`Open document: ${doc.name}`}
+                >
+                  <span style={{ 
+                    color: "#1e40af",
+                    fontWeight: 500,
+                    textOverflow: "ellipsis",
+                    overflow: "hidden",
+                    whiteSpace: "nowrap"
+                  }}>
+                    {doc.name}
+                  </span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "#3b82f6", flexShrink: 0 }}>
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15,3 21,3 21,9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        
         {block.ports.length > 0 && (
           <div style={{ marginTop: "12px", borderTop: "1px solid #e2e8f0", paddingTop: "8px" }}>
             <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "6px" }}>Ports</div>
@@ -79,7 +185,23 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
           style={{
             top: Math.min(block.size.height - 24, baseHeight + index * portSpacing),
             background: "#0ea5e9",
-            border: "2px solid #bae6fd"
+            border: "3px solid #bae6fd",
+            width: "16px",
+            height: "16px",
+            borderRadius: "8px",
+            cursor: "crosshair",
+            transition: "all 0.2s ease",
+            zIndex: 10
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#0284c7";
+            e.currentTarget.style.borderColor = "#7dd3fc";
+            e.currentTarget.style.transform = "scale(1.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "#0ea5e9";
+            e.currentTarget.style.borderColor = "#bae6fd";
+            e.currentTarget.style.transform = "scale(1)";
           }}
         />
       ))}
@@ -92,7 +214,23 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
           style={{
             top: Math.min(block.size.height - 24, baseHeight + index * portSpacing),
             background: "#22c55e",
-            border: "2px solid #bbf7d0"
+            border: "3px solid #bbf7d0",
+            width: "16px",
+            height: "16px",
+            borderRadius: "8px",
+            cursor: "crosshair",
+            transition: "all 0.2s ease",
+            zIndex: 10
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#16a34a";
+            e.currentTarget.style.borderColor = "#86efac";
+            e.currentTarget.style.transform = "scale(1.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "#22c55e";
+            e.currentTarget.style.borderColor = "#bbf7d0";
+            e.currentTarget.style.transform = "scale(1)";
           }}
         />
       ))}
@@ -101,13 +239,51 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
         id="default-in"
         type="target"
         position={Position.Top}
-        style={{ background: "#0ea5e9", border: "2px solid #bae6fd" }}
+        style={{
+          background: "#0ea5e9",
+          border: "3px solid #bae6fd",
+          width: "16px",
+          height: "16px",
+          borderRadius: "8px",
+          cursor: "crosshair",
+          transition: "all 0.2s ease",
+          zIndex: 10
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "#0284c7";
+          e.currentTarget.style.borderColor = "#7dd3fc";
+          e.currentTarget.style.transform = "scale(1.2)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "#0ea5e9";
+          e.currentTarget.style.borderColor = "#bae6fd";
+          e.currentTarget.style.transform = "scale(1)";
+        }}
       />
       <Handle
         id="default-out"
         type="source"
         position={Position.Bottom}
-        style={{ background: "#22c55e", border: "2px solid #bbf7d0" }}
+        style={{
+          background: "#22c55e",
+          border: "3px solid #bbf7d0",
+          width: "16px",
+          height: "16px",
+          borderRadius: "8px",
+          cursor: "crosshair",
+          transition: "all 0.2s ease",
+          zIndex: 10
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "#16a34a";
+          e.currentTarget.style.borderColor = "#86efac";
+          e.currentTarget.style.transform = "scale(1.2)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "#22c55e";
+          e.currentTarget.style.borderColor = "#bbf7d0";
+          e.currentTarget.style.transform = "scale(1)";
+        }}
       />
     </div>
   );

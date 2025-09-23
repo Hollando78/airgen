@@ -91,6 +91,8 @@ export function useApiClient() {
           method: "POST",
           body: JSON.stringify(body)
         }),
+      updateRequirement: (tenant: string, project: string, requirementId: string, updates: { title?: string; text?: string; pattern?: string; verification?: string }) =>
+        request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "PATCH", body: JSON.stringify(updates) }),
       createBaseline: (body: { tenant: string; projectKey: string; label?: string; author?: string }) =>
         request<BaselineResponse>(`/baseline`, { method: "POST", body: JSON.stringify(body) }),
       listBaselines: (tenant: string, project: string) =>
@@ -99,8 +101,10 @@ export function useApiClient() {
         request<DocumentsResponse>(`/documents/${tenant}/${project}`),
       getDocument: (tenant: string, project: string, documentSlug: string) =>
         request<DocumentResponse>(`/documents/${tenant}/${project}/${documentSlug}`),
-      createDocument: (body: { tenant: string; projectKey: string; name: string; description?: string; parentFolder?: string }) =>
+      createDocument: (body: { tenant: string; projectKey: string; name: string; description?: string; shortCode?: string; parentFolder?: string }) =>
         request<DocumentResponse>(`/documents`, { method: "POST", body: JSON.stringify(body) }),
+      updateDocument: (tenant: string, project: string, documentSlug: string, updates: { name?: string; description?: string; shortCode?: string }) =>
+        request<DocumentResponse>(`/documents/${tenant}/${project}/${documentSlug}`, { method: "PATCH", body: JSON.stringify(updates) }),
       updateDocumentFolder: (tenant: string, project: string, documentSlug: string, parentFolder?: string | null) =>
         request<DocumentResponse>(`/documents/${tenant}/${project}/${documentSlug}`, { method: "PATCH", body: JSON.stringify({ parentFolder }) }),
       deleteDocument: (tenant: string, project: string, documentSlug: string) =>
@@ -109,6 +113,8 @@ export function useApiClient() {
         request<FoldersResponse>(`/folders/${tenant}/${project}`),
       createFolder: (body: { tenant: string; projectKey: string; name: string; description?: string; parentFolder?: string }) =>
         request<FolderResponse>(`/folders`, { method: "POST", body: JSON.stringify(body) }),
+      updateFolder: (tenant: string, project: string, folderSlug: string, updates: { name?: string; description?: string }) =>
+        request<FolderResponse>(`/folders/${tenant}/${project}/${folderSlug}`, { method: "PATCH", body: JSON.stringify(updates) }),
       deleteFolder: (tenant: string, project: string, folderSlug: string) =>
         request<FolderResponse>(`/folders/${tenant}/${project}/${folderSlug}`, { method: "DELETE" }),
       listDocumentSections: (tenant: string, project: string, documentSlug: string) =>

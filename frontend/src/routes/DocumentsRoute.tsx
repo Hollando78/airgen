@@ -3,19 +3,21 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTenantProjectDocument } from "../components/TenantProjectDocumentSelector";
 import { CreateDocumentModal } from "../components/CreateDocumentModal";
 import { CreateFolderModal } from "../components/CreateFolderModal";
-import { DocumentTree } from "../components/DocumentTree";
+import { DocumentManager } from "../components/FileManager/DocumentManager";
 import { DocumentView } from "../components/DocumentView";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
+import "../components/FileManager/FileManager.css";
 
 export function DocumentsRoute(): JSX.Element {
   const api = useApiClient();
   const { tenant, project } = useTenantProjectDocument();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [openedDocument, setOpenedDocument] = useState<string | null>(null);
+  const [createFolderParent, setCreateFolderParent] = useState<string | undefined>(undefined);
+  const [createDocumentParent, setCreateDocumentParent] = useState<string | undefined>(undefined);
   const queryClient = useQueryClient();
 
   const documentsQuery = useQuery({
@@ -58,45 +60,62 @@ export function DocumentsRoute(): JSX.Element {
 
   return (
     <>
-      <div className="panel">
-        <div className="panel-header">
-          <div>
-            <h1>Documents</h1>
-            <p>Organize requirements into structured documents for {project}.</p>
+      <div className="panel-stack">
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <h1>Documents</h1>
+              <p>Organize requirements into structured documents for {project}.</p>
+            </div>
           </div>
-        </div>
 
-        <DocumentTree
-          tenant={tenant}
-          project={project}
-          folders={folders}
-          documents={documents}
-          selectedItem={selectedItem}
-          onSelectItem={(type, slug) => setSelectedItem(slug)}
-          onOpenDocument={(documentSlug) => setOpenedDocument(documentSlug)}
-          onCreateFolder={() => setShowCreateFolderModal(true)}
-          onCreateDocument={() => setShowCreateModal(true)}
-        />
+          <DocumentManager
+            tenant={tenant}
+            project={project}
+            folders={folders}
+            documents={documents}
+            onOpenDocument={(documentSlug) => setOpenedDocument(documentSlug)}
+            onCreateFolder={(parentFolder) => {
+              setCreateFolderParent(parentFolder);
+              setShowCreateFolderModal(true);
+            }}
+            onCreateDocument={(parentFolder) => {
+              setCreateDocumentParent(parentFolder);
+              setShowCreateModal(true);
+            }}
+          />
+        </div>
       </div>
 
-      {showCreateModal && (
-        <CreateDocumentModal
-          tenant={tenant}
-          project={project}
-          onClose={() => setShowCreateModal(false)}
-          onCreated={() => {
-            queryClient.invalidateQueries({ queryKey: ["documents", tenant, project] });
-          }}
-        />
-      )}
+      <CreateDocumentModal
+        isOpen={showCreateModal}
+        tenant={tenant}
+        project={project}
+        parentFolder={createDocumentParent}
+        onClose={() => {
+          setShowCreateModal(false);
+          setCreateDocumentParent(undefined);
+        }}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["documents", tenant, project] });
+          setShowCreateModal(false);
+          setCreateDocumentParent(undefined);
+        }}
+      />
 
       {showCreateFolderModal && (
         <CreateFolderModal
           tenant={tenant}
           project={project}
-          onClose={() => setShowCreateFolderModal(false)}
+          parentFolder={createFolderParent}
+          onClose={() => {
+            setShowCreateFolderModal(false);
+            setCreateFolderParent(undefined);
+          }}
           onCreated={() => {
             queryClient.invalidateQueries({ queryKey: ["folders", tenant, project] });
+            setShowCreateFolderModal(false);
+            setCreateFolderParent(undefined);
           }}
         />
       )}

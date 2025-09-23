@@ -43,6 +43,59 @@ input,
 select,
 textarea {
   font: inherit;
+  color: var(--text) !important; /* Ensure dark text in form elements */
+}
+
+/* APP-WIDE TEXT READABILITY RULES */
+/* Ensure readable text colors throughout the application */
+
+/* Ensure all form elements and labels use dark text on light backgrounds */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+textarea,
+select,
+label,
+.form-label,
+.form-input,
+.form-textarea,
+.form-select,
+.form-help,
+.form-error {
+  color: var(--text) !important;
+}
+
+/* Ensure modal content uses dark text (except on dark button backgrounds) */
+.modal input:not(.btn):not([type="button"]):not([type="submit"]):not([type="reset"]),
+.modal textarea,
+.modal select,
+.modal label,
+.modal h1, .modal h2, .modal h3, .modal h4, .modal h5, .modal h6,
+.modal p:not(.btn), 
+.modal span:not(.btn), 
+.modal div:not(.btn) {
+  color: var(--text) !important;
+}
+
+/* Light backgrounds should never have white text */
+.panel,
+.modal,
+.app-shell,
+.file-manager,
+[style*="background: white"],
+[style*="background: #fff"],
+[style*="background: #ffffff"],
+[style*="background-color: white"],
+[style*="background-color: #fff"],
+[style*="background-color: #ffffff"] {
+  color: var(--text);
+}
+
+/* Secondary buttons (light backgrounds) should have dark text */
+.btn--secondary,
+.ghost-button,
+button[style*="background: white"],
+button[style*="background: #fff"],
+button[style*="background-color: white"] {
+  color: var(--text) !important;
 }
 
 .app-shell {
@@ -606,4 +659,173 @@ button:hover:not(:disabled) {
   font-size: 0.8rem;
   color: var(--muted);
   margin-top: 0.25rem;
+}
+
+/* ReactFlow Architecture Diagram Enhancements */
+.react-flow {
+  background-color: #f8fafc;
+}
+
+.react-flow__background {
+  background-color: #f8fafc;
+}
+
+/* Enhanced connection handles visibility */
+.react-flow__handle {
+  border: 3px solid !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.react-flow__handle-connecting {
+  background: #ff6b6b !important;
+  border-color: #ff9999 !important;
+  transform: scale(1.3) !important;
+  animation: pulse 0.5s infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 0.8; }
+  to { opacity: 1; }
+}
+
+/* Improved edge styling */
+.react-flow__edge-path {
+  stroke-width: 2px;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #2563eb;
+  stroke-width: 3px;
+}
+
+/* Connection line styling */
+.react-flow__connectionline {
+  stroke: #2563eb;
+  stroke-width: 3px;
+  stroke-dasharray: 8 4;
+  opacity: 0.8;
+}
+
+/* Node selection improvements */
+.react-flow__node.selected {
+  box-shadow: 0 0 0 2px #2563eb, 0 8px 16px rgba(37, 99, 235, 0.25) !important;
+}
+
+/* Architecture workspace specific styling */
+.architecture-workspace .react-flow__node {
+  cursor: move;
+}
+
+.architecture-workspace .react-flow__node.selected {
+  cursor: move;
+}
+
+/* Minimap styling improvements */
+.react-flow__minimap {
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+/* Controls styling */
+.react-flow__controls {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  border-bottom: 1px solid #e2e8f0 !important;
+  background: white !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #f8fafc !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+/* NodeResizer handle improvements */
+.node-resizer-handle {
+  z-index: 100 !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  cursor: nwse-resize !important;
+  width: 16px !important;
+  height: 16px !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 3px !important;
+  background: #2563eb !important;
+  transition: all 0.2s ease !important;
+}
+
+.node-resizer-handle:hover {
+  background: #1d4ed8 !important;
+  transform: scale(1.2) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3) !important;
+}
+
+.node-resizer-line {
+  z-index: 99 !important;
+  pointer-events: none !important;
+  opacity: 0.8 !important;
+}
+
+/* Additional ReactFlow resizer overrides */
+.react-flow__resize-control {
+  z-index: 100 !important;
+  pointer-events: auto !important;
+}
+
+.react-flow__resize-control.handle {
+  width: 16px !important;
+  height: 16px !important;
+  background: #2563eb !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 3px !important;
+  cursor: nwse-resize !important;
+}
+
+.react-flow__resize-control.handle:hover {
+  background: #1d4ed8 !important;
+  transform: scale(1.2) !important;
+}
+
+/* Ensure resizer handles are always visible and clickable */
+.react-flow__node.selected .react-flow__resize-control {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 1000 !important;
+}
+
+/* Override any potential interference */
+.react-flow__node.selected {
+  overflow: visible !important;
+}
+
+/* Specific targeting for NodeResizer */
+[data-testid="rf__node-resizer"] {
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+}
+
+[data-testid="rf__node-resizer"] .react-flow__resize-control {
+  z-index: 1001 !important;
+  pointer-events: auto !important;
+  width: 16px !important;
+  height: 16px !important;
+  background: #2563eb !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 3px !important;
+  cursor: nwse-resize !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }

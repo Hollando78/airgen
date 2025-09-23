@@ -1,29 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Modal, TextInput, TextArea, Select, Button } from "./Modal";
-import type { RequirementPattern, VerificationMethod } from "../types";
+import type { RequirementRecord, RequirementPattern, VerificationMethod } from "../types";
 
-interface AddRequirementModalProps {
+interface EditRequirementModalProps {
   isOpen: boolean;
-  sectionName: string;
+  requirement: RequirementRecord | null;
   onClose: () => void;
-  onAdd: (requirement: {
-    title: string;
-    text: string;
+  onUpdate: (updates: {
+    title?: string;
+    text?: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
   }) => void;
 }
 
-export function AddRequirementModal({
+export function EditRequirementModal({
   isOpen,
-  sectionName,
+  requirement,
   onClose,
-  onAdd
-}: AddRequirementModalProps): JSX.Element {
+  onUpdate
+}: EditRequirementModalProps): JSX.Element {
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [pattern, setPattern] = useState<RequirementPattern | "">("");
   const [verification, setVerification] = useState<VerificationMethod | "">("");
+
+  useEffect(() => {
+    if (isOpen && requirement) {
+      setTitle(requirement.title);
+      setText(requirement.text);
+      setPattern(requirement.pattern || "");
+      setVerification(requirement.verification || "");
+    }
+  }, [isOpen, requirement]);
 
   const handleClose = () => {
     setTitle("");
@@ -36,7 +45,7 @@ export function AddRequirementModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (title.trim() && text.trim()) {
-      onAdd({
+      onUpdate({
         title: title.trim(),
         text: text.trim(),
         pattern: pattern as RequirementPattern || undefined,
@@ -73,17 +82,19 @@ export function AddRequirementModal({
         disabled={!title.trim() || !text.trim()}
         onClick={handleSubmit}
       >
-        Add Requirement
+        Update Requirement
       </Button>
     </>
   );
+
+  if (!requirement) return <div></div>;
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={`Add Requirement`}
-      subtitle={`Create a new requirement in ${sectionName}`}
+      title="Edit Requirement"
+      subtitle={`Update requirement ${requirement.ref}`}
       size="large"
       footer={footer}
     >
