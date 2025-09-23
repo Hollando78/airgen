@@ -59,6 +59,12 @@ This structure allows future expansion for needs, risks, or test cases as additi
 - Enable TLS in Traefik and, if needed, encrypted Bolt connections (`GRAPH_ENCRYPTED=true`).
 - Store secrets in a vault/manager instead of plain `.env` on shared hosts.
 
+## Authentication & Authorization Roadmap
+- A dedicated Fastify auth plugin now wraps `@fastify/jwt`, attaches a normalized `request.currentUser`, and exposes `app.authenticate` for protected routes while keeping `app.optionalAuthenticate` for public flows. This makes it straightforward to ratchet up enforcement route-by-route once account onboarding is complete.
+- User principals are expected to arrive via JWTs (OIDC, Auth0, etc.). The payload should include `sub`, `email`, and optional role/tenant claims (`roles`, `tenantSlugs`) so authorization checks can be done without extra hops.
+- Multi-tenant scoping will align with Neo4j tenant slugs. Once account management lands, guarded routes can validate that `request.currentUser.tenantSlugs` contains the tenant in the request path before continuing.
+- Future work: add a `/auth/login` exchange (for password or device code flows if needed), persist users/roles/refresh tokens in Neo4j or Postgres, and emit audit events for requirement mutations.
+
 ## Roadmap Ideas
 - Add nodes for Needs/Tests and create automated `[:VERIFIES]` or `[:SATISFIES]` relationships.
 - Incorporate vector search (pgvector/Qdrant) for semantic linking.

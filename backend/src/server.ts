@@ -2,7 +2,6 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import jwt from "@fastify/jwt";
 import { analyzeRequirement, AMBIGUOUS } from "@airgen/req-qa";
 import { z } from "zod";
 import { config } from "./config.js";
@@ -20,10 +19,27 @@ import {
   listRequirements,
   getRequirement,
   createBaseline,
-  suggestLinks
+  suggestLinks,
+  listTenants,
+  listProjects,
+  listBaselines,
+  createDocument,
+  listDocuments,
+  getDocument,
+  updateDocumentFolder,
+  softDeleteDocument,
+  softDeleteFolder,
+  createFolder,
+  listFolders,
+  createDocumentSection,
+  listDocumentSections,
+  updateDocumentSection,
+  deleteDocumentSection,
+  listSectionRequirements
 } from "./services/graph.js";
 import { generateDrafts } from "./services/drafts.js";
 import { generateLlmDrafts, isLlmConfigured } from "./services/llm.js";
+import { registerAuth } from "./plugins/auth.js";
 
 await ensureWorkspace();
 await initGraph();
@@ -33,7 +49,9 @@ const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
 await app.register(helmet);
 await app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
-await app.register(jwt, { secret: config.jwtSecret });
+await registerAuth(app);
+
+app.addHook("onRequest", app.optionalAuthenticate);
 
 app.addHook("onClose", async () => {
   await closeGraph();
@@ -68,6 +86,8 @@ const draftSchema = z.object({
 const requirementSchema = z.object({
   tenant: z.string().min(1).default(config.defaultTenant),
   projectKey: z.string().min(1),
+  documentSlug: z.string().min(1).optional(),
+  sectionId: z.string().min(1).optional(),
   title: z.string().min(3),
   text: z.string().min(10),
   pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional(),
@@ -85,12 +105,49 @@ const baselineSchema = z.object({
   author: z.string().min(1).optional()
 });
 
+const documentSchema = z.object({
+  tenant: z.string().min(1).default(config.defaultTenant),
+  projectKey: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  parentFolder: z.string().optional()
+});
+
+const folderSchema = z.object({
+  tenant: z.string().min(1).default(config.defaultTenant),
+  projectKey: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  parentFolder: z.string().optional()
+});
+
+const documentSectionSchema = z.object({
+  tenant: z.string().min(1).default(config.defaultTenant),
+  projectKey: z.string().min(1),
+  documentSlug: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  order: z.number().int().min(0)
+});
+
 app.get("/health", async () => ({
   ok: true,
   env: config.environment,
   workspace: config.workspaceRoot,
   time: new Date().toISOString()
 }));
+
+app.get("/tenants", async () => {
+  const tenants = await listTenants();
+  return { tenants };
+});
+
+app.get("/tenants/:tenant/projects", async (req) => {
+  const paramsSchema = z.object({ tenant: z.string().min(1) });
+  const params = paramsSchema.parse(req.params);
+  const projects = await listProjects(params.tenant);
+  return { projects };
+});
 
 app.post("/qa", async (req) => {
   const schema = z.object({ text: z.string().min(1) });
@@ -163,6 +220,8 @@ app.post("/requirements", async (req) => {
   const record = await createRequirement({
     tenant: payload.tenant,
     projectKey: payload.projectKey,
+    documentSlug: payload.documentSlug,
+    sectionId: payload.sectionId,
     title: payload.title,
     text: payload.text,
     pattern: payload.pattern,
@@ -220,6 +279,13 @@ app.post("/baseline", async (req) => {
   return { baseline: record };
 });
 
+app.get("/baselines/:tenant/:project", async (req) => {
+  const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
+  const params = paramsSchema.parse(req.params);
+  const items = await listBaselines(params.tenant, params.project);
+  return { items };
+});
+
 app.post("/link/suggest", async (req) => {
   const schema = z.object({ tenant: z.string(), project: z.string(), text: z.string().min(10) });
   const payload = schema.parse(req.body);
@@ -230,6 +296,168 @@ app.post("/link/suggest", async (req) => {
     limit: 3
   });
   return { suggestions };
+});
+
+app.post("/documents", async (req) => {
+  const payload = documentSchema.parse(req.body);
+  const document = await createDocument({
+    tenant: payload.tenant,
+    projectKey: payload.projectKey,
+    name: payload.name,
+    description: payload.description,
+    parentFolder: payload.parentFolder
+  });
+  return { document };
+});
+
+app.get("/documents/:tenant/:project", async (req) => {
+  const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
+  const params = paramsSchema.parse(req.params);
+  const documents = await listDocuments(params.tenant, params.project);
+  return { documents };
+});
+
+app.get("/documents/:tenant/:project/:documentSlug", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    documentSlug: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  const document = await getDocument(params.tenant, params.project, params.documentSlug);
+  if (!document) return reply.status(404).send({ error: "Document not found" });
+  return { document };
+});
+
+app.patch("/documents/:tenant/:project/:documentSlug", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    documentSlug: z.string().min(1)
+  });
+  const bodySchema = z.object({
+    parentFolder: z.string().optional().nullable()
+  });
+  const params = paramsSchema.parse(req.params);
+  const body = bodySchema.parse(req.body);
+  
+  const document = await updateDocumentFolder(params.tenant, params.project, params.documentSlug, body.parentFolder);
+  if (!document) return reply.status(404).send({ error: "Document not found" });
+  return { document };
+});
+
+app.post("/folders", async (req) => {
+  const payload = folderSchema.parse(req.body);
+  const folder = await createFolder({
+    tenant: payload.tenant,
+    projectKey: payload.projectKey,
+    name: payload.name,
+    description: payload.description,
+    parentFolder: payload.parentFolder
+  });
+  return { folder };
+});
+
+app.get("/folders/:tenant/:project", async (req) => {
+  const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
+  const params = paramsSchema.parse(req.params);
+  const folders = await listFolders(params.tenant, params.project);
+  return { folders };
+});
+
+app.delete("/documents/:tenant/:project/:documentSlug", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    documentSlug: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  const document = await softDeleteDocument(params.tenant, params.project, params.documentSlug);
+  if (!document) return reply.status(404).send({ error: "Document not found" });
+  return { document };
+});
+
+app.delete("/folders/:tenant/:project/:folderSlug", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    folderSlug: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  const folder = await softDeleteFolder(params.tenant, params.project, params.folderSlug);
+  if (!folder) return reply.status(404).send({ error: "Folder not found" });
+  return { folder };
+});
+
+// Document sections endpoints
+app.post("/sections", async (req) => {
+  const payload = documentSectionSchema.parse(req.body);
+  const section = await createDocumentSection({
+    tenant: payload.tenant,
+    projectKey: payload.projectKey,
+    documentSlug: payload.documentSlug,
+    name: payload.name,
+    description: payload.description,
+    order: payload.order
+  });
+  return { section };
+});
+
+app.get("/sections/:tenant/:project/:documentSlug", async (req) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    documentSlug: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  const sections = await listDocumentSections(params.tenant, params.project, params.documentSlug);
+  return { sections };
+});
+
+app.patch("/sections/:sectionId", async (req, reply) => {
+  const paramsSchema = z.object({
+    sectionId: z.string().min(1)
+  });
+  const bodySchema = z.object({
+    name: z.string().min(1).optional(),
+    description: z.string().optional(),
+    order: z.number().int().min(0).optional()
+  });
+  const params = paramsSchema.parse(req.params);
+  const body = bodySchema.parse(req.body);
+  
+  try {
+    const section = await updateDocumentSection(params.sectionId, body);
+    return { section };
+  } catch (error) {
+    if ((error as Error).message === 'Section not found') {
+      return reply.status(404).send({ error: "Section not found" });
+    }
+    throw error;
+  }
+});
+
+app.delete("/sections/:sectionId", async (req, reply) => {
+  const paramsSchema = z.object({
+    sectionId: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  
+  try {
+    await deleteDocumentSection(params.sectionId);
+    return { success: true };
+  } catch (error) {
+    return reply.status(404).send({ error: "Section not found" });
+  }
+});
+
+app.get("/sections/:sectionId/requirements", async (req) => {
+  const paramsSchema = z.object({
+    sectionId: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  const requirements = await listSectionRequirements(params.sectionId);
+  return { requirements };
 });
 
 const port = config.port;

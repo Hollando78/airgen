@@ -34,6 +34,21 @@ export type BaselineRecord = {
   requirementRefs: string[];
 };
 
+export type TenantRecord = {
+  slug: string;
+  name: string | null;
+  createdAt: string | null;
+  projectCount: number;
+};
+
+export type ProjectRecord = {
+  slug: string;
+  tenantSlug: string;
+  key: string | null;
+  createdAt: string | null;
+  requirementCount: number;
+};
+
 export function slugify(value: string): string {
   return value
     .toLowerCase()

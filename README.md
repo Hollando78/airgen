@@ -48,12 +48,15 @@ docker compose up -d --build
 pnpm install
 pnpm -C packages/req-qa build
 pnpm -C backend dev                # Fastify API at http://localhost:8787
+pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (proxying /api)
 ```
 
 ## Key API endpoints
 | Method | Path                                      | Purpose |
 | ------ | ----------------------------------------- | ------- |
 | GET    | `/health`                                 | Health and environment details |
+| GET    | `/tenants`                                | List tenants and project counts |
+| GET    | `/tenants/:tenant/projects`               | Projects for a tenant with requirement counts |
 | POST   | `/draft`                                  | Generate candidate requirements (heuristic + optional LLM) |
 | POST   | `/qa`                                     | Run deterministic QA |
 | POST   | `/apply-fix`                              | Suggest edits for ambiguous phrases |
@@ -61,7 +64,13 @@ pnpm -C backend dev                # Fastify API at http://localhost:8787
 | GET    | `/requirements/:tenant/:project`          | List stored requirements |
 | GET    | `/requirements/:tenant/:project/:ref`     | Fetch requirement metadata + Markdown |
 | POST   | `/baseline`                               | Create a baseline snapshot |
+| GET    | `/baselines/:tenant/:project`             | List baselines for a project |
 | POST   | `/link/suggest`                           | Lightweight trace suggestions |
+
+## Web UI frontend
+- `pnpm -C frontend dev` launches a Vite dev server on http://localhost:5173 with a proxy to the Fastify API at `/api`.
+- Set `VITE_API_BASE_URL` to override the proxy target when deploying the static build (`pnpm -C frontend build`).
+- The UI covers tenant/project selection, draft generation (heuristics + optional LLM), QA, requirement persistence, baseline management, link suggestions, and token management for upcoming authentication flows.
 
 ## Sample workflow
 1. Draft requirement candidates (heuristic + LLM):
