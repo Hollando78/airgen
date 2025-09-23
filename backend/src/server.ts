@@ -35,7 +35,14 @@ import {
   listDocumentSections,
   updateDocumentSection,
   deleteDocumentSection,
-  listSectionRequirements
+  listSectionRequirements,
+  createArchitectureBlock,
+  getArchitectureBlocks,
+  updateArchitectureBlock,
+  deleteArchitectureBlock,
+  createArchitectureConnector,
+  getArchitectureConnectors,
+  deleteArchitectureConnector
 } from "./services/graph.js";
 import { generateDrafts } from "./services/drafts.js";
 import { generateLlmDrafts, isLlmConfigured } from "./services/llm.js";
@@ -128,6 +135,36 @@ const documentSectionSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   order: z.number().int().min(0)
+});
+
+const architectureBlockSchema = z.object({
+  tenant: z.string().min(1).default(config.defaultTenant),
+  projectKey: z.string().min(1),
+  name: z.string().min(1),
+  kind: z.enum(["system", "subsystem", "component", "actor", "external", "interface"]),
+  stereotype: z.string().optional(),
+  description: z.string().optional(),
+  positionX: z.number(),
+  positionY: z.number(),
+  sizeWidth: z.number().optional(),
+  sizeHeight: z.number().optional(),
+  ports: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    direction: z.enum(["in", "out", "inout"])
+  })).optional(),
+  documentIds: z.array(z.string()).optional()
+});
+
+const architectureConnectorSchema = z.object({
+  tenant: z.string().min(1).default(config.defaultTenant),
+  projectKey: z.string().min(1),
+  source: z.string().min(1),
+  target: z.string().min(1),
+  kind: z.enum(["association", "flow", "dependency", "composition"]),
+  label: z.string().optional(),
+  sourcePortId: z.string().optional(),
+  targetPortId: z.string().optional()
 });
 
 app.get("/health", async () => ({
@@ -458,6 +495,135 @@ app.get("/sections/:sectionId/requirements", async (req) => {
   const params = paramsSchema.parse(req.params);
   const requirements = await listSectionRequirements(params.sectionId);
   return { requirements };
+});
+
+// Architecture endpoints
+app.post("/architecture/blocks", async (req) => {
+  const payload = architectureBlockSchema.parse(req.body);
+  const block = await createArchitectureBlock({
+    tenant: payload.tenant,
+    projectKey: payload.projectKey,
+    name: payload.name,
+    kind: payload.kind,
+    stereotype: payload.stereotype,
+    description: payload.description,
+    positionX: payload.positionX,
+    positionY: payload.positionY,
+    sizeWidth: payload.sizeWidth,
+    sizeHeight: payload.sizeHeight,
+    ports: payload.ports
+  });
+  return { block };
+});
+
+app.get("/architecture/blocks/:tenant/:project", async (req) => {
+  const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
+  const params = paramsSchema.parse(req.params);
+  const blocks = await getArchitectureBlocks({ tenant: params.tenant, projectKey: params.project });
+  return { blocks };
+});
+
+app.patch("/architecture/blocks/:tenant/:project/:blockId", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    blockId: z.string().min(1)
+  });
+  const bodySchema = z.object({
+    name: z.string().min(1).optional(),
+    kind: z.enum(["system", "subsystem", "component", "actor", "external", "interface"]).optional(),
+    stereotype: z.string().optional(),
+    description: z.string().optional(),
+    positionX: z.number().optional(),
+    positionY: z.number().optional(),
+    sizeWidth: z.number().optional(),
+    sizeHeight: z.number().optional(),
+    ports: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      direction: z.enum(["in", "out", "inout"])
+    })).optional(),
+    documentIds: z.array(z.string()).optional()
+  });
+  const params = paramsSchema.parse(req.params);
+  const body = bodySchema.parse(req.body);
+  
+  try {
+    const block = await updateArchitectureBlock({
+      tenant: params.tenant,
+      projectKey: params.project,
+      blockId: params.blockId,
+      ...body
+    });
+    return { block };
+  } catch (error) {
+    if ((error as Error).message === 'Architecture block not found') {
+      return reply.status(404).send({ error: "Architecture block not found" });
+    }
+    throw error;
+  }
+});
+
+app.delete("/architecture/blocks/:tenant/:project/:blockId", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    blockId: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  
+  try {
+    await deleteArchitectureBlock({
+      tenant: params.tenant,
+      projectKey: params.project,
+      blockId: params.blockId
+    });
+    return { success: true };
+  } catch (error) {
+    return reply.status(404).send({ error: "Architecture block not found" });
+  }
+});
+
+app.post("/architecture/connectors", async (req) => {
+  const payload = architectureConnectorSchema.parse(req.body);
+  const connector = await createArchitectureConnector({
+    tenant: payload.tenant,
+    projectKey: payload.projectKey,
+    source: payload.source,
+    target: payload.target,
+    kind: payload.kind,
+    label: payload.label,
+    sourcePortId: payload.sourcePortId,
+    targetPortId: payload.targetPortId
+  });
+  return { connector };
+});
+
+app.get("/architecture/connectors/:tenant/:project", async (req) => {
+  const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
+  const params = paramsSchema.parse(req.params);
+  const connectors = await getArchitectureConnectors({ tenant: params.tenant, projectKey: params.project });
+  return { connectors };
+});
+
+app.delete("/architecture/connectors/:tenant/:project/:connectorId", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    connectorId: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  
+  try {
+    await deleteArchitectureConnector({
+      tenant: params.tenant,
+      projectKey: params.project,
+      connectorId: params.connectorId
+    });
+    return { success: true };
+  } catch (error) {
+    return reply.status(404).send({ error: "Architecture connector not found" });
+  }
 });
 
 const port = config.port;

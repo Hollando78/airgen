@@ -21,7 +21,14 @@ import type {
   DocumentSectionResponse,
   CreateSectionRequest,
   LinkSuggestRequest,
-  LinkSuggestResponse
+  LinkSuggestResponse,
+  ArchitectureBlocksResponse,
+  ArchitectureBlockResponse,
+  ArchitectureConnectorsResponse,
+  ArchitectureConnectorResponse,
+  CreateArchitectureBlockRequest,
+  UpdateArchitectureBlockRequest,
+  CreateArchitectureConnectorRequest
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -115,7 +122,22 @@ export function useApiClient() {
       listSectionRequirements: (sectionId: string) =>
         request<{ requirements: RequirementRecord[] }>(`/sections/${sectionId}/requirements`),
       suggestLinks: (body: LinkSuggestRequest) =>
-        request<LinkSuggestResponse>(`/link/suggest`, { method: "POST", body: JSON.stringify(body) })
+        request<LinkSuggestResponse>(`/link/suggest`, { method: "POST", body: JSON.stringify(body) }),
+      // Architecture API methods
+      listArchitectureBlocks: (tenant: string, project: string) =>
+        request<ArchitectureBlocksResponse>(`/architecture/blocks/${tenant}/${project}`),
+      createArchitectureBlock: (body: CreateArchitectureBlockRequest) =>
+        request<ArchitectureBlockResponse>(`/architecture/blocks`, { method: "POST", body: JSON.stringify(body) }),
+      updateArchitectureBlock: (tenant: string, project: string, blockId: string, body: UpdateArchitectureBlockRequest) =>
+        request<ArchitectureBlockResponse>(`/architecture/blocks/${tenant}/${project}/${blockId}`, { method: "PATCH", body: JSON.stringify(body) }),
+      deleteArchitectureBlock: (tenant: string, project: string, blockId: string) =>
+        request<{ success: boolean }>(`/architecture/blocks/${tenant}/${project}/${blockId}`, { method: "DELETE" }),
+      listArchitectureConnectors: (tenant: string, project: string) =>
+        request<ArchitectureConnectorsResponse>(`/architecture/connectors/${tenant}/${project}`),
+      createArchitectureConnector: (body: CreateArchitectureConnectorRequest) =>
+        request<ArchitectureConnectorResponse>(`/architecture/connectors`, { method: "POST", body: JSON.stringify(body) }),
+      deleteArchitectureConnector: (tenant: string, project: string, connectorId: string) =>
+        request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}`, { method: "DELETE" })
     }),
     [request]
   );

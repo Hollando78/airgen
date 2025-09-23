@@ -224,3 +224,101 @@ export type LinkSuggestion = {
 export type LinkSuggestResponse = {
   suggestions: LinkSuggestion[];
 };
+
+// Architecture Types
+export type BlockKind = "system" | "subsystem" | "component" | "actor" | "external" | "interface";
+export type ConnectorKind = "association" | "flow" | "dependency" | "composition";
+export type PortDirection = "in" | "out" | "inout";
+
+export type BlockPortRecord = {
+  id: string;
+  name: string;
+  direction: PortDirection;
+};
+
+export type ArchitectureBlockRecord = {
+  id: string;
+  name: string;
+  kind: BlockKind;
+  stereotype?: string | null;
+  description?: string | null;
+  tenant: string;
+  projectKey: string;
+  positionX: number;
+  positionY: number;
+  sizeWidth: number;
+  sizeHeight: number;
+  ports: BlockPortRecord[];
+  documentIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ArchitectureConnectorRecord = {
+  id: string;
+  source: string;
+  target: string;
+  kind: ConnectorKind;
+  label?: string | null;
+  sourcePortId?: string | null;
+  targetPortId?: string | null;
+  tenant: string;
+  projectKey: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateArchitectureBlockRequest = {
+  tenant: string;
+  projectKey: string;
+  name: string;
+  kind: BlockKind;
+  stereotype?: string;
+  description?: string;
+  positionX: number;
+  positionY: number;
+  sizeWidth?: number;
+  sizeHeight?: number;
+  ports?: BlockPortRecord[];
+  documentIds?: string[];
+};
+
+export type UpdateArchitectureBlockRequest = {
+  name?: string;
+  kind?: BlockKind;
+  stereotype?: string;
+  description?: string;
+  positionX?: number;
+  positionY?: number;
+  sizeWidth?: number;
+  sizeHeight?: number;
+  ports?: BlockPortRecord[];
+  documentIds?: string[];
+};
+
+export type CreateArchitectureConnectorRequest = {
+  tenant: string;
+  projectKey: string;
+  source: string;
+  target: string;
+  kind: ConnectorKind;
+  label?: string;
+  sourcePortId?: string;
+  targetPortId?: string;
+};
+
+export type ArchitectureBlocksResponse = {
+  blocks: ArchitectureBlockRecord[];
+};
+
+export type ArchitectureBlockResponse = {
+  block: ArchitectureBlockRecord;
+};
+
+export type ArchitectureConnectorsResponse = {
+  connectors: ArchitectureConnectorRecord[];
+};
+
+export type ArchitectureConnectorResponse = {
+  connector: ArchitectureConnectorRecord;
+};

@@ -156,6 +156,48 @@ export type DocumentSectionRecord = {
   updatedAt: string;
 };
 
+export type BlockKind = "system" | "subsystem" | "component" | "actor" | "external" | "interface";
+
+export type BlockPortRecord = {
+  id: string;
+  name: string;
+  direction: "in" | "out" | "inout";
+};
+
+export type ArchitectureBlockRecord = {
+  id: string;
+  name: string;
+  kind: BlockKind;
+  stereotype?: string | null;
+  description?: string | null;
+  tenant: string;
+  projectKey: string;
+  positionX: number;
+  positionY: number;
+  sizeWidth: number;
+  sizeHeight: number;
+  ports: BlockPortRecord[];
+  documentIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ConnectorKind = "association" | "flow" | "dependency" | "composition";
+
+export type ArchitectureConnectorRecord = {
+  id: string;
+  source: string;
+  target: string;
+  kind: ConnectorKind;
+  label?: string | null;
+  sourcePortId?: string | null;
+  targetPortId?: string | null;
+  tenant: string;
+  projectKey: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 function mapDocument(node: Neo4jNode, requirementCount?: number): DocumentRecord {
   const props = node.properties as Record<string, unknown>;
   return {
@@ -199,6 +241,48 @@ function mapDocumentSection(node: Neo4jNode): DocumentSectionRecord {
     tenant: String(props.tenant),
     projectKey: String(props.projectKey),
     order: Number(props.order),
+    createdAt: String(props.createdAt),
+    updatedAt: String(props.updatedAt)
+  };
+}
+
+function mapArchitectureBlock(node: Neo4jNode): ArchitectureBlockRecord {
+  const props = node.properties as Record<string, unknown>;
+  const ports = props.ports ? JSON.parse(String(props.ports)) : [];
+  const documentIds = props.documentIds ? JSON.parse(String(props.documentIds)) : [];
+  
+  return {
+    id: String(props.id),
+    name: String(props.name),
+    kind: String(props.kind) as BlockKind,
+    stereotype: props.stereotype ? String(props.stereotype) : null,
+    description: props.description ? String(props.description) : null,
+    tenant: String(props.tenant),
+    projectKey: String(props.projectKey),
+    positionX: Number(props.positionX) || 0,
+    positionY: Number(props.positionY) || 0,
+    sizeWidth: Number(props.sizeWidth) || 220,
+    sizeHeight: Number(props.sizeHeight) || 140,
+    ports,
+    documentIds,
+    createdAt: String(props.createdAt),
+    updatedAt: String(props.updatedAt)
+  };
+}
+
+function mapArchitectureConnector(node: Neo4jNode): ArchitectureConnectorRecord {
+  const props = node.properties as Record<string, unknown>;
+  
+  return {
+    id: String(props.id),
+    source: String(props.source),
+    target: String(props.target),
+    kind: String(props.kind) as ConnectorKind,
+    label: props.label ? String(props.label) : null,
+    sourcePortId: props.sourcePortId ? String(props.sourcePortId) : null,
+    targetPortId: props.targetPortId ? String(props.targetPortId) : null,
+    tenant: String(props.tenant),
+    projectKey: String(props.projectKey),
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt)
   };
@@ -1048,6 +1132,340 @@ export async function listFolders(tenant: string, projectKey: string): Promise<F
     }
 
     return folders;
+  } finally {
+    await session.close();
+  }
+}
+
+// Architecture Block Functions
+
+export async function createArchitectureBlock(params: {
+  tenant: string;
+  projectKey: string;
+  name: string;
+  kind: BlockKind;
+  stereotype?: string;
+  description?: string;
+  positionX: number;
+  positionY: number;
+  sizeWidth?: number;
+  sizeHeight?: number;
+  ports?: BlockPortRecord[];
+}): Promise<ArchitectureBlockRecord> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+  const now = new Date().toISOString();
+  const blockId = `block-${Date.now()}`;
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        CREATE (block:ArchitectureBlock {
+          id: $blockId,
+          name: $name,
+          kind: $kind,
+          stereotype: $stereotype,
+          description: $description,
+          tenant: $tenant,
+          projectKey: $projectKey,
+          positionX: $positionX,
+          positionY: $positionY,
+          sizeWidth: $sizeWidth,
+          sizeHeight: $sizeHeight,
+          ports: $ports,
+          documentIds: "[]",
+          createdAt: $now,
+          updatedAt: $now
+        })
+        MERGE (project)-[:HAS_ARCHITECTURE_BLOCK]->(block)
+        RETURN block
+      `;
+
+      const queryResult = await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        blockId,
+        name: params.name,
+        kind: params.kind,
+        stereotype: params.stereotype || null,
+        description: params.description || null,
+        tenant: params.tenant,
+        projectKey: params.projectKey,
+        positionX: params.positionX,
+        positionY: params.positionY,
+        sizeWidth: params.sizeWidth || 220,
+        sizeHeight: params.sizeHeight || 140,
+        ports: JSON.stringify(params.ports || []),
+        now
+      });
+
+      if (queryResult.records.length === 0) {
+        throw new Error("Failed to create architecture block");
+      }
+
+      return queryResult.records[0].get("block");
+    });
+
+    return mapArchitectureBlock(result);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function getArchitectureBlocks(params: {
+  tenant: string;
+  projectKey: string;
+}): Promise<ArchitectureBlockRecord[]> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+
+  const session = getSession();
+  try {
+    const result = await session.executeRead(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_BLOCK]->(block:ArchitectureBlock)
+        RETURN block
+        ORDER BY block.createdAt ASC
+      `;
+
+      return await tx.run(query, { tenantSlug, projectSlug });
+    });
+
+    return result.records.map(record => mapArchitectureBlock(record.get("block")));
+  } finally {
+    await session.close();
+  }
+}
+
+export async function updateArchitectureBlock(params: {
+  tenant: string;
+  projectKey: string;
+  blockId: string;
+  name?: string;
+  kind?: BlockKind;
+  stereotype?: string;
+  description?: string;
+  positionX?: number;
+  positionY?: number;
+  sizeWidth?: number;
+  sizeHeight?: number;
+  ports?: BlockPortRecord[];
+  documentIds?: string[];
+}): Promise<ArchitectureBlockRecord> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+  const now = new Date().toISOString();
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const updates = [];
+      const queryParams: Record<string, any> = {
+        tenantSlug,
+        projectSlug,
+        blockId: params.blockId,
+        updatedAt: now
+      };
+
+      if (params.name !== undefined) {
+        updates.push("block.name = $name");
+        queryParams.name = params.name;
+      }
+      if (params.kind !== undefined) {
+        updates.push("block.kind = $kind");
+        queryParams.kind = params.kind;
+      }
+      if (params.stereotype !== undefined) {
+        updates.push("block.stereotype = $stereotype");
+        queryParams.stereotype = params.stereotype;
+      }
+      if (params.description !== undefined) {
+        updates.push("block.description = $description");
+        queryParams.description = params.description;
+      }
+      if (params.positionX !== undefined) {
+        updates.push("block.positionX = $positionX");
+        queryParams.positionX = params.positionX;
+      }
+      if (params.positionY !== undefined) {
+        updates.push("block.positionY = $positionY");
+        queryParams.positionY = params.positionY;
+      }
+      if (params.sizeWidth !== undefined) {
+        updates.push("block.sizeWidth = $sizeWidth");
+        queryParams.sizeWidth = params.sizeWidth;
+      }
+      if (params.sizeHeight !== undefined) {
+        updates.push("block.sizeHeight = $sizeHeight");
+        queryParams.sizeHeight = params.sizeHeight;
+      }
+      if (params.ports !== undefined) {
+        updates.push("block.ports = $ports");
+        queryParams.ports = JSON.stringify(params.ports);
+      }
+      if (params.documentIds !== undefined) {
+        updates.push("block.documentIds = $documentIds");
+        queryParams.documentIds = JSON.stringify(params.documentIds);
+      }
+
+      updates.push("block.updatedAt = $updatedAt");
+
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_BLOCK]->(block:ArchitectureBlock {id: $blockId})
+        SET ${updates.join(", ")}
+        RETURN block
+      `;
+
+      const queryResult = await tx.run(query, queryParams);
+
+      if (queryResult.records.length === 0) {
+        throw new Error("Architecture block not found");
+      }
+
+      return queryResult.records[0].get("block");
+    });
+
+    return mapArchitectureBlock(result);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function deleteArchitectureBlock(params: {
+  tenant: string;
+  projectKey: string;
+  blockId: string;
+}): Promise<void> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+
+  const session = getSession();
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_BLOCK]->(block:ArchitectureBlock {id: $blockId})
+        DETACH DELETE block
+      `;
+
+      await tx.run(query, { tenantSlug, projectSlug, blockId: params.blockId });
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+// Architecture Connector Functions
+
+export async function createArchitectureConnector(params: {
+  tenant: string;
+  projectKey: string;
+  source: string;
+  target: string;
+  kind: ConnectorKind;
+  label?: string;
+  sourcePortId?: string;
+  targetPortId?: string;
+}): Promise<ArchitectureConnectorRecord> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+  const now = new Date().toISOString();
+  const connectorId = `connector-${Date.now()}`;
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        CREATE (connector:ArchitectureConnector {
+          id: $connectorId,
+          source: $source,
+          target: $target,
+          kind: $kind,
+          label: $label,
+          sourcePortId: $sourcePortId,
+          targetPortId: $targetPortId,
+          tenant: $tenant,
+          projectKey: $projectKey,
+          createdAt: $now,
+          updatedAt: $now
+        })
+        MERGE (project)-[:HAS_ARCHITECTURE_CONNECTOR]->(connector)
+        RETURN connector
+      `;
+
+      const queryResult = await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        connectorId,
+        source: params.source,
+        target: params.target,
+        kind: params.kind,
+        label: params.label || null,
+        sourcePortId: params.sourcePortId || null,
+        targetPortId: params.targetPortId || null,
+        tenant: params.tenant,
+        projectKey: params.projectKey,
+        now
+      });
+
+      if (queryResult.records.length === 0) {
+        throw new Error("Failed to create architecture connector");
+      }
+
+      return queryResult.records[0].get("connector");
+    });
+
+    return mapArchitectureConnector(result);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function getArchitectureConnectors(params: {
+  tenant: string;
+  projectKey: string;
+}): Promise<ArchitectureConnectorRecord[]> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+
+  const session = getSession();
+  try {
+    const result = await session.executeRead(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_CONNECTOR]->(connector:ArchitectureConnector)
+        RETURN connector
+        ORDER BY connector.createdAt ASC
+      `;
+
+      return await tx.run(query, { tenantSlug, projectSlug });
+    });
+
+    return result.records.map(record => mapArchitectureConnector(record.get("connector")));
+  } finally {
+    await session.close();
+  }
+}
+
+export async function deleteArchitectureConnector(params: {
+  tenant: string;
+  projectKey: string;
+  connectorId: string;
+}): Promise<void> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+
+  const session = getSession();
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_CONNECTOR]->(connector:ArchitectureConnector {id: $connectorId})
+        DETACH DELETE connector
+      `;
+
+      await tx.run(query, { tenantSlug, projectSlug, connectorId: params.connectorId });
+    });
   } finally {
     await session.close();
   }

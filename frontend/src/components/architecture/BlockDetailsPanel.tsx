@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { SysmlBlock, PortDirection } from "../../hooks/useArchitecture";
+import type { DocumentRecord } from "../../types";
 
 interface BlockDetailsPanelProps {
   block: SysmlBlock;
@@ -10,6 +11,9 @@ interface BlockDetailsPanelProps {
   onAddPort: (port: { name: string; direction: PortDirection }) => void;
   onUpdatePort: (portId: string, updates: { name?: string; direction?: PortDirection }) => void;
   onRemovePort: (portId: string) => void;
+  documents: DocumentRecord[];
+  onAddDocument: (documentId: string) => void;
+  onRemoveDocument: (documentId: string) => void;
 }
 
 const kindOptions = [
@@ -35,14 +39,27 @@ export function BlockDetailsPanel({
   onRemove,
   onAddPort,
   onUpdatePort,
-  onRemovePort
+  onRemovePort,
+  documents,
+  onAddDocument,
+  onRemoveDocument
 }: BlockDetailsPanelProps) {
   const [portDraft, setPortDraft] = useState({ name: "", direction: "in" as PortDirection });
+  const [selectedDocumentId, setSelectedDocumentId] = useState("");
+
+  const linkedDocuments = documents.filter(doc => block.documentIds?.includes(doc.id));
+  const availableDocuments = documents.filter(doc => !block.documentIds?.includes(doc.id));
 
   const handleAddPort = () => {
     if (!portDraft.name.trim()) return;
     onAddPort({ name: portDraft.name.trim(), direction: portDraft.direction });
     setPortDraft({ name: "", direction: "in" });
+  };
+
+  const handleAddDocument = () => {
+    if (!selectedDocumentId) return;
+    onAddDocument(selectedDocumentId);
+    setSelectedDocumentId("");
   };
 
   return (
@@ -209,6 +226,67 @@ export function BlockDetailsPanel({
             Add port
           </button>
         </div>
+      </div>
+
+      <div className="panel" style={{ background: "#f1f5f9", border: "1px solid #cbd5e1" }}>
+        <h3 style={{ marginTop: 0 }}>Associated Documents</h3>
+        {linkedDocuments.length === 0 ? (
+          <p style={{ fontSize: "12px", color: "#64748b" }}>No documents linked yet.</p>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "6px" }}>
+            {linkedDocuments.map(doc => (
+              <li key={doc.id} style={{
+                padding: "8px",
+                borderRadius: "6px",
+                background: "#fff",
+                border: "1px solid #e2e8f0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: "14px" }}>{doc.name}</div>
+                  {doc.description && (
+                    <div style={{ fontSize: "12px", color: "#64748b" }}>{doc.description}</div>
+                  )}
+                </div>
+                <button 
+                  className="ghost-button" 
+                  onClick={() => onRemoveDocument(doc.id)}
+                  style={{ fontSize: "12px", padding: "4px 8px" }}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {availableDocuments.length > 0 && (
+          <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Link document</label>
+              <select
+                value={selectedDocumentId}
+                onChange={event => setSelectedDocumentId(event.target.value)}
+              >
+                <option value="">Select a document...</option>
+                {availableDocuments.map(doc => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button 
+              className="primary-button" 
+              onClick={handleAddDocument} 
+              disabled={!selectedDocumentId}
+            >
+              Link document
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

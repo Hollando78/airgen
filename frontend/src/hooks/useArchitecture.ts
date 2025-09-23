@@ -19,6 +19,7 @@ export interface SysmlBlock {
   position: { x: number; y: number };
   size: { width: number; height: number };
   ports: BlockPort[];
+  documentIds?: string[];
 }
 
 export type ConnectorKind = "association" | "flow" | "dependency" | "composition";
@@ -372,6 +373,59 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     }
   }, [storageKey]);
 
+  const addDocumentToBlock = useCallback(
+    (blockId: string, documentId: string) => {
+      persist(prev => ({
+        ...prev,
+        blocks: prev.blocks.map(block =>
+          block.id === blockId
+            ? {
+                ...block,
+                documentIds: [...(block.documentIds || []), documentId].filter(
+                  (id, index, self) => self.indexOf(id) === index
+                )
+              }
+            : block
+        )
+      }));
+    },
+    [persist]
+  );
+
+  const removeDocumentFromBlock = useCallback(
+    (blockId: string, documentId: string) => {
+      persist(prev => ({
+        ...prev,
+        blocks: prev.blocks.map(block =>
+          block.id === blockId
+            ? {
+                ...block,
+                documentIds: (block.documentIds || []).filter(id => id !== documentId)
+              }
+            : block
+        )
+      }));
+    },
+    [persist]
+  );
+
+  const setBlockDocuments = useCallback(
+    (blockId: string, documentIds: string[]) => {
+      persist(prev => ({
+        ...prev,
+        blocks: prev.blocks.map(block =>
+          block.id === blockId
+            ? {
+                ...block,
+                documentIds: [...documentIds]
+              }
+            : block
+        )
+      }));
+    },
+    [persist]
+  );
+
   return {
     architecture,
     addBlock,
@@ -386,6 +440,9 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     updateConnector,
     removeConnector,
     clearArchitecture,
+    addDocumentToBlock,
+    removeDocumentFromBlock,
+    setBlockDocuments,
     hasChanges: architecture.blocks.length > 0 || architecture.connectors.length > 0
   };
 }

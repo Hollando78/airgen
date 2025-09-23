@@ -15,12 +15,14 @@ import {
   useEdgesState
 } from "@xyflow/react";
 import { useTenantProjectDocument } from "../components/TenantProjectDocumentSelector";
+import { useQuery } from "@tanstack/react-query";
+import { useApiClient } from "../lib/client";
 import {
   useArchitecture,
   type SysmlBlock,
   type SysmlConnector,
   type BlockKind
-} from "../hooks/useArchitecture";
+} from "../hooks/useArchitectureApi";
 import { SysmlBlockNode } from "../components/architecture/SysmlBlockNode";
 import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
@@ -83,6 +85,7 @@ function mapConnectorToEdge(connector: SysmlConnector): Edge {
 
 export function ArchitectureRoute(): JSX.Element {
   const { tenant, project } = useTenantProjectDocument();
+  const api = useApiClient();
   const {
     architecture,
     addBlock,
@@ -97,13 +100,24 @@ export function ArchitectureRoute(): JSX.Element {
     updateConnector,
     removeConnector,
     clearArchitecture,
+    addDocumentToBlock,
+    removeDocumentFromBlock,
     hasChanges
   } = useArchitecture(tenant, project);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
+  const [minimapOpen, setMinimapOpen] = useState(true);
 
   const [nodes, setNodes, onNodesStateChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesStateChange] = useEdgesState<Edge>([]);
+
+  const documentsQuery = useQuery({
+    queryKey: ["documents", tenant, project],
+    queryFn: () => api.listDocuments(tenant!, project!),
+    enabled: Boolean(tenant && project)
+  });
+
+  const documents = documentsQuery.data?.documents ?? [];
 
 
   useEffect(() => {
@@ -146,7 +160,7 @@ export function ArchitectureRoute(): JSX.Element {
         } satisfies Node;
       });
     });
-  }, [architecture.blocks, selectedBlockId, setNodes]);
+  }, [architecture.blocks, selectedBlockId]);
 
   useEffect(() => {
     setEdges(prevEdges => {
@@ -162,7 +176,7 @@ export function ArchitectureRoute(): JSX.Element {
         } satisfies Edge;
       });
     });
-  }, [architecture.connectors, selectedConnectorId, setEdges]);
+  }, [architecture.connectors, selectedConnectorId]);
 
   const handleSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: OnSelectionChangeParams) => {
@@ -259,10 +273,8 @@ export function ArchitectureRoute(): JSX.Element {
         kind: preset.kind,
         stereotype: preset.stereotype,
         description: preset.description,
-        position: {
-          x: 160 + offset * 60 + Math.random() * 40,
-          y: 160 + offset * 40 + Math.random() * 40
-        }
+        x: 160 + offset * 60 + Math.random() * 40,
+        y: 160 + offset * 40 + Math.random() * 40
       });
 
       setSelectedBlockId(id);
@@ -382,24 +394,70 @@ export function ArchitectureRoute(): JSX.Element {
               proOptions={{ hideAttribution: true }}
             >
               <Background color="#e2e8f0" gap={20} size={1} />
-              <MiniMap
-                nodeColor={node => {
-                  const block = architecture.blocks.find(b => b.id === node.id);
-                  if (!block) return "#e2e8f0";
-                  switch (block.kind) {
-                    case "system":
-                      return "#2563eb";
-                    case "subsystem":
-                      return "#7c3aed";
-                    case "actor":
-                      return "#f97316";
-                    case "external":
-                      return "#64748b";
-                    default:
-                      return "#16a34a";
-                  }
+              {minimapOpen && (
+                <MiniMap
+                  position="top-right"
+                  style={{
+                    top: 20,
+                    right: 20,
+                    width: 200,
+                    height: 140,
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)"
+                  }}
+                  nodeColor={node => {
+                    const block = architecture.blocks.find(b => b.id === node.id);
+                    if (!block) return "#e2e8f0";
+                    switch (block.kind) {
+                      case "system":
+                        return "#2563eb";
+                      case "subsystem":
+                        return "#7c3aed";
+                      case "actor":
+                        return "#f97316";
+                      case "external":
+                        return "#64748b";
+                      default:
+                        return "#16a34a";
+                    }
+                  }}
+                />
+              )}
+              <button
+                onClick={() => setMinimapOpen(!minimapOpen)}
+                style={{
+                  position: "absolute",
+                  top: 20,
+                  right: minimapOpen ? 230 : 20,
+                  width: 32,
+                  height: 32,
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "6px",
+                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "14px",
+                  color: "#64748b",
+                  transition: "all 0.2s ease",
+                  zIndex: 5
                 }}
-              />
+                onMouseEnter={e => {
+                  e.currentTarget.style.backgroundColor = "#f8fafc";
+                  e.currentTarget.style.borderColor = "#cbd5e1";
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.backgroundColor = "#ffffff";
+                  e.currentTarget.style.borderColor = "#e2e8f0";
+                }}
+                title={minimapOpen ? "Hide minimap" : "Show minimap"}
+              >
+                {minimapOpen ? "◰" : "◲"}
+              </button>
               <Controls position="bottom-right" showInteractive={false} />
             </ReactFlow>
           </div>
@@ -415,6 +473,9 @@ export function ArchitectureRoute(): JSX.Element {
                 onAddPort={port => addPort(selectedBlock.id, port)}
                 onUpdatePort={(portId, updates) => updatePort(selectedBlock.id, portId, updates)}
                 onRemovePort={portId => removePort(selectedBlock.id, portId)}
+                documents={documents}
+                onAddDocument={documentId => addDocumentToBlock(selectedBlock.id, documentId)}
+                onRemoveDocument={documentId => removeDocumentFromBlock(selectedBlock.id, documentId)}
               />
             )}
 
