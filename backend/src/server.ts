@@ -52,7 +52,11 @@ import {
   deleteArchitectureBlock,
   createArchitectureConnector,
   getArchitectureConnectors,
-  deleteArchitectureConnector
+  deleteArchitectureConnector,
+  createTraceLink,
+  listTraceLinks,
+  listTraceLinksByRequirement,
+  deleteTraceLink
 } from "./services/graph.js";
 import { generateDrafts } from "./services/drafts.js";
 import { generateLlmDrafts, isLlmConfigured } from "./services/llm.js";
@@ -185,6 +189,15 @@ const architectureConnectorSchema = z.object({
   label: z.string().optional(),
   sourcePortId: z.string().optional(),
   targetPortId: z.string().optional()
+});
+
+const traceLinkSchema = z.object({
+  tenant: z.string().min(1).default(config.defaultTenant),
+  projectKey: z.string().min(1),
+  sourceRequirementId: z.string().min(1),
+  targetRequirementId: z.string().min(1),
+  linkType: z.enum(["satisfies", "derives", "verifies", "implements", "refines", "conflicts"]),
+  description: z.string().optional()
 });
 
 // Register main API routes
@@ -737,6 +750,75 @@ app.delete("/architecture/connectors/:tenant/:project/:connectorId", async (req,
     return { success: true };
   } catch (error) {
     return reply.status(404).send({ error: "Architecture connector not found" });
+  }
+});
+
+// Trace links endpoints
+app.post("/trace-links", async (req) => {
+  const payload = traceLinkSchema.parse(req.body);
+  
+  const traceLink = await createTraceLink({
+    tenant: payload.tenant,
+    projectKey: payload.projectKey,
+    sourceRequirementId: payload.sourceRequirementId,
+    targetRequirementId: payload.targetRequirementId,
+    linkType: payload.linkType,
+    description: payload.description
+  });
+  
+  return { traceLink };
+});
+
+app.get("/trace-links/:tenant/:project", async (req) => {
+  const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
+  const params = paramsSchema.parse(req.params);
+  
+  const traceLinks = await listTraceLinks({
+    tenant: params.tenant,
+    projectKey: params.project
+  });
+  
+  return { traceLinks };
+});
+
+app.get("/trace-links/:tenant/:project/:requirementId", async (req) => {
+  const paramsSchema = z.object({ 
+    tenant: z.string().min(1), 
+    project: z.string().min(1),
+    requirementId: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  
+  const traceLinks = await listTraceLinksByRequirement({
+    tenant: params.tenant,
+    projectKey: params.project,
+    requirementId: params.requirementId
+  });
+  
+  return { traceLinks };
+});
+
+app.delete("/trace-links/:tenant/:project/:linkId", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    linkId: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  
+  try {
+    await deleteTraceLink({
+      tenant: params.tenant,
+      projectKey: params.project,
+      linkId: params.linkId
+    });
+    
+    return { success: true };
+  } catch (error) {
+    if ((error as Error).message === 'Trace link not found') {
+      return reply.status(404).send({ error: "Trace link not found" });
+    }
+    throw error;
   }
 });
 };

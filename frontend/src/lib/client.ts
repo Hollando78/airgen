@@ -35,7 +35,9 @@ import type {
   ArchitectureConnectorResponse,
   CreateArchitectureBlockRequest,
   UpdateArchitectureBlockRequest,
-  CreateArchitectureConnectorRequest
+  CreateArchitectureConnectorRequest,
+  CreateTraceLinkRequest,
+  TraceLink
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -185,7 +187,16 @@ export function useApiClient() {
       createArchitectureConnector: (body: CreateArchitectureConnectorRequest) =>
         request<ArchitectureConnectorResponse>(`/architecture/connectors`, { method: "POST", body: JSON.stringify(body) }),
       deleteArchitectureConnector: (tenant: string, project: string, connectorId: string) =>
-        request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}`, { method: "DELETE" })
+        request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}`, { method: "DELETE" }),
+      // Trace Links API methods
+      createTraceLink: (body: CreateTraceLinkRequest & { tenant: string; projectKey: string }) =>
+        request<{ traceLink: TraceLink }>(`/trace-links`, { method: "POST", body: JSON.stringify(body) }),
+      listTraceLinks: (tenant: string, project: string) =>
+        request<{ traceLinks: TraceLink[] }>(`/trace-links/${tenant}/${project}`),
+      listTraceLinksByRequirement: (tenant: string, project: string, requirementId: string) =>
+        request<{ traceLinks: TraceLink[] }>(`/trace-links/${tenant}/${project}/${requirementId}`),
+      deleteTraceLink: (tenant: string, project: string, linkId: string) =>
+        request<{ success: boolean }>(`/trace-links/${tenant}/${project}/${linkId}`, { method: "DELETE" })
     }),
     [request]
   );

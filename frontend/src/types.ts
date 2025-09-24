@@ -284,6 +284,36 @@ export type LinkSuggestResponse = {
   suggestions: LinkSuggestion[];
 };
 
+// Trace Link Types
+export type TraceLinkType = "satisfies" | "derives" | "verifies" | "implements" | "refines" | "conflicts";
+
+export type TraceLink = {
+  id: string;
+  sourceRequirementId: string;
+  sourceRequirement: RequirementRecord;
+  targetRequirementId: string;
+  targetRequirement: RequirementRecord;
+  linkType: TraceLinkType;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateTraceLinkRequest = {
+  sourceRequirementId: string;
+  targetRequirementId: string;
+  linkType: TraceLinkType;
+  description?: string;
+};
+
+export type DocumentTreeNode = {
+  type: "document" | "section" | "requirement";
+  id: string;
+  name: string;
+  ref?: string;
+  children?: DocumentTreeNode[];
+};
+
 // Architecture Types
 export type BlockKind = "system" | "subsystem" | "component" | "actor" | "external" | "interface";
 export type ConnectorKind = "association" | "flow" | "dependency" | "composition";

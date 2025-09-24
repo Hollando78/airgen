@@ -2150,3 +2150,221 @@ export async function deleteArchitectureConnector(params: {
     await session.close();
   }
 }
+
+// Trace Links functionality
+export type TraceLinkType = "satisfies" | "derives" | "verifies" | "implements" | "refines" | "conflicts";
+
+export type TraceLinkRecord = {
+  id: string;
+  sourceRequirementId: string;
+  sourceRequirement: RequirementRecord;
+  targetRequirementId: string;
+  targetRequirement: RequirementRecord;
+  linkType: TraceLinkType;
+  description?: string;
+  tenant: string;
+  projectKey: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function mapTraceLink(node: Neo4jNode, sourceReq: RequirementRecord, targetReq: RequirementRecord): TraceLinkRecord {
+  const props = node.properties;
+  return {
+    id: props.id,
+    sourceRequirementId: props.sourceRequirementId,
+    sourceRequirement: sourceReq,
+    targetRequirementId: props.targetRequirementId,
+    targetRequirement: targetReq,
+    linkType: props.linkType as TraceLinkType,
+    description: props.description || undefined,
+    tenant: props.tenant,
+    projectKey: props.projectKey,
+    createdAt: props.createdAt,
+    updatedAt: props.updatedAt
+  };
+}
+
+export async function createTraceLink(params: {
+  tenant: string;
+  projectKey: string;
+  sourceRequirementId: string;
+  targetRequirementId: string;
+  linkType: TraceLinkType;
+  description?: string;
+}): Promise<TraceLinkRecord> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+  const linkId = randomUUID();
+  const now = new Date().toISOString();
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        OPTIONAL MATCH (project)-[:CONTAINS]->(directSource:Requirement {id: $sourceRequirementId})
+        OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docSource:Requirement {id: $sourceRequirementId})
+        WITH project, coalesce(directSource, docSource) AS sourceReq
+        WHERE sourceReq IS NOT NULL
+        
+        OPTIONAL MATCH (project)-[:CONTAINS]->(directTarget:Requirement {id: $targetRequirementId})
+        OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docTarget:Requirement {id: $targetRequirementId})
+        WITH project, sourceReq, coalesce(directTarget, docTarget) AS targetReq
+        WHERE targetReq IS NOT NULL
+        
+        CREATE (link:TraceLink {
+          id: $linkId,
+          sourceRequirementId: $sourceRequirementId,
+          targetRequirementId: $targetRequirementId,
+          linkType: $linkType,
+          description: $description,
+          tenant: $tenant,
+          projectKey: $projectKey,
+          createdAt: $createdAt,
+          updatedAt: $updatedAt
+        })
+        
+        CREATE (project)-[:HAS_TRACE_LINK]->(link)
+        CREATE (sourceReq)-[:LINKS_TO {type: $linkType}]->(targetReq)
+        CREATE (link)-[:FROM_REQUIREMENT]->(sourceReq)
+        CREATE (link)-[:TO_REQUIREMENT]->(targetReq)
+        
+        RETURN link, sourceReq, targetReq
+      `;
+
+      return await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        sourceRequirementId: params.sourceRequirementId,
+        targetRequirementId: params.targetRequirementId,
+        linkId,
+        linkType: params.linkType,
+        description: params.description || null,
+        tenant: params.tenant,
+        projectKey: params.projectKey,
+        createdAt: now,
+        updatedAt: now
+      });
+    });
+
+    if (result.records.length === 0) {
+      throw new Error('Failed to create trace link - requirements not found');
+    }
+
+    const record = result.records[0];
+    const sourceReq = mapRequirement(record.get("sourceReq"));
+    const targetReq = mapRequirement(record.get("targetReq"));
+    
+    return mapTraceLink(record.get("link"), sourceReq, targetReq);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function listTraceLinks(params: {
+  tenant: string;
+  projectKey: string;
+}): Promise<TraceLinkRecord[]> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+
+  const session = getSession();
+  try {
+    const result = await session.executeRead(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink)
+        MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement)
+        MATCH (link)-[:TO_REQUIREMENT]->(targetReq:Requirement)
+        
+        RETURN link, sourceReq, targetReq
+        ORDER BY link.createdAt DESC
+      `;
+
+      return await tx.run(query, { tenantSlug, projectSlug });
+    });
+
+    return result.records.map(record => {
+      const sourceReq = mapRequirement(record.get("sourceReq"));
+      const targetReq = mapRequirement(record.get("targetReq"));
+      return mapTraceLink(record.get("link"), sourceReq, targetReq);
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+export async function listTraceLinksByRequirement(params: {
+  tenant: string;
+  projectKey: string;
+  requirementId: string;
+}): Promise<TraceLinkRecord[]> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+
+  const session = getSession();
+  try {
+    const result = await session.executeRead(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink)
+        MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement)
+        MATCH (link)-[:TO_REQUIREMENT]->(targetReq:Requirement)
+        
+        WHERE sourceReq.id = $requirementId OR targetReq.id = $requirementId
+        
+        RETURN link, sourceReq, targetReq
+        ORDER BY link.createdAt DESC
+      `;
+
+      return await tx.run(query, { 
+        tenantSlug, 
+        projectSlug, 
+        requirementId: params.requirementId 
+      });
+    });
+
+    return result.records.map(record => {
+      const sourceReq = mapRequirement(record.get("sourceReq"));
+      const targetReq = mapRequirement(record.get("targetReq"));
+      return mapTraceLink(record.get("link"), sourceReq, targetReq);
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+export async function deleteTraceLink(params: {
+  tenant: string;
+  projectKey: string;
+  linkId: string;
+}): Promise<void> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+
+  const session = getSession();
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink {id: $linkId})
+        MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement)
+        MATCH (link)-[:TO_REQUIREMENT]->(targetReq:Requirement)
+        MATCH (sourceReq)-[rel:LINKS_TO]->(targetReq)
+        
+        DELETE rel
+        DETACH DELETE link
+      `;
+
+      const result = await tx.run(query, { 
+        tenantSlug, 
+        projectSlug, 
+        linkId: params.linkId 
+      });
+      
+      if (result.summary.counters.nodesDeleted() === 0) {
+        throw new Error('Trace link not found');
+      }
+    });
+  } finally {
+    await session.close();
+  }
+}
