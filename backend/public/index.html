@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AIRGen Draft</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; max-width: 900px; }
+    textarea { width: 100%; height: 140px; }
+    .row { display:flex; gap:12px; align-items:center; }
+    .card { border:1px solid #ddd; border-radius:12px; padding:12px; margin:12px 0; }
+    .req { font-weight:600; }
+    .ok { color: #0a7a2a; } .warn { color:#b58900; } .fail { color:#b00020; }
+  </style>
+</head>
+<body>
+  <h1>AIRGen – Candidate Requirements</h1>
+  <p>Enter a stakeholder need or instruction. The server will ask OpenAI for candidates and score them with the heuristics.</p>
+  <label>Stakeholder need / instruction</label>
+  <textarea id="input"></textarea>
+  <div class="row">
+    <label>Count <input id="count" type="number" value="5" min="1" max="10"/></label>
+    <button id="go">Generate</button>
+  </div>
+  <div id="out"></div>
+
+  <script>
+    async function run() {
+      const user_input = document.getElementById('input').value.trim();
+      const n = parseInt(document.getElementById('count').value, 10) || 5;
+      if (!user_input) {
+        alert('Please enter a stakeholder instruction.');
+        return;
+      }
+      const res = await fetch('/draft/candidates', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ user_input, n })
+      });
+      const data = await res.json();
+      const out = document.getElementById('out');
+      out.innerHTML = '';
+
+      (data.items || []).forEach((it, i) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const reqDiv = document.createElement('div');
+        reqDiv.className = 'req';
+        reqDiv.textContent = `${i + 1}. ${it.text}`;
+        card.appendChild(reqDiv);
+
+        const verdict = it.qa?.verdict || '';
+        const verdictClass = verdict.includes('Compliant') ? 'ok'
+                            : verdict.includes('Usable') ? 'warn' : 'fail';
+
+        const scoreRow = document.createElement('div');
+        scoreRow.append('Score: ');
+        const scoreVal = document.createElement('b');
+        scoreVal.textContent = typeof it.qa?.score === 'number' ? String(it.qa.score) : '–';
+        scoreRow.append(scoreVal, ' ');
+        const verdictSpan = document.createElement('span');
+        verdictSpan.className = verdictClass;
+        verdictSpan.textContent = verdict;
+        scoreRow.appendChild(verdictSpan);
+        card.appendChild(scoreRow);
+
+        const suggestionsContainer = document.createElement('div');
+        suggestionsContainer.textContent = 'Suggestions:';
+        const list = document.createElement('ul');
+        const suggestions = Array.isArray(it.qa?.suggestions) ? it.qa.suggestions : [];
+        suggestions.forEach((s) => {
+          const li = document.createElement('li');
+          li.textContent = s;
+          list.appendChild(li);
+        });
+        suggestionsContainer.appendChild(list);
+        card.appendChild(suggestionsContainer);
+
+        out.appendChild(card);
+      });
+    }
+    document.getElementById('go').addEventListener('click', run);
+  </script>
+</body>
+</html>

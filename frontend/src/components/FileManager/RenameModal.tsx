@@ -86,7 +86,7 @@ export function RenameModal({ isOpen, item, onClose, onRename }: RenameModalProp
               placeholder="e.g., URD, SRS"
               maxLength={10}
               style={{ textTransform: "uppercase" }}
-              help="Used for requirement IDs"
+              help="Used for requirement IDs (e.g., URD-FUN-001). Changing this will update all related requirement references."
             />
           </div>
         )}

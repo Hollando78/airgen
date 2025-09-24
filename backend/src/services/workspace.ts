@@ -21,6 +21,7 @@ export type RequirementRecord = {
   path: string;
   createdAt: string;
   updatedAt: string;
+  deleted?: boolean;
 };
 
 export type BaselineRecord = {

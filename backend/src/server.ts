@@ -1,7 +1,11 @@
-import Fastify from "fastify";
+import "dotenv/config";
+import Fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import fastifyStatic from "@fastify/static";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { analyzeRequirement, AMBIGUOUS } from "@airgen/req-qa";
 import { z } from "zod";
 import { config } from "./config.js";
@@ -39,6 +43,9 @@ import {
   listSectionRequirements,
   updateFolder,
   updateRequirement,
+  softDeleteRequirement,
+  findDuplicateRequirementRefs,
+  fixDuplicateRequirementRefs,
   createArchitectureBlock,
   getArchitectureBlocks,
   updateArchitectureBlock,
@@ -50,6 +57,10 @@ import {
 import { generateDrafts } from "./services/drafts.js";
 import { generateLlmDrafts, isLlmConfigured } from "./services/llm.js";
 import { registerAuth } from "./plugins/auth.js";
+import draftRoutes from "./routes/draft.js";
+import airgenRoutes from "./routes/airgen.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 await ensureWorkspace();
 await initGraph();
@@ -59,6 +70,10 @@ const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
 await app.register(helmet);
 await app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
+await app.register(fastifyStatic, {
+  root: join(__dirname, "../public"),
+  prefix: "/"
+});
 await registerAuth(app);
 
 app.addHook("onRequest", app.optionalAuthenticate);
@@ -172,7 +187,9 @@ const architectureConnectorSchema = z.object({
   targetPortId: z.string().optional()
 });
 
-app.get("/health", async () => ({
+// Register main API routes
+const apiRoutes = async (app: FastifyInstance) => {
+  app.get("/health", async () => ({
   ok: true,
   env: config.environment,
   workspace: config.workspaceRoot,
@@ -328,6 +345,41 @@ app.patch("/requirements/:tenant/:project/:requirementId", async (req, reply) =>
   const requirement = await updateRequirement(params.tenant, params.project, params.requirementId, body);
   if (!requirement) return reply.status(404).send({ error: "Requirement not found" });
   return { requirement };
+});
+
+app.delete("/requirements/:tenant/:project/:requirementId", async (req, reply) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1),
+    requirementId: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  
+  const requirement = await softDeleteRequirement(params.tenant, params.project, params.requirementId);
+  if (!requirement) return reply.status(404).send({ error: "Requirement not found" });
+  return { requirement };
+});
+
+app.get("/requirements/:tenant/:project/duplicates", async (req) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  
+  const duplicates = await findDuplicateRequirementRefs(params.tenant, params.project);
+  return { duplicates };
+});
+
+app.post("/requirements/:tenant/:project/fix-duplicates", async (req) => {
+  const paramsSchema = z.object({
+    tenant: z.string().min(1),
+    project: z.string().min(1)
+  });
+  const params = paramsSchema.parse(req.params);
+  
+  const result = await fixDuplicateRequirementRefs(params.tenant, params.project);
+  return result;
 });
 
 app.post("/baseline", async (req) => {
@@ -519,7 +571,8 @@ app.patch("/sections/:sectionId", async (req, reply) => {
   const bodySchema = z.object({
     name: z.string().min(1).optional(),
     description: z.string().optional(),
-    order: z.number().int().min(0).optional()
+    order: z.number().int().min(0).optional(),
+    shortCode: z.string().optional()
   });
   const params = paramsSchema.parse(req.params);
   const body = bodySchema.parse(req.body);
@@ -686,6 +739,11 @@ app.delete("/architecture/connectors/:tenant/:project/:connectorId", async (req,
     return reply.status(404).send({ error: "Architecture connector not found" });
   }
 });
+};
+
+await app.register(apiRoutes, { prefix: "/api" });
+await app.register(draftRoutes, { prefix: "/api" });
+await app.register(airgenRoutes, { prefix: "/api" });
 
 const port = config.port;
 app.listen({ port, host: config.host }).catch((e) => {

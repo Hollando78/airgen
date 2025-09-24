@@ -7,6 +7,7 @@ import { DashboardRoute } from "./routes/DashboardRoute";
 import { LinksRoute } from "./routes/LinksRoute";
 import { DocumentsRoute } from "./routes/DocumentsRoute";
 import { ArchitectureRoute } from "./routes/ArchitectureRoute";
+import { AirGenRoute } from "./routes/AirGenRoute";
 
 export default function App(): JSX.Element {
   return (
@@ -14,6 +15,7 @@ export default function App(): JSX.Element {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardRoute />} />
+        <Route path="/airgen" element={<AirGenRoute />} />
         <Route path="/documents" element={<DocumentsRoute />} />
         <Route path="/architecture" element={<ArchitectureRoute />} />
         <Route path="/drafts" element={<DraftsRoute />} />

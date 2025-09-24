@@ -12,13 +12,15 @@ interface EditRequirementModalProps {
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
   }) => void;
+  onDelete?: () => void;
 }
 
 export function EditRequirementModal({
   isOpen,
   requirement,
   onClose,
-  onUpdate
+  onUpdate,
+  onDelete
 }: EditRequirementModalProps): JSX.Element {
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
@@ -55,6 +57,18 @@ export function EditRequirementModal({
     }
   };
 
+  const handleDelete = () => {
+    if (onDelete && requirement) {
+      const confirmed = window.confirm(
+        `Are you sure you want to delete requirement ${requirement.ref}? This action cannot be undone.`
+      );
+      if (confirmed) {
+        onDelete();
+        handleClose();
+      }
+    }
+  };
+
   const patternOptions = [
     { value: "", label: "Select pattern (optional)" },
     { value: "ubiquitous", label: "Ubiquitous - General requirements" },
@@ -74,6 +88,20 @@ export function EditRequirementModal({
 
   const footer = (
     <>
+      {onDelete && (
+        <Button 
+          variant="secondary" 
+          onClick={handleDelete}
+          style={{ 
+            marginRight: "auto",
+            backgroundColor: "#dc2626",
+            borderColor: "#dc2626",
+            color: "white"
+          }}
+        >
+          Delete Requirement
+        </Button>
+      )}
       <Button variant="secondary" onClick={handleClose}>
         Cancel
       </Button>

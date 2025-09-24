@@ -7,8 +7,15 @@ import type {
   QaResponse,
   ApplyFixResponse,
   RequirementRecord,
+  RequirementPattern,
+  VerificationMethod,
   RequirementDetail,
   CreateRequirementRequest,
+  RequirementCandidateListResponse,
+  RequirementCandidateGroupedResponse,
+  AirGenChatRequest,
+  AirGenChatResponse,
+  RequirementCandidateActionResponse,
   BaselineResponse,
   BaselineListResponse,
   TenantsResponse,
@@ -80,8 +87,41 @@ export function useApiClient() {
       listTenants: () => request<TenantsResponse>(`/tenants`),
       listProjects: (tenant: string) => request<ProjectsResponse>(`/tenants/${tenant}/projects`),
       draft: (body: DraftRequest) => request<DraftResponse>(`/draft`, { method: "POST", body: JSON.stringify(body) }),
+      airgenChat: (body: AirGenChatRequest) =>
+        request<AirGenChatResponse>(`/airgen/chat`, { method: "POST", body: JSON.stringify(body) }),
       qa: (text: string) => request<QaResponse>(`/qa`, { method: "POST", body: JSON.stringify({ text }) }),
       applyFix: (text: string) => request<ApplyFixResponse>(`/apply-fix`, { method: "POST", body: JSON.stringify({ text }) }),
+      listRequirementCandidates: (tenant: string, project: string) =>
+        request<RequirementCandidateListResponse>(`/airgen/candidates/${tenant}/${project}`),
+      listRequirementCandidatesGrouped: (tenant: string, project: string) =>
+        request<RequirementCandidateGroupedResponse>(`/airgen/candidates/${tenant}/${project}/grouped`),
+      acceptRequirementCandidate: (
+        id: string,
+        body: {
+          tenant: string;
+          projectKey: string;
+          title: string;
+          pattern?: RequirementPattern;
+          verification?: VerificationMethod;
+          documentSlug?: string;
+          sectionId?: string;
+          tags?: string[];
+        }
+      ) =>
+        request<RequirementCandidateActionResponse>(`/airgen/candidates/${id}/accept`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      rejectRequirementCandidate: (id: string, body: { tenant: string; projectKey: string }) =>
+        request<RequirementCandidateActionResponse>(`/airgen/candidates/${id}/reject`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      returnRequirementCandidate: (id: string, body: { tenant: string; projectKey: string }) =>
+        request<RequirementCandidateActionResponse>(`/airgen/candidates/${id}/return`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
       listRequirements: (tenant: string, project: string) =>
         request<{ items: RequirementRecord[] }>(`/requirements/${tenant}/${project}`),
       getRequirement: (tenant: string, project: string, ref: string) =>
@@ -93,6 +133,8 @@ export function useApiClient() {
         }),
       updateRequirement: (tenant: string, project: string, requirementId: string, updates: { title?: string; text?: string; pattern?: string; verification?: string }) =>
         request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "PATCH", body: JSON.stringify(updates) }),
+      deleteRequirement: (tenant: string, project: string, requirementId: string) =>
+        request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "DELETE" }),
       createBaseline: (body: { tenant: string; projectKey: string; label?: string; author?: string }) =>
         request<BaselineResponse>(`/baseline`, { method: "POST", body: JSON.stringify(body) }),
       listBaselines: (tenant: string, project: string) =>
@@ -121,7 +163,7 @@ export function useApiClient() {
         request<DocumentSectionsResponse>(`/sections/${tenant}/${project}/${documentSlug}`),
       createDocumentSection: (body: CreateSectionRequest) =>
         request<DocumentSectionResponse>(`/sections`, { method: "POST", body: JSON.stringify(body) }),
-      updateDocumentSection: (sectionId: string, body: { name?: string; description?: string; order?: number }) =>
+      updateDocumentSection: (sectionId: string, body: { name?: string; description?: string; order?: number; shortCode?: string }) =>
         request<DocumentSectionResponse>(`/sections/${sectionId}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteDocumentSection: (sectionId: string) =>
         request<{ success: boolean }>(`/sections/${sectionId}`, { method: "DELETE" }),

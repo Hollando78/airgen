@@ -95,6 +95,61 @@ export type CreateRequirementRequest = {
   tags?: string[];
 };
 
+export type RequirementCandidateStatus = "pending" | "accepted" | "rejected";
+
+export type RequirementCandidate = {
+  id: string;
+  text: string;
+  status: RequirementCandidateStatus;
+  qa: {
+    score: number | null;
+    verdict: string | null;
+    suggestions: string[];
+  };
+  prompt?: string | null;
+  querySessionId?: string | null;
+  requirementRef?: string | null;
+  requirementId?: string | null;
+  documentSlug?: string | null;
+  sectionId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AirGenChatRequest = {
+  tenant: string;
+  projectKey: string;
+  user_input: string;
+  glossary?: string;
+  constraints?: string;
+  n?: number;
+};
+
+export type AirGenChatResponse = {
+  prompt: string;
+  items: RequirementCandidate[];
+};
+
+export type RequirementCandidateListResponse = {
+  items: RequirementCandidate[];
+};
+
+export type RequirementCandidateActionResponse = {
+  candidate: RequirementCandidate;
+  requirement?: RequirementRecord;
+};
+
+export type RequirementCandidateGroup = {
+  sessionId: string;
+  prompt: string | null;
+  count: number;
+  candidates: RequirementCandidate[];
+};
+
+export type RequirementCandidateGroupedResponse = {
+  groups: RequirementCandidateGroup[];
+};
+
 export type BaselineRecord = {
   id: string;
   ref: string;

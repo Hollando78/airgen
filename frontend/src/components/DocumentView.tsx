@@ -4,6 +4,7 @@ import { useApiClient } from "../lib/client";
 import { AddSectionModal } from "./AddSectionModal";
 import { AddRequirementModal } from "./AddRequirementModal";
 import { EditRequirementModal } from "./EditRequirementModal";
+import { EditSectionModal } from "./EditSectionModal";
 import type { DocumentRecord, RequirementRecord, RequirementPattern, VerificationMethod, DocumentSectionRecord } from "../types";
 
 interface DocumentSectionWithRequirements extends DocumentSectionRecord {
@@ -32,6 +33,10 @@ export function DocumentView({
     isOpen: boolean;
     requirement: RequirementRecord | null;
   }>({ isOpen: false, requirement: null });
+  const [editSectionModal, setEditSectionModal] = useState<{
+    isOpen: boolean;
+    section: DocumentSectionRecord | null;
+  }>({ isOpen: false, section: null });
   const [draggedSection, setDraggedSection] = useState<string | null>(null);
 
   // Fetch document details
@@ -68,10 +73,12 @@ export function DocumentView({
   });
 
   const updateSectionMutation = useMutation({
-    mutationFn: ({ sectionId, updates }: { sectionId: string; updates: { name?: string; description?: string; order?: number } }) =>
+    mutationFn: ({ sectionId, updates }: { sectionId: string; updates: { name?: string; description?: string; order?: number; shortCode?: string } }) =>
       api.updateDocumentSection(sectionId, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+      queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
+      setEditSectionModal({ isOpen: false, section: null });
     }
   });
 
@@ -123,6 +130,24 @@ export function DocumentView({
     }
   });
 
+  const deleteRequirementMutation = useMutation({
+    mutationFn: (requirementId: string) => api.deleteRequirement(tenant, project, requirementId),
+    onSuccess: async (_, requirementId) => {
+      // Invalidate sections query to get fresh data
+      await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+      
+      // Remove the requirement from local state
+      setSections(prevSections => 
+        prevSections.map(section => ({
+          ...section,
+          requirements: section.requirements.filter(req => req.id !== requirementId)
+        }))
+      );
+      
+      setEditRequirementModal({ isOpen: false, requirement: null });
+    }
+  });
+
   // Populate sections with their requirements when sections data is available
   useEffect(() => {
     if (sectionsQuery.data?.sections) {
@@ -150,6 +175,25 @@ export function DocumentView({
       loadSectionsWithRequirements();
     }
   }, [sectionsQuery.data, api]);
+
+  // Reset selected section when document changes
+  useEffect(() => {
+    setSelectedSection(null);
+  }, [documentSlug]);
+
+  // Auto-select first section when sections are loaded or when selected section no longer exists
+  useEffect(() => {
+    if (sections.length > 0) {
+      // If no section is selected, select the first one
+      if (!selectedSection) {
+        setSelectedSection(sections[0].id);
+      } 
+      // If the selected section no longer exists, select the first one
+      else if (!sections.find(section => section.id === selectedSection)) {
+        setSelectedSection(sections[0].id);
+      }
+    }
+  }, [sections, selectedSection]);
 
   const handleAddSection = (newSection: { name: string; description: string; shortCode?: string }) => {
     createSectionMutation.mutate(newSection, {
@@ -192,6 +236,29 @@ export function DocumentView({
       requirementId: editRequirementModal.requirement.id,
       updates
     });
+  };
+
+  const handleDeleteRequirement = () => {
+    if (!editRequirementModal.requirement) return;
+    
+    deleteRequirementMutation.mutate(editRequirementModal.requirement.id);
+  };
+
+  const handleEditSection = (section: DocumentSectionRecord) => {
+    setEditSectionModal({ isOpen: true, section });
+  };
+
+  const handleUpdateSection = (updates: {
+    name?: string;
+    description?: string;
+    shortCode?: string;
+  }) => {
+    if (editSectionModal.section) {
+      updateSectionMutation.mutate({
+        sectionId: editSectionModal.section.id,
+        updates
+      });
+    }
   };
 
   const handleSectionReorder = (draggedId: string, targetId: string) => {
@@ -399,6 +466,31 @@ export function DocumentView({
                     </span>
                   )}
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditSection(section);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    padding: "4px 6px",
+                    fontSize: "10px",
+                    color: "#6b7280",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "2px"
+                  }}
+                  title="Edit section"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Edit
+                </button>
               </div>
               <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
                 {section.requirements.length} requirements
@@ -483,6 +575,20 @@ export function DocumentView({
         requirement={editRequirementModal.requirement}
         onClose={() => setEditRequirementModal({ isOpen: false, requirement: null })}
         onUpdate={handleUpdateRequirement}
+        onDelete={handleDeleteRequirement}
+      />
+
+      <EditSectionModal
+        isOpen={editSectionModal.isOpen}
+        tenant={tenant}
+        project={project}
+        documentSlug={documentSlug}
+        section={editSectionModal.section}
+        onClose={() => setEditSectionModal({ isOpen: false, section: null })}
+        onUpdated={() => {
+          // The updateSectionMutation already handles cache invalidation
+          // Additional refresh logic can be added here if needed
+        }}
       />
     </div>
   );
