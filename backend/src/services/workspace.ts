@@ -67,7 +67,7 @@ function requirementMarkdown(record: RequirementRecord): string {
     project: record.projectKey,
     pattern: record.pattern ?? null,
     verification: record.verification ?? null,
-    qa: record.qaScore
+    qa: record.qaScore !== undefined && record.qaScore !== null
       ? {
           score: record.qaScore,
           verdict: record.qaVerdict ?? null,

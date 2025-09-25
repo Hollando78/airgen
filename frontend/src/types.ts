@@ -325,7 +325,7 @@ export type BlockPortRecord = {
   direction: PortDirection;
 };
 
-export type ArchitectureBlockRecord = {
+export type ArchitectureBlockDefinitionRecord = {
   id: string;
   name: string;
   kind: BlockKind;
@@ -333,14 +333,24 @@ export type ArchitectureBlockRecord = {
   description?: string | null;
   tenant: string;
   projectKey: string;
-  positionX: number;
-  positionY: number;
-  sizeWidth: number;
-  sizeHeight: number;
   ports: BlockPortRecord[];
   documentIds: string[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type ArchitectureBlockRecord = ArchitectureBlockDefinitionRecord & {
+  diagramId: string;
+  positionX: number;
+  positionY: number;
+  sizeWidth: number;
+  sizeHeight: number;
+  placementCreatedAt: string;
+  placementUpdatedAt: string;
+};
+
+export type ArchitectureBlockLibraryRecord = ArchitectureBlockDefinitionRecord & {
+  diagrams: Array<{ id: string; name: string }>;
 };
 
 export type ArchitectureConnectorRecord = {
@@ -353,6 +363,7 @@ export type ArchitectureConnectorRecord = {
   targetPortId?: string | null;
   tenant: string;
   projectKey: string;
+  diagramId: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -360,8 +371,9 @@ export type ArchitectureConnectorRecord = {
 export type CreateArchitectureBlockRequest = {
   tenant: string;
   projectKey: string;
-  name: string;
-  kind: BlockKind;
+  diagramId: string;
+  name?: string;
+  kind?: BlockKind;
   stereotype?: string;
   description?: string;
   positionX: number;
@@ -370,9 +382,11 @@ export type CreateArchitectureBlockRequest = {
   sizeHeight?: number;
   ports?: BlockPortRecord[];
   documentIds?: string[];
+  existingBlockId?: string;
 };
 
 export type UpdateArchitectureBlockRequest = {
+  diagramId: string;
   name?: string;
   kind?: BlockKind;
   stereotype?: string;
@@ -394,6 +408,7 @@ export type CreateArchitectureConnectorRequest = {
   label?: string;
   sourcePortId?: string;
   targetPortId?: string;
+  diagramId: string;
 };
 
 export type ArchitectureBlocksResponse = {
@@ -404,10 +419,33 @@ export type ArchitectureBlockResponse = {
   block: ArchitectureBlockRecord;
 };
 
+export type ArchitectureBlockLibraryResponse = {
+  blocks: ArchitectureBlockLibraryRecord[];
+};
+
 export type ArchitectureConnectorsResponse = {
   connectors: ArchitectureConnectorRecord[];
 };
 
 export type ArchitectureConnectorResponse = {
   connector: ArchitectureConnectorRecord;
+};
+
+export type ArchitectureDiagramRecord = {
+  id: string;
+  name: string;
+  description?: string | null;
+  tenant: string;
+  projectKey: string;
+  view: "block" | "internal" | "deployment";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ArchitectureDiagramsResponse = {
+  diagrams: ArchitectureDiagramRecord[];
+};
+
+export type ArchitectureDiagramResponse = {
+  diagram: ArchitectureDiagramRecord;
 };

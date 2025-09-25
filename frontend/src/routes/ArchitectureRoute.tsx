@@ -11,6 +11,8 @@ import {
   type Node,
   type NodeChange,
   type OnSelectionChangeParams,
+  type ReactFlowInstance,
+  type XYPosition,
   useNodesState,
   useEdgesState
 } from "@xyflow/react";
@@ -27,6 +29,8 @@ import { SysmlBlockNode } from "../components/architecture/SysmlBlockNode";
 import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
 import { DocumentView } from "../components/DocumentView";
+import { Spinner } from "../components/Spinner";
+import type { ArchitectureBlockLibraryRecord } from "../types";
 
 type BlockPreset = {
   label: string;
@@ -46,6 +50,225 @@ const BLOCK_PRESETS: BlockPreset[] = [
 const nodeTypes = { sysmlBlock: SysmlBlockNode };
 
 const DEBUG_ARCHITECTURE = false;
+
+type ContextMenuState =
+  | { type: "closed" }
+  | { type: "canvas"; client: { x: number; y: number }; flowPosition: XYPosition }
+  | { type: "node"; nodeId: string; client: { x: number; y: number } }
+  | { type: "edge"; edgeId: string; client: { x: number; y: number } };
+
+interface PaletteProps {
+  presets: BlockPreset[];
+  onAddPreset: (preset: BlockPreset) => void;
+  disabled?: boolean;
+}
+
+function ArchitecturePalette({ presets, onAddPreset, disabled = false }: PaletteProps) {
+  return (
+    <div className="architecture-palette">
+      <div className="palette-header">
+        <h3>Palette</h3>
+        <p>Drop-in SysML building blocks</p>
+      </div>
+      <div className="palette-items">
+        {presets.map(preset => (
+          <button
+            key={preset.kind}
+            className={`palette-item ${disabled ? "disabled" : ""}`}
+            onClick={() => {
+              if (!disabled) {
+                onAddPreset(preset);
+              }
+            }}
+            title={preset.description}
+            disabled={disabled}
+          >
+            <span className="palette-item-label">{preset.label}</span>
+            <span className="palette-item-tag">{preset.stereotype}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface ArchitectureBrowserProps {
+  blocks: ArchitectureBlockLibraryRecord[];
+  disabled: boolean;
+  isLoading: boolean;
+  error?: unknown;
+  onInsert: (blockId: string) => void;
+  currentDiagramId: string | null;
+  blocksInDiagram: Set<string>;
+}
+
+function ArchitectureBrowser({ blocks, disabled, isLoading, error, onInsert, currentDiagramId, blocksInDiagram }: ArchitectureBrowserProps) {
+  if (isLoading) {
+    return (
+      <div className="architecture-browser">
+        <div className="browser-header">
+          <h3>Architecture Browser</h3>
+          <p>Loading reusable blocks…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="architecture-browser">
+        <div className="browser-header">
+          <h3>Architecture Browser</h3>
+          <p className="browser-error">Failed to load block library.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="architecture-browser">
+      <div className="browser-header">
+        <h3>Architecture Browser</h3>
+        <p>Reuse blocks across diagrams</p>
+      </div>
+      {blocks.length === 0 ? (
+        <div className="browser-empty">No reusable blocks yet. Create a block to seed the library.</div>
+      ) : (
+        <div className="browser-list">
+          {blocks.map(block => {
+            const alreadyInDiagram = currentDiagramId ? blocksInDiagram.has(block.id) : false;
+            return (
+              <div key={block.id} className="browser-item">
+                <div className="browser-item-info">
+                  <div className="browser-item-title">
+                    <span className="browser-item-name">{block.name}</span>
+                    {block.stereotype && <span className="browser-item-tag">{block.stereotype}</span>}
+                  </div>
+                  {block.description && <div className="browser-item-description">{block.description}</div>}
+                  {block.diagrams.length > 0 && (
+                    <div className="browser-diagram-list">
+                      {block.diagrams.map(diagram => (
+                        <span key={diagram.id} className="browser-diagram-chip">
+                          {diagram.name || diagram.id}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="browser-add-button"
+                  onClick={() => onInsert(block.id)}
+                  disabled={disabled || alreadyInDiagram}
+                >
+                  {alreadyInDiagram ? "In View" : "Add"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ContextMenuItem {
+  label: string;
+  onSelect: () => void;
+  disabled?: boolean;
+  shortcut?: string;
+}
+
+interface ArchitectureContextMenuProps {
+  x: number;
+  y: number;
+  items: ContextMenuItem[];
+  onClose: () => void;
+}
+
+function ArchitectureContextMenu({ x, y, items, onClose }: ArchitectureContextMenuProps) {
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (event.button !== 2) {
+        onClose();
+      }
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("mousedown", handleClick);
+    window.addEventListener("scroll", onClose, true);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("scroll", onClose, true);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="architecture-context-menu" style={{ left: x, top: y }}>
+      {items.map(item => (
+        <button
+          key={item.label}
+          className="context-action"
+          onClick={() => {
+            if (!item.disabled) {
+              item.onSelect();
+              onClose();
+            }
+          }}
+          disabled={item.disabled}
+        >
+          <span>{item.label}</span>
+          {item.shortcut && <span className="context-shortcut">{item.shortcut}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+interface DiagramTabsProps {
+  diagrams: Array<{ id: string; name: string }>;
+  activeDiagramId: string | null;
+  onSelect: (diagramId: string) => void;
+  onRename: (diagramId: string) => void;
+  onDelete: (diagramId: string) => void;
+}
+
+function DiagramTabs({ diagrams, activeDiagramId, onSelect, onRename, onDelete }: DiagramTabsProps) {
+  if (diagrams.length === 0) {
+    return <div className="architecture-tabs empty">Create a diagram to start modelling</div>;
+  }
+
+  return (
+    <div className="architecture-tabs">
+      {diagrams.map(diagram => (
+        <div
+          key={diagram.id}
+          className={`diagram-tab ${diagram.id === activeDiagramId ? "active" : ""}`}
+        >
+          <button
+            className="diagram-tab-button"
+            onClick={() => onSelect(diagram.id)}
+            onDoubleClick={() => onRename(diagram.id)}
+            title="Double-click to rename"
+          >
+            {diagram.name}
+          </button>
+          <button
+            className="diagram-tab-close"
+            onClick={() => onDelete(diagram.id)}
+            title="Delete diagram"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function mapConnectorToEdge(connector: SysmlConnector): Edge {
   const kind = connector.kind;
@@ -89,7 +312,15 @@ export function ArchitectureRoute(): JSX.Element {
   const api = useApiClient();
   const {
     architecture,
+    diagrams,
+    activeDiagram,
+    activeDiagramId,
+    setActiveDiagramId,
+    createDiagram,
+    renameDiagram,
+    deleteDiagram,
     addBlock,
+    reuseBlock,
     updateBlock,
     updateBlockPosition,
     updateBlockSize,
@@ -103,12 +334,19 @@ export function ArchitectureRoute(): JSX.Element {
     clearArchitecture,
     addDocumentToBlock,
     removeDocumentFromBlock,
-    hasChanges
+    hasChanges,
+    isLoading,
+    blocksLibrary,
+    isLibraryLoading,
+    libraryError
   } = useArchitecture(tenant, project);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [minimapOpen, setMinimapOpen] = useState(true);
   const [openedDocumentFromArchitecture, setOpenedDocumentFromArchitecture] = useState<string | null>(null);
+  const [contextMenuState, setContextMenuState] = useState<ContextMenuState>({ type: "closed" });
+  const canvasWrapperRef = useRef<HTMLDivElement>(null);
+  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
 
   // Debounced update refs
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map());
@@ -128,8 +366,111 @@ export function ArchitectureRoute(): JSX.Element {
     [documentsQuery.data?.documents]
   );
 
+  const blockCount = architecture.blocks.length;
+  const blocksInDiagram = useMemo(() => new Set(architecture.blocks.map(block => block.id)), [architecture.blocks]);
+
+  const computeNextPlacement = useCallback(() => {
+    const offset = blockCount;
+    return {
+      x: 160 + offset * 60 + Math.random() * 40,
+      y: 160 + offset * 40 + Math.random() * 40
+    };
+  }, [blockCount]);
+
   const handleOpenDocumentFromArchitecture = useCallback((documentSlug: string) => {
     setOpenedDocumentFromArchitecture(documentSlug);
+  }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenuState({ type: "closed" });
+  }, []);
+
+  useEffect(() => {
+    closeContextMenu();
+  }, [activeDiagramId, closeContextMenu]);
+
+  useEffect(() => {
+    setSelectedBlockId(null);
+    setSelectedConnectorId(null);
+  }, [activeDiagramId]);
+
+  const handleCreateDiagram = useCallback(async () => {
+    const baseName = `View ${diagrams.length + 1}`;
+    const name = window.prompt("Name for the new diagram", baseName);
+    if (!name || !name.trim()) return;
+
+    try {
+      await createDiagram({ name: name.trim() });
+    } catch (error) {
+      window.alert((error as Error).message);
+    }
+  }, [createDiagram, diagrams.length]);
+
+  const handleRenameDiagram = useCallback((diagramId: string) => {
+    const diagram = diagrams.find(item => item.id === diagramId);
+    if (!diagram) return;
+
+    const nextName = window.prompt("Rename diagram", diagram.name);
+    if (!nextName || !nextName.trim() || nextName.trim() === diagram.name) return;
+
+    renameDiagram(diagramId, { name: nextName.trim() }).catch(error => {
+      window.alert((error as Error).message);
+    });
+  }, [diagrams, renameDiagram]);
+
+  const handleDeleteDiagram = useCallback((diagramId: string) => {
+    const diagram = diagrams.find(item => item.id === diagramId);
+    if (!diagram) return;
+    const confirmed = window.confirm(`Delete diagram "${diagram.name}"? This removes its blocks and connectors.`);
+    if (!confirmed) return;
+    deleteDiagram(diagramId).catch(error => {
+      window.alert((error as Error).message);
+    });
+  }, [deleteDiagram, diagrams]);
+
+  const handleClearDiagram = useCallback(() => {
+    if (!activeDiagramId || !hasChanges) return;
+    if (!window.confirm("Remove all blocks and connectors from this diagram?")) return;
+    clearArchitecture();
+  }, [activeDiagramId, clearArchitecture, hasChanges]);
+
+  const handlePaneContextMenu = useCallback((event: ReactMouseEvent | MouseEvent) => {
+    event.preventDefault();
+    setSelectedBlockId(null);
+    setSelectedConnectorId(null);
+
+    if (!canvasWrapperRef.current || !reactFlowInstanceRef.current) return;
+    const bounds = canvasWrapperRef.current.getBoundingClientRect();
+    const nativeEvent = 'nativeEvent' in event ? event.nativeEvent : event;
+    const relative = {
+      x: nativeEvent.clientX - bounds.left,
+      y: nativeEvent.clientY - bounds.top
+    };
+    const position = reactFlowInstanceRef.current.screenToFlowPosition(relative);
+
+    setContextMenuState({
+      type: "canvas",
+      client: { x: event.clientX, y: event.clientY },
+      flowPosition: position
+    });
+  }, []);
+
+  const handleNodeContextMenu = useCallback((event: ReactMouseEvent, node: Node) => {
+    event.preventDefault();
+    setContextMenuState({
+      type: "node",
+      nodeId: node.id,
+      client: { x: event.clientX, y: event.clientY }
+    });
+  }, []);
+
+  const handleEdgeContextMenu = useCallback((event: ReactMouseEvent, edge: Edge) => {
+    event.preventDefault();
+    setContextMenuState({
+      type: "edge",
+      edgeId: edge.id,
+      client: { x: event.clientX, y: event.clientY }
+    });
   }, []);
 
   // Debounced update functions to prevent API flooding
@@ -245,6 +586,8 @@ export function ArchitectureRoute(): JSX.Element {
       const firstNodeId = selectedNodes[0]?.id ?? null;
       const firstEdgeId = selectedEdges[0]?.id ?? null;
 
+      closeContextMenu();
+
       if (DEBUG_ARCHITECTURE) {
         console.debug("[Architecture] selection change", {
           nodeIds: selectedNodes.map(node => node.id),
@@ -263,7 +606,7 @@ export function ArchitectureRoute(): JSX.Element {
         setSelectedConnectorId(null);
       }
     },
-    [setEdges, setNodes]
+    [closeContextMenu, setEdges, setNodes]
   );
 
   const handleNodesChange = useCallback(
@@ -308,7 +651,7 @@ export function ArchitectureRoute(): JSX.Element {
 
   const handleConnect = useCallback(
     (connection: Connection) => {
-      if (!connection.source || !connection.target) return;
+      if (!activeDiagramId || !connection.source || !connection.target) return;
       const newId = addConnector({
         source: connection.source,
         target: connection.target,
@@ -326,20 +669,27 @@ export function ArchitectureRoute(): JSX.Element {
         selected: false
       })));
     },
-    [addConnector, setEdges, setNodes]
+    [activeDiagramId, addConnector, setEdges, setNodes]
   );
 
   const handleAddBlock = useCallback(
-    (preset: BlockPreset) => {
-      const offset = architecture.blocks.length;
+    (preset: BlockPreset, position?: XYPosition) => {
+      if (!activeDiagramId) {
+        window.alert("Create or select a diagram before adding blocks.");
+        return;
+      }
+
+      const placement = position ?? computeNextPlacement();
       const id = addBlock({
         name: preset.label,
         kind: preset.kind,
         stereotype: preset.stereotype,
         description: preset.description,
-        x: 160 + offset * 60 + Math.random() * 40,
-        y: 160 + offset * 40 + Math.random() * 40
+        x: placement.x,
+        y: placement.y
       });
+
+      if (!id) return;
 
       setSelectedBlockId(id);
       setSelectedConnectorId(null);
@@ -352,8 +702,105 @@ export function ArchitectureRoute(): JSX.Element {
         selected: false
       })));
     },
-    [addBlock, architecture.blocks.length, setEdges, setNodes]
+    [activeDiagramId, addBlock, computeNextPlacement, setEdges, setNodes]
   );
+
+  const handleReuseExistingBlock = useCallback(
+    (blockId: string) => {
+      if (!activeDiagramId) {
+        window.alert("Create or select a diagram before adding blocks.");
+        return;
+      }
+
+      const placement = computeNextPlacement();
+      const id = reuseBlock(blockId, placement);
+
+      if (!id) return;
+
+      setSelectedBlockId(id);
+      setSelectedConnectorId(null);
+      setNodes(prevNodes => prevNodes.map(node => ({
+        ...node,
+        selected: node.id === id
+      })));
+      setEdges(prevEdges => prevEdges.map(edge => ({
+        ...edge,
+        selected: false
+      })));
+    },
+    [activeDiagramId, computeNextPlacement, reuseBlock, setEdges, setNodes]
+  );
+
+  const contextMenuItems = useMemo<ContextMenuItem[]>(() => {
+    if (contextMenuState.type === "canvas") {
+      return BLOCK_PRESETS.map(preset => ({
+        label: `Add ${preset.label}`,
+        onSelect: () => handleAddBlock(preset, contextMenuState.flowPosition),
+        disabled: !activeDiagramId
+      }));
+    }
+
+    if (contextMenuState.type === "node") {
+      const block = architecture.blocks.find(item => item.id === contextMenuState.nodeId);
+      if (!block) return [];
+
+      const sharedBaseName = block.name.replace(/\s+copy$/i, "");
+      const existingInputs = block.ports.filter(port => port.direction !== "out").length;
+      const existingOutputs = block.ports.filter(port => port.direction !== "in").length;
+
+      return [
+        {
+          label: "Add input port",
+          onSelect: () => addPort(block.id, { name: `in${existingInputs + 1}`, direction: "in" })
+        },
+        {
+          label: "Add output port",
+          onSelect: () => addPort(block.id, { name: `out${existingOutputs + 1}`, direction: "out" })
+        },
+        {
+          label: "Duplicate block",
+          onSelect: () => handleAddBlock(
+            {
+              label: `${sharedBaseName} copy`,
+              kind: block.kind,
+              stereotype: block.stereotype ?? "block",
+              description: block.description
+            },
+            {
+              x: block.position.x + block.size.width + 40,
+              y: block.position.y + 40
+            }
+          )
+        },
+        {
+          label: "Delete block",
+          onSelect: () => removeBlock(block.id)
+        }
+      ];
+    }
+
+    if (contextMenuState.type === "edge") {
+      const connector = architecture.connectors.find(item => item.id === contextMenuState.edgeId);
+      if (!connector) return [];
+      return [
+        {
+          label: "Delete connector",
+          onSelect: () => removeConnector(connector.id)
+        }
+      ];
+    }
+
+    return [];
+  }, [
+    contextMenuState,
+    activeDiagramId,
+    architecture.blocks,
+    architecture.connectors,
+    handleAddBlock,
+    addPort,
+    removeBlock,
+    removeConnector
+  ]);
 
   const selectedBlock = useMemo(
     () => architecture.blocks.find(block => block.id === selectedBlockId) ?? null,
@@ -367,203 +814,233 @@ export function ArchitectureRoute(): JSX.Element {
 
   if (!tenant || !project) {
     return (
-      <div className="panel">
-        <div className="panel-header">
-          <h1>Architecture</h1>
-          <p>Select a tenant and project to define system architecture.</p>
-        </div>
+      <div className="architecture-empty-state">
+        <h1>Architecture</h1>
+        <p>Select a tenant and project to work on architectural diagrams.</p>
       </div>
     );
   }
 
+  const showContextMenu = contextMenuState.type !== "closed" && contextMenuItems.length > 0;
+  const diagramsForTabs = diagrams.map(diagram => ({ id: diagram.id, name: diagram.name }));
+
   return (
-    <div className="panel-stack">
-      <div className="panel">
-        <div className="panel-header">
-          <div>
-            <h1>SysML Architecture</h1>
-            <p>Model the block definition diagram for {project}</p>
-          </div>
-          <div className="architecture-toolbar">
-            {BLOCK_PRESETS.map(preset => (
-              <button
-                key={preset.kind}
-                className="ghost-button"
-                onClick={() => handleAddBlock(preset)}
-                title={`Add ${preset.label}`}
-              >
-                {preset.label}
-              </button>
-            ))}
-            <span style={{ width: "1px", height: "24px", background: "#dbeafe" }} />
-            <button className="ghost-button" onClick={clearArchitecture} disabled={!hasChanges}>
-              Clear All
-            </button>
-          </div>
+    <div className="architecture-shell">
+      <header className="architecture-header">
+        <div className="architecture-header-info">
+          <h1>Architecture Studio</h1>
+          <p>Compose SysML views for {project}</p>
         </div>
+        <div className="architecture-header-actions">
+          <button className="ghost-button" onClick={handleCreateDiagram}>
+            + Diagram
+          </button>
+          <button
+            className="ghost-button"
+            onClick={handleClearDiagram}
+            disabled={!hasChanges || !activeDiagramId}
+          >
+            Clear Diagram
+          </button>
+        </div>
+      </header>
 
-        <div className="architecture-workspace">
-          <div className="architecture-canvas-shell">
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              onNodesChange={handleNodesChange}
-              onEdgesChange={handleEdgesChange}
-              onConnect={handleConnect}
-              onPaneClick={() => {
-                setSelectedBlockId(null);
-                setSelectedConnectorId(null);
-                setNodes(prevNodes => prevNodes.map(node => ({
-                  ...node,
-                  selected: false
-                })));
-                setEdges(prevEdges => prevEdges.map(edge => ({
-                  ...edge,
-                  selected: false
-                })));
-              }}
-              onNodeClick={(event: ReactMouseEvent, node: Node) => {
-                event.stopPropagation();
-                if (DEBUG_ARCHITECTURE) {
-                  console.debug("[Architecture] onNodeClick", node.id);
-                }
-                setSelectedBlockId(node.id);
-                setSelectedConnectorId(null);
-              }}
-              onEdgeClick={(event: ReactMouseEvent, edge: Edge) => {
-                event.stopPropagation();
-                if (DEBUG_ARCHITECTURE) {
-                  console.debug("[Architecture] onEdgeClick", edge.id);
-                }
-                setSelectedConnectorId(edge.id);
-                setSelectedBlockId(null);
-                setEdges(prevEdges => prevEdges.map(existing => ({
-                  ...existing,
-                  selected: existing.id === edge.id
-                })));
-                setNodes(prevNodes => prevNodes.map(existing => ({
-                  ...existing,
-                  selected: false
-                })));
-              }}
-              onNodesDelete={(nodesToDelete: Node[]) =>
-                nodesToDelete.forEach(node => removeBlock(node.id))
-              }
-              onEdgesDelete={(edgesToDelete: Edge[]) =>
-                edgesToDelete.forEach(edge => removeConnector(edge.id))
-              }
-              onSelectionChange={handleSelectionChange}
-              fitView
-              proOptions={{ hideAttribution: true }}
-            >
-              <Background color="#e2e8f0" gap={20} size={1} />
-              {minimapOpen && (
-                <MiniMap
-                  position="top-right"
-                  style={{
-                    top: 20,
-                    right: 20,
-                    width: 200,
-                    height: 140,
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
-                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)"
+      <DiagramTabs
+        diagrams={diagramsForTabs}
+        activeDiagramId={activeDiagramId}
+        onSelect={setActiveDiagramId}
+        onRename={handleRenameDiagram}
+        onDelete={handleDeleteDiagram}
+      />
+
+      <div className="architecture-body">
+        <aside className="architecture-pane palette-pane">
+          <ArchitecturePalette
+            presets={BLOCK_PRESETS}
+            onAddPreset={preset => handleAddBlock(preset)}
+            disabled={!activeDiagramId}
+          />
+          <ArchitectureBrowser
+            blocks={blocksLibrary}
+            disabled={!activeDiagramId}
+            isLoading={isLibraryLoading}
+            error={libraryError}
+            onInsert={handleReuseExistingBlock}
+            currentDiagramId={activeDiagramId}
+            blocksInDiagram={blocksInDiagram}
+          />
+        </aside>
+
+        <div className="architecture-canvas-area">
+          <div className="architecture-canvas-shell" ref={canvasWrapperRef}>
+            {activeDiagramId ? (
+              <>
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  nodeTypes={nodeTypes}
+                  onNodesChange={handleNodesChange}
+                  onEdgesChange={handleEdgesChange}
+                  onConnect={handleConnect}
+                  onPaneClick={() => {
+                    closeContextMenu();
+                    setSelectedBlockId(null);
+                    setSelectedConnectorId(null);
+                    setNodes(prevNodes => prevNodes.map(node => ({
+                      ...node,
+                      selected: false
+                    })));
+                    setEdges(prevEdges => prevEdges.map(edge => ({
+                      ...edge,
+                      selected: false
+                    })));
                   }}
-                  nodeColor={node => {
-                    const block = architecture.blocks.find(b => b.id === node.id);
-                    if (!block) return "#e2e8f0";
-                    switch (block.kind) {
-                      case "system":
-                        return "#2563eb";
-                      case "subsystem":
-                        return "#7c3aed";
-                      case "actor":
-                        return "#f97316";
-                      case "external":
-                        return "#64748b";
-                      default:
-                        return "#16a34a";
+                  onPaneContextMenu={handlePaneContextMenu}
+                  onNodeContextMenu={handleNodeContextMenu}
+                  onEdgeContextMenu={handleEdgeContextMenu}
+                  onNodeClick={(event: ReactMouseEvent, node: Node) => {
+                    event.stopPropagation();
+                    closeContextMenu();
+                    if (DEBUG_ARCHITECTURE) {
+                      console.debug("[Architecture] onNodeClick", node.id);
                     }
+                    setSelectedBlockId(node.id);
+                    setSelectedConnectorId(null);
                   }}
-                />
-              )}
-              <button
-                onClick={() => setMinimapOpen(!minimapOpen)}
-                style={{
-                  position: "absolute",
-                  top: 20,
-                  right: minimapOpen ? 230 : 20,
-                  width: 32,
-                  height: 32,
-                  backgroundColor: "#ffffff",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "6px",
-                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "14px",
-                  color: "#64748b",
-                  transition: "all 0.2s ease",
-                  zIndex: 5
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.backgroundColor = "#f8fafc";
-                  e.currentTarget.style.borderColor = "#cbd5e1";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.backgroundColor = "#ffffff";
-                  e.currentTarget.style.borderColor = "#e2e8f0";
-                }}
-                title={minimapOpen ? "Hide minimap" : "Show minimap"}
-              >
-                {minimapOpen ? "◰" : "◲"}
-              </button>
-              <Controls position="bottom-right" showInteractive={false} />
-            </ReactFlow>
-          </div>
+                  onEdgeClick={(event: ReactMouseEvent, edge: Edge) => {
+                    event.stopPropagation();
+                    closeContextMenu();
+                    if (DEBUG_ARCHITECTURE) {
+                      console.debug("[Architecture] onEdgeClick", edge.id);
+                    }
+                    setSelectedConnectorId(edge.id);
+                    setSelectedBlockId(null);
+                    setEdges(prevEdges => prevEdges.map(existing => ({
+                      ...existing,
+                      selected: existing.id === edge.id
+                    })));
+                    setNodes(prevNodes => prevNodes.map(existing => ({
+                      ...existing,
+                      selected: false
+                    })));
+                  }}
+                  onNodesDelete={(nodesToDelete: Node[]) =>
+                    nodesToDelete.forEach(node => removeBlock(node.id))
+                  }
+                  onEdgesDelete={(edgesToDelete: Edge[]) =>
+                    edgesToDelete.forEach(edge => removeConnector(edge.id))
+                  }
+                  onSelectionChange={handleSelectionChange}
+                  onInit={instance => {
+                    reactFlowInstanceRef.current = instance;
+                  }}
+                  fitView
+                  proOptions={{ hideAttribution: true }}
+                >
+                  <Background color="#e2e8f0" gap={20} size={1} />
+                  {minimapOpen && (
+                    <MiniMap
+                      position="top-right"
+                      style={{
+                        top: 20,
+                        right: 20,
+                        width: 200,
+                        height: 140,
+                        backgroundColor: "#ffffff",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)"
+                      }}
+                      nodeColor={node => {
+                        const block = architecture.blocks.find(b => b.id === node.id);
+                        if (!block) return "#e2e8f0";
+                        switch (block.kind) {
+                          case "system":
+                            return "#2563eb";
+                          case "subsystem":
+                            return "#7c3aed";
+                          case "actor":
+                            return "#f97316";
+                          case "external":
+                            return "#64748b";
+                          default:
+                            return "#16a34a";
+                        }
+                      }}
+                    />
+                  )}
+                  <Controls position="bottom-right" showInteractive={false} />
+                </ReactFlow>
 
-          <div className="architecture-sidebars">
-            {selectedBlock && (
-              <BlockDetailsPanel
-                block={selectedBlock}
-                onUpdate={updates => updateBlock(selectedBlock.id, updates)}
-                onUpdatePosition={position => updateBlockPosition(selectedBlock.id, position)}
-                onUpdateSize={size => updateBlockSize(selectedBlock.id, size)}
-                onRemove={() => removeBlock(selectedBlock.id)}
-                onAddPort={port => addPort(selectedBlock.id, port)}
-                onUpdatePort={(portId, updates) => updatePort(selectedBlock.id, portId, updates)}
-                onRemovePort={portId => removePort(selectedBlock.id, portId)}
-                documents={documents}
-                onAddDocument={documentId => addDocumentToBlock(selectedBlock.id, documentId)}
-                onRemoveDocument={documentId => removeDocumentFromBlock(selectedBlock.id, documentId)}
-              />
-            )}
+                <button
+                  className="minimap-toggle"
+                  style={{ right: minimapOpen ? 240 : 20 }}
+                  onClick={() => setMinimapOpen(!minimapOpen)}
+                  title={minimapOpen ? "Hide minimap" : "Show minimap"}
+                >
+                  {minimapOpen ? "◰" : "◲"}
+                </button>
 
-            {selectedConnector && (
-              <ConnectorDetailsPanel
-                connector={selectedConnector}
-                onUpdate={updates => updateConnector(selectedConnector.id, updates)}
-                onRemove={() => removeConnector(selectedConnector.id)}
-              />
-            )}
+                {isLoading && (
+                  <div className="architecture-loading-overlay">
+                    <Spinner />
+                  </div>
+                )}
 
-            {!selectedBlock && !selectedConnector && (
-              <div className="architecture-hint">
-                <h3>Workspace tips</h3>
-                <ul>
-                  <li>Use the palette to add SysML blocks.</li>
-                  <li>Drag handles between blocks or ports to create connectors.</li>
-                  <li>Select a block or connector to edit details here.</li>
-                  <li>Drag blocks or resize them to express containment.</li>
-                </ul>
+                {showContextMenu && (
+                  <ArchitectureContextMenu
+                    x={contextMenuState.client.x}
+                    y={contextMenuState.client.y}
+                    items={contextMenuItems}
+                    onClose={closeContextMenu}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="architecture-canvas-placeholder">
+                <p>Select a diagram tab or create a new view to begin modelling.</p>
               </div>
             )}
           </div>
         </div>
+
+        <aside className="architecture-pane inspector-pane">
+          {selectedBlock && (
+            <BlockDetailsPanel
+              block={selectedBlock}
+              onUpdate={updates => updateBlock(selectedBlock.id, updates)}
+              onUpdatePosition={position => updateBlockPosition(selectedBlock.id, position)}
+              onUpdateSize={size => updateBlockSize(selectedBlock.id, size)}
+              onRemove={() => removeBlock(selectedBlock.id)}
+              onAddPort={port => addPort(selectedBlock.id, port)}
+              onUpdatePort={(portId, updates) => updatePort(selectedBlock.id, portId, updates)}
+              onRemovePort={portId => removePort(selectedBlock.id, portId)}
+              documents={documents}
+              onAddDocument={documentId => addDocumentToBlock(selectedBlock.id, documentId)}
+              onRemoveDocument={documentId => removeDocumentFromBlock(selectedBlock.id, documentId)}
+            />
+          )}
+
+          {selectedConnector && (
+            <ConnectorDetailsPanel
+              connector={selectedConnector}
+              onUpdate={updates => updateConnector(selectedConnector.id, updates)}
+              onRemove={() => removeConnector(selectedConnector.id)}
+            />
+          )}
+
+          {!selectedBlock && !selectedConnector && (
+            <div className="architecture-hint">
+              <h3>Workspace tips</h3>
+              <ul>
+                <li>Use the palette to drop new blocks into the canvas.</li>
+                <li>Right-click the canvas or blocks for quick actions.</li>
+                <li>Drag handles between ports to author connectors.</li>
+                <li>Open blocks to link supporting documents.</li>
+              </ul>
+            </div>
+          )}
+        </aside>
       </div>
 
       {openedDocumentFromArchitecture && tenant && project && (

@@ -77,8 +77,8 @@ export default async function airgenRoutes(app: FastifyInstance) {
 
     const created = await createRequirementCandidates(
       analyzed.map(item => ({
-        tenant: body.tenant,
-        projectKey: body.projectKey,
+        tenant: slugify(body.tenant),
+        projectKey: slugify(body.projectKey),
         text: item.text,
         qaScore: item.qa.score,
         qaVerdict: item.qa.verdict,

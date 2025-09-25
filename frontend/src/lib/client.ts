@@ -31,8 +31,11 @@ import type {
   LinkSuggestResponse,
   ArchitectureBlocksResponse,
   ArchitectureBlockResponse,
+  ArchitectureBlockLibraryResponse,
   ArchitectureConnectorsResponse,
   ArchitectureConnectorResponse,
+  ArchitectureDiagramsResponse,
+  ArchitectureDiagramResponse,
   CreateArchitectureBlockRequest,
   UpdateArchitectureBlockRequest,
   CreateArchitectureConnectorRequest,
@@ -174,20 +177,30 @@ export function useApiClient() {
       suggestLinks: (body: LinkSuggestRequest) =>
         request<LinkSuggestResponse>(`/link/suggest`, { method: "POST", body: JSON.stringify(body) }),
       // Architecture API methods
-      listArchitectureBlocks: (tenant: string, project: string) =>
-        request<ArchitectureBlocksResponse>(`/architecture/blocks/${tenant}/${project}`),
+      listArchitectureDiagrams: (tenant: string, project: string) =>
+        request<ArchitectureDiagramsResponse>(`/architecture/diagrams/${tenant}/${project}`),
+      listArchitectureBlockLibrary: (tenant: string, project: string) =>
+        request<ArchitectureBlockLibraryResponse>(`/architecture/block-library/${tenant}/${project}`),
+      createArchitectureDiagram: (body: { tenant: string; projectKey: string; name: string; description?: string; view?: "block" | "internal" | "deployment" }) =>
+        request<ArchitectureDiagramResponse>(`/architecture/diagrams`, { method: "POST", body: JSON.stringify(body) }),
+      updateArchitectureDiagram: (tenant: string, project: string, diagramId: string, body: { name?: string; description?: string; view?: "block" | "internal" | "deployment" }) =>
+        request<ArchitectureDiagramResponse>(`/architecture/diagrams/${tenant}/${project}/${diagramId}`, { method: "PATCH", body: JSON.stringify(body) }),
+      deleteArchitectureDiagram: (tenant: string, project: string, diagramId: string) =>
+        request<{ success: boolean }>(`/architecture/diagrams/${tenant}/${project}/${diagramId}`, { method: "DELETE" }),
+      listArchitectureBlocks: (tenant: string, project: string, diagramId: string) =>
+        request<ArchitectureBlocksResponse>(`/architecture/blocks/${tenant}/${project}/${diagramId}`),
       createArchitectureBlock: (body: CreateArchitectureBlockRequest) =>
         request<ArchitectureBlockResponse>(`/architecture/blocks`, { method: "POST", body: JSON.stringify(body) }),
       updateArchitectureBlock: (tenant: string, project: string, blockId: string, body: UpdateArchitectureBlockRequest) =>
         request<ArchitectureBlockResponse>(`/architecture/blocks/${tenant}/${project}/${blockId}`, { method: "PATCH", body: JSON.stringify(body) }),
-      deleteArchitectureBlock: (tenant: string, project: string, blockId: string) =>
-        request<{ success: boolean }>(`/architecture/blocks/${tenant}/${project}/${blockId}`, { method: "DELETE" }),
-      listArchitectureConnectors: (tenant: string, project: string) =>
-        request<ArchitectureConnectorsResponse>(`/architecture/connectors/${tenant}/${project}`),
+      deleteArchitectureBlock: (tenant: string, project: string, diagramId: string, blockId: string) =>
+        request<{ success: boolean }>(`/architecture/blocks/${tenant}/${project}/${blockId}?diagramId=${diagramId}`, { method: "DELETE" }),
+      listArchitectureConnectors: (tenant: string, project: string, diagramId: string) =>
+        request<ArchitectureConnectorsResponse>(`/architecture/connectors/${tenant}/${project}/${diagramId}`),
       createArchitectureConnector: (body: CreateArchitectureConnectorRequest) =>
         request<ArchitectureConnectorResponse>(`/architecture/connectors`, { method: "POST", body: JSON.stringify(body) }),
-      deleteArchitectureConnector: (tenant: string, project: string, connectorId: string) =>
-        request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}`, { method: "DELETE" }),
+      deleteArchitectureConnector: (tenant: string, project: string, diagramId: string, connectorId: string) =>
+        request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}?diagramId=${diagramId}`, { method: "DELETE" }),
       // Trace Links API methods
       createTraceLink: (body: CreateTraceLinkRequest & { tenant: string; projectKey: string }) =>
         request<{ traceLink: TraceLink }>(`/trace-links`, { method: "POST", body: JSON.stringify(body) }),

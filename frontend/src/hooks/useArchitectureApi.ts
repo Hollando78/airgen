@@ -3,11 +3,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import type {
   ArchitectureBlockRecord,
+  ArchitectureBlockLibraryRecord,
   ArchitectureConnectorRecord,
+  ArchitectureDiagramRecord,
   BlockKind,
   PortDirection,
   BlockPortRecord,
-  ConnectorKind
+  ConnectorKind,
+  UpdateArchitectureBlockRequest
 } from "../types";
 
 // Convert backend types to frontend types
@@ -77,53 +80,164 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   const api = useApiClient();
   const queryClient = useQueryClient();
 
-  // Queries for blocks and connectors
-  const blocksQuery = useQuery({
-    queryKey: ["architecture-blocks", tenant, project],
-    queryFn: () => api.listArchitectureBlocks(tenant!, project!),
+  const [activeDiagramId, setActiveDiagramId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveDiagramId(null);
+  }, [tenant, project]);
+
+  const diagramsQuery = useQuery({
+    queryKey: ["architecture-diagrams", tenant, project],
+    queryFn: () => api.listArchitectureDiagrams(tenant!, project!),
     enabled: Boolean(tenant && project)
+  });
+
+  const diagrams = useMemo<ArchitectureDiagramRecord[]>(
+    () => diagramsQuery.data?.diagrams ?? [],
+    [diagramsQuery.data?.diagrams]
+  );
+
+  useEffect(() => {
+    if (!diagrams.length) {
+      setActiveDiagramId(null);
+      return;
+    }
+
+    setActiveDiagramId(prev => {
+      if (prev && diagrams.some(diagram => diagram.id === prev)) {
+        return prev;
+      }
+      return diagrams[0].id;
+    });
+  }, [diagrams]);
+
+  const activeDiagram = useMemo(
+    () => (activeDiagramId ? diagrams.find(diagram => diagram.id === activeDiagramId) ?? null : null),
+    [diagrams, activeDiagramId]
+  );
+
+  const blockLibraryQuery = useQuery({
+    queryKey: ["architecture-block-library", tenant, project],
+    queryFn: () => api.listArchitectureBlockLibrary(tenant!, project!),
+    enabled: Boolean(tenant && project)
+  });
+
+  const blocksLibrary = useMemo<ArchitectureBlockLibraryRecord[]>(
+    () => blockLibraryQuery.data?.blocks ?? [],
+    [blockLibraryQuery.data?.blocks]
+  );
+
+  const blocksQuery = useQuery({
+    queryKey: ["architecture-blocks", tenant, project, activeDiagramId],
+    queryFn: () => api.listArchitectureBlocks(tenant!, project!, activeDiagramId!),
+    enabled: Boolean(tenant && project && activeDiagramId)
   });
 
   const connectorsQuery = useQuery({
-    queryKey: ["architecture-connectors", tenant, project],
-    queryFn: () => api.listArchitectureConnectors(tenant!, project!),
-    enabled: Boolean(tenant && project)
+    queryKey: ["architecture-connectors", tenant, project, activeDiagramId],
+    queryFn: () => api.listArchitectureConnectors(tenant!, project!, activeDiagramId!),
+    enabled: Boolean(tenant && project && activeDiagramId)
   });
 
-  // Mutations
+  const createDiagramMutation = useMutation({
+    mutationFn: (input: { name: string; description?: string; view?: ArchitectureDiagramRecord["view"] }) =>
+      api.createArchitectureDiagram({
+        tenant: tenant!,
+        projectKey: project!,
+        name: input.name,
+        description: input.description,
+        view: input.view
+      }),
+    onSuccess: ({ diagram }) => {
+      queryClient.invalidateQueries({ queryKey: ["architecture-diagrams", tenant, project] });
+      setActiveDiagramId(diagram.id);
+    }
+  });
+
+  const updateDiagramMutation = useMutation({
+    mutationFn: ({ diagramId, updates }: { diagramId: string; updates: Partial<Pick<ArchitectureDiagramRecord, "name" | "description" | "view">> }) =>
+      api.updateArchitectureDiagram(tenant!, project!, diagramId, {
+        ...updates,
+        description: updates.description ?? undefined
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["architecture-diagrams", tenant, project] });
+    }
+  });
+
+  const deleteDiagramMutation = useMutation({
+    mutationFn: (diagramId: string) => api.deleteArchitectureDiagram(tenant!, project!, diagramId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["architecture-diagrams", tenant, project] });
+    }
+  });
+
   const createBlockMutation = useMutation({
-    mutationFn: (block: {
-      name: string;
-      kind: BlockKind;
-      stereotype?: string;
-      description?: string;
+    mutationFn: (input: {
       positionX: number;
       positionY: number;
       sizeWidth?: number;
       sizeHeight?: number;
+      name?: string;
+      kind?: BlockKind;
+      stereotype?: string;
+      description?: string;
       ports?: BlockPortRecord[];
-    }) => api.createArchitectureBlock({
-      tenant: tenant!,
-      projectKey: project!,
-      ...block
-    }),
+      documentIds?: string[];
+      existingBlockId?: string;
+    }) => {
+      if (!activeDiagramId) {
+        throw new Error("Cannot create block without an active diagram");
+      }
+
+      return api.createArchitectureBlock({
+        tenant: tenant!,
+        projectKey: project!,
+        diagramId: activeDiagramId,
+        positionX: input.positionX,
+        positionY: input.positionY,
+        sizeWidth: input.sizeWidth,
+        sizeHeight: input.sizeHeight,
+        name: input.existingBlockId ? undefined : input.name,
+        kind: input.existingBlockId ? undefined : input.kind,
+        stereotype: input.stereotype,
+        description: input.description,
+        ports: input.ports,
+        documentIds: input.documentIds,
+        existingBlockId: input.existingBlockId
+      });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["architecture-blocks", tenant, project] });
+      if (activeDiagramId) {
+        queryClient.invalidateQueries({ queryKey: ["architecture-blocks", tenant, project, activeDiagramId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["architecture-block-library", tenant, project] });
     }
   });
 
   const updateBlockMutation = useMutation({
-    mutationFn: ({ blockId, updates }: { blockId: string; updates: any }) =>
+    mutationFn: ({ blockId, updates }: { blockId: string; updates: UpdateArchitectureBlockRequest }) =>
       api.updateArchitectureBlock(tenant!, project!, blockId, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["architecture-blocks", tenant, project] });
+      if (activeDiagramId) {
+        queryClient.invalidateQueries({ queryKey: ["architecture-blocks", tenant, project, activeDiagramId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["architecture-block-library", tenant, project] });
     }
   });
 
   const deleteBlockMutation = useMutation({
-    mutationFn: (blockId: string) => api.deleteArchitectureBlock(tenant!, project!, blockId),
+    mutationFn: (blockId: string) => {
+      if (!activeDiagramId) {
+        throw new Error("Cannot delete block without an active diagram");
+      }
+      return api.deleteArchitectureBlock(tenant!, project!, activeDiagramId, blockId);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["architecture-blocks", tenant, project] });
+      if (activeDiagramId) {
+        queryClient.invalidateQueries({ queryKey: ["architecture-blocks", tenant, project, activeDiagramId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["architecture-block-library", tenant, project] });
     }
   });
 
@@ -135,41 +249,57 @@ export function useArchitecture(tenant: string | null, project: string | null) {
       label?: string;
       sourcePortId?: string;
       targetPortId?: string;
-    }) => api.createArchitectureConnector({
-      tenant: tenant!,
-      projectKey: project!,
-      ...connector
-    }),
+    }) => {
+      if (!activeDiagramId) {
+        throw new Error("Cannot create connector without an active diagram");
+      }
+
+      return api.createArchitectureConnector({
+        tenant: tenant!,
+        projectKey: project!,
+        diagramId: activeDiagramId,
+        ...connector
+      });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["architecture-connectors", tenant, project] });
+      if (activeDiagramId) {
+        queryClient.invalidateQueries({ queryKey: ["architecture-connectors", tenant, project, activeDiagramId] });
+      }
     }
   });
 
   const deleteConnectorMutation = useMutation({
-    mutationFn: (connectorId: string) => api.deleteArchitectureConnector(tenant!, project!, connectorId),
+    mutationFn: (connectorId: string) => {
+      if (!activeDiagramId) {
+        throw new Error("Cannot delete connector without an active diagram");
+      }
+      return api.deleteArchitectureConnector(tenant!, project!, activeDiagramId, connectorId);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["architecture-connectors", tenant, project] });
+      if (activeDiagramId) {
+        queryClient.invalidateQueries({ queryKey: ["architecture-connectors", tenant, project, activeDiagramId] });
+      }
     }
   });
 
-  // Transform API data with memoization to prevent infinite re-renders
-  const blocks = useMemo(() => 
-    blocksQuery.data?.blocks.map(mapBlockFromApi) ?? [], 
+  const blocks = useMemo(() =>
+    (blocksQuery.data?.blocks ?? []).map(mapBlockFromApi),
     [blocksQuery.data?.blocks]
   );
-  
-  const connectors = useMemo(() => 
-    connectorsQuery.data?.connectors.map(mapConnectorFromApi) ?? [], 
+
+  const connectors = useMemo(() =>
+    (connectorsQuery.data?.connectors ?? []).map(mapConnectorFromApi),
     [connectorsQuery.data?.connectors]
   );
 
   const architecture: ArchitectureState = useMemo(() => ({
     blocks,
     connectors,
-    lastModified: new Date(blocksQuery.dataUpdatedAt || connectorsQuery.dataUpdatedAt || Date.now()).toISOString()
-  }), [blocks, connectors, blocksQuery.dataUpdatedAt, connectorsQuery.dataUpdatedAt]);
+    lastModified: new Date(
+      blocksQuery.dataUpdatedAt || connectorsQuery.dataUpdatedAt || diagramsQuery.dataUpdatedAt || Date.now()
+    ).toISOString()
+  }), [blocks, connectors, blocksQuery.dataUpdatedAt, connectorsQuery.dataUpdatedAt, diagramsQuery.dataUpdatedAt]);
 
-  // API wrapper functions
   const addBlock = useCallback((input: {
     name?: string;
     kind?: BlockKind;
@@ -179,6 +309,8 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     y?: number;
     size?: { width: number; height: number };
   } | { x: number; y: number }) => {
+    if (!activeDiagramId) return null;
+
     const name = 'name' in input ? input.name : `Block ${blocks.length + 1}`;
     const kind = 'kind' in input ? input.kind : 'component';
     const x = input.x ?? 100;
@@ -195,36 +327,53 @@ export function useArchitecture(tenant: string | null, project: string | null) {
       positionY: y,
       sizeWidth,
       sizeHeight,
-      ports: []
+      ports: [],
+      documentIds: [] as string[]
     };
 
     createBlockMutation.mutate(blockData);
-    
-    // Return a temporary ID for immediate feedback
+
     return `temp-${Date.now()}`;
-  }, [createBlockMutation, blocks.length]);
+  }, [activeDiagramId, blocks.length, createBlockMutation]);
 
   const updateBlock = useCallback((blockId: string, updates: Partial<Pick<SysmlBlock, "name" | "kind" | "stereotype" | "description">>) => {
-    updateBlockMutation.mutate({ blockId, updates });
-  }, [updateBlockMutation]);
+    if (!activeDiagramId) return;
+    updateBlockMutation.mutate({ blockId, updates: { diagramId: activeDiagramId, ...updates } });
+  }, [activeDiagramId, updateBlockMutation]);
 
   const updateBlockPosition = useCallback((blockId: string, position: { x: number; y: number }) => {
-    updateBlockMutation.mutate({ 
-      blockId, 
-      updates: { positionX: position.x, positionY: position.y } 
+    if (!activeDiagramId) return;
+    updateBlockMutation.mutate({
+      blockId,
+      updates: { diagramId: activeDiagramId, positionX: position.x, positionY: position.y }
     });
-  }, [updateBlockMutation]);
+  }, [activeDiagramId, updateBlockMutation]);
 
   const updateBlockSize = useCallback((blockId: string, size: { width: number; height: number }) => {
-    updateBlockMutation.mutate({ 
-      blockId, 
-      updates: { sizeWidth: size.width, sizeHeight: size.height } 
+    if (!activeDiagramId) return;
+    updateBlockMutation.mutate({
+      blockId,
+      updates: { diagramId: activeDiagramId, sizeWidth: size.width, sizeHeight: size.height }
     });
-  }, [updateBlockMutation]);
+  }, [activeDiagramId, updateBlockMutation]);
 
   const removeBlock = useCallback((blockId: string) => {
     deleteBlockMutation.mutate(blockId);
   }, [deleteBlockMutation]);
+
+  const reuseBlock = useCallback((blockId: string, position: { x: number; y: number }, size?: { width: number; height: number }) => {
+    if (!activeDiagramId) return null;
+
+    createBlockMutation.mutate({
+      existingBlockId: blockId,
+      positionX: position.x,
+      positionY: position.y,
+      sizeWidth: size?.width,
+      sizeHeight: size?.height
+    });
+
+    return `temp-${Date.now()}`;
+  }, [activeDiagramId, createBlockMutation]);
 
   const addPort = useCallback((blockId: string, port: { name: string; direction: PortDirection }) => {
     const block = blocks.find(b => b.id === blockId);
@@ -237,36 +386,39 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     };
 
     const updatedPorts = [...block.ports, newPort];
-    updateBlockMutation.mutate({ 
-      blockId, 
-      updates: { ports: updatedPorts } 
+    if (!activeDiagramId) return;
+    updateBlockMutation.mutate({
+      blockId,
+      updates: { diagramId: activeDiagramId, ports: updatedPorts }
     });
-  }, [blocks, updateBlockMutation]);
+  }, [activeDiagramId, blocks, updateBlockMutation]);
 
   const updatePort = useCallback((blockId: string, portId: string, updates: { name?: string; direction?: PortDirection }) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) return;
 
-    const updatedPorts = block.ports.map(port => 
+    const updatedPorts = block.ports.map(port =>
       port.id === portId ? { ...port, ...updates } : port
     );
 
-    updateBlockMutation.mutate({ 
-      blockId, 
-      updates: { ports: updatedPorts } 
+    if (!activeDiagramId) return;
+    updateBlockMutation.mutate({
+      blockId,
+      updates: { diagramId: activeDiagramId, ports: updatedPorts }
     });
-  }, [blocks, updateBlockMutation]);
+  }, [activeDiagramId, blocks, updateBlockMutation]);
 
   const removePort = useCallback((blockId: string, portId: string) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) return;
 
     const updatedPorts = block.ports.filter(port => port.id !== portId);
-    updateBlockMutation.mutate({ 
-      blockId, 
-      updates: { ports: updatedPorts } 
+    if (!activeDiagramId) return;
+    updateBlockMutation.mutate({
+      blockId,
+      updates: { diagramId: activeDiagramId, ports: updatedPorts }
     });
-  }, [blocks, updateBlockMutation]);
+  }, [activeDiagramId, blocks, updateBlockMutation]);
 
   const addConnector = useCallback((input: {
     source: string;
@@ -276,6 +428,8 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     kind?: ConnectorKind;
     label?: string;
   }) => {
+    if (!activeDiagramId) return null;
+
     const connectorData = {
       source: input.source,
       target: input.target,
@@ -286,15 +440,12 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     };
 
     createConnectorMutation.mutate(connectorData);
-    
-    // Return a temporary ID for immediate feedback
+
     return `temp-connector-${Date.now()}`;
-  }, [createConnectorMutation]);
+  }, [activeDiagramId, createConnectorMutation]);
 
   const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label">>) => {
-    // Note: The backend doesn't have an update connector endpoint yet
-    // For now, we'll need to delete and recreate
-    console.warn("Connector updates not implemented in backend");
+    console.warn("Connector updates not implemented in backend", connectorId, updates);
   }, []);
 
   const removeConnector = useCallback((connectorId: string) => {
@@ -302,10 +453,10 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [deleteConnectorMutation]);
 
   const clearArchitecture = useCallback(() => {
-    // Delete all blocks and connectors
+    if (!activeDiagramId) return;
     blocks.forEach(block => deleteBlockMutation.mutate(block.id));
     connectors.forEach(connector => deleteConnectorMutation.mutate(connector.id));
-  }, [blocks, connectors, deleteBlockMutation, deleteConnectorMutation]);
+  }, [activeDiagramId, blocks, connectors, deleteBlockMutation, deleteConnectorMutation]);
 
   const addDocumentToBlock = useCallback((blockId: string, documentId: string) => {
     const block = blocks.find(b => b.id === blockId);
@@ -315,33 +466,64 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     if (currentDocIds.includes(documentId)) return;
 
     const updatedDocIds = [...currentDocIds, documentId];
-    updateBlockMutation.mutate({ 
-      blockId, 
-      updates: { documentIds: updatedDocIds } 
+    if (!activeDiagramId) return;
+    updateBlockMutation.mutate({
+      blockId,
+      updates: { diagramId: activeDiagramId, documentIds: updatedDocIds }
     });
-  }, [blocks, updateBlockMutation]);
+  }, [activeDiagramId, blocks, updateBlockMutation]);
 
   const removeDocumentFromBlock = useCallback((blockId: string, documentId: string) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) return;
 
     const updatedDocIds = (block.documentIds || []).filter(id => id !== documentId);
-    updateBlockMutation.mutate({ 
-      blockId, 
-      updates: { documentIds: updatedDocIds } 
+    if (!activeDiagramId) return;
+    updateBlockMutation.mutate({
+      blockId,
+      updates: { diagramId: activeDiagramId, documentIds: updatedDocIds }
     });
-  }, [blocks, updateBlockMutation]);
+  }, [activeDiagramId, blocks, updateBlockMutation]);
 
   const setBlockDocuments = useCallback((blockId: string, documentIds: string[]) => {
-    updateBlockMutation.mutate({ 
-      blockId, 
-      updates: { documentIds } 
+    if (!activeDiagramId) return;
+    updateBlockMutation.mutate({
+      blockId,
+      updates: { diagramId: activeDiagramId, documentIds }
     });
-  }, [updateBlockMutation]);
+  }, [activeDiagramId, updateBlockMutation]);
+
+  const createDiagram = useCallback((input: { name: string; description?: string; view?: ArchitectureDiagramRecord["view"] }) => {
+    if (!tenant || !project) return Promise.reject(new Error("Missing tenant or project"));
+    return createDiagramMutation.mutateAsync(input);
+  }, [createDiagramMutation, tenant, project]);
+
+  const renameDiagram = useCallback((diagramId: string, updates: { name?: string; description?: string; view?: ArchitectureDiagramRecord["view"] }) => {
+    return updateDiagramMutation.mutateAsync({ diagramId, updates });
+  }, [updateDiagramMutation]);
+
+  const deleteDiagram = useCallback((diagramId: string) => {
+    if (!diagramId) return Promise.resolve();
+    if (diagrams.length <= 1) {
+      return Promise.reject(new Error("At least one diagram must remain"));
+    }
+    if (diagramId === activeDiagramId) {
+      setActiveDiagramId(null);
+    }
+    return deleteDiagramMutation.mutateAsync(diagramId);
+  }, [activeDiagramId, deleteDiagramMutation, diagrams.length]);
 
   return {
     architecture,
+    diagrams,
+    activeDiagram,
+    activeDiagramId,
+    setActiveDiagramId,
+    createDiagram,
+    renameDiagram,
+    deleteDiagram,
     addBlock,
+    reuseBlock,
     updateBlock,
     updateBlockPosition,
     updateBlockSize,
@@ -356,8 +538,13 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     addDocumentToBlock,
     removeDocumentFromBlock,
     setBlockDocuments,
+    blocksLibrary,
     hasChanges: blocks.length > 0 || connectors.length > 0,
-    isLoading: blocksQuery.isLoading || connectorsQuery.isLoading,
-    error: blocksQuery.error || connectorsQuery.error
+    isLoading:
+      diagramsQuery.isLoading ||
+      (Boolean(activeDiagramId) && (blocksQuery.isLoading || connectorsQuery.isLoading)),
+    isLibraryLoading: blockLibraryQuery.isLoading,
+    error: diagramsQuery.error || blocksQuery.error || connectorsQuery.error,
+    libraryError: blockLibraryQuery.error
   };
 }

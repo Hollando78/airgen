@@ -81,7 +81,15 @@ export function DocumentManager({
   const deleteDocumentMutation = useMutation({
     mutationFn: (documentSlug: string) => api.deleteDocument(tenant, project, documentSlug),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents", tenant, project] });
+      // Force immediate refetch of documents
+      queryClient.invalidateQueries({ 
+        queryKey: ["documents", tenant, project],
+        refetchType: 'all' 
+      });
+      queryClient.refetchQueries({ 
+        queryKey: ["documents", tenant, project],
+        type: 'active'
+      });
       setDeleteModal({ isOpen: false, item: null });
     }
   });
@@ -89,7 +97,15 @@ export function DocumentManager({
   const deleteFolderMutation = useMutation({
     mutationFn: (folderSlug: string) => api.deleteFolder(tenant, project, folderSlug),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["folders", tenant, project] });
+      // Force immediate refetch of folders
+      queryClient.invalidateQueries({ 
+        queryKey: ["folders", tenant, project],
+        refetchType: 'all'
+      });
+      queryClient.refetchQueries({ 
+        queryKey: ["folders", tenant, project],
+        type: 'active'
+      });
       setDeleteModal({ isOpen: false, item: null });
     }
   });

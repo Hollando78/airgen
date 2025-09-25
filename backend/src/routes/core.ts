@@ -1,0 +1,127 @@
+import { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { analyzeRequirement, AMBIGUOUS } from "@airgen/req-qa";
+import { config } from "../config.js";
+import {
+  RequirementPattern,
+  VerificationMethod
+} from "../services/workspace.js";
+import {
+  listTenants,
+  listProjects
+} from "../services/graph.js";
+import { generateDrafts } from "../services/drafts.js";
+import { generateLlmDrafts, isLlmConfigured } from "../services/llm.js";
+
+export type DraftBody = {
+  need: string;
+  pattern?: RequirementPattern;
+  verification?: VerificationMethod;
+  count?: number;
+  actor?: string;
+  system?: string;
+  trigger?: string;
+  response?: string;
+  constraint?: string;
+  useLlm?: boolean;
+};
+
+const draftSchema = z.object({
+  need: z.string().min(12, "Provide need context (≥12 characters)."),
+  pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional(),
+  verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional(),
+  count: z.number().int().min(1).max(config.draftsPerRequestLimit).optional(),
+  actor: z.string().min(1).optional(),
+  system: z.string().min(1).optional(),
+  trigger: z.string().min(1).optional(),
+  response: z.string().min(1).optional(),
+  constraint: z.string().min(1).optional(),
+  useLlm: z.boolean().optional()
+});
+
+export default async function registerCoreRoutes(app: FastifyInstance): Promise<void> {
+  app.get("/health", async () => ({
+    ok: true,
+    env: config.environment,
+    workspace: config.workspaceRoot,
+    time: new Date().toISOString()
+  }));
+
+  app.get("/tenants", async () => {
+    const tenants = await listTenants();
+    return { tenants };
+  });
+
+  app.get("/tenants/:tenant/projects", async (req) => {
+    const paramsSchema = z.object({ tenant: z.string().min(1) });
+    const params = paramsSchema.parse(req.params);
+    const projects = await listProjects(params.tenant);
+    return { projects };
+  });
+
+  app.post("/qa", async (req) => {
+    const schema = z.object({ text: z.string().min(1) });
+    const body = schema.parse(req.body);
+    return analyzeRequirement(body.text);
+  });
+
+  app.post<{ Body: DraftBody }>("/draft", async (req) => {
+    const body = draftSchema.parse(req.body);
+    const heuristicDrafts = generateDrafts(body);
+    let llmDrafts: typeof heuristicDrafts = [];
+    let llmError: string | undefined;
+
+    if (body.useLlm) {
+      if (!isLlmConfigured()) {
+        llmError = "LLM provider not configured";
+      } else {
+        try {
+          llmDrafts = await generateLlmDrafts(body);
+        } catch (error) {
+          llmError = (error as Error).message;
+          (app.log as any).error?.({ err: error }, "LLM draft generation failed");
+        }
+      }
+    }
+
+    return {
+      items: [...llmDrafts, ...heuristicDrafts],
+      meta: {
+        heuristics: heuristicDrafts.length,
+        llm: {
+          requested: Boolean(body.useLlm),
+          provided: llmDrafts.length,
+          error: llmError
+        }
+      }
+    };
+  });
+
+  app.post("/apply-fix", async (req) => {
+    const schema = z.object({ text: z.string().min(1) });
+    const { text } = schema.parse(req.body);
+    const lower = text.toLowerCase();
+    const hits = AMBIGUOUS.filter(word => lower.includes(word));
+    let replacement = text;
+    const notes: string[] = [];
+
+    if (hits.length) {
+      for (const word of hits) {
+        const pattern = new RegExp(`\\b${word.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b`, "gi");
+        replacement = replacement.replace(pattern, `${word.toUpperCase()} [DEFINE]`);
+        notes.push(`Flagged ambiguous phrase '${word}'.`);
+      }
+    }
+
+    if (!/\bshall\b/i.test(replacement)) {
+      replacement = replacement.replace(/\b(will|should|may|can)\b/i, "shall");
+      notes.push("Replaced weak modal with 'shall'.");
+    }
+
+    if (!/\b(ms|s|kg|m|bar|v|a|hz|%)\b/i.test(replacement)) {
+      notes.push("Consider adding measurable units (e.g. ms, bar, %).");
+    }
+
+    return { before: text, after: replacement, notes };
+  });
+}
