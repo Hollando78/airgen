@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { SysmlBlock, PortDirection } from "../../hooks/useArchitecture";
 import type { DocumentRecord } from "../../types";
+import { useDebounce } from "../../hooks/useDebounce";
 
 interface BlockDetailsPanelProps {
   block: SysmlBlock;
@@ -46,6 +47,37 @@ export function BlockDetailsPanel({
 }: BlockDetailsPanelProps) {
   const [portDraft, setPortDraft] = useState({ name: "", direction: "in" as PortDirection });
   const [selectedDocumentId, setSelectedDocumentId] = useState("");
+  
+  // Local state for form fields with debouncing
+  const [localName, setLocalName] = useState(block.name);
+  const [localStereotype, setLocalStereotype] = useState(block.stereotype ?? "");
+  const [localDescription, setLocalDescription] = useState(block.description ?? "");
+  const [localPortNames, setLocalPortNames] = useState<Record<string, string>>({});
+  
+  // Initialize local port names
+  useEffect(() => {
+    const portNames: Record<string, string> = {};
+    block.ports.forEach(port => {
+      portNames[port.id] = port.name;
+    });
+    setLocalPortNames(portNames);
+  }, [block.ports]);
+  
+  // Create debounced update functions
+  const [debouncedUpdate] = useDebounce((updates: Partial<Omit<SysmlBlock, "id" | "ports" | "position" | "size">>) => {
+    onUpdate(updates);
+  }, 500);
+  
+  const [debouncedPortUpdate] = useDebounce((portId: string, updates: { name?: string; direction?: PortDirection }) => {
+    onUpdatePort(portId, updates);
+  }, 500);
+
+  // Update local state when block prop changes (when switching blocks)
+  useEffect(() => {
+    setLocalName(block.name);
+    setLocalStereotype(block.stereotype ?? "");
+    setLocalDescription(block.description ?? "");
+  }, [block.id]); // Only update when switching to a different block
 
   const linkedDocuments = documents.filter(doc => block.documentIds?.includes(doc.id));
   const availableDocuments = documents.filter(doc => !block.documentIds?.includes(doc.id));
@@ -77,8 +109,12 @@ export function BlockDetailsPanel({
       <div className="field">
         <label>Name</label>
         <input
-          value={block.name}
-          onChange={event => onUpdate({ name: event.target.value })}
+          value={localName}
+          onChange={event => {
+            const newName = event.target.value;
+            setLocalName(newName);
+            debouncedUpdate({ name: newName });
+          }}
           placeholder="Block name"
         />
       </div>
@@ -86,8 +122,12 @@ export function BlockDetailsPanel({
       <div className="field">
         <label>Stereotype</label>
         <input
-          value={block.stereotype ?? ""}
-          onChange={event => onUpdate({ stereotype: event.target.value })}
+          value={localStereotype}
+          onChange={event => {
+            const newStereotype = event.target.value;
+            setLocalStereotype(newStereotype);
+            debouncedUpdate({ stereotype: newStereotype });
+          }}
           placeholder="e.g. block, interface, subsystem"
         />
       </div>
@@ -109,8 +149,12 @@ export function BlockDetailsPanel({
       <div className="field">
         <label>Description</label>
         <textarea
-          value={block.description ?? ""}
-          onChange={event => onUpdate({ description: event.target.value })}
+          value={localDescription}
+          onChange={event => {
+            const newDescription = event.target.value;
+            setLocalDescription(newDescription);
+            debouncedUpdate({ description: newDescription });
+          }}
           rows={3}
           placeholder="Optional block description"
         />
@@ -175,8 +219,14 @@ export function BlockDetailsPanel({
                 <div className="field" style={{ margin: 0 }}>
                   <label>Name</label>
                   <input
-                    value={port.name}
-                    onChange={event => onUpdatePort(port.id, { name: event.target.value })}
+                    value={localPortNames[port.id] ?? port.name}
+                    onChange={event => {
+                      const newName = event.target.value;
+                      // Update local state immediately for responsiveness
+                      setLocalPortNames(prev => ({ ...prev, [port.id]: newName }));
+                      // Trigger debounced update to backend
+                      debouncedPortUpdate(port.id, { name: newName });
+                    }}
                   />
                 </div>
                 <div className="field" style={{ margin: 0 }}>

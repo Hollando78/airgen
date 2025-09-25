@@ -29,6 +29,7 @@ import { SysmlBlockNode } from "../components/architecture/SysmlBlockNode";
 import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
 import { DocumentView } from "../components/DocumentView";
+import { FloatingDocumentWindow } from "../components/FloatingDocumentWindow";
 import { Spinner } from "../components/Spinner";
 import type { ArchitectureBlockLibraryRecord } from "../types";
 
@@ -345,6 +346,12 @@ export function ArchitectureRoute(): JSX.Element {
   const [minimapOpen, setMinimapOpen] = useState(true);
   const [openedDocumentFromArchitecture, setOpenedDocumentFromArchitecture] = useState<string | null>(null);
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState>({ type: "closed" });
+  const [floatingDocuments, setFloatingDocuments] = useState<Array<{
+    id: string;
+    documentSlug: string;
+    documentName: string;
+    position: { x: number; y: number };
+  }>>([]);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
 
@@ -378,7 +385,37 @@ export function ArchitectureRoute(): JSX.Element {
   }, [blockCount]);
 
   const handleOpenDocumentFromArchitecture = useCallback((documentSlug: string) => {
-    setOpenedDocumentFromArchitecture(documentSlug);
+    // Check if document is already open
+    if (floatingDocuments.some(doc => doc.documentSlug === documentSlug)) {
+      return;
+    }
+    
+    // Find the document name
+    const document = documents.find(doc => doc.slug === documentSlug);
+    if (!document) return;
+    
+    // Calculate position for new window (cascade them)
+    const basePosition = { x: 150, y: 150 };
+    const offset = floatingDocuments.length * 30;
+    const newPosition = {
+      x: basePosition.x + offset,
+      y: basePosition.y + offset
+    };
+    
+    // Add new floating document
+    setFloatingDocuments(prev => [
+      ...prev,
+      {
+        id: `${documentSlug}-${Date.now()}`,
+        documentSlug,
+        documentName: document.name,
+        position: newPosition
+      }
+    ]);
+  }, [documents, floatingDocuments]);
+
+  const closeFloatingDocument = useCallback((documentId: string) => {
+    setFloatingDocuments(prev => prev.filter(doc => doc.id !== documentId));
   }, []);
 
   const closeContextMenu = useCallback(() => {
@@ -1043,14 +1080,18 @@ export function ArchitectureRoute(): JSX.Element {
         </aside>
       </div>
 
-      {openedDocumentFromArchitecture && tenant && project && (
-        <DocumentView
-          tenant={tenant}
-          project={project}
-          documentSlug={openedDocumentFromArchitecture}
-          onClose={() => setOpenedDocumentFromArchitecture(null)}
+      {/* Render floating document windows */}
+      {floatingDocuments.map(doc => (
+        <FloatingDocumentWindow
+          key={doc.id}
+          tenant={tenant!}
+          project={project!}
+          documentSlug={doc.documentSlug}
+          documentName={doc.documentName}
+          initialPosition={doc.position}
+          onClose={() => closeFloatingDocument(doc.id)}
         />
-      )}
+      ))}
     </div>
   );
 }
