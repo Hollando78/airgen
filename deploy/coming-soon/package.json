@@ -1,0 +1,15 @@
+{
+  "name": "airgen-notify-server",
+  "version": "1.0.0",
+  "description": "Email notification server for AIRGen coming soon page",
+  "main": "notify-server.js",
+  "scripts": {
+    "start": "node notify-server.js"
+  },
+  "dependencies": {
+    "canvas": "^3.2.0",
+    "dotenv": "^17.2.2",
+    "express": "^4.18.2",
+    "nodemailer": "^7.0.6"
+  }
+}

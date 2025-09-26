@@ -28,6 +28,7 @@ import {
 import { SysmlBlockNode } from "../components/architecture/SysmlBlockNode";
 import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
+import { ArchitectureTreeBrowser } from "../components/architecture/ArchitectureTreeBrowser";
 import { DocumentView } from "../components/DocumentView";
 import { FloatingDocumentWindow } from "../components/FloatingDocumentWindow";
 import { Spinner } from "../components/Spinner";
@@ -41,11 +42,11 @@ type BlockPreset = {
 };
 
 const BLOCK_PRESETS: BlockPreset[] = [
-  { label: "System Block", kind: "system", stereotype: "block", description: "Top-level system context" },
-  { label: "Subsystem", kind: "subsystem", stereotype: "subsystem", description: "Logical subsystem" },
-  { label: "Software Component", kind: "component", stereotype: "component", description: "Software or service component" },
-  { label: "Actor", kind: "actor", stereotype: "actor", description: "External actor or user" },
-  { label: "External System", kind: "external", stereotype: "external", description: "Outside system boundary" }
+  { label: "Block", kind: "system", stereotype: "block" },
+  { label: "Subsystem", kind: "subsystem", stereotype: "subsystem" },
+  { label: "Component", kind: "component", stereotype: "component" },
+  { label: "Actor", kind: "actor", stereotype: "actor" },
+  { label: "External", kind: "external", stereotype: "external" }
 ];
 
 const nodeTypes = { sysmlBlock: SysmlBlockNode };
@@ -69,7 +70,7 @@ function ArchitecturePalette({ presets, onAddPreset, disabled = false }: Palette
     <div className="architecture-palette">
       <div className="palette-header">
         <h3>Palette</h3>
-        <p>Drop-in SysML building blocks</p>
+        <p>Drag blocks to canvas</p>
       </div>
       <div className="palette-items">
         {presets.map(preset => (
@@ -93,84 +94,6 @@ function ArchitecturePalette({ presets, onAddPreset, disabled = false }: Palette
   );
 }
 
-interface ArchitectureBrowserProps {
-  blocks: ArchitectureBlockLibraryRecord[];
-  disabled: boolean;
-  isLoading: boolean;
-  error?: unknown;
-  onInsert: (blockId: string) => void;
-  currentDiagramId: string | null;
-  blocksInDiagram: Set<string>;
-}
-
-function ArchitectureBrowser({ blocks, disabled, isLoading, error, onInsert, currentDiagramId, blocksInDiagram }: ArchitectureBrowserProps) {
-  if (isLoading) {
-    return (
-      <div className="architecture-browser">
-        <div className="browser-header">
-          <h3>Architecture Browser</h3>
-          <p>Loading reusable blocks…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="architecture-browser">
-        <div className="browser-header">
-          <h3>Architecture Browser</h3>
-          <p className="browser-error">Failed to load block library.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="architecture-browser">
-      <div className="browser-header">
-        <h3>Architecture Browser</h3>
-        <p>Reuse blocks across diagrams</p>
-      </div>
-      {blocks.length === 0 ? (
-        <div className="browser-empty">No reusable blocks yet. Create a block to seed the library.</div>
-      ) : (
-        <div className="browser-list">
-          {blocks.map(block => {
-            const alreadyInDiagram = currentDiagramId ? blocksInDiagram.has(block.id) : false;
-            return (
-              <div key={block.id} className="browser-item">
-                <div className="browser-item-info">
-                  <div className="browser-item-title">
-                    <span className="browser-item-name">{block.name}</span>
-                    {block.stereotype && <span className="browser-item-tag">{block.stereotype}</span>}
-                  </div>
-                  {block.description && <div className="browser-item-description">{block.description}</div>}
-                  {block.diagrams.length > 0 && (
-                    <div className="browser-diagram-list">
-                      {block.diagrams.map(diagram => (
-                        <span key={diagram.id} className="browser-diagram-chip">
-                          {diagram.name || diagram.id}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button
-                  className="browser-add-button"
-                  onClick={() => onInsert(block.id)}
-                  disabled={disabled || alreadyInDiagram}
-                >
-                  {alreadyInDiagram ? "In View" : "Add"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 interface ContextMenuItem {
   label: string;
@@ -897,7 +820,7 @@ export function ArchitectureRoute(): JSX.Element {
             onAddPreset={preset => handleAddBlock(preset)}
             disabled={!activeDiagramId}
           />
-          <ArchitectureBrowser
+          <ArchitectureTreeBrowser
             blocks={blocksLibrary}
             disabled={!activeDiagramId}
             isLoading={isLibraryLoading}

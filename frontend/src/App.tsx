@@ -1,28 +1,40 @@
-import { Navigate, Route, Routes } from "react-router-dom";
-import { AppLayout } from "./components/AppLayout";
-import { DraftsRoute } from "./routes/DraftsRoute";
-import { RequirementsRoute } from "./routes/RequirementsRoute";
-import { BaselinesRoute } from "./routes/BaselinesRoute";
-import { DashboardRoute } from "./routes/DashboardRoute";
-import { LinksRoute } from "./routes/LinksRoute";
-import { DocumentsRoute } from "./routes/DocumentsRoute";
-import { ArchitectureRoute } from "./routes/ArchitectureRoute";
-import { AirGenRoute } from "./routes/AirGenRoute";
+import { lazy, Suspense } from "react";
+import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { LandingPage } from "./LandingPage";
+
+const ProductionAppRoutes = lazy(() => import("./ProductionAppRoutes"));
+const DevAppRoutes = import.meta.env.PROD ? null : lazy(() => import("./DevAppRoutes"));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false
+    }
+  }
+});
 
 export default function App(): JSX.Element {
   return (
-    <AppLayout>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardRoute />} />
-        <Route path="/airgen" element={<AirGenRoute />} />
-        <Route path="/documents" element={<DocumentsRoute />} />
-        <Route path="/architecture" element={<ArchitectureRoute />} />
-        <Route path="/drafts" element={<DraftsRoute />} />
-        <Route path="/requirements" element={<RequirementsRoute />} />
-        <Route path="/baselines" element={<BaselinesRoute />} />
-        <Route path="/links" element={<LinksRoute />} />
-      </Routes>
-    </AppLayout>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          {import.meta.env.PROD || !DevAppRoutes ? (
+            <ProtectedRoute fallback={<LandingPage />}>
+              <Suspense fallback={null}>
+                <ProductionAppRoutes />
+              </Suspense>
+            </ProtectedRoute>
+          ) : (
+            <Suspense fallback={null}>
+              <DevAppRoutes />
+            </Suspense>
+          )}
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }

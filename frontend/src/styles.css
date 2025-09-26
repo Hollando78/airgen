@@ -229,6 +229,60 @@ button[style*="background-color: white"] {
   color: var(--muted);
 }
 
+.form-card,
+.table-card {
+  border-top: 1px solid var(--border);
+  padding-top: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.form-grid {
+  display: grid;
+  gap: 1rem;
+  max-width: 640px;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+.form-grid input,
+.form-grid textarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.form-grid input:focus,
+.form-grid textarea:focus {
+  outline: 2px solid rgba(31, 94, 255, 0.35);
+  outline-offset: 1px;
+}
+
+.form-error {
+  margin: 0;
+  color: #dc2626;
+  font-size: 0.9rem;
+}
+
+.table-card .table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.table-inline-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .grid {
   display: grid;
   gap: 1rem;
@@ -2588,4 +2642,179 @@ button:hover:not(:disabled) {
     transform: rotate(90deg);
     align-self: center;
   }
+}
+
+/* Tree Browser Styles */
+.tree-browser .browser-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tree-browser .browser-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.create-package-button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--text);
+  transition: all 0.2s ease;
+}
+
+.create-package-button:hover {
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.05);
+}
+
+.tree-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+}
+
+.tree-node {
+  position: relative;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.tree-item:hover {
+  background: var(--hover);
+}
+
+.tree-item.dragging {
+  opacity: 0.5;
+}
+
+.tree-expand-icon {
+  width: 16px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.tree-expand-icon:hover {
+  color: var(--text);
+}
+
+.tree-icon {
+  font-size: 0.9rem;
+  width: 16px;
+  text-align: center;
+}
+
+.tree-label {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.package-item .tree-label {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.tree-count {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.tree-stereotype {
+  font-size: 0.7rem;
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.1);
+  padding: 0.15rem 0.4rem;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.tree-add-button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--text);
+  transition: all 0.2s ease;
+  min-width: 24px;
+  text-align: center;
+}
+
+.tree-add-button:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary);
+}
+
+.tree-add-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: rgb(34, 197, 94);
+}
+
+.tree-children {
+  padding-left: 0.5rem;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  margin-left: 8px;
+}
+
+.block-item.in-diagram {
+  background: rgba(34, 197, 94, 0.05);
+  border-left: 3px solid rgb(34, 197, 94);
+}
+
+.package-item {
+  background: rgba(37, 99, 235, 0.02);
+  border: 1px solid rgba(37, 99, 235, 0.1);
+}
+
+.package-item:hover {
+  background: rgba(37, 99, 235, 0.05);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+/* Drag and Drop Visual Feedback */
+.tree-item[data-drag-over="true"] {
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px dashed var(--primary);
+}
+
+.tree-browser {
+  user-select: none;
+}
+
+.tree-browser .browser-empty {
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+  padding: 2rem 1rem;
+  background: rgba(0, 0, 0, 0.01);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin: 0.5rem 0;
 }

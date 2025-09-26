@@ -103,22 +103,21 @@ export function DocumentsRoute(): JSX.Element {
         }}
       />
 
-      {showCreateFolderModal && (
-        <CreateFolderModal
-          tenant={tenant}
-          project={project}
-          parentFolder={createFolderParent}
-          onClose={() => {
-            setShowCreateFolderModal(false);
-            setCreateFolderParent(undefined);
-          }}
-          onCreated={() => {
-            queryClient.invalidateQueries({ queryKey: ["folders", tenant, project] });
-            setShowCreateFolderModal(false);
-            setCreateFolderParent(undefined);
-          }}
-        />
-      )}
+      <CreateFolderModal
+        isOpen={showCreateFolderModal}
+        tenant={tenant}
+        project={project}
+        parentFolder={createFolderParent}
+        onClose={() => {
+          setShowCreateFolderModal(false);
+          setCreateFolderParent(undefined);
+        }}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["folders", tenant, project] });
+          setShowCreateFolderModal(false);
+          setCreateFolderParent(undefined);
+        }}
+      />
 
       {openedDocument && tenant && project && (
         <DocumentView

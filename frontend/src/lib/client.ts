@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { config } from "../config";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 import type {
   DraftResponse,
   DraftRequest,
@@ -40,7 +40,9 @@ import type {
   UpdateArchitectureBlockRequest,
   CreateArchitectureConnectorRequest,
   CreateTraceLinkRequest,
-  TraceLink
+  TraceLink,
+  DevUserListResponse,
+  DevUserResponse
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -209,7 +211,17 @@ export function useApiClient() {
       listTraceLinksByRequirement: (tenant: string, project: string, requirementId: string) =>
         request<{ traceLinks: TraceLink[] }>(`/trace-links/${tenant}/${project}/${requirementId}`),
       deleteTraceLink: (tenant: string, project: string, linkId: string) =>
-        request<{ success: boolean }>(`/trace-links/${tenant}/${project}/${linkId}`, { method: "DELETE" })
+        request<{ success: boolean }>(`/trace-links/${tenant}/${project}/${linkId}`, { method: "DELETE" }),
+      // Dev admin utilities (development only)
+      listDevUsers: () => request<DevUserListResponse>(`/dev/admin/users`),
+      createDevUser: (body: { email: string; name?: string; password?: string; roles?: string[]; tenantSlugs?: string[] }) =>
+        request<DevUserResponse>(`/dev/admin/users`, { method: "POST", body: JSON.stringify(body) }),
+      updateDevUser: (
+        id: string,
+        body: { email?: string; name?: string | null; password?: string; roles?: string[]; tenantSlugs?: string[] }
+      ) => request<DevUserResponse>(`/dev/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      deleteDevUser: (id: string) =>
+        request<{ success: boolean }>(`/dev/admin/users/${id}`, { method: "DELETE" })
     }),
     [request]
   );
