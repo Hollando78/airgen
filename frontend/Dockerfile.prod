@@ -1,33 +1,35 @@
-FROM node:20-alpine AS builder
+# Stage 1: install dependencies scoped to the frontend workspace
+FROM node:20-alpine AS deps
+WORKDIR /workspace
 
-WORKDIR /app
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY frontend/package.json frontend/
 
-# Accept build arguments
-ARG VITE_API_BASE_URL=/api
+RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
+RUN pnpm install --filter @airgen/frontend... --frozen-lockfile
 
-# Copy package files
-COPY package.json ./
+# Stage 2: build the Vite application
+FROM node:20-alpine AS build
+WORKDIR /workspace
 
-# Install pnpm and dependencies
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+COPY --from=deps /workspace/node_modules /workspace/node_modules
+COPY --from=deps /root/.local/share/pnpm /root/.local/share/pnpm
+ENV PNPM_HOME=/root/.local/share/pnpm
+ENV PATH=$PNPM_HOME:$PATH
 
-# Copy source code
 COPY . .
 
-# Set build-time environment variable
+ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
-# Build the app
-RUN pnpm run build
+RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
+RUN pnpm -C frontend build
 
-# Production stage
+# Stage 3: serve with nginx
 FROM nginx:alpine
 
-# Copy built files from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copy nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /workspace/frontend/dist /usr/share/nginx/html
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

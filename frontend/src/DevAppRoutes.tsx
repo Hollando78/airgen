@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { DraftsRoute } from "./routes/DraftsRoute";
 import { RequirementsRoute } from "./routes/RequirementsRoute";
 import { BaselinesRoute } from "./routes/BaselinesRoute";
@@ -10,22 +11,93 @@ import { ArchitectureRoute } from "./routes/ArchitectureRoute";
 import { InterfaceRoute } from "./routes/InterfaceRoute";
 import { AirGenRoute } from "./routes/AirGenRoute";
 import { AdminUsersRoute } from "./routes/AdminUsersRoute";
+import { LandingPage } from "./LandingPage";
 
 export default function DevAppRoutes(): JSX.Element {
   return (
     <AppLayout>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardRoute />} />
-        <Route path="/airgen" element={<AirGenRoute />} />
-        <Route path="/documents" element={<DocumentsRoute />} />
-        <Route path="/architecture" element={<ArchitectureRoute />} />
-        <Route path="/interfaces" element={<InterfaceRoute />} />
-        <Route path="/drafts" element={<DraftsRoute />} />
-        <Route path="/requirements" element={<RequirementsRoute />} />
-        <Route path="/baselines" element={<BaselinesRoute />} />
-        <Route path="/links" element={<LinksRoute />} />
-        <Route path="/admin/users" element={<AdminUsersRoute />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <DashboardRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/airgen"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <AirGenRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/documents"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <DocumentsRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/architecture"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <ArchitectureRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/interfaces"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <InterfaceRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/drafts"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <DraftsRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/requirements"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <RequirementsRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/baselines"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <BaselinesRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/links"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <LinksRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute fallback={<LandingPage />} requiredRoles={["admin"]}>
+              <AdminUsersRoute />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </AppLayout>
   );

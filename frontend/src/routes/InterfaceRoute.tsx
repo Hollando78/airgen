@@ -29,10 +29,8 @@ import { SysmlBlockNode } from "../components/architecture/SysmlBlockNode";
 import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
 import { ArchitectureTreeBrowser } from "../components/architecture/ArchitectureTreeBrowser";
-import { DocumentView } from "../components/DocumentView";
 import { FloatingDocumentWindow } from "../components/FloatingDocumentWindow";
 import { Spinner } from "../components/Spinner";
-import type { ArchitectureBlockLibraryRecord } from "../types";
 
 type BlockPreset = {
   label: string;
@@ -194,7 +192,7 @@ function DiagramTabs({ diagrams, activeDiagramId, onSelect, onRename, onDelete }
   );
 }
 
-function mapConnectorToEdge(connector: SysmlConnector): Edge {
+function mapConnectorToEdge(connector: InterfaceConnector): Edge {
   const kind = connector.kind;
   const isFlow = kind === "flow";
   const isDependency = kind === "dependency";

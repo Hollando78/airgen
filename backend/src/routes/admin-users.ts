@@ -9,8 +9,10 @@ import {
   type DevUserRecord
 } from "../services/dev-users.js";
 
-function sanitizeUser(user: DevUserRecord): Omit<DevUserRecord, 'password'> {
-  const { password, ...sanitized } = user;
+type SanitizedDevUser = Omit<DevUserRecord, "password" | "passwordHash" | "passwordSalt">;
+
+function sanitizeUser(user: DevUserRecord): SanitizedDevUser {
+  const { password, passwordHash, passwordSalt, ...sanitized } = user;
   return sanitized;
 }
 
