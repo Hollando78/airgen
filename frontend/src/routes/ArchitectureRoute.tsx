@@ -30,7 +30,7 @@ import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel"
 import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
 import { ArchitectureTreeBrowser } from "../components/architecture/ArchitectureTreeBrowser";
 import { DocumentView } from "../components/DocumentView";
-import { FloatingDocumentWindow } from "../components/FloatingDocumentWindow";
+import { useFloatingDocuments } from "../contexts/FloatingDocumentsContext";
 import { Spinner } from "../components/Spinner";
 import type { ArchitectureBlockLibraryRecord } from "../types";
 
