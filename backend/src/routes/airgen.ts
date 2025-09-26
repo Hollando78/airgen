@@ -46,7 +46,7 @@ export default async function airgenRoutes(app: FastifyInstance) {
     n: z.number().int().min(1).max(10).optional()
   });
 
-  app.post("/airgen/chat", async (req, reply) => {
+  app.post("/airgen/chat", { preHandler: [app.authenticate] }, async (req, reply) => {
     const body = chatSchema.parse(req.body);
     
     // Generate a unique session ID for this query
@@ -111,13 +111,13 @@ export default async function airgenRoutes(app: FastifyInstance) {
     project: z.string().min(1)
   });
 
-  app.get("/airgen/candidates/:tenant/:project", async (req) => {
+  app.get("/airgen/candidates/:tenant/:project", { preHandler: [app.authenticate] }, async (req) => {
     const params = listParams.parse(req.params);
     const items = await listRequirementCandidates(params.tenant, params.project);
     return { items: items.map(mapCandidate) };
   });
 
-  app.get("/airgen/candidates/:tenant/:project/grouped", async (req) => {
+  app.get("/airgen/candidates/:tenant/:project/grouped", { preHandler: [app.authenticate] }, async (req) => {
     const params = listParams.parse(req.params);
     const items = await listRequirementCandidates(params.tenant, params.project);
     const mapped = items.map(mapCandidate);
@@ -150,7 +150,7 @@ export default async function airgenRoutes(app: FastifyInstance) {
   const rejectParams = z.object({ id: z.string().min(1) });
   const rejectBody = z.object({ tenant: z.string().min(1), projectKey: z.string().min(1) });
 
-  app.post("/airgen/candidates/:id/reject", async (req, reply) => {
+  app.post("/airgen/candidates/:id/reject", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = rejectParams.parse(req.params);
     const body = rejectBody.parse(req.body);
 
@@ -175,7 +175,7 @@ export default async function airgenRoutes(app: FastifyInstance) {
   const returnParams = z.object({ id: z.string().min(1) });
   const returnBody = z.object({ tenant: z.string().min(1), projectKey: z.string().min(1) });
 
-  app.post("/airgen/candidates/:id/return", async (req, reply) => {
+  app.post("/airgen/candidates/:id/return", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = returnParams.parse(req.params);
     const body = returnBody.parse(req.body);
 
@@ -209,7 +209,7 @@ export default async function airgenRoutes(app: FastifyInstance) {
     tags: z.array(z.string()).optional()
   });
 
-  app.post("/airgen/candidates/:id/accept", async (req, reply) => {
+  app.post("/airgen/candidates/:id/accept", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = acceptParams.parse(req.params);
     const body = acceptBody.parse(req.body);
 

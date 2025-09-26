@@ -52,6 +52,7 @@ services:
     ports:
       - "${API_PORT}:${API_PORT}"
     environment:
+      API_HOST: ${API_HOST:-0.0.0.0}
       API_PORT: ${API_PORT}
       API_JWT_SECRET: ${API_JWT_SECRET}
       API_ENV: ${API_ENV}

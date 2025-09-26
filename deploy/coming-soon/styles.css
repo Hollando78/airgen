@@ -1,0 +1,143 @@
+:root {
+  color-scheme: dark;
+  --bg: radial-gradient(circle at top, #0f172a, #020617 55%, #01030b 100%);
+  --card-bg: rgba(10, 21, 40, 0.75);
+  --accent: #66e0ff;
+  --text-main: #f8fafc;
+  --text-subtle: #cbd5f5;
+  --shadow: 0 10px 40px rgba(5, 7, 24, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Space Grotesk", sans-serif;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+}
+
+.page {
+  padding: 64px 16px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.card {
+  width: min(560px, 100%);
+  background: var(--card-bg);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
+  padding: 48px 40px;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
+}
+
+.logo {
+  width: 180px;
+  margin-bottom: 32px;
+}
+
+h1 {
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  margin: 0 0 16px;
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 0 auto 32px;
+  color: var(--text-subtle);
+  line-height: 1.6;
+  max-width: 420px;
+}
+
+.cta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.cta input {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 14px 20px;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cta input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(102, 224, 255, 0.25);
+}
+
+.cta button {
+  border: none;
+  border-radius: 999px;
+  padding: 14px 28px;
+  font-size: 1rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #66e0ff, #5b8cff);
+  color: #041226;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.cta button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--text-subtle);
+}
+
+.meta a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.meta a:hover {
+  text-decoration: underline;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 600px) {
+  .card {
+    padding: 36px 24px;
+  }
+
+  .cta {
+    grid-template-columns: 1fr;
+  }
+
+  .cta button {
+    width: 100%;
+  }
+}

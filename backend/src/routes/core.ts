@@ -47,25 +47,25 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     time: new Date().toISOString()
   }));
 
-  app.get("/tenants", async () => {
+  app.get("/tenants", { preHandler: [app.authenticate] }, async () => {
     const tenants = await listTenants();
     return { tenants };
   });
 
-  app.get("/tenants/:tenant/projects", async (req) => {
+  app.get("/tenants/:tenant/projects", { preHandler: [app.authenticate] }, async (req) => {
     const paramsSchema = z.object({ tenant: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
     const projects = await listProjects(params.tenant);
     return { projects };
   });
 
-  app.post("/qa", async (req) => {
+  app.post("/qa", { preHandler: [app.authenticate] }, async (req) => {
     const schema = z.object({ text: z.string().min(1) });
     const body = schema.parse(req.body);
     return analyzeRequirement(body.text);
   });
 
-  app.post<{ Body: DraftBody }>("/draft", async (req) => {
+  app.post<{ Body: DraftBody }>("/draft", { preHandler: [app.authenticate] }, async (req) => {
     const body = draftSchema.parse(req.body);
     const heuristicDrafts = generateDrafts(body);
     let llmDrafts: typeof heuristicDrafts = [];
@@ -97,7 +97,7 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     };
   });
 
-  app.post("/apply-fix", async (req) => {
+  app.post("/apply-fix", { preHandler: [app.authenticate] }, async (req) => {
     const schema = z.object({ text: z.string().min(1) });
     const { text } = schema.parse(req.body);
     const lower = text.toLowerCase();

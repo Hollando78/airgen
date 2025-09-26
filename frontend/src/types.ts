@@ -449,3 +449,21 @@ export type ArchitectureDiagramsResponse = {
 export type ArchitectureDiagramResponse = {
   diagram: ArchitectureDiagramRecord;
 };
+
+export type DevUser = {
+  id: string;
+  email: string;
+  name?: string;
+  roles: string[];
+  tenantSlugs: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DevUserListResponse = {
+  users: DevUser[];
+};
+
+export type DevUserResponse = {
+  user: DevUser;
+};

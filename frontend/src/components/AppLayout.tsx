@@ -2,18 +2,27 @@ import { NavLink } from "react-router-dom";
 import { TenantProjectProvider } from "../hooks/useTenantProject";
 import { TokenControls } from "./TokenControls";
 import { TenantProjectDocumentSelector } from "./TenantProjectDocumentSelector";
+import { UserMenu } from "./UserMenu";
+import { useAuth } from "../contexts/AuthContext";
 
 export function AppLayout({ children }: { children: React.ReactNode }): JSX.Element {
+  const isDevMode = import.meta.env.MODE !== "production";
+  const { user } = useAuth();
   const links = [
     { to: "/dashboard", label: "Dashboard" },
     { to: "/airgen", label: "AIRGen" },
     { to: "/documents", label: "Documents" },
     { to: "/architecture", label: "Architecture" },
+    { to: "/interfaces", label: "Interfaces" },
     { to: "/drafts", label: "Drafts" },
     { to: "/requirements", label: "Requirements" },
     { to: "/baselines", label: "Baselines" },
     { to: "/links", label: "Trace Links" }
   ];
+
+  if (isDevMode && user?.roles.includes('admin')) {
+    links.push({ to: "/admin/users", label: "Admin Users" });
+  }
 
   return (
     <TenantProjectProvider>
@@ -27,7 +36,10 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
             </div>
           </div>
           <TenantProjectDocumentSelector />
-          <TokenControls />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <TokenControls />
+            <UserMenu />
+          </div>
         </header>
         <div className="app-body">
           <nav className="app-nav">

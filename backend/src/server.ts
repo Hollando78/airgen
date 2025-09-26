@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -17,6 +17,7 @@ import requirementsRoutes from "./routes/requirements-api.js";
 import documentRoutes from "./routes/documents.js";
 import architectureRoutes from "./routes/architecture.js";
 import traceRoutes from "./routes/trace.js";
+import authRoutes from "./routes/auth.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -40,6 +41,7 @@ app.addHook("onClose", async () => {
   await closeGraph();
 });
 
+await app.register(authRoutes, { prefix: "/api" });
 await app.register(coreRoutes, { prefix: "/api" });
 await app.register(requirementsRoutes, { prefix: "/api" });
 await app.register(documentRoutes, { prefix: "/api" });
@@ -47,6 +49,11 @@ await app.register(architectureRoutes, { prefix: "/api" });
 await app.register(traceRoutes, { prefix: "/api" });
 await app.register(draftRoutes, { prefix: "/api" });
 await app.register(airgenRoutes, { prefix: "/api" });
+
+if (config.environment !== "production") {
+  const adminRoutes = await import("./routes/admin-users.js");
+  await app.register(adminRoutes.default, { prefix: "/api/dev" });
+}
 
 const port = config.port;
 app.listen({ port, host: config.host }).catch((e) => {

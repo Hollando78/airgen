@@ -51,6 +51,14 @@ pnpm -C backend dev                # Fastify API at http://localhost:8787
 pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (proxying /api)
 ```
 
+## Environment configuration
+
+- `env/development.env.example` & `env/production.env.example` provide docker compose templates. Copy them to `env/development.env` or `env/production.env` and adjust secrets before running `docker compose --env-file env/<env>.env ...`.
+- The backend loads environment-specific dotenv files via `API_ENV`. Place settings in `backend/.env.development` or `backend/.env.production` (templates live alongside them) when running the service directly.
+- The frontend follows Vite conventions. Copy `frontend/.env.development.example` or `frontend/.env.production.example` to `.env.development` / `.env.production` within the `frontend/` folder to inject build-time values such as `VITE_API_BASE_URL`.
+- The Vite dev server now binds to `127.0.0.1` by default for VPN/SSH protected access. Override with `VITE_DEV_SERVER_HOST` only when you explicitly need remote access.
+- To point the dev UI at a shared staging or production API, set `VITE_API_BASE_URL` (for static builds) or `API_PROXY_TARGET` (for the dev server) to the desired backend base URL.
+
 ## Key API endpoints
 | Method | Path                                      | Purpose |
 | ------ | ----------------------------------------- | ------- |
@@ -71,6 +79,8 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 - `pnpm -C frontend dev` launches a Vite dev server on http://localhost:5173 with a proxy to the Fastify API at `/api`.
 - Set `VITE_API_BASE_URL` to override the proxy target when deploying the static build (`pnpm -C frontend build`).
 - The UI covers tenant/project selection, draft generation (heuristics + optional LLM), QA, requirement persistence, baseline management, link suggestions, and token management for upcoming authentication flows.
+- Development builds expose an admin workspace at `/admin/users` for seeding file-backed user accounts without touching production data.
+- Production builds only publish the static landing experience; the interactive console and admin tools stay behind a dev-only bundle path to keep the public surface minimal.
 
 ## Sample workflow
 1. Draft requirement candidates (heuristic + LLM):

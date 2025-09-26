@@ -40,6 +40,7 @@ This structure allows future expansion for needs, risks, or test cases as additi
 ## Deployment (VPS)
 1. Copy `.env.example` to `.env` and populate:
    - Traefik ports/hostnames
+   - `TRAEFIK_BASIC_AUTH_USERS` with the `htpasswd -nb <user> <password>` output so the public site requires credentials
    - Neo4j credentials (`GRAPH_*`), optionally Postgres/Redis if exposing externally
    - LLM credentials if using OpenAI or another provider
 2. Ensure Docker Engine and Compose are installed.
@@ -56,11 +57,14 @@ This structure allows future expansion for needs, risks, or test cases as additi
 ## Security Considerations
 - Rotate `API_JWT_SECRET`, Neo4j credentials, and LLM API keys regularly.
 - Restrict Traefik dashboard via auth or firewall rules.
+- Traefik now enforces HTTP basic auth for both `/` and `/api`; rotate the credentials stored in `TRAEFIK_BASIC_AUTH_USERS` alongside other secrets.
 - Enable TLS in Traefik and, if needed, encrypted Bolt connections (`GRAPH_ENCRYPTED=true`).
 - Store secrets in a vault/manager instead of plain `.env` on shared hosts.
 
 ## Authentication & Authorization Roadmap
 - A dedicated Fastify auth plugin now wraps `@fastify/jwt`, attaches a normalized `request.currentUser`, and exposes `app.authenticate` for protected routes while keeping `app.optionalAuthenticate` for public flows. This makes it straightforward to ratchet up enforcement route-by-route once account onboarding is complete.
+- During development, `/api/dev/admin/users` provides a file-backed user registry (mirrored in `workspace/dev-users.json`) with a matching `/admin/users` React view for quick CRUD without touching production systems.
+- Production builds of the React client ship only the static landing page; the interactive workspace routes are tree-shaken behind a dev-only `lazy()` import so no internal tooling ships to prod.
 - User principals are expected to arrive via JWTs (OIDC, Auth0, etc.). The payload should include `sub`, `email`, and optional role/tenant claims (`roles`, `tenantSlugs`) so authorization checks can be done without extra hops.
 - Multi-tenant scoping will align with Neo4j tenant slugs. Once account management lands, guarded routes can validate that `request.currentUser.tenantSlugs` contains the tenant in the request path before continuing.
 - Future work: add a `/auth/login` exchange (for password or device code flows if needed), persist users/roles/refresh tokens in Neo4j or Postgres, and emit audit events for requirement mutations.
