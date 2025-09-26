@@ -28,24 +28,29 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
   const baseHeight = 56;
   const portSpacing = 22;
 
+  // Apply block styling properties with defaults
+  const blockStyle = {
+    width: block.size.width,
+    height: block.size.height,
+    background: block.backgroundColor || "#ffffff",
+    border: selected 
+      ? "2px solid #2563eb" 
+      : `${block.borderWidth || 1}px ${block.borderStyle || "solid"} ${block.borderColor || "#cbd5f5"}`,
+    borderRadius: `${block.borderRadius || 8}px`,
+    boxShadow: selected ? "0 8px 16px rgba(37, 99, 235, 0.25)" : "0 4px 12px rgba(15, 23, 42, 0.18)",
+    outline: selected ? "3px solid rgba(59, 130, 246, 0.35)" : "none",
+    outlineOffset: "4px",
+    fontFamily: "'Inter', sans-serif",
+    color: block.textColor || "#1f2937",
+    position: "relative" as const,
+    overflow: "hidden" as const,
+    cursor: "pointer",
+    fontSize: `${block.fontSize || 14}px`,
+    fontWeight: block.fontWeight || "normal"
+  };
+
   return (
-    <div
-      style={{
-        width: block.size.width,
-        height: block.size.height,
-        background: "#ffffff",
-        border: selected ? "2px solid #2563eb" : "1px solid #cbd5f5",
-        borderRadius: "8px",
-        boxShadow: selected ? "0 8px 16px rgba(37, 99, 235, 0.25)" : "0 4px 12px rgba(15, 23, 42, 0.18)",
-        outline: selected ? "3px solid rgba(59, 130, 246, 0.35)" : "none",
-        outlineOffset: "4px",
-        fontFamily: "'Inter', sans-serif",
-        color: "#1f2937",
-        position: "relative",
-        overflow: "hidden",
-        cursor: "pointer"
-      }}
-    >
+    <div style={blockStyle}>
       <NodeResizer 
         minHeight={140} 
         minWidth={220} 
@@ -77,12 +82,32 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
         pointerEvents: "auto",
         overflow: "hidden"
       }}>
-        <div style={{ fontSize: "12px", textTransform: "uppercase", color: "#475569", letterSpacing: "0.08em" }}>
+        <div style={{ 
+          fontSize: `${(block.fontSize || 14) * 0.85}px`, 
+          textTransform: "uppercase", 
+          color: block.textColor ? `${block.textColor}99` : "#475569", 
+          letterSpacing: "0.08em",
+          fontWeight: block.fontWeight || "normal"
+        }}>
           {formatStereotype(block.stereotype)}
         </div>
-        <div style={{ fontWeight: 600, fontSize: "16px", marginTop: "4px" }}>{block.name}</div>
+        <div style={{ 
+          fontWeight: block.fontWeight === "bold" ? 700 : 600, 
+          fontSize: `${(block.fontSize || 14) * 1.15}px`, 
+          marginTop: "4px",
+          color: block.textColor || "#1f2937"
+        }}>
+          {block.name}
+        </div>
         {block.description && (
-          <div style={{ marginTop: "8px", fontSize: "12px", color: "#6b7280" }}>{block.description}</div>
+          <div style={{ 
+            marginTop: "8px", 
+            fontSize: `${(block.fontSize || 14) * 0.85}px`, 
+            color: block.textColor ? `${block.textColor}cc` : "#6b7280",
+            fontWeight: block.fontWeight || "normal"
+          }}>
+            {block.description}
+          </div>
         )}
         
         {linkedDocuments.length > 0 && (
