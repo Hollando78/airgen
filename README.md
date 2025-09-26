@@ -20,7 +20,8 @@ airgen/
 ├─ docs/                     # Architecture and ops guidance
 ├─ examples/                 # Sample braking-domain artifacts
 ├─ workspace/                # Runtime Markdown workspace (gitignored)
-├─ docker-compose.yml
+├─ docker-compose.dev.yml
+├─ docker-compose.prod.yml
 ├─ pnpm-workspace.yaml
 ├─ package.json
 └─ README.md
@@ -30,16 +31,18 @@ See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 
 ## Getting started (Docker)
 ```bash
-cp .env.example .env               # Configure secrets and ports
+cp env/development.env.example env/development.env   # Configure local secrets and ports
 # Populate GRAPH_*/LLM_* values if using Neo4j auth and OpenAI
-npm install -g corepack            # Optional if corepack isn’t already enabled
+npm install -g corepack                              # Optional if corepack isn’t already enabled
 corepack enable
-pnpm install                       # Installs workspace dependencies (once)
-pnpm approve-builds                # Allow esbuild if prompted
+pnpm install                                         # Installs workspace dependencies (once)
+pnpm approve-builds                                  # Allow esbuild if prompted
 
-# Launch full stack
-docker compose up -d --build
-# API reachable at http://<host>/api/health via Traefik
+# Launch the development stack
+COMPOSE_PROJECT_NAME=airgen_dev \\
+docker compose --env-file env/development.env \
+  -f docker-compose.dev.yml up -d --build
+# API reachable at http://localhost:18787/health
 ```
 
 ## Getting started (local dev without Docker)
@@ -54,10 +57,17 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 ## Environment configuration
 
 - `env/development.env.example` & `env/production.env.example` provide docker compose templates. Copy them to `env/development.env` or `env/production.env` and adjust secrets before running `docker compose --env-file env/<env>.env ...`.
+- `deploy-production.sh` now consumes the same environment file via the `ENV_FILE` variable (defaults to `env/production.env`).
 - The backend loads environment-specific dotenv files via `API_ENV`. Place settings in `backend/.env.development` or `backend/.env.production` (templates live alongside them) when running the service directly.
 - The frontend follows Vite conventions. Copy `frontend/.env.development.example` or `frontend/.env.production.example` to `.env.development` / `.env.production` within the `frontend/` folder to inject build-time values such as `VITE_API_BASE_URL`.
 - The Vite dev server now binds to `127.0.0.1` by default for VPN/SSH protected access. Override with `VITE_DEV_SERVER_HOST` only when you explicitly need remote access.
 - To point the dev UI at a shared staging or production API, set `VITE_API_BASE_URL` (for static builds) or `API_PROXY_TARGET` (for the dev server) to the desired backend base URL.
+
+### Running dev alongside production on the VPS
+- Keep the `COMPOSE_PROJECT_NAME=airgen_dev` prefix when starting the dev stack so Docker creates separate volumes (`airgen_dev_pgdata_dev`, `airgen_dev_neo4jdata_dev`) instead of reusing production data.
+- The development compose file binds to high ports by default (`Postgres 55432`, `Redis 36379`, `Neo4j 17687/17474`, `API 18787`). Adjust `env/development.env` if you need different values, then connect via SSH tunnel rather than exposing them publicly.
+- The dev API mounts `workspace/dev/` inside the repo, keeping Markdown output and seeded users isolated from the production workspace.
+- Leave the production “coming soon” stack running until launch; only run `deploy-production.sh` when you’re ready to replace Traefik/nginx with the full application.
 
 ## Key API endpoints
 | Method | Path                                      | Purpose |
@@ -79,7 +89,7 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 - `pnpm -C frontend dev` launches a Vite dev server on http://localhost:5173 with a proxy to the Fastify API at `/api`.
 - Set `VITE_API_BASE_URL` to override the proxy target when deploying the static build (`pnpm -C frontend build`).
 - The UI covers tenant/project selection, draft generation (heuristics + optional LLM), QA, requirement persistence, baseline management, link suggestions, and token management for upcoming authentication flows.
-- Development builds expose an admin workspace at `/admin/users` for seeding file-backed user accounts without touching production data.
+- Development builds expose an admin workspace at `/admin/users` for seeding file-backed user accounts without touching production data. All UI routes now require authentication even in development, so create a dev account via the API or workspace file before logging in.
 - Production builds only publish the static landing experience; the interactive console and admin tools stay behind a dev-only bundle path to keep the public surface minimal.
 
 ## Sample workflow

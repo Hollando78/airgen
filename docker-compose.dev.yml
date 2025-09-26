@@ -8,7 +8,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata_dev:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
@@ -23,7 +23,7 @@ services:
       - "${GRAPH_BOLT_PORT:-7687}:7687"
       - "${GRAPH_HTTP_PORT:-7474}:7474"
     volumes:
-      - neo4jdata:/data
+      - neo4jdata_dev:/data
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
       interval: 10s
@@ -65,8 +65,8 @@ services:
       neo4j:
         condition: service_healthy
     volumes:
-      - ./workspace:/workspace
+      - ./workspace/dev:/workspace
 
 volumes:
-  pgdata:
-  neo4jdata:
+  pgdata_dev:
+  neo4jdata_dev:

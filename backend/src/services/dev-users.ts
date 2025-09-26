@@ -1,5 +1,11 @@
 import { promises as fs } from "node:fs";
-import { randomUUID, createHash } from "node:crypto";
+import {
+  randomUUID,
+  createHash,
+  randomBytes,
+  scryptSync,
+  timingSafeEqual
+} from "node:crypto";
 import { dirname, join } from "node:path";
 import { config } from "../config.js";
 
@@ -8,6 +14,8 @@ export type DevUserRecord = {
   email: string;
   name?: string;
   password?: string;
+  passwordHash?: string;
+  passwordSalt?: string;
   roles: string[];
   tenantSlugs: string[];
   createdAt: string;
@@ -54,8 +62,77 @@ type CreateDevUserInput = {
   tenantSlugs?: string[];
 };
 
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex');
+type DerivedPassword = { hash: string; salt: string };
+
+function derivePassword(password: string): DerivedPassword {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return { hash, salt };
+}
+
+function applyDerivedPassword(record: DevUserRecord, password: string): void {
+  const { hash, salt } = derivePassword(password);
+  record.passwordHash = hash;
+  record.passwordSalt = salt;
+  if (record.password) {
+    delete record.password;
+  }
+}
+
+function safeEqualHex(expected: string, actual: string): boolean {
+  if (expected.length !== actual.length) {
+    return false;
+  }
+
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const actualBuffer = Buffer.from(actual, "hex");
+
+  if (expectedBuffer.length !== actualBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBuffer, actualBuffer);
+}
+
+export function verifyDevUserPassword(user: DevUserRecord, candidate: string): boolean {
+  if (user.passwordHash && user.passwordSalt) {
+    const derived = scryptSync(candidate, user.passwordSalt, 64).toString("hex");
+    return safeEqualHex(user.passwordHash, derived);
+  }
+
+  if (user.password) {
+    const legacy = createHash("sha256").update(candidate).digest("hex");
+    return safeEqualHex(user.password, legacy);
+  }
+
+  return false;
+}
+
+async function migrateLegacyPasswordIfNeeded(userId: string, plainPassword: string): Promise<void> {
+  const users = await loadUsers();
+  const index = users.findIndex(user => user.id === userId);
+  if (index === -1) {
+    return;
+  }
+
+  const target = users[index];
+  if (!target.password || (target.passwordHash && target.passwordSalt)) {
+    return;
+  }
+
+  applyDerivedPassword(target, plainPassword);
+  target.updatedAt = new Date().toISOString();
+  users[index] = target;
+  await saveUsers(users);
+}
+
+export async function ensureLegacyPasswordUpgrade(
+  user: DevUserRecord,
+  plainPassword: string
+): Promise<void> {
+  if (user.password && (!user.passwordHash || !user.passwordSalt)) {
+    await migrateLegacyPasswordIfNeeded(user.id, plainPassword);
+  }
 }
 
 export async function createDevUser(input: CreateDevUserInput): Promise<DevUserRecord> {
@@ -72,12 +149,15 @@ export async function createDevUser(input: CreateDevUserInput): Promise<DevUserR
     id: randomUUID(),
     email: input.email,
     name: input.name,
-    password: input.password ? hashPassword(input.password) : undefined,
     roles: Array.isArray(input.roles) && input.roles.length ? input.roles : ["user"],
     tenantSlugs: Array.isArray(input.tenantSlugs) ? input.tenantSlugs : [],
     createdAt: now,
     updatedAt: now
   };
+
+  if (input.password) {
+    applyDerivedPassword(record, input.password);
+  }
 
   users.push(record);
   await saveUsers(users);
@@ -116,7 +196,7 @@ export async function updateDevUser(id: string, input: UpdateDevUserInput): Prom
   }
 
   if (input.password) {
-    user.password = hashPassword(input.password);
+    applyDerivedPassword(user, input.password);
   }
 
   if (Array.isArray(input.roles)) {

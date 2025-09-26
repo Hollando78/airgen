@@ -1,0 +1,18 @@
+[
+  {
+    "id": "98949904-cb96-4f1e-91c3-1c88369c70da",
+    "email": "admin@dev.local",
+    "name": "Dev Admin",
+    "roles": [
+      "admin",
+      "user"
+    ],
+    "tenantSlugs": [
+      "admin-dev"
+    ],
+    "createdAt": "2025-09-26T13:18:47.880Z",
+    "updatedAt": "2025-09-26T13:18:47.880Z",
+    "passwordHash": "b4b5447b3ca365f5d1d81a4a6ead02181e42b7cc9488b60c429b2ea166cb7ba90f3e24a74cbcfbefcb81da7868cc8ce91ade13521b1c5f8f53d6aa4c7b34ec7e",
+    "passwordSalt": "07cd911bb74ca3f7b2f8f0b5a9002bea"
+  }
+]

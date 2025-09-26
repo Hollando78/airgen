@@ -100,8 +100,8 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile.prod
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`airgen.studio`)"

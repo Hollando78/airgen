@@ -1,16 +1,15 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { createHash } from "node:crypto";
-import { getDevUser, listDevUsers } from "../services/dev-users.js";
+import {
+  ensureLegacyPasswordUpgrade,
+  listDevUsers,
+  verifyDevUserPassword
+} from "../services/dev-users.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1)
 });
-
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex');
-}
 
 export default async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post("/auth/login", async (req, reply) => {
@@ -20,17 +19,23 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       // Find user by email
       const users = await listDevUsers();
       const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      
-      if (!user || !user.password) {
+       
+      if (
+        !user ||
+        (!user.password && (!user.passwordHash || !user.passwordSalt))
+      ) {
         return reply.status(401).send({ error: "Invalid credentials" });
       }
-      
-      // Verify password
-      const hashedPassword = hashPassword(password);
-      if (user.password !== hashedPassword) {
+       
+      // Verify password (supports both legacy and scrypt-based hashes)
+      const authenticated = verifyDevUserPassword(user, password);
+      if (!authenticated) {
         return reply.status(401).send({ error: "Invalid credentials" });
       }
-      
+
+      // Upgrade legacy SHA256 hashes on successful auth
+      await ensureLegacyPasswordUpgrade(user, password);
+       
       // Generate JWT token
       const token = await reply.jwtSign(
         {
@@ -42,9 +47,9 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         },
         { expiresIn: '24h' }
       );
-      
+       
       // Return token and user info (without password)
-      const { password: _, ...userWithoutPassword } = user;
+      const { password: _legacy, passwordHash: _hash, passwordSalt: _salt, ...userWithoutPassword } = user;
       return {
         token,
         user: userWithoutPassword

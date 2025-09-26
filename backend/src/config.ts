@@ -8,12 +8,18 @@ function parseNumber(value: string | undefined, fallback: number): number {
 }
 
 const env = process.env;
+const environment = (env.API_ENV ?? "development") as Environment;
+const resolvedJwtSecret = env.API_JWT_SECRET ?? (environment === "production" ? undefined : "dev_secret");
+
+if (!resolvedJwtSecret) {
+  throw new Error("API_JWT_SECRET must be configured when running in production.");
+}
 
 export const config = {
   host: env.API_HOST ?? "0.0.0.0",
   port: parseNumber(env.API_PORT, 8787),
-  jwtSecret: env.API_JWT_SECRET ?? "dev_secret",
-  environment: (env.API_ENV ?? "development") as Environment,
+  jwtSecret: resolvedJwtSecret,
+  environment,
   workspaceRoot: resolve(env.WORKSPACE_ROOT ?? "./workspace"),
   defaultTenant: env.API_DEFAULT_TENANT ?? "default",
   draftsCacheTtlSeconds: parseNumber(env.AI_DRAFT_CACHE_TTL, 900),
