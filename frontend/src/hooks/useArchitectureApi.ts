@@ -40,6 +40,13 @@ export interface SysmlConnector {
   label?: string;
   sourcePortId?: string | null;
   targetPortId?: string | null;
+  // Styling properties
+  lineStyle?: string;
+  markerStart?: string;
+  markerEnd?: string;
+  linePattern?: string;
+  color?: string;
+  strokeWidth?: number;
 }
 
 export { BlockKind, ConnectorKind, PortDirection };
@@ -72,7 +79,14 @@ function mapConnectorFromApi(connector: ArchitectureConnectorRecord): SysmlConne
     kind: connector.kind,
     label: connector.label || undefined,
     sourcePortId: connector.sourcePortId,
-    targetPortId: connector.targetPortId
+    targetPortId: connector.targetPortId,
+    // Styling properties
+    lineStyle: connector.lineStyle,
+    markerStart: connector.markerStart,
+    markerEnd: connector.markerEnd,
+    linePattern: connector.linePattern,
+    color: connector.color,
+    strokeWidth: connector.strokeWidth
   };
 }
 
@@ -282,6 +296,26 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     }
   });
 
+  const updateConnectorMutation = useMutation({
+    mutationFn: ({ connectorId, updates }: { 
+      connectorId: string; 
+      updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth">>
+    }) => {
+      if (!activeDiagramId) {
+        throw new Error("Cannot update connector without an active diagram");
+      }
+      return api.updateArchitectureConnector(tenant!, project!, connectorId, {
+        diagramId: activeDiagramId,
+        ...updates
+      });
+    },
+    onSuccess: () => {
+      if (activeDiagramId) {
+        queryClient.invalidateQueries({ queryKey: ["architecture-connectors", tenant, project, activeDiagramId] });
+      }
+    }
+  });
+
   const blocks = useMemo(() =>
     (blocksQuery.data?.blocks ?? []).map(mapBlockFromApi),
     [blocksQuery.data?.blocks]
@@ -444,9 +478,9 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     return `temp-connector-${Date.now()}`;
   }, [activeDiagramId, createConnectorMutation]);
 
-  const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label">>) => {
-    console.warn("Connector updates not implemented in backend", connectorId, updates);
-  }, []);
+  const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth">>) => {
+    updateConnectorMutation.mutate({ connectorId, updates });
+  }, [updateConnectorMutation]);
 
   const removeConnector = useCallback((connectorId: string) => {
     deleteConnectorMutation.mutate(connectorId);
