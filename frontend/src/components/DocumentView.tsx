@@ -6,6 +6,8 @@ import { AddRequirementModal } from "./AddRequirementModal";
 import { EditRequirementModal } from "./EditRequirementModal";
 import { EditSectionModal } from "./EditSectionModal";
 import { RequirementsTable } from "./DocumentView/RequirementsTable";
+import { ExportModal } from "./DocumentView/ExportModal";
+import { ImportModal } from "./DocumentView/ImportModal";
 import type { DocumentRecord, RequirementRecord, RequirementPattern, VerificationMethod, DocumentSectionRecord } from "../types";
 
 interface DocumentSectionWithRequirements extends DocumentSectionRecord {
@@ -39,6 +41,8 @@ export function DocumentView({
     section: DocumentSectionRecord | null;
   }>({ isOpen: false, section: null });
   const [draggedSection, setDraggedSection] = useState<string | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Fetch document details
   const documentQuery = useQuery({
@@ -84,13 +88,12 @@ export function DocumentView({
   });
 
   const createRequirementMutation = useMutation({
-    mutationFn: (requirement: { title: string; text: string; pattern?: RequirementPattern; verification?: VerificationMethod; sectionId: string }) =>
+    mutationFn: (requirement: { text: string; pattern?: RequirementPattern; verification?: VerificationMethod; sectionId: string }) =>
       api.createRequirement({
         tenant,
         projectKey: project,
         documentSlug,
         sectionId: requirement.sectionId,
-        title: requirement.title,
         text: requirement.text,
         pattern: requirement.pattern,
         verification: requirement.verification
@@ -111,7 +114,7 @@ export function DocumentView({
   });
 
   const updateRequirementMutation = useMutation({
-    mutationFn: (params: { requirementId: string; updates: { title?: string; text?: string; pattern?: RequirementPattern; verification?: VerificationMethod; } }) =>
+    mutationFn: (params: { requirementId: string; updates: { text?: string; pattern?: RequirementPattern; verification?: VerificationMethod; } }) =>
       api.updateRequirement(tenant, project, params.requirementId, params.updates),
     onSuccess: async (response, variables) => {
       // Invalidate sections query to get fresh data
@@ -519,6 +522,56 @@ export function DocumentView({
           >
             + Add Section
           </button>
+
+          <button
+            onClick={() => setShowImportModal(true)}
+            style={{
+              width: "100%",
+              padding: "12px",
+              backgroundColor: "#dc2626",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              marginTop: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px"
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/>
+              <polyline points="17,8 12,3 7,8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Import Document
+          </button>
+
+          <button
+            onClick={() => setShowExportModal(true)}
+            style={{
+              width: "100%",
+              padding: "12px",
+              backgroundColor: "#059669",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              marginTop: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px"
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7,10 12,15 17,10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export Document
+          </button>
         </div>
 
         {/* Requirements Table */}
@@ -589,6 +642,30 @@ export function DocumentView({
         onUpdated={() => {
           // The updateSectionMutation already handles cache invalidation
           // Additional refresh logic can be added here if needed
+        }}
+      />
+
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        documentName={document?.name || "Document"}
+        sections={sections}
+        tenant={tenant}
+        project={project}
+        documentSlug={documentSlug}
+      />
+
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        tenant={tenant}
+        project={project}
+        documentSlug={documentSlug}
+        sections={sections}
+        onImportComplete={() => {
+          // Refresh sections data after import
+          queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+          setShowImportModal(false);
         }}
       />
     </div>
