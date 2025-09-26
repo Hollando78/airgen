@@ -8,6 +8,7 @@ import { EditSectionModal } from "./EditSectionModal";
 import { RequirementsTable } from "./DocumentView/RequirementsTable";
 import { ExportModal } from "./DocumentView/ExportModal";
 import { ImportModal } from "./DocumentView/ImportModal";
+import { useFloatingDocuments } from "../contexts/FloatingDocumentsContext";
 import type { DocumentRecord, RequirementRecord, RequirementPattern, VerificationMethod, DocumentSectionRecord } from "../types";
 
 interface DocumentSectionWithRequirements extends DocumentSectionRecord {
@@ -29,6 +30,7 @@ export function DocumentView({
 }: DocumentViewProps): JSX.Element {
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const { openFloatingDocument } = useFloatingDocuments();
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [showAddSectionModal, setShowAddSectionModal] = useState(false);
   const [showAddRequirementModal, setShowAddRequirementModal] = useState(false);
@@ -284,6 +286,17 @@ export function DocumentView({
           updates: { order: newOrder }
         });
       }
+    });
+  };
+
+  const handleOpenFloatingDocument = () => {
+    if (!document) return;
+    
+    openFloatingDocument({
+      documentSlug,
+      documentName: document.name,
+      tenant,
+      project
     });
   };
 
@@ -583,6 +596,7 @@ export function DocumentView({
               project={project}
               onAddRequirement={() => setShowAddRequirementModal(true)}
               onEditRequirement={handleEditRequirement}
+              onOpenFloatingDocument={handleOpenFloatingDocument}
             />
           ) : selectedSection ? (
             <div style={{
