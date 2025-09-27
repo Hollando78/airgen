@@ -31,6 +31,7 @@ export function FloatingDocumentsManager() {
             documentSlug={doc.documentSlug}
             documentName={doc.documentName}
             initialPosition={doc.position}
+            focusRequirementId={doc.focusRequirementId}
             onClose={() => closeFloatingDocument(doc.id)}
           />
         )

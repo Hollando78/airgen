@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback, useMemo } from "react";
-import type { RequirementRecord, DocumentSectionRecord } from "../../types";
+import type { RequirementRecord, DocumentSectionRecord, TraceLink } from "../../types";
+import { LinkIndicators } from "./LinkIndicators";
 
 export interface RequirementsTableProps {
   section: DocumentSectionRecord & { requirements: RequirementRecord[] };
   tenant: string;
   project: string;
+  traceLinks?: TraceLink[];
   onAddRequirement: () => void;
   onEditRequirement: (requirement: RequirementRecord) => void;
   onOpenFloatingDocument?: () => void;
@@ -23,6 +25,7 @@ export function RequirementsTable({
   section,
   tenant,
   project,
+  traceLinks = [],
   onAddRequirement,
   onEditRequirement,
   onOpenFloatingDocument
@@ -603,7 +606,17 @@ export function RequirementsTable({
                     <td style={cellStyle(columnWidths.id)} title={req.ref}>{req.ref}</td>
                   )}
                   {visibleColumns.description && (
-                    <td style={cellStyle(columnWidths.description)} title={req.text}>{req.text}</td>
+                    <td style={cellStyle(columnWidths.description)} title={req.text}>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                        <span style={{ flex: 1, marginRight: "8px" }}>{req.text}</span>
+                        <LinkIndicators 
+                          requirementId={req.id}
+                          traceLinks={traceLinks}
+                          tenant={tenant}
+                          project={project}
+                        />
+                      </div>
+                    </td>
                   )}
                   {visibleColumns.pattern && (
                     <td style={cellStyle(columnWidths.pattern)}>
