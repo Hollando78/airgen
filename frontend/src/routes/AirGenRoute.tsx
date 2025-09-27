@@ -5,7 +5,8 @@ import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
 import { AcceptCandidateModal } from "../components/AirGen/AcceptCandidateModal";
-import type { RequirementCandidate, RequirementCandidateGroup } from "../types";
+import { DocumentAttachmentSelector } from "../components/DocumentAttachmentSelector";
+import type { RequirementCandidate, RequirementCandidateGroup, DocumentAttachment } from "../types";
 
 const statusLabels: Record<RequirementCandidate["status"], { label: string; className: string }> = {
   pending: { label: "Pending", className: "status-pending" },
@@ -22,6 +23,7 @@ export function AirGenRoute(): JSX.Element {
   const [glossary, setGlossary] = useState("");
   const [constraints, setConstraints] = useState("");
   const [count, setCount] = useState(5);
+  const [attachedDocuments, setAttachedDocuments] = useState<DocumentAttachment[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<RequirementCandidate | null>(null);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -47,7 +49,8 @@ export function AirGenRoute(): JSX.Element {
         user_input: instruction.trim(),
         glossary: glossary.trim() || undefined,
         constraints: constraints.trim() || undefined,
-        n: count
+        n: count,
+        attachedDocuments: attachedDocuments.length > 0 ? attachedDocuments : undefined
       });
     },
     onSuccess: () => {
@@ -200,6 +203,13 @@ export function AirGenRoute(): JSX.Element {
               max={10}
               value={count}
               onChange={event => setCount(Number(event.target.value) || 1)}
+            />
+
+            <DocumentAttachmentSelector
+              tenant={tenant}
+              project={project}
+              attachments={attachedDocuments}
+              onAttachmentsChange={setAttachedDocuments}
             />
 
             <button type="submit" disabled={disabled || chatMutation.isPending}>

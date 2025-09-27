@@ -244,10 +244,12 @@ export function AcceptCandidateModal({
                   label="Document"
                   value={documentSlug}
                   onChange={event => handleDocumentChange(event.target.value)}
-                  options={documents.map((doc: DocumentRecord) => ({
-                    value: doc.slug,
-                    label: doc.name
-                  }))}
+                  options={documents
+                    .filter((doc: DocumentRecord) => doc.kind === "structured")
+                    .map((doc: DocumentRecord) => ({
+                      value: doc.slug,
+                      label: doc.name
+                    }))}
                   placeholder="Select target document"
                   help="Choose where to place this requirement"
                 />
@@ -266,7 +268,7 @@ export function AcceptCandidateModal({
                       type="button"
                       className="btn btn--secondary btn--compact"
                       onClick={() => {
-                        const selectedDoc = documents.find(d => d.slug === documentSlug);
+                        const selectedDoc = documents.find(d => d.slug === documentSlug && d.kind === "structured");
                         if (selectedDoc) handleEditDocumentClick(selectedDoc);
                       }}
                       title="Edit document"

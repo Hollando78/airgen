@@ -5,6 +5,7 @@ export type DraftRequest = {
   glossary?: string; // optional glossary text
   constraints?: string; // optional constraints
   n?: number; // number of candidates (default 5, max 10)
+  documentContext?: string; // additional context from attached documents
 };
 
 export async function draftCandidates(req: DraftRequest): Promise<string[]> {
@@ -19,6 +20,8 @@ export async function draftCandidates(req: DraftRequest): Promise<string[]> {
     "Write binding requirements using SHALL, following ISO/IEC/IEEE 29148 and EARS patterns.",
     "Avoid ambiguous terms (fast, user-friendly, optimal, adequate, etc.).",
     "Include measurable criteria and units where applicable.",
+    "When DOCUMENT_CONTEXT is provided, use it as reference material to ensure consistency",
+    "and alignment with existing requirements and specifications.",
     "Return ONLY a JSON object with this shape:",
     '{ "candidates": ["<req1>", "<req2>", ...] }',
     "No markdown fencing, no preface, no comments—just JSON."
@@ -26,6 +29,7 @@ export async function draftCandidates(req: DraftRequest): Promise<string[]> {
 
   const content = [
     `USER_INPUT:\n${req.user_input}`,
+    req.documentContext ? `DOCUMENT_CONTEXT:\n${req.documentContext}` : "",
     req.glossary ? `GLOSSARY:\n${req.glossary}` : "",
     req.constraints ? `CONSTRAINTS:\n${req.constraints}` : "",
     `COUNT: ${n}`
