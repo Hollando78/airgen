@@ -114,6 +114,12 @@ export type RequirementCandidate = {
   updatedAt: string;
 };
 
+export type DocumentAttachment = {
+  type: "native" | "surrogate";
+  documentSlug: string;
+  sectionIds?: string[]; // For native docs, specific sections
+};
+
 export type AirGenChatRequest = {
   tenant: string;
   projectKey: string;
@@ -121,6 +127,7 @@ export type AirGenChatRequest = {
   glossary?: string;
   constraints?: string;
   n?: number;
+  attachedDocuments?: DocumentAttachment[];
 };
 
 export type AirGenChatResponse = {

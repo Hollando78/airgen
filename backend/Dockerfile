@@ -31,9 +31,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Install LibreOffice and fonts for document preview generation
+# Install LibreOffice, PDF tools, and fonts for document preview generation
 RUN apk add --no-cache \
     libreoffice \
+    poppler-utils \
     ttf-liberation \
     ttf-dejavu \
     fontconfig \

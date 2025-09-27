@@ -9,6 +9,7 @@ build
 # Env
 .env
 .env.*
+env/development.env
 
 # Allow tracked environment templates
 !/env/**/*.example
