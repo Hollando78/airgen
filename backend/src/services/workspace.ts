@@ -7,6 +7,7 @@ export type VerificationMethod = "Test" | "Analysis" | "Inspection" | "Demonstra
 
 export type RequirementRecord = {
   id: string;
+  hashId: string;
   ref: string;
   tenant: string;
   projectKey: string;

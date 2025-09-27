@@ -17,7 +17,6 @@ export type RequirementInput = {
   projectKey: string;
   documentSlug?: string;
   sectionId?: string;
-  title: string;
   text: string;
   pattern?: RequirementPattern;
   verification?: VerificationMethod;
@@ -29,13 +28,19 @@ export type RequirementInput = {
 
 export function mapRequirement(node: Neo4jNode): RequirementRecord {
   const props = node.properties as Record<string, unknown>;
+  const text = props.text ? String(props.text) : "";
+  const titleProp = props.title ? String(props.title) : null;
   return {
     id: String(props.id),
+    hashId: props.hashId ? String(props.hashId) : "",
     ref: String(props.ref),
     tenant: String(props.tenant),
     projectKey: String(props.projectKey),
-    title: String(props.title),
-    text: String(props.text),
+    title:
+      titleProp && titleProp.trim().length > 0
+        ? titleProp
+        : text.split(" ").slice(0, 8).join(" ") + (text.split(" ").length > 8 ? "..." : ""),
+    text,
     pattern: props.pattern ? (props.pattern as RequirementPattern) : undefined,
     verification: props.verification ? (props.verification as VerificationMethod) : undefined,
     qaScore:
@@ -45,8 +50,8 @@ export function mapRequirement(node: Neo4jNode): RequirementRecord {
     qaVerdict: props.qaVerdict ? String(props.qaVerdict) : undefined,
     suggestions: Array.isArray(props.suggestions)
       ? (props.suggestions as string[])
-      : undefined,
-    tags: Array.isArray(props.tags) ? (props.tags as string[]) : undefined,
+      : [],
+    tags: Array.isArray(props.tags) ? (props.tags as string[]) : [],
     path: String(props.path),
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt),
@@ -145,7 +150,6 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
           ref: finalRef,
           tenant: $tenantSlug,
           projectKey: $projectSlug,
-          title: $title,
           text: $text,
           pattern: $pattern,
           verification: $verification,
@@ -177,7 +181,6 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
         projectSlug,
         projectKey: input.projectKey,
         hashId,
-        title: input.title,
         text: input.text,
         pattern: input.pattern ?? null,
         verification: input.verification ?? null,
@@ -379,7 +382,6 @@ export async function updateRequirement(
   projectKey: string,
   requirementId: string,
   updates: {
-    title?: string;
     text?: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
@@ -423,7 +425,17 @@ export async function updateRequirement(
     const record = result.records[0];
     const node = record.get("requirement") as Neo4jNode;
     const requirement = mapRequirement(node);
-    await writeRequirementMarkdown(requirement);
+
+    const { hashId, ...rest } = requirement;
+    const normalizedRequirement = {
+      ...rest,
+      ...(hashId ? { hashId } : {}),
+      title: requirement.title || requirement.text,
+      suggestions: requirement.suggestions ?? [],
+      tags: requirement.tags ?? []
+    };
+
+    await writeRequirementMarkdown(normalizedRequirement as RequirementRecord);
     return requirement;
   } finally {
     await session.close();
@@ -677,6 +689,131 @@ export async function suggestLinks(params: {
     }
 
     return suggestions;
+  } finally {
+    await session.close();
+  }
+}
+
+export async function createTenant(input: { slug: string; name?: string }): Promise<TenantRecord> {
+  const tenantSlug = slugify(input.slug);
+  const now = new Date().toISOString();
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        CREATE (tenant:Tenant {slug: $tenantSlug, name: $name, createdAt: $now})
+        RETURN tenant
+      `;
+      
+      const createResult = await tx.run(query, {
+        tenantSlug,
+        name: input.name || null,
+        now
+      });
+
+      if (createResult.records.length === 0) {
+        throw new Error("Failed to create tenant");
+      }
+
+      return createResult.records[0]!.get("tenant") as Neo4jNode;
+    });
+
+    return mapTenant(result, 0);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function createProject(input: { 
+  tenantSlug: string; 
+  slug: string; 
+  key?: string 
+}): Promise<ProjectRecord> {
+  const tenantSlug = slugify(input.tenantSlug);
+  const projectSlug = slugify(input.slug);
+  const now = new Date().toISOString();
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})
+        CREATE (tenant)-[:OWNS]->(project:Project {
+          slug: $projectSlug, 
+          tenantSlug: $tenantSlug, 
+          key: $key, 
+          createdAt: $now
+        })
+        RETURN project
+      `;
+      
+      const createResult = await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        key: input.key || null,
+        now
+      });
+
+      if (createResult.records.length === 0) {
+        throw new Error("Failed to create project or tenant not found");
+      }
+
+      return createResult.records[0]!.get("project") as Neo4jNode;
+    });
+
+    return mapProject(result, 0);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function deleteTenant(slug: string): Promise<boolean> {
+  const tenantSlug = slugify(slug);
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})
+        OPTIONAL MATCH (tenant)-[:OWNS]->(project:Project)
+        OPTIONAL MATCH (project)-[:CONTAINS]->(requirement:Requirement)
+        DETACH DELETE tenant, project, requirement
+        RETURN COUNT(tenant) as deletedCount
+      `;
+      
+      const deleteResult = await tx.run(query, { tenantSlug });
+      return Number(deleteResult.records[0]?.get("deletedCount") || 0);
+    });
+
+    return result > 0;
+  } finally {
+    await session.close();
+  }
+}
+
+export async function deleteProject(tenantSlug: string, slug: string): Promise<boolean> {
+  const normalizedTenantSlug = slugify(tenantSlug);
+  const projectSlug = slugify(slug);
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        OPTIONAL MATCH (project)-[:CONTAINS]->(requirement:Requirement)
+        DETACH DELETE project, requirement
+        RETURN COUNT(project) as deletedCount
+      `;
+      
+      const deleteResult = await tx.run(query, { 
+        tenantSlug: normalizedTenantSlug, 
+        projectSlug 
+      });
+      return Number(deleteResult.records[0]?.get("deletedCount") || 0);
+    });
+
+    return result > 0;
   } finally {
     await session.close();
   }

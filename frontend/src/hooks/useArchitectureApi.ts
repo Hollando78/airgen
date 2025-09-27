@@ -10,7 +10,8 @@ import type {
   PortDirection,
   BlockPortRecord,
   ConnectorKind,
-  UpdateArchitectureBlockRequest
+  UpdateArchitectureBlockRequest,
+  CreateArchitectureConnectorRequest
 } from "../types";
 
 // Convert backend types to frontend types
@@ -24,6 +25,15 @@ export interface SysmlBlock {
   size: { width: number; height: number };
   ports: BlockPort[];
   documentIds?: string[];
+  // Styling properties
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: string;
+  textColor?: string;
+  fontSize?: number;
+  fontWeight?: string;
+  borderRadius?: number;
 }
 
 export interface BlockPort {
@@ -67,7 +77,16 @@ function mapBlockFromApi(block: ArchitectureBlockRecord): SysmlBlock {
     position: { x: block.positionX, y: block.positionY },
     size: { width: block.sizeWidth, height: block.sizeHeight },
     ports: block.ports,
-    documentIds: block.documentIds
+    documentIds: block.documentIds,
+    // Styling properties
+    backgroundColor: block.backgroundColor || undefined,
+    borderColor: block.borderColor || undefined,
+    borderWidth: block.borderWidth || undefined,
+    borderStyle: block.borderStyle || undefined,
+    textColor: block.textColor || undefined,
+    fontSize: block.fontSize || undefined,
+    fontWeight: block.fontWeight || undefined,
+    borderRadius: block.borderRadius || undefined
   };
 }
 
@@ -299,7 +318,10 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   const updateConnectorMutation = useMutation({
     mutationFn: ({ connectorId, updates }: { 
       connectorId: string; 
-      updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth">>
+      updates: Partial<Pick<
+        CreateArchitectureConnectorRequest,
+        "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
+      >>
     }) => {
       if (!activeDiagramId) {
         throw new Error("Cannot update connector without an active diagram");
@@ -370,7 +392,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     return `temp-${Date.now()}`;
   }, [activeDiagramId, blocks.length, createBlockMutation]);
 
-  const updateBlock = useCallback((blockId: string, updates: Partial<Pick<SysmlBlock, "name" | "kind" | "stereotype" | "description">>) => {
+  const updateBlock = useCallback((blockId: string, updates: Partial<Pick<SysmlBlock, "name" | "kind" | "stereotype" | "description" | "backgroundColor" | "borderColor" | "borderWidth" | "borderStyle" | "textColor" | "fontSize" | "fontWeight" | "borderRadius">>) => {
     if (!activeDiagramId) return;
     updateBlockMutation.mutate({ blockId, updates: { diagramId: activeDiagramId, ...updates } });
   }, [activeDiagramId, updateBlockMutation]);
@@ -469,8 +491,8 @@ export function useArchitecture(tenant: string | null, project: string | null) {
       target: input.target,
       kind: input.kind ?? 'association' as ConnectorKind,
       label: input.label,
-      sourcePortId: input.sourcePortId || undefined,
-      targetPortId: input.targetPortId || undefined
+      sourcePortId: input.sourcePortId ?? undefined,
+      targetPortId: input.targetPortId ?? undefined
     };
 
     createConnectorMutation.mutate(connectorData);
@@ -479,7 +501,23 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [activeDiagramId, createConnectorMutation]);
 
   const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth">>) => {
-    updateConnectorMutation.mutate({ connectorId, updates });
+    const sanitizedUpdates: Partial<Pick<
+      CreateArchitectureConnectorRequest,
+      "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
+    >> = {};
+
+    if (updates.kind !== undefined) sanitizedUpdates.kind = updates.kind;
+    if (updates.label !== undefined) sanitizedUpdates.label = updates.label;
+    if (updates.lineStyle !== undefined) sanitizedUpdates.lineStyle = updates.lineStyle as CreateArchitectureConnectorRequest["lineStyle"]; 
+    if (updates.markerStart !== undefined) sanitizedUpdates.markerStart = updates.markerStart as CreateArchitectureConnectorRequest["markerStart"];
+    if (updates.markerEnd !== undefined) sanitizedUpdates.markerEnd = updates.markerEnd as CreateArchitectureConnectorRequest["markerEnd"];
+    if (updates.linePattern !== undefined) sanitizedUpdates.linePattern = updates.linePattern as CreateArchitectureConnectorRequest["linePattern"];
+    if (updates.color !== undefined) sanitizedUpdates.color = updates.color;
+    if (updates.strokeWidth !== undefined) sanitizedUpdates.strokeWidth = updates.strokeWidth;
+    if (updates.sourcePortId !== undefined) sanitizedUpdates.sourcePortId = updates.sourcePortId ?? undefined;
+    if (updates.targetPortId !== undefined) sanitizedUpdates.targetPortId = updates.targetPortId ?? undefined;
+
+    updateConnectorMutation.mutate({ connectorId, updates: sanitizedUpdates });
   }, [updateConnectorMutation]);
 
   const removeConnector = useCallback((connectorId: string) => {

@@ -29,16 +29,6 @@ const verificationOptions: Array<{ value: VerificationMethod; label: string }> =
   { value: "Demonstration", label: "Demonstration" }
 ];
 
-function summarize(text: string): string {
-  const trimmed = text.replace(/\s+/g, " ").trim();
-  if (trimmed.length <= 80) return trimmed;
-  return `${trimmed.slice(0, 77).trim()}…`;
-}
-
-function defaultTitle(text: string): string {
-  const summary = summarize(text);
-  return summary.replace(/shall/i, "shall");
-}
 
 type AcceptCandidateModalProps = {
   isOpen: boolean;
@@ -60,11 +50,14 @@ export function AcceptCandidateModal({
   const api = useApiClient();
   const queryClient = useQueryClient();
 
-  const [title, setTitle] = useState("");
   const [pattern, setPattern] = useState<string>("");
   const [verification, setVerification] = useState<string>("");
-  const [documentSlug, setDocumentSlug] = useState<string>("");
-  const [sectionId, setSectionId] = useState<string>("");
+  const [documentSlug, setDocumentSlug] = useState<string>(() => {
+    return localStorage.getItem(`accept-modal-document-${tenant}-${project}`) || "";
+  });
+  const [sectionId, setSectionId] = useState<string>(() => {
+    return localStorage.getItem(`accept-modal-section-${tenant}-${project}`) || "";
+  });
   const [error, setError] = useState<string | null>(null);
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [showAddSection, setShowAddSection] = useState(false);
@@ -81,6 +74,18 @@ export function AcceptCandidateModal({
   const handleEditSectionClick = (section: DocumentSectionRecord) => {
     setEditingSection(section);
     setShowEditSection(true);
+  };
+
+  const handleDocumentChange = (newDocumentSlug: string) => {
+    setDocumentSlug(newDocumentSlug);
+    setSectionId(""); // Reset section when document changes
+    localStorage.setItem(`accept-modal-document-${tenant}-${project}`, newDocumentSlug);
+    localStorage.removeItem(`accept-modal-section-${tenant}-${project}`); // Clear section when document changes
+  };
+
+  const handleSectionChange = (newSectionId: string) => {
+    setSectionId(newSectionId);
+    localStorage.setItem(`accept-modal-section-${tenant}-${project}`, newSectionId);
   };
 
   const documentsQuery = useQuery({
@@ -114,7 +119,7 @@ export function AcceptCandidateModal({
     },
     onSuccess: section => {
       queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
-      setSectionId(section.id);
+      handleSectionChange(section.id);
       setShowAddSection(false);
       setError(null);
     },
@@ -132,7 +137,6 @@ export function AcceptCandidateModal({
       return api.acceptRequirementCandidate(candidate.id, {
         tenant,
         projectKey: project,
-        title: title.trim(),
         pattern: pattern ? (pattern as RequirementPattern) : undefined,
         verification: verification ? (verification as VerificationMethod) : undefined,
         documentSlug: documentSlug || undefined,
@@ -156,18 +160,24 @@ export function AcceptCandidateModal({
 
   useEffect(() => {
     if (isOpen && candidate) {
-      setTitle(defaultTitle(candidate.text));
       setPattern("");
       setVerification("");
-      setDocumentSlug(candidate.documentSlug ?? "");
-      setSectionId(candidate.sectionId ?? "");
+      // Only override remembered selections if candidate has specific document/section info
+      if (candidate.documentSlug) {
+        setDocumentSlug(candidate.documentSlug);
+        localStorage.setItem(`accept-modal-document-${tenant}-${project}`, candidate.documentSlug);
+      }
+      if (candidate.sectionId) {
+        setSectionId(candidate.sectionId);
+        localStorage.setItem(`accept-modal-section-${tenant}-${project}`, candidate.sectionId);
+      }
       setError(null);
     }
     if (!isOpen) {
       setShowCreateDocument(false);
       setShowAddSection(false);
     }
-  }, [isOpen, candidate]);
+  }, [isOpen, candidate, tenant, project]);
 
   const documents = documentsQuery.data?.documents ?? [];
   const sections = sectionsQuery.data?.sections ?? [];
@@ -181,7 +191,7 @@ export function AcceptCandidateModal({
         type="submit"
         loading={acceptMutation.isPending}
         onClick={() => acceptMutation.mutate()}
-        disabled={!title.trim()}
+        disabled={!candidate?.text.trim()}
       >
         Accept requirement
       </Button>
@@ -194,112 +204,117 @@ export function AcceptCandidateModal({
         isOpen={isOpen && Boolean(candidate)}
         onClose={onClose}
         title="Accept candidate requirement"
+        size="large"
         footer={footer}
       >
         {!candidate ? (
           <p>No candidate selected.</p>
         ) : (
           <div className="accept-modal">
-            <TextInput
-              label="Title"
-              value={title}
-              onChange={event => setTitle(event.target.value)}
-              placeholder="Provide a concise requirement title"
-            />
 
             <TextArea
-              label="Requirement"
+              label="Requirement Text"
               value={candidate.text}
-              rows={4}
+              rows={3}
               readOnly
             />
 
-            <Select
-              label="Pattern"
-              value={pattern}
-              onChange={event => setPattern(event.target.value)}
-              options={patternOptions}
-              placeholder="Select pattern"
-              help="Optional. Choose the best-fit EARS pattern"
-            />
+            <div className="form-row">
+              <Select
+                label="Pattern"
+                value={pattern}
+                onChange={event => setPattern(event.target.value)}
+                options={patternOptions}
+                placeholder="Select pattern"
+                help="Optional EARS pattern"
+              />
 
-            <Select
-              label="Verification method"
-              value={verification}
-              onChange={event => setVerification(event.target.value)}
-              options={verificationOptions}
-              placeholder="Select method"
-            />
-
-            <Select
-              label="Document"
-              value={documentSlug}
-              onChange={event => {
-                setDocumentSlug(event.target.value);
-                setSectionId("");
-              }}
-              options={documents.map((doc: DocumentRecord) => ({
-                value: doc.slug,
-                label: doc.name
-              }))}
-              placeholder="Select target document"
-              help="Create a new document if needed"
-            />
-
-            <div className="accept-actions">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setShowCreateDocument(true)}
-                disabled={!tenant || !project}
-              >
-                New document
-              </Button>
-              {documentSlug && documents.length > 0 && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    const selectedDoc = documents.find(d => d.slug === documentSlug);
-                    if (selectedDoc) handleEditDocumentClick(selectedDoc);
-                  }}
-                >
-                  Edit document
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setShowAddSection(true)}
-                disabled={!documentSlug}
-              >
-                New section
-              </Button>
-              {sectionId && sections.length > 0 && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    const selectedSection = sections.find(s => s.id === sectionId);
-                    if (selectedSection) handleEditSectionClick(selectedSection);
-                  }}
-                >
-                  Edit section
-                </Button>
-              )}
+              <Select
+                label="Verification Method"
+                value={verification}
+                onChange={event => setVerification(event.target.value)}
+                options={verificationOptions}
+                placeholder="Select method"
+              />
             </div>
 
-            <Select
-              label="Section"
-              value={sectionId}
-              onChange={event => setSectionId(event.target.value)}
-              options={sections.map((section: DocumentSectionRecord) => ({
-                value: section.id,
-                label: section.name
-              }))}
-              placeholder={documentSlug ? "Select section" : "Select a document first"}
-              disabled={!documentSlug || sections.length === 0}
-            />
+            <div className="document-section-group">
+              <div className="document-controls">
+                <Select
+                  label="Document"
+                  value={documentSlug}
+                  onChange={event => handleDocumentChange(event.target.value)}
+                  options={documents.map((doc: DocumentRecord) => ({
+                    value: doc.slug,
+                    label: doc.name
+                  }))}
+                  placeholder="Select target document"
+                  help="Choose where to place this requirement"
+                />
+                <div className="document-actions">
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--compact"
+                    onClick={() => setShowCreateDocument(true)}
+                    disabled={!tenant || !project}
+                    title="Create new document"
+                  >
+                    + Doc
+                  </button>
+                  {documentSlug && documents.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn--secondary btn--compact"
+                      onClick={() => {
+                        const selectedDoc = documents.find(d => d.slug === documentSlug);
+                        if (selectedDoc) handleEditDocumentClick(selectedDoc);
+                      }}
+                      title="Edit document"
+                    >
+                      ✏️
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="section-controls">
+                <Select
+                  label="Section"
+                  value={sectionId}
+                  onChange={event => handleSectionChange(event.target.value)}
+                  options={sections.map((section: DocumentSectionRecord) => ({
+                    value: section.id,
+                    label: section.name
+                  }))}
+                  placeholder={documentSlug ? "Select section" : "Select a document first"}
+                  disabled={!documentSlug || sections.length === 0}
+                />
+                <div className="section-actions">
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--compact"
+                    onClick={() => setShowAddSection(true)}
+                    disabled={!documentSlug}
+                    title="Create new section"
+                  >
+                    + Sec
+                  </button>
+                  {sectionId && sections.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn--secondary btn--compact"
+                      onClick={() => {
+                        const selectedSection = sections.find(s => s.id === sectionId);
+                        if (selectedSection) handleEditSectionClick(selectedSection);
+                      }}
+                      title="Edit section"
+                    >
+                      ✏️
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {error && <p className="accept-error">{error}</p>}
           </div>
@@ -314,7 +329,7 @@ export function AcceptCandidateModal({
           onClose={() => setShowCreateDocument(false)}
           onCreated={slug => {
             queryClient.invalidateQueries({ queryKey: ["documents", tenant, project] });
-            setDocumentSlug(slug);
+            handleDocumentChange(slug);
             setShowCreateDocument(false);
           }}
         />

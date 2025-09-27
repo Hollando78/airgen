@@ -1,6 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
 import { Handle, NodeResizer, Position } from "@xyflow/react";
-import type { SysmlBlock } from "../../hooks/useArchitecture";
+import type { SysmlBlock } from "../../hooks/useArchitectureApi";
 import type { DocumentRecord } from "../../types";
 
 export type SysmlBlockNodeData = {

@@ -33,7 +33,6 @@ export function DraftsRoute(): JSX.Element {
   type PersistPayload = {
     tenant: string;
     projectKey: string;
-    title: string;
     text: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;

@@ -7,7 +7,6 @@ interface AddRequirementModalProps {
   sectionName: string;
   onClose: () => void;
   onAdd: (requirement: {
-    title: string;
     text: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
@@ -20,13 +19,11 @@ export function AddRequirementModal({
   onClose,
   onAdd
 }: AddRequirementModalProps): JSX.Element {
-  const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [pattern, setPattern] = useState<RequirementPattern | "">("");
   const [verification, setVerification] = useState<VerificationMethod | "">("");
 
   const handleClose = () => {
-    setTitle("");
     setText("");
     setPattern("");
     setVerification("");
@@ -35,9 +32,8 @@ export function AddRequirementModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (title.trim() && text.trim()) {
+    if (text.trim()) {
       onAdd({
-        title: title.trim(),
         text: text.trim(),
         pattern: pattern as RequirementPattern || undefined,
         verification: verification as VerificationMethod || undefined
@@ -70,7 +66,7 @@ export function AddRequirementModal({
       </Button>
       <Button 
         type="submit" 
-        disabled={!title.trim() || !text.trim()}
+        disabled={!text.trim()}
         onClick={handleSubmit}
       >
         Add Requirement
@@ -88,15 +84,6 @@ export function AddRequirementModal({
       footer={footer}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        <TextInput
-          label="Requirement Title"
-          required
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g., User Authentication System, Password Security"
-          autoFocus
-          help="A concise, descriptive title for this requirement"
-        />
 
         <TextArea
           label="Requirement Text"

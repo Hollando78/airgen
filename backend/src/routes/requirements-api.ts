@@ -24,7 +24,6 @@ const requirementSchema = z.object({
   projectKey: z.string().min(1),
   documentSlug: z.string().min(1).optional(),
   sectionId: z.string().min(1).optional(),
-  title: z.string().min(3),
   text: z.string().min(10),
   pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional(),
   verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional(),
@@ -49,7 +48,6 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       projectKey: payload.projectKey,
       documentSlug: payload.documentSlug,
       sectionId: payload.sectionId,
-      title: payload.title,
       text: payload.text,
       pattern: payload.pattern,
       verification: payload.verification,
@@ -102,7 +100,6 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       requirementId: z.string().min(1)
     });
     const bodySchema = z.object({
-      title: z.string().min(3).optional(),
       text: z.string().min(10).optional(),
       pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional(),
       verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional()

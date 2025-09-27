@@ -201,7 +201,6 @@ export default async function airgenRoutes(app: FastifyInstance) {
   const acceptBody = z.object({
     tenant: z.string().min(1),
     projectKey: z.string().min(1),
-    title: z.string().min(3),
     pattern: patternEnum.optional(),
     verification: verificationEnum.optional(),
     documentSlug: z.string().optional(),
@@ -232,7 +231,6 @@ export default async function airgenRoutes(app: FastifyInstance) {
         projectKey: candidate.projectKey,
         documentSlug: body.documentSlug,
         sectionId: body.sectionId,
-        title: body.title,
         text: candidate.text,
         pattern: body.pattern,
         verification: body.verification,

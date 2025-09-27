@@ -14,5 +14,51 @@
     "updatedAt": "2025-09-26T13:18:47.880Z",
     "passwordHash": "b4b5447b3ca365f5d1d81a4a6ead02181e42b7cc9488b60c429b2ea166cb7ba90f3e24a74cbcfbefcb81da7868cc8ce91ade13521b1c5f8f53d6aa4c7b34ec7e",
     "passwordSalt": "07cd911bb74ca3f7b2f8f0b5a9002bea"
+  },
+  {
+    "id": "72930339-76fa-4d1a-8077-86654e3f3546",
+    "email": "user@dev.local",
+    "name": "Regular User",
+    "roles": [
+      "user"
+    ],
+    "tenantSlugs": [],
+    "createdAt": "2025-09-26T13:29:48.828Z",
+    "updatedAt": "2025-09-26T13:29:48.828Z",
+    "passwordHash": "1cb6d7564f8a8b0ddd9b2c961610ea14f46e7e82a604cd7a13f54b26d6ce67863e313cfcaa88694dc73535d0e0327f5147d1a0c08c87c380d41b595d6279573e",
+    "passwordSalt": "eed61f76171dca6c2f369b5ebb5c460c"
+  },
+  {
+    "id": "d290b7d3-1afd-4718-82a9-b08dba37a10a",
+    "email": "steven.holland@outlook.com",
+    "name": "Steve",
+    "roles": [
+      "admin",
+      "user"
+    ],
+    "tenantSlugs": [
+      "admin-dev",
+      "hollando"
+    ],
+    "createdAt": "2025-09-26T17:00:29.960Z",
+    "updatedAt": "2025-09-26T17:00:29.960Z",
+    "passwordHash": "8949321de01c136eea1b30d9c36835474bb5d3bb052a04c4767be59966c7dc04985faa09df7d96b155ad00604f2b4c9c95c33cba44ace674a283d5eb0f6f4c93",
+    "passwordSalt": "ee45ba2b5e63ede69b0d09e6bcedc590"
+  },
+  {
+    "id": "e5e05366-b5eb-4274-92e3-3e6fe5f0cd53",
+    "email": "test@dev.local",
+    "name": "Test User",
+    "roles": [
+      "admin",
+      "user"
+    ],
+    "tenantSlugs": [
+      "admin-dev"
+    ],
+    "createdAt": "2025-09-27T11:30:24.682Z",
+    "updatedAt": "2025-09-27T11:30:24.682Z",
+    "passwordHash": "0c1c9e2ca91b3b508e71b333cf22592db33038d4b821b2d8c448483e75bd9ec6f75bb61a17814d02cbb0665744265f83ae3092577dcc3629bd34ecd70dde9b90",
+    "passwordSalt": "dee6f88a939f04d4d1cbecb9fe546362"
   }
 ]

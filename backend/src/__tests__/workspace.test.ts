@@ -13,10 +13,11 @@ describe("workspace requirement serialization", () => {
 
     await writeRequirementMarkdown({
       id: "tenant:project:REQ-000",
+      hashId: "test123",
       ref: "REQ-000",
       tenant: "tenant",
       projectKey: "project",
-      title: "Requirement title",
+      title: "Requirement text",
       text: "Requirement text",
       pattern: "event",
       verification: "Test",

@@ -8,6 +8,10 @@ export type DraftRequest = {
 };
 
 export async function draftCandidates(req: DraftRequest): Promise<string[]> {
+  if (!openai) {
+    throw new Error("OpenAI client not configured. Please set LLM_API_KEY environment variable.");
+  }
+
   const n = Math.min(Math.max(req.n ?? 5, 1), 10);
 
   const sys = [

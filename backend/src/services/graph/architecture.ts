@@ -36,6 +36,15 @@ export type ArchitectureBlockRecord = ArchitectureBlockDefinitionRecord & {
   sizeHeight: number;
   placementCreatedAt: string;
   placementUpdatedAt: string;
+  // Styling properties
+  backgroundColor?: string | null;
+  borderColor?: string | null;
+  borderWidth?: number | null;
+  borderStyle?: string | null;
+  textColor?: string | null;
+  fontSize?: number | null;
+  fontWeight?: string | null;
+  borderRadius?: number | null;
 };
 
 export type ConnectorKind = "association" | "flow" | "dependency" | "composition";
@@ -53,6 +62,13 @@ export type ArchitectureConnectorRecord = {
   diagramId: string;
   createdAt: string;
   updatedAt: string;
+  // Styling properties
+  lineStyle?: string | null;
+  markerStart?: string | null;
+  markerEnd?: string | null;
+  linePattern?: string | null;
+  color?: string | null;
+  strokeWidth?: number | null;
 };
 
 export type ArchitectureDiagramRecord = {
@@ -146,7 +162,16 @@ function mapBlockWithPlacement(
     sizeWidth,
     sizeHeight,
     placementCreatedAt,
-    placementUpdatedAt
+    placementUpdatedAt,
+    // Styling properties
+    backgroundColor: relProps?.backgroundColor ? String(relProps.backgroundColor) : null,
+    borderColor: relProps?.borderColor ? String(relProps.borderColor) : null,
+    borderWidth: relProps?.borderWidth ? toNumber(relProps.borderWidth) : null,
+    borderStyle: relProps?.borderStyle ? String(relProps.borderStyle) : null,
+    textColor: relProps?.textColor ? String(relProps.textColor) : null,
+    fontSize: relProps?.fontSize ? toNumber(relProps.fontSize) : null,
+    fontWeight: relProps?.fontWeight ? String(relProps.fontWeight) : null,
+    borderRadius: relProps?.borderRadius ? toNumber(relProps.borderRadius) : null
   };
 }
 
@@ -199,7 +224,14 @@ function mapArchitectureConnector(node: Neo4jNode): ArchitectureConnectorRecord 
     projectKey: String(props.projectKey),
     diagramId: String(props.diagramId ?? ""),
     createdAt: String(props.createdAt),
-    updatedAt: String(props.updatedAt)
+    updatedAt: String(props.updatedAt),
+    // Styling properties
+    lineStyle: props.lineStyle ? String(props.lineStyle) : null,
+    markerStart: props.markerStart ? String(props.markerStart) : null,
+    markerEnd: props.markerEnd ? String(props.markerEnd) : null,
+    linePattern: props.linePattern ? String(props.linePattern) : null,
+    color: props.color ? String(props.color) : null,
+    strokeWidth: props.strokeWidth ? toNumber(props.strokeWidth) : null
   };
 }
 
@@ -437,6 +469,15 @@ export async function updateArchitectureBlock(params: {
   sizeHeight?: number;
   ports?: BlockPortRecord[];
   documentIds?: string[];
+  // Styling properties
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: string;
+  textColor?: string;
+  fontSize?: number;
+  fontWeight?: string;
+  borderRadius?: number;
 }): Promise<ArchitectureBlockRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -511,6 +552,38 @@ export async function updateArchitectureBlock(params: {
       if (params.sizeHeight !== undefined) {
         relUpdates.push("rel.sizeHeight = $sizeHeight");
         relParams.sizeHeight = params.sizeHeight;
+      }
+      if (params.backgroundColor !== undefined) {
+        relUpdates.push("rel.backgroundColor = $backgroundColor");
+        relParams.backgroundColor = params.backgroundColor;
+      }
+      if (params.borderColor !== undefined) {
+        relUpdates.push("rel.borderColor = $borderColor");
+        relParams.borderColor = params.borderColor;
+      }
+      if (params.borderWidth !== undefined) {
+        relUpdates.push("rel.borderWidth = $borderWidth");
+        relParams.borderWidth = params.borderWidth;
+      }
+      if (params.borderStyle !== undefined) {
+        relUpdates.push("rel.borderStyle = $borderStyle");
+        relParams.borderStyle = params.borderStyle;
+      }
+      if (params.textColor !== undefined) {
+        relUpdates.push("rel.textColor = $textColor");
+        relParams.textColor = params.textColor;
+      }
+      if (params.fontSize !== undefined) {
+        relUpdates.push("rel.fontSize = $fontSize");
+        relParams.fontSize = params.fontSize;
+      }
+      if (params.fontWeight !== undefined) {
+        relUpdates.push("rel.fontWeight = $fontWeight");
+        relParams.fontWeight = params.fontWeight;
+      }
+      if (params.borderRadius !== undefined) {
+        relUpdates.push("rel.borderRadius = $borderRadius");
+        relParams.borderRadius = params.borderRadius;
       }
 
       if (relUpdates.length > 0) {
@@ -661,6 +734,13 @@ export async function createArchitectureConnector(params: {
   label?: string;
   sourcePortId?: string;
   targetPortId?: string;
+  // Styling properties
+  lineStyle?: string;
+  markerStart?: string;
+  markerEnd?: string;
+  linePattern?: string;
+  color?: string;
+  strokeWidth?: number;
 }): Promise<ArchitectureConnectorRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -685,6 +765,12 @@ export async function createArchitectureConnector(params: {
           tenant: $tenant,
           projectKey: $projectKey,
           diagramId: $diagramId,
+          lineStyle: $lineStyle,
+          markerStart: $markerStart,
+          markerEnd: $markerEnd,
+          linePattern: $linePattern,
+          color: $color,
+          strokeWidth: $strokeWidth,
           createdAt: $now,
           updatedAt: $now
         })
@@ -708,6 +794,12 @@ export async function createArchitectureConnector(params: {
         targetPortId: params.targetPortId ?? null,
         tenant: params.tenant,
         projectKey: params.projectKey,
+        lineStyle: params.lineStyle ?? null,
+        markerStart: params.markerStart ?? null,
+        markerEnd: params.markerEnd ?? null,
+        linePattern: params.linePattern ?? null,
+        color: params.color ?? null,
+        strokeWidth: params.strokeWidth ?? null,
         now
       });
 
@@ -749,6 +841,111 @@ export async function getArchitectureConnectors(params: {
     );
 
     return result.records.map(record => mapArchitectureConnector(record.get("connector") as Neo4jNode));
+  } finally {
+    await session.close();
+  }
+}
+
+export async function updateArchitectureConnector(params: {
+  tenant: string;
+  projectKey: string;
+  connectorId: string;
+  diagramId: string;
+  kind?: ConnectorKind;
+  label?: string;
+  sourcePortId?: string;
+  targetPortId?: string;
+  // Styling properties
+  lineStyle?: string;
+  markerStart?: string;
+  markerEnd?: string;
+  linePattern?: string;
+  color?: string;
+  strokeWidth?: number;
+}): Promise<ArchitectureConnectorRecord> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+  const now = new Date().toISOString();
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // Build the SET clause dynamically based on provided parameters
+      const setFields: string[] = [];
+      const setParams: Record<string, any> = {
+        tenantSlug,
+        projectSlug,
+        diagramId: params.diagramId,
+        connectorId: params.connectorId,
+        now
+      };
+
+      if (params.kind !== undefined) {
+        setFields.push("connector.kind = $kind");
+        setParams.kind = params.kind;
+      }
+      if (params.label !== undefined) {
+        setFields.push("connector.label = $label");
+        setParams.label = params.label;
+      }
+      if (params.sourcePortId !== undefined) {
+        setFields.push("connector.sourcePortId = $sourcePortId");
+        setParams.sourcePortId = params.sourcePortId;
+      }
+      if (params.targetPortId !== undefined) {
+        setFields.push("connector.targetPortId = $targetPortId");
+        setParams.targetPortId = params.targetPortId;
+      }
+      if (params.lineStyle !== undefined) {
+        setFields.push("connector.lineStyle = $lineStyle");
+        setParams.lineStyle = params.lineStyle;
+      }
+      if (params.markerStart !== undefined) {
+        setFields.push("connector.markerStart = $markerStart");
+        setParams.markerStart = params.markerStart;
+      }
+      if (params.markerEnd !== undefined) {
+        setFields.push("connector.markerEnd = $markerEnd");
+        setParams.markerEnd = params.markerEnd;
+      }
+      if (params.linePattern !== undefined) {
+        setFields.push("connector.linePattern = $linePattern");
+        setParams.linePattern = params.linePattern;
+      }
+      if (params.color !== undefined) {
+        setFields.push("connector.color = $color");
+        setParams.color = params.color;
+      }
+      if (params.strokeWidth !== undefined) {
+        setFields.push("connector.strokeWidth = $strokeWidth");
+        setParams.strokeWidth = params.strokeWidth;
+      }
+
+      // Always update the updatedAt timestamp
+      setFields.push("connector.updatedAt = $now");
+
+      if (setFields.length === 1) {
+        // Only updatedAt, no actual changes
+        throw new Error("No fields to update");
+      }
+
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})
+        MATCH (diagram)-[:HAS_CONNECTOR]->(connector:ArchitectureConnector {id: $connectorId})
+        SET ${setFields.join(", ")}
+        RETURN connector
+      `;
+
+      const queryResult = await tx.run(query, setParams);
+
+      if (queryResult.records.length === 0) {
+        throw new Error("Architecture connector not found");
+      }
+
+      return queryResult.records[0].get("connector") as Neo4jNode;
+    });
+
+    return mapArchitectureConnector(result);
   } finally {
     await session.close();
   }

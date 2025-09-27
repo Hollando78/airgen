@@ -15,7 +15,6 @@ type DraftCardProps = {
     tenant: string;
     projectKey: string;
     documentSlug?: string;
-    title: string;
     text: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
@@ -30,7 +29,6 @@ export function DraftCard({ draft, tenant, project, documentSlug, onPersist }: D
   const api = useApiClient();
 
   const [text, setText] = useState(draft.text);
-  const [title, setTitle] = useState(draft.title);
   const [pattern, setPattern] = useState<RequirementPattern>(draft.pattern);
   const [verification, setVerification] = useState<VerificationMethod>(draft.verification);
   const [tagsRaw, setTagsRaw] = useState<string>("");
@@ -69,7 +67,6 @@ export function DraftCard({ draft, tenant, project, documentSlug, onPersist }: D
         tenant,
         projectKey: project,
         documentSlug: documentSlug ?? undefined,
-        title,
         text,
         pattern,
         verification,
@@ -102,7 +99,7 @@ export function DraftCard({ draft, tenant, project, documentSlug, onPersist }: D
       <header className="draft-card__header">
         <div>
           <span className="badge">{draft.source === "llm" ? "LLM" : "Heuristic"}</span>
-          <h3>{title}</h3>
+          <h3>{text.split(' ').slice(0, 8).join(' ')}{text.split(' ').length > 8 ? '...' : ''}</h3>
         </div>
         <div className="draft-score">
           <span className="score">{qaScore}</span>
@@ -118,10 +115,6 @@ export function DraftCard({ draft, tenant, project, documentSlug, onPersist }: D
       </label>
 
       <div className="field-grid">
-        <label className="field">
-          <span>Title</span>
-          <input value={title} onChange={event => setTitle(event.target.value)} />
-        </label>
         <label className="field">
           <span>Pattern</span>
           <select value={pattern} onChange={event => setPattern(event.target.value as RequirementPattern)}>
@@ -165,7 +158,7 @@ export function DraftCard({ draft, tenant, project, documentSlug, onPersist }: D
         <button
           type="button"
           onClick={handleSave}
-          disabled={persistMutation.isPending || !text.trim() || !title.trim()}
+          disabled={persistMutation.isPending || !text.trim()}
         >
           {persistMutation.isPending ? "Saving..." : "Save Requirement"}
         </button>
