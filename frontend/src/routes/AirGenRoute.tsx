@@ -6,7 +6,8 @@ import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
 import { AcceptCandidateModal } from "../components/AirGen/AcceptCandidateModal";
 import { DocumentAttachmentSelector } from "../components/DocumentAttachmentSelector";
-import type { RequirementCandidate, RequirementCandidateGroup, DocumentAttachment } from "../types";
+import { DiagramAttachmentSelector } from "../components/DiagramAttachmentSelector";
+import type { RequirementCandidate, RequirementCandidateGroup, DocumentAttachment, DiagramAttachment } from "../types";
 
 const statusLabels: Record<RequirementCandidate["status"], { label: string; className: string }> = {
   pending: { label: "Pending", className: "status-pending" },
@@ -24,6 +25,7 @@ export function AirGenRoute(): JSX.Element {
   const [constraints, setConstraints] = useState("");
   const [count, setCount] = useState(5);
   const [attachedDocuments, setAttachedDocuments] = useState<DocumentAttachment[]>([]);
+  const [attachedDiagrams, setAttachedDiagrams] = useState<DiagramAttachment[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<RequirementCandidate | null>(null);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -50,7 +52,8 @@ export function AirGenRoute(): JSX.Element {
         glossary: glossary.trim() || undefined,
         constraints: constraints.trim() || undefined,
         n: count,
-        attachedDocuments: attachedDocuments.length > 0 ? attachedDocuments : undefined
+        attachedDocuments: attachedDocuments.length > 0 ? attachedDocuments : undefined,
+        attachedDiagrams: attachedDiagrams.length > 0 ? attachedDiagrams : undefined
       });
     },
     onSuccess: () => {
@@ -210,6 +213,13 @@ export function AirGenRoute(): JSX.Element {
               project={project}
               attachments={attachedDocuments}
               onAttachmentsChange={setAttachedDocuments}
+            />
+
+            <DiagramAttachmentSelector
+              tenant={tenant}
+              project={project}
+              attachments={attachedDiagrams}
+              onAttachmentsChange={setAttachedDiagrams}
             />
 
             <button type="submit" disabled={disabled || chatMutation.isPending}>

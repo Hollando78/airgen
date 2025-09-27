@@ -22,6 +22,8 @@ export async function draftCandidates(req: DraftRequest): Promise<string[]> {
     "Include measurable criteria and units where applicable.",
     "When DOCUMENT_CONTEXT is provided, use it as reference material to ensure consistency",
     "and alignment with existing requirements and specifications.",
+    "When diagram context is provided, generate architecture-aware requirements that consider",
+    "component interactions, interfaces, data flows, and system boundaries shown in the diagrams.",
     "Return ONLY a JSON object with this shape:",
     '{ "candidates": ["<req1>", "<req2>", ...] }',
     "No markdown fencing, no preface, no comments—just JSON."

@@ -13,6 +13,11 @@ import { draftCandidates } from "../services/drafting.js";
 import { writeRequirementMarkdown, slugify } from "../services/workspace.js";
 import { getDocument } from "../services/graph/documents.js";
 import { listRequirements } from "../services/graph/requirements.js";
+import { 
+  getArchitectureBlocks, 
+  getArchitectureConnectors, 
+  getArchitectureDiagrams 
+} from "../services/graph/architecture.js";
 import { promises as fs } from "node:fs";
 import { join, resolve } from "node:path";
 import { config } from "../config.js";
@@ -107,6 +112,102 @@ async function extractDocumentContent(
   }
 }
 
+async function extractDiagramContent(
+  tenant: string,
+  projectKey: string, 
+  attachment: { type: "diagram"; diagramId: string; includeGeometry?: boolean; includeConnections?: boolean }
+): Promise<string> {
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(projectKey);
+  
+  try {
+    // Get diagram metadata
+    const diagrams = await getArchitectureDiagrams({ 
+      tenant: tenantSlug, 
+      projectKey: projectSlug
+    });
+    
+    const diagram = diagrams.find(d => d.id === attachment.diagramId);
+    if (!diagram) {
+      throw new Error(`Diagram not found: ${attachment.diagramId}`);
+    }
+    
+    // Get blocks and connectors
+    const [blocks, connectors] = await Promise.all([
+      getArchitectureBlocks({ 
+        tenant: tenantSlug, 
+        projectKey: projectSlug, 
+        diagramId: attachment.diagramId 
+      }),
+      getArchitectureConnectors({ 
+        tenant: tenantSlug, 
+        projectKey: projectSlug, 
+        diagramId: attachment.diagramId 
+      })
+    ]);
+    
+    let content = `=== DIAGRAM: ${diagram.name} ===\n`;
+    if (diagram.description) {
+      content += `Description: ${diagram.description}\n`;
+    }
+    content += `View: ${diagram.view}\n\n`;
+    
+    // Serialize blocks/components
+    if (blocks.length > 0) {
+      content += `COMPONENTS:\n`;
+      for (const block of blocks) {
+        content += `- [${block.kind}] ${block.name} (id: ${block.id})\n`;
+        if (block.description) {
+          content += `  Description: ${block.description}\n`;
+        }
+        if (block.stereotype) {
+          content += `  Stereotype: ${block.stereotype}\n`;
+        }
+        if (block.ports && block.ports.length > 0) {
+          const portList = block.ports.map(port => `${port.direction}[${port.name}]`).join(', ');
+          content += `  Ports: ${portList}\n`;
+        }
+        if (attachment.includeGeometry) {
+          content += `  Position: (${block.positionX}, ${block.positionY})\n`;
+          content += `  Size: ${block.sizeWidth}x${block.sizeHeight}\n`;
+        }
+        content += `\n`;
+      }
+    }
+    
+    // Serialize connections
+    if (attachment.includeConnections && connectors.length > 0) {
+      content += `CONNECTIONS:\n`;
+      for (const connector of connectors) {
+        const sourceBlock = blocks.find(b => b.id === connector.source);
+        const targetBlock = blocks.find(b => b.id === connector.target);
+        
+        if (sourceBlock && targetBlock) {
+          content += `- ${sourceBlock.name} → ${targetBlock.name} (${connector.kind}`;
+          if (connector.label) {
+            content += `: ${connector.label}`;
+          }
+          content += `)\n`;
+          
+          if (connector.sourcePortId && connector.targetPortId) {
+            const sourcePort = sourceBlock.ports?.find(p => p.id === connector.sourcePortId);
+            const targetPort = targetBlock.ports?.find(p => p.id === connector.targetPortId);
+            if (sourcePort && targetPort) {
+              content += `  From: ${sourceBlock.name}.${sourcePort.name} → ${targetBlock.name}.${targetPort.name}\n`;
+            }
+          }
+          content += `\n`;
+        }
+      }
+    }
+    
+    return content + `\n`;
+    
+  } catch (error) {
+    throw new Error(`Failed to extract diagram content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 function mapCandidate(record: RequirementCandidateRecord) {
   return {
     id: record.id,
@@ -135,6 +236,13 @@ export default async function airgenRoutes(app: FastifyInstance) {
     sectionIds: z.array(z.string()).optional() // For native docs, specific sections
   });
 
+  const diagramAttachmentSchema = z.object({
+    type: z.literal("diagram"),
+    diagramId: z.string().min(1),
+    includeGeometry: z.boolean().optional(),
+    includeConnections: z.boolean().optional()
+  });
+
   const chatSchema = z.object({
     tenant: z.string().min(1),
     projectKey: z.string().min(1),
@@ -142,7 +250,8 @@ export default async function airgenRoutes(app: FastifyInstance) {
     glossary: z.string().optional(),
     constraints: z.string().optional(),
     n: z.number().int().min(1).max(10).optional(),
-    attachedDocuments: z.array(documentAttachmentSchema).optional()
+    attachedDocuments: z.array(documentAttachmentSchema).optional(),
+    attachedDiagrams: z.array(diagramAttachmentSchema).optional()
   });
 
   app.post("/airgen/chat", { preHandler: [app.authenticate] }, async (req, reply) => {
@@ -152,20 +261,40 @@ export default async function airgenRoutes(app: FastifyInstance) {
     const { randomUUID } = await import("crypto");
     const querySessionId = randomUUID();
 
-    // Extract document context if attachments are provided
+    // Extract document and diagram context if attachments are provided
     let documentContext = "";
+    
+    // Process document attachments
     if (body.attachedDocuments && body.attachedDocuments.length > 0) {
       try {
         const contextPromises = body.attachedDocuments.map(attachment =>
           extractDocumentContent(body.tenant, body.projectKey, attachment)
         );
         const contexts = await Promise.all(contextPromises);
-        documentContext = contexts.join("");
+        documentContext += contexts.join("");
       } catch (error) {
         req.log.error({ err: error }, "Failed to extract document context");
         return reply.status(400).send({
           error: "Bad Request",
           message: "Failed to process attached documents.",
+          detail: error instanceof Error ? error.message : undefined
+        });
+      }
+    }
+    
+    // Process diagram attachments
+    if (body.attachedDiagrams && body.attachedDiagrams.length > 0) {
+      try {
+        const diagramPromises = body.attachedDiagrams.map(attachment =>
+          extractDiagramContent(body.tenant, body.projectKey, attachment)
+        );
+        const diagramContexts = await Promise.all(diagramPromises);
+        documentContext += diagramContexts.join("");
+      } catch (error) {
+        req.log.error({ err: error }, "Failed to extract diagram context");
+        return reply.status(400).send({
+          error: "Bad Request", 
+          message: "Failed to process attached diagrams.",
           detail: error instanceof Error ? error.message : undefined
         });
       }
