@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "./Spinner";
+import { LinkIndicators } from "./DocumentView/LinkIndicators";
 import type { RequirementRecord } from "../types";
 
 interface FloatingDocumentWindowProps {
@@ -11,6 +12,7 @@ interface FloatingDocumentWindowProps {
   documentName: string;
   onClose: () => void;
   initialPosition?: { x: number; y: number };
+  focusRequirementId?: string;
 }
 
 interface Section {
@@ -27,7 +29,8 @@ export function FloatingDocumentWindow({
   documentSlug,
   documentName,
   onClose,
-  initialPosition = { x: 100, y: 100 }
+  initialPosition = { x: 100, y: 100 },
+  focusRequirementId
 }: FloatingDocumentWindowProps) {
   const api = useApiClient();
   const windowRef = useRef<HTMLDivElement>(null);
@@ -67,6 +70,13 @@ export function FloatingDocumentWindow({
     enabled: Boolean(sectionsQuery.data?.sections)
   });
 
+  // Fetch trace links for this project
+  const traceLinksQuery = useQuery({
+    queryKey: ["traceLinks", tenant, project],
+    queryFn: () => api.listTraceLinks(tenant, project),
+    enabled: Boolean(tenant && project)
+  });
+
   // Combine sections with their requirements
   const sectionsWithRequirements: Section[] = useMemo(() => {
     if (!sectionsQuery.data?.sections) return [];
@@ -81,6 +91,43 @@ export function FloatingDocumentWindow({
       )?.requirements || []
     })).sort((a, b) => a.order - b.order);
   }, [sectionsQuery.data, requirementsQueries.data]);
+
+  // Handle focusing on a specific requirement
+  useEffect(() => {
+    if (!focusRequirementId || !sectionsWithRequirements.length) return;
+
+    // Find the section containing the requirement and expand it
+    const sectionWithRequirement = sectionsWithRequirements.find(section =>
+      section.requirements.some(req => req.id === focusRequirementId)
+    );
+
+    if (sectionWithRequirement) {
+      // Expand the section if it's collapsed
+      setCollapsedSections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sectionWithRequirement.id);
+        return newSet;
+      });
+
+      // Wait for the section to expand, then scroll to the requirement
+      setTimeout(() => {
+        const requirementElement = document.getElementById(`req-${focusRequirementId}`);
+        if (requirementElement) {
+          requirementElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+          // Add a temporary highlight effect
+          requirementElement.style.backgroundColor = '#fef3c7';
+          requirementElement.style.border = '2px solid #f59e0b';
+          setTimeout(() => {
+            requirementElement.style.backgroundColor = '';
+            requirementElement.style.border = '';
+          }, 3000);
+        }
+      }, 300);
+    }
+  }, [focusRequirementId, sectionsWithRequirements]);
 
   // Handle dragging
   useEffect(() => {
@@ -341,19 +388,29 @@ export function FloatingDocumentWindow({
                       {section.requirements.map(req => (
                         <div
                           key={req.id}
+                          id={`req-${req.id}`}
                           style={{
                             padding: "8px 12px",
                             background: "#f8fafc",
                             borderRadius: "4px",
                             border: "1px solid #e2e8f0",
                             fontSize: "13px",
-                            lineHeight: "1.5"
+                            lineHeight: "1.5",
+                            transition: "background-color 0.3s, border 0.3s"
                           }}
                         >
                           <div style={{ display: "flex", gap: "8px", marginBottom: "4px" }}>
                             <span style={{ fontWeight: 600, color: "#3b82f6" }}>{req.ref}</span>
                           </div>
-                          <div style={{ color: "#334155" }}>{req.text}</div>
+                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                            <span style={{ flex: 1, marginRight: "8px", color: "#334155" }}>{req.text}</span>
+                            <LinkIndicators 
+                              requirementId={req.id}
+                              traceLinks={traceLinksQuery.data?.traceLinks || []}
+                              tenant={tenant}
+                              project={project}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>

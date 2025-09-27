@@ -15,6 +15,7 @@ export interface FloatingDocument {
   originalFileName?: string | null;
   previewDownloadUrl?: string | null;
   previewMimeType?: string | null;
+  focusRequirementId?: string;
 }
 
 interface FloatingDocumentsContextType {

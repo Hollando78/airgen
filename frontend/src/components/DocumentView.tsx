@@ -59,6 +59,13 @@ export function DocumentView({
     enabled: Boolean(tenant && project && documentSlug)
   });
 
+  // Fetch trace links for this project
+  const traceLinksQuery = useQuery({
+    queryKey: ["traceLinks", tenant, project],
+    queryFn: () => api.listTraceLinks(tenant, project),
+    enabled: Boolean(tenant && project)
+  });
+
   // Combine sections with their requirements
   const [sections, setSections] = useState<DocumentSectionWithRequirements[]>([]);
 
@@ -592,6 +599,7 @@ export function DocumentView({
               section={sections.find(s => s.id === selectedSection)!}
               tenant={tenant}
               project={project}
+              traceLinks={traceLinksQuery.data?.traceLinks || []}
               onAddRequirement={() => setShowAddRequirementModal(true)}
               onEditRequirement={handleEditRequirement}
               onOpenFloatingDocument={handleOpenFloatingDocument}

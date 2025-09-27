@@ -70,6 +70,7 @@ export type RequirementRecord = {
   suggestions?: string[];
   tags?: string[];
   path: string;
+  documentSlug?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -114,6 +115,52 @@ export type RequirementCandidate = {
   updatedAt: string;
 };
 
+export type DiagramCandidateStatus = "pending" | "accepted" | "rejected";
+
+export type DiagramCandidateAction = "create" | "update" | "extend";
+
+export type DiagramCandidateBlock = {
+  id?: string; // For updates to existing blocks
+  name: string;
+  kind: BlockKind;
+  stereotype?: string;
+  description?: string;
+  positionX: number;
+  positionY: number;
+  sizeWidth?: number;
+  sizeHeight?: number;
+  ports?: BlockPortRecord[];
+  action?: "create" | "update" | "delete";
+};
+
+export type DiagramCandidateConnector = {
+  id?: string; // For updates to existing connectors
+  source: string; // Block name or ID
+  target: string; // Block name or ID
+  kind: ConnectorKind;
+  label?: string;
+  sourcePortId?: string;
+  targetPortId?: string;
+  action?: "create" | "update" | "delete";
+};
+
+export type DiagramCandidate = {
+  id: string;
+  status: DiagramCandidateStatus;
+  action: DiagramCandidateAction;
+  diagramId?: string; // For updates/extensions to existing diagrams
+  diagramName?: string; // For new diagrams
+  diagramDescription?: string;
+  diagramView?: "block" | "internal" | "deployment";
+  blocks: DiagramCandidateBlock[];
+  connectors: DiagramCandidateConnector[];
+  reasoning: string; // LLM explanation of the diagram design
+  prompt?: string | null;
+  querySessionId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DocumentAttachment = {
   type: "native" | "surrogate";
   documentSlug: string;
@@ -136,6 +183,7 @@ export type AirGenChatRequest = {
   glossary?: string;
   constraints?: string;
   n?: number;
+  mode?: "requirements" | "diagram"; // New mode parameter
   attachedDocuments?: DocumentAttachment[];
   attachedDiagrams?: DiagramAttachment[];
 };
@@ -143,6 +191,11 @@ export type AirGenChatRequest = {
 export type AirGenChatResponse = {
   prompt: string;
   items: RequirementCandidate[];
+};
+
+export type AirGenDiagramResponse = {
+  prompt: string;
+  candidate: DiagramCandidate;
 };
 
 export type RequirementCandidateListResponse = {
