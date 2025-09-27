@@ -77,7 +77,7 @@ export function RenameModal({ isOpen, item, onClose, onRename }: RenameModalProp
           autoFocus
         />
 
-        {item.type === "document" && (
+        {item.type === "document" && item.documentKind !== "surrogate" && (
           <div className="form-row">
             <TextInput
               label="Short Code"

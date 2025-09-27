@@ -293,7 +293,8 @@ export function DocumentView({
       documentSlug,
       documentName: document.name,
       tenant,
-      project
+      project,
+      kind: "structured"
     });
   };
 

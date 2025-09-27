@@ -1,0 +1,13 @@
+This is a test Word document for LibreOffice conversion.
+
+# Test Document
+
+This document will be converted to PDF for preview purposes.
+
+## Features Tested:
+- Document upload
+- LibreOffice headless conversion
+- PDF preview generation
+- Download functionality
+
+The system should automatically convert this DOCX file to PDF when uploaded.

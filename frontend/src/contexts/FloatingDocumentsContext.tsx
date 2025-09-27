@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
+export type FloatingDocumentKind = "structured" | "surrogate";
+
 export interface FloatingDocument {
   id: string;
   documentSlug: string;
@@ -7,6 +9,12 @@ export interface FloatingDocument {
   position: { x: number; y: number };
   tenant: string;
   project: string;
+  kind: FloatingDocumentKind;
+  downloadUrl?: string | null;
+  mimeType?: string | null;
+  originalFileName?: string | null;
+  previewDownloadUrl?: string | null;
+  previewMimeType?: string | null;
 }
 
 interface FloatingDocumentsContextType {
@@ -27,9 +35,13 @@ export function FloatingDocumentsProvider({ children }: FloatingDocumentsProvide
   const openFloatingDocument = (doc: Omit<FloatingDocument, "id" | "position">) => {
     // Check if document is already open
     const existingDoc = floatingDocuments.find(
-      d => d.documentSlug === doc.documentSlug && d.tenant === doc.tenant && d.project === doc.project
+      d =>
+        d.documentSlug === doc.documentSlug &&
+        d.tenant === doc.tenant &&
+        d.project === doc.project &&
+        d.kind === doc.kind
     );
-    
+
     if (existingDoc) {
       return; // Document already open
     }

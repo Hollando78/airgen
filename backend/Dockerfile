@@ -31,6 +31,14 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Install LibreOffice and fonts for document preview generation
+RUN apk add --no-cache \
+    libreoffice \
+    ttf-liberation \
+    ttf-dejavu \
+    fontconfig \
+    && fc-cache -f
+
 # Copy workspace pieces needed at runtime
 COPY --from=build /workspace/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=build /workspace/pnpm-workspace.yaml ./pnpm-workspace.yaml
