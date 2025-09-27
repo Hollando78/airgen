@@ -2,7 +2,12 @@ import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../../lib/client";
 import { Modal, Select, Button, TextInput } from "../Modal";
-import type { RequirementPattern, VerificationMethod, DocumentSectionRecord } from "../../types";
+import type {
+  RequirementPattern,
+  VerificationMethod,
+  DocumentSectionRecord,
+  CreateRequirementRequest
+} from "../../types";
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -12,6 +17,7 @@ interface ImportModalProps {
   tenant: string;
   project: string;
   documentSlug: string;
+  onImportComplete?: () => void;
 }
 
 type ImportFormat = "csv" | "reqif" | "json";
@@ -80,7 +86,8 @@ export function ImportModal({
   sections,
   tenant,
   project,
-  documentSlug
+  documentSlug,
+  onImportComplete
 }: ImportModalProps): JSX.Element {
   const api = useApiClient();
   const queryClient = useQueryClient();
@@ -333,7 +340,7 @@ export function ImportModal({
         : [...validationResults.valid, ...validationResults.invalid.map(i => i.row)];
       
       for (const req of requirementsToImport) {
-        const createRequest = {
+        const createRequest: CreateRequirementRequest = {
           tenant,
           projectKey: project,
           documentSlug,
@@ -369,6 +376,7 @@ export function ImportModal({
       
       alert(`Successfully imported ${requirementsToImport.length} requirements`);
       onClose();
+      onImportComplete?.();
       resetModal();
     } catch (error) {
       alert("Import failed: " + (error as Error).message);

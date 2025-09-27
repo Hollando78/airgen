@@ -8,6 +8,7 @@ import {
   deleteArchitectureBlock,
   createArchitectureConnector,
   getArchitectureConnectors,
+  updateArchitectureConnector,
   deleteArchitectureConnector,
   createArchitectureDiagram,
   getArchitectureDiagrams,
@@ -54,7 +55,14 @@ const architectureConnectorSchema = z.object({
   label: z.string().optional(),
   sourcePortId: z.string().optional(),
   targetPortId: z.string().optional(),
-  diagramId: z.string().min(1)
+  diagramId: z.string().min(1),
+  // Styling properties
+  lineStyle: z.enum(["straight", "smoothstep", "step", "bezier"]).optional(),
+  markerStart: z.enum(["arrow", "arrowclosed", "diamond", "circle", "none"]).optional(),
+  markerEnd: z.enum(["arrow", "arrowclosed", "diamond", "circle", "none"]).optional(),
+  linePattern: z.enum(["solid", "dashed", "dotted"]).optional(),
+  color: z.string().optional(),
+  strokeWidth: z.number().min(1).max(10).optional()
 });
 
 const architectureDiagramSchema = z.object({
@@ -207,7 +215,16 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
           })
         )
         .optional(),
-      documentIds: z.array(z.string()).optional()
+      documentIds: z.array(z.string()).optional(),
+      // Styling properties
+      backgroundColor: z.string().optional(),
+      borderColor: z.string().optional(),
+      borderWidth: z.number().min(1).max(10).optional(),
+      borderStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+      textColor: z.string().optional(),
+      fontSize: z.number().min(8).max(24).optional(),
+      fontWeight: z.enum(["normal", "bold"]).optional(),
+      borderRadius: z.number().min(0).max(20).optional()
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
@@ -265,7 +282,13 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
         kind: payload.kind,
         label: payload.label,
         sourcePortId: payload.sourcePortId,
-        targetPortId: payload.targetPortId
+        targetPortId: payload.targetPortId,
+        lineStyle: payload.lineStyle,
+        markerStart: payload.markerStart,
+        markerEnd: payload.markerEnd,
+        linePattern: payload.linePattern,
+        color: payload.color,
+        strokeWidth: payload.strokeWidth
       });
       return { connector };
     } catch (error) {
@@ -281,6 +304,47 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     const params = paramsSchema.parse(req.params);
     const connectors = await getArchitectureConnectors({ tenant: params.tenant, projectKey: params.project, diagramId: params.diagramId });
     return { connectors };
+  });
+
+  app.patch("/architecture/connectors/:tenant/:project/:connectorId", async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      connectorId: z.string().min(1)
+    });
+    const bodySchema = z.object({
+      diagramId: z.string().min(1),
+      kind: z.enum(["association", "flow", "dependency", "composition"]).optional(),
+      label: z.string().optional(),
+      sourcePortId: z.string().optional(),
+      targetPortId: z.string().optional(),
+      // Styling properties
+      lineStyle: z.enum(["straight", "smoothstep", "step", "bezier"]).optional(),
+      markerStart: z.enum(["arrow", "arrowclosed", "diamond", "circle", "none"]).optional(),
+      markerEnd: z.enum(["arrow", "arrowclosed", "diamond", "circle", "none"]).optional(),
+      linePattern: z.enum(["solid", "dashed", "dotted"]).optional(),
+      color: z.string().optional(),
+      strokeWidth: z.number().min(1).max(10).optional()
+    });
+    const params = paramsSchema.parse(req.params);
+    const body = bodySchema.parse(req.body);
+    const { diagramId, ...updateFields } = body;
+
+    try {
+      const connector = await updateArchitectureConnector({
+        tenant: params.tenant,
+        projectKey: params.project,
+        connectorId: params.connectorId,
+        diagramId,
+        ...updateFields
+      });
+      return { connector };
+    } catch (error) {
+      if ((error as Error).message === "Architecture connector not found") {
+        return reply.status(404).send({ error: "Architecture connector not found" });
+      }
+      throw error;
+    }
   });
 
   app.delete("/architecture/connectors/:tenant/:project/:connectorId", async (req, reply) => {

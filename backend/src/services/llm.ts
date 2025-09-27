@@ -103,7 +103,6 @@ export async function generateLlmDrafts(request: DraftRequest): Promise<Draft[]>
 
     drafts.push({
       text,
-      title: text.split(" ").slice(0, 6).join(" ") || "LLM requirement",
       pattern,
       verification,
       qaScore: qa.score,

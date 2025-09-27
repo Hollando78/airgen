@@ -3,7 +3,6 @@ export type VerificationMethod = "Test" | "Analysis" | "Inspection" | "Demonstra
 
 export type DraftItem = {
   text: string;
-  title: string;
   pattern: RequirementPattern;
   verification: VerificationMethod;
   qaScore: number;
@@ -85,7 +84,6 @@ export type CreateRequirementRequest = {
   projectKey: string;
   documentSlug?: string;
   sectionId?: string;
-  title: string;
   text: string;
   pattern?: RequirementPattern;
   verification?: VerificationMethod;
@@ -318,6 +316,9 @@ export type DocumentTreeNode = {
 export type BlockKind = "system" | "subsystem" | "component" | "actor" | "external" | "interface";
 export type ConnectorKind = "association" | "flow" | "dependency" | "composition";
 export type PortDirection = "in" | "out" | "inout";
+export type ConnectorLineStyle = "straight" | "smoothstep" | "step" | "bezier";
+export type ConnectorMarkerType = "arrow" | "arrowclosed" | "diamond" | "circle" | "none";
+export type ConnectorLinePattern = "solid" | "dashed" | "dotted";
 
 export type BlockPortRecord = {
   id: string;
@@ -347,6 +348,15 @@ export type ArchitectureBlockRecord = ArchitectureBlockDefinitionRecord & {
   sizeHeight: number;
   placementCreatedAt: string;
   placementUpdatedAt: string;
+  // Styling properties
+  backgroundColor?: string | null;
+  borderColor?: string | null;
+  borderWidth?: number | null;
+  borderStyle?: string | null;
+  textColor?: string | null;
+  fontSize?: number | null;
+  fontWeight?: string | null;
+  borderRadius?: number | null;
 };
 
 export type ArchitectureBlockLibraryRecord = ArchitectureBlockDefinitionRecord & {
@@ -366,6 +376,13 @@ export type ArchitectureConnectorRecord = {
   diagramId: string;
   createdAt: string;
   updatedAt: string;
+  // Styling properties
+  lineStyle?: ConnectorLineStyle;
+  markerStart?: ConnectorMarkerType;
+  markerEnd?: ConnectorMarkerType;
+  linePattern?: ConnectorLinePattern;
+  color?: string;
+  strokeWidth?: number;
 };
 
 export type CreateArchitectureBlockRequest = {
@@ -397,6 +414,15 @@ export type UpdateArchitectureBlockRequest = {
   sizeHeight?: number;
   ports?: BlockPortRecord[];
   documentIds?: string[];
+  // Styling properties
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: string;
+  textColor?: string;
+  fontSize?: number;
+  fontWeight?: string;
+  borderRadius?: number;
 };
 
 export type CreateArchitectureConnectorRequest = {
@@ -409,6 +435,13 @@ export type CreateArchitectureConnectorRequest = {
   sourcePortId?: string;
   targetPortId?: string;
   diagramId: string;
+  // Styling properties
+  lineStyle?: ConnectorLineStyle;
+  markerStart?: ConnectorMarkerType;
+  markerEnd?: ConnectorMarkerType;
+  linePattern?: ConnectorLinePattern;
+  color?: string;
+  strokeWidth?: number;
 };
 
 export type ArchitectureBlocksResponse = {

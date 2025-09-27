@@ -93,6 +93,16 @@ export function useApiClient() {
       health: () => request<{ ok: boolean; env: string; workspace: string; time: string }>(`/health`),
       listTenants: () => request<TenantsResponse>(`/tenants`),
       listProjects: (tenant: string) => request<ProjectsResponse>(`/tenants/${tenant}/projects`),
+      
+      // Admin-only management functions
+      createTenant: (data: { slug: string; name?: string }) => 
+        request<{ tenant: any }>(`/tenants`, { method: "POST", body: JSON.stringify(data) }),
+      deleteTenant: (tenant: string) => 
+        request<{ success: boolean }>(`/tenants/${tenant}`, { method: "DELETE" }),
+      createProject: (tenant: string, data: { slug: string; key?: string }) => 
+        request<{ project: any }>(`/tenants/${tenant}/projects`, { method: "POST", body: JSON.stringify(data) }),
+      deleteProject: (tenant: string, project: string) => 
+        request<{ success: boolean }>(`/tenants/${tenant}/projects/${project}`, { method: "DELETE" }),
       draft: (body: DraftRequest) => request<DraftResponse>(`/draft`, { method: "POST", body: JSON.stringify(body) }),
       airgenChat: (body: AirGenChatRequest) =>
         request<AirGenChatResponse>(`/airgen/chat`, { method: "POST", body: JSON.stringify(body) }),
@@ -107,7 +117,6 @@ export function useApiClient() {
         body: {
           tenant: string;
           projectKey: string;
-          title: string;
           pattern?: RequirementPattern;
           verification?: VerificationMethod;
           documentSlug?: string;
@@ -138,7 +147,7 @@ export function useApiClient() {
           method: "POST",
           body: JSON.stringify(body)
         }),
-      updateRequirement: (tenant: string, project: string, requirementId: string, updates: { title?: string; text?: string; pattern?: string; verification?: string }) =>
+      updateRequirement: (tenant: string, project: string, requirementId: string, updates: { text?: string; pattern?: string; verification?: string }) =>
         request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "PATCH", body: JSON.stringify(updates) }),
       deleteRequirement: (tenant: string, project: string, requirementId: string) =>
         request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "DELETE" }),
@@ -201,6 +210,8 @@ export function useApiClient() {
         request<ArchitectureConnectorsResponse>(`/architecture/connectors/${tenant}/${project}/${diagramId}`),
       createArchitectureConnector: (body: CreateArchitectureConnectorRequest) =>
         request<ArchitectureConnectorResponse>(`/architecture/connectors`, { method: "POST", body: JSON.stringify(body) }),
+      updateArchitectureConnector: (tenant: string, project: string, connectorId: string, body: { diagramId: string } & Partial<Pick<CreateArchitectureConnectorRequest, "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth">>) =>
+        request<ArchitectureConnectorResponse>(`/architecture/connectors/${tenant}/${project}/${connectorId}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteArchitectureConnector: (tenant: string, project: string, diagramId: string, connectorId: string) =>
         request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}?diagramId=${diagramId}`, { method: "DELETE" }),
       // Trace Links API methods

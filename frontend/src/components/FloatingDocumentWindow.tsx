@@ -148,8 +148,8 @@ export function FloatingDocumentWindow({
         position: "fixed",
         left: `${position.x}px`,
         top: `${position.y}px`,
-        width: isMinimized ? "300px" : "600px",
-        maxHeight: isMinimized ? "40px" : "70vh",
+        width: isMinimized ? "350px" : "600px",
+        maxHeight: isMinimized ? "44px" : "70vh",
         background: "#ffffff",
         border: "1px solid #cbd5e1",
         borderRadius: "8px",
@@ -166,7 +166,7 @@ export function FloatingDocumentWindow({
         className="window-header"
         onMouseDown={handleMouseDown}
         style={{
-          padding: "12px 16px",
+          padding: isMinimized ? "8px 12px" : "12px 16px",
           background: "linear-gradient(to right, #3b82f6, #2563eb)",
           color: "#ffffff",
           cursor: isDragging ? "grabbing" : "grab",
@@ -174,31 +174,59 @@ export function FloatingDocumentWindow({
           alignItems: "center",
           justifyContent: "space-between",
           userSelect: "none",
-          borderBottom: "1px solid #2563eb"
+          borderBottom: isMinimized ? "none" : "1px solid #2563eb",
+          minHeight: isMinimized ? "28px" : "auto"
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <div style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          gap: isMinimized ? "6px" : "8px",
+          flex: 1,
+          overflow: "hidden"
+        }}>
+          <svg 
+            width={isMinimized ? "14" : "16"} 
+            height={isMinimized ? "14" : "16"} 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2"
+            style={{ flexShrink: 0 }}
+          >
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14,2 14,8 20,8"/>
           </svg>
-          <span style={{ fontWeight: 600, fontSize: "14px" }}>{documentName}</span>
+          <span style={{ 
+            fontWeight: 600, 
+            fontSize: isMinimized ? "13px" : "14px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap"
+          }}>
+            {documentName}
+          </span>
         </div>
-        <div className="window-controls" style={{ display: "flex", gap: "8px" }}>
+        <div className="window-controls" style={{ 
+          display: "flex", 
+          gap: isMinimized ? "4px" : "8px",
+          flexShrink: 0
+        }}>
           <button
             onClick={toggleMinimize}
             style={{
               background: "rgba(255, 255, 255, 0.2)",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "3px",
               color: "#ffffff",
-              width: "24px",
-              height: "24px",
+              width: isMinimized ? "20px" : "24px",
+              height: isMinimized ? "20px" : "24px",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              transition: "background 0.2s"
+              transition: "background 0.2s",
+              fontSize: isMinimized ? "11px" : "12px"
             }}
             onMouseEnter={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)"}
             onMouseLeave={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"}
@@ -211,15 +239,16 @@ export function FloatingDocumentWindow({
             style={{
               background: "rgba(255, 255, 255, 0.2)",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "3px",
               color: "#ffffff",
-              width: "24px",
-              height: "24px",
+              width: isMinimized ? "20px" : "24px",
+              height: isMinimized ? "20px" : "24px",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              transition: "background 0.2s"
+              transition: "background 0.2s",
+              fontSize: isMinimized ? "12px" : "14px"
             }}
             onMouseEnter={e => e.currentTarget.style.background = "rgba(239, 68, 68, 0.5)"}
             onMouseLeave={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"}

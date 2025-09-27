@@ -210,7 +210,6 @@ export function DocumentView({
   };
 
   const handleAddRequirement = (newReq: {
-    title: string;
     text: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
@@ -218,7 +217,6 @@ export function DocumentView({
     if (!selectedSection) return;
 
     createRequirementMutation.mutate({
-      title: newReq.title,
       text: newReq.text,
       pattern: newReq.pattern,
       verification: newReq.verification,
@@ -231,7 +229,6 @@ export function DocumentView({
   };
 
   const handleUpdateRequirement = (updates: {
-    title?: string;
     text?: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
@@ -672,6 +669,7 @@ export function DocumentView({
       <ImportModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
+        documentName={document?.name || "Document"}
         tenant={tenant}
         project={project}
         documentSlug={documentSlug}
@@ -685,4 +683,3 @@ export function DocumentView({
     </div>
   );
 }
-

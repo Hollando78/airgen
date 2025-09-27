@@ -15,7 +15,6 @@ export type DraftRequest = {
 
 export type Draft = {
   text: string;
-  title: string;
   pattern: RequirementPattern;
   verification: VerificationMethod;
   qaScore: number;
@@ -44,10 +43,6 @@ function normalize(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function makeTitle(text: string): string {
-  const words = text.split(" ").slice(0, 6).join(" ");
-  return words.length ? words.replace(/[.,]+$/, "") : "Generated requirement";
-}
 
 function templateFor(pattern: RequirementPattern, params: DraftRequest): string {
   const actor = params.actor ?? "the system";
@@ -83,7 +78,6 @@ export function generateDrafts(request: DraftRequest): Draft[] {
     const qa = analyzeRequirement(text);
     drafts.push({
       text,
-      title: makeTitle(text),
       pattern,
       verification: chooseVerification(request.verification),
       qaScore: qa.score,

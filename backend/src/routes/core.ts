@@ -8,7 +8,11 @@ import {
 } from "../services/workspace.js";
 import {
   listTenants,
-  listProjects
+  listProjects,
+  createTenant,
+  createProject,
+  deleteTenant,
+  deleteProject
 } from "../services/graph.js";
 import { generateDrafts } from "../services/drafts.js";
 import { generateLlmDrafts, isLlmConfigured } from "../services/llm.js";
@@ -57,6 +61,88 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     const params = paramsSchema.parse(req.params);
     const projects = await listProjects(params.tenant);
     return { projects };
+  });
+
+  // Admin-only tenant management endpoints
+  app.post("/tenants", { preHandler: [app.authenticate] }, async (req, reply) => {
+    if (!req.currentUser?.roles.includes('admin')) {
+      return reply.status(403).send({ error: "Admin access required" });
+    }
+    
+    const schema = z.object({
+      slug: z.string().min(1),
+      name: z.string().optional()
+    });
+    const body = schema.parse(req.body);
+    
+    try {
+      const tenant = await createTenant(body);
+      return { tenant };
+    } catch (error) {
+      return reply.status(400).send({ error: (error as Error).message });
+    }
+  });
+
+  app.delete("/tenants/:tenant", { preHandler: [app.authenticate] }, async (req, reply) => {
+    if (!req.currentUser?.roles.includes('admin')) {
+      return reply.status(403).send({ error: "Admin access required" });
+    }
+    
+    const paramsSchema = z.object({ tenant: z.string().min(1) });
+    const params = paramsSchema.parse(req.params);
+    
+    const success = await deleteTenant(params.tenant);
+    if (!success) {
+      return reply.status(404).send({ error: "Tenant not found" });
+    }
+    
+    return { success: true };
+  });
+
+  // Admin-only project management endpoints
+  app.post("/tenants/:tenant/projects", { preHandler: [app.authenticate] }, async (req, reply) => {
+    if (!req.currentUser?.roles.includes('admin')) {
+      return reply.status(403).send({ error: "Admin access required" });
+    }
+    
+    const paramsSchema = z.object({ tenant: z.string().min(1) });
+    const params = paramsSchema.parse(req.params);
+    
+    const schema = z.object({
+      slug: z.string().min(1),
+      key: z.string().optional()
+    });
+    const body = schema.parse(req.body);
+    
+    try {
+      const project = await createProject({
+        tenantSlug: params.tenant,
+        slug: body.slug,
+        key: body.key
+      });
+      return { project };
+    } catch (error) {
+      return reply.status(400).send({ error: (error as Error).message });
+    }
+  });
+
+  app.delete("/tenants/:tenant/projects/:project", { preHandler: [app.authenticate] }, async (req, reply) => {
+    if (!req.currentUser?.roles.includes('admin')) {
+      return reply.status(403).send({ error: "Admin access required" });
+    }
+    
+    const paramsSchema = z.object({ 
+      tenant: z.string().min(1),
+      project: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+    
+    const success = await deleteProject(params.tenant, params.project);
+    if (!success) {
+      return reply.status(404).send({ error: "Project not found" });
+    }
+    
+    return { success: true };
   });
 
   app.post("/qa", { preHandler: [app.authenticate] }, async (req) => {

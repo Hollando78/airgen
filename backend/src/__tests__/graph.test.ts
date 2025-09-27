@@ -127,6 +127,7 @@ describe("graph service integrations", () => {
     const requirementNode = {
       properties: {
         id: "tenant:project:REQ-001",
+        hashId: "hash-req-001",
         ref: "REQ-001",
         tenant: "tenant",
         projectKey: "project",
@@ -171,6 +172,7 @@ describe("graph service integrations", () => {
     expect(markdownSpy).toHaveBeenCalledTimes(1);
     expect(markdownSpy).toHaveBeenCalledWith({
       id: "tenant:project:REQ-001",
+      hashId: "hash-req-001",
       ref: "REQ-001",
       tenant: "tenant",
       projectKey: "project",

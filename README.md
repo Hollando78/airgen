@@ -69,6 +69,10 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 - The dev API mounts `workspace/dev/` inside the repo, keeping Markdown output and seeded users isolated from the production workspace.
 - Leave the production “coming soon” stack running until launch; only run `deploy-production.sh` when you’re ready to replace Traefik/nginx with the full application.
 
+## Frontend architecture
+- **Shared diagram canvas** – Both Architecture and Interface workspaces now reuse a common `DiagramCanvas` and `useDiagramCanvasInteractions`. Each workspace supplies its own block presets, connector mapping, and palette metadata, while the shared canvas drives ReactFlow rendering, selection state, context menus, debounced persistence, and mini-map/query overlays.
+- **Composable workspaces** – Route-level workspace components now just coordinate tenant/project context, floating document windows, palettes, and inspectors around the shared canvas, keeping each route lightweight.
+
 ## Key API endpoints
 | Method | Path                                      | Purpose |
 | ------ | ----------------------------------------- | ------- |

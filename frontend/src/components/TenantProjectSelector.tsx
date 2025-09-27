@@ -34,39 +34,35 @@ export function TenantProjectSelector(): JSX.Element {
   return (
     <div className="selector">
       <div className="selector-field">
-        <label htmlFor="tenant-input">Tenant</label>
-        <input
-          id="tenant-input"
-          list="tenant-options"
+        <label htmlFor="tenant-select">Tenant</label>
+        <select
+          id="tenant-select"
           value={state.tenant ?? ""}
-          onChange={event => setTenant(event.target.value.trim() || null)}
-          placeholder="tenant slug"
-        />
-        <datalist id="tenant-options">
+          onChange={event => setTenant(event.target.value || null)}
+        >
+          <option value="">Select tenant...</option>
           {(tenantsQuery.data?.tenants ?? []).map(tenant => (
             <option key={tenant.slug} value={tenant.slug}>
               {tenant.name ? `${tenant.name} (${tenant.slug})` : tenant.slug}
             </option>
           ))}
-        </datalist>
+        </select>
       </div>
       <div className="selector-field">
-        <label htmlFor="project-input">Project</label>
-        <input
-          id="project-input"
-          list="project-options"
+        <label htmlFor="project-select">Project</label>
+        <select
+          id="project-select"
           value={state.project ?? ""}
-          onChange={event => setProject(event.target.value.trim() || null)}
-          placeholder="project key"
+          onChange={event => setProject(event.target.value || null)}
           disabled={!state.tenant}
-        />
-        <datalist id="project-options">
+        >
+          <option value="">Select project...</option>
           {(projectsQuery.data?.projects ?? []).map(project => (
             <option key={project.slug} value={project.slug}>
               {project.key ? `${project.key} (${project.slug})` : project.slug}
             </option>
           ))}
-        </datalist>
+        </select>
       </div>
       <div className="selector-field selector-field--compact">
         <button type="button" onClick={reset} className="ghost-button">

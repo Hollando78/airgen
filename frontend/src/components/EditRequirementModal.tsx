@@ -7,7 +7,6 @@ interface EditRequirementModalProps {
   requirement: RequirementRecord | null;
   onClose: () => void;
   onUpdate: (updates: {
-    title?: string;
     text?: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
@@ -22,14 +21,12 @@ export function EditRequirementModal({
   onUpdate,
   onDelete
 }: EditRequirementModalProps): JSX.Element {
-  const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [pattern, setPattern] = useState<RequirementPattern | "">("");
   const [verification, setVerification] = useState<VerificationMethod | "">("");
 
   useEffect(() => {
     if (isOpen && requirement) {
-      setTitle(requirement.title);
       setText(requirement.text);
       setPattern(requirement.pattern || "");
       setVerification(requirement.verification || "");
@@ -37,7 +34,6 @@ export function EditRequirementModal({
   }, [isOpen, requirement]);
 
   const handleClose = () => {
-    setTitle("");
     setText("");
     setPattern("");
     setVerification("");
@@ -46,9 +42,8 @@ export function EditRequirementModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (title.trim() && text.trim()) {
+    if (text.trim()) {
       onUpdate({
-        title: title.trim(),
         text: text.trim(),
         pattern: pattern as RequirementPattern || undefined,
         verification: verification as VerificationMethod || undefined
@@ -107,7 +102,7 @@ export function EditRequirementModal({
       </Button>
       <Button 
         type="submit" 
-        disabled={!title.trim() || !text.trim()}
+        disabled={!text.trim()}
         onClick={handleSubmit}
       >
         Update Requirement
@@ -127,15 +122,6 @@ export function EditRequirementModal({
       footer={footer}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        <TextInput
-          label="Requirement Title"
-          required
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g., User Authentication System, Password Security"
-          autoFocus
-          help="A concise, descriptive title for this requirement"
-        />
 
         <TextArea
           label="Requirement Text"
