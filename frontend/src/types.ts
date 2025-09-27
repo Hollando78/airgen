@@ -120,6 +120,15 @@ export type DocumentAttachment = {
   sectionIds?: string[]; // For native docs, specific sections
 };
 
+export type DiagramAttachment = {
+  type: "diagram";
+  diagramId: string;
+  includeGeometry?: boolean; // Include positions/sizes for layout-aware requirements
+  includeConnections?: boolean; // Include connectivity for interface requirements
+};
+
+export type AirGenAttachment = DocumentAttachment | DiagramAttachment;
+
 export type AirGenChatRequest = {
   tenant: string;
   projectKey: string;
@@ -128,6 +137,7 @@ export type AirGenChatRequest = {
   constraints?: string;
   n?: number;
   attachedDocuments?: DocumentAttachment[];
+  attachedDiagrams?: DiagramAttachment[];
 };
 
 export type AirGenChatResponse = {
