@@ -20,6 +20,39 @@ export function FileManagerGrid({
 }: FileManagerGridProps) {
   const [dragOver, setDragOver] = useState<string | null>(null);
 
+  const formatFileSize = (bytes?: number | null) => {
+    if (!bytes || bytes <= 0) {
+      return "—";
+    }
+
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+
+    const kb = bytes / 1024;
+    if (kb < 1024) {
+      return `${kb.toFixed(1)} KB`;
+    }
+
+    const mb = kb / 1024;
+    if (mb < 1024) {
+      return `${mb.toFixed(1)} MB`;
+    }
+
+    const gb = mb / 1024;
+    return `${gb.toFixed(1)} GB`;
+  };
+
+  const getSurrogateLabel = (item: FileItem) => {
+    if (item.originalFileName) {
+      const ext = item.originalFileName.split(".").pop();
+      if (ext && ext.length <= 5) {
+        return ext.toUpperCase();
+      }
+    }
+    return item.mimeType || "Uploaded file";
+  };
+
   const handleItemClick = (item: FileItem, event: React.MouseEvent) => {
     const newSelection = new Set(selectedItems);
     
@@ -149,12 +182,19 @@ export function FileManagerGrid({
                   <span className="item-count">
                     {item.itemCount || 0} {item.itemCount === 1 ? "item" : "items"}
                   </span>
+                ) : item.documentKind === "surrogate" ? (
+                  <span className="item-count">{formatFileSize(item.fileSize)}</span>
                 ) : (
                   <span className="item-count">
                     {item.itemCount || 0} {item.itemCount === 1 ? "req" : "reqs"}
                   </span>
                 )}
               </div>
+              {item.type === "document" && item.documentKind === "surrogate" && (
+                <div className="meta-line">
+                  <span className="item-type">{getSurrogateLabel(item)}</span>
+                </div>
+              )}
               <div className="meta-line">
                 <span className="date-modified">
                   {formatDate(item.updatedAt)}

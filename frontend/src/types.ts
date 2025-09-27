@@ -190,6 +190,8 @@ export type ProjectsResponse = {
   projects: ProjectRecord[];
 };
 
+export type DocumentKind = "structured" | "surrogate";
+
 export type DocumentRecord = {
   id: string;
   slug: string;
@@ -202,6 +204,16 @@ export type DocumentRecord = {
   createdAt: string;
   updatedAt: string;
   requirementCount?: number;
+  kind: DocumentKind;
+  originalFileName?: string | null;
+  storedFileName?: string | null;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  storagePath?: string | null;
+  previewPath?: string | null;
+  previewMimeType?: string | null;
+  downloadUrl?: string | null;
+  previewDownloadUrl?: string | null;
 };
 
 export type FolderRecord = {

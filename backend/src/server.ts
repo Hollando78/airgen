@@ -33,6 +33,9 @@ await app.register(fastifyStatic, {
   root: join(__dirname, "../public"),
   prefix: "/"
 });
+app.addContentTypeParser(/^multipart\//, { parseAs: "buffer", bodyLimit: 50 * 1024 * 1024 }, (_req, body, done) => {
+  done(null, body);
+});
 await registerAuth(app);
 
 app.addHook("onRequest", app.optionalAuthenticate);

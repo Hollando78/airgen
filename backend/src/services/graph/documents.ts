@@ -6,6 +6,8 @@ import {
   updateRequirementRefsForSection
 } from "./requirements.js";
 
+export type DocumentKind = "structured" | "surrogate";
+
 export type DocumentRecord = {
   id: string;
   slug: string;
@@ -17,6 +19,14 @@ export type DocumentRecord = {
   createdAt: string;
   updatedAt: string;
   requirementCount?: number;
+  kind: DocumentKind;
+  originalFileName?: string | null;
+  storedFileName?: string | null;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  storagePath?: string | null;
+  previewPath?: string | null;
+  previewMimeType?: string | null;
 };
 
 export type FolderRecord = {
@@ -57,7 +67,18 @@ function mapDocument(node: Neo4jNode, requirementCount?: number): DocumentRecord
     parentFolder: props.parentFolder ? String(props.parentFolder) : null,
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt),
-    requirementCount: requirementCount ?? 0
+    requirementCount: requirementCount ?? 0,
+    kind: (props.kind ? String(props.kind) : "structured") as DocumentKind,
+    originalFileName: props.originalFileName ? String(props.originalFileName) : null,
+    storedFileName: props.storedFileName ? String(props.storedFileName) : null,
+    mimeType: props.mimeType ? String(props.mimeType) : null,
+    fileSize:
+      props.fileSize !== undefined && props.fileSize !== null
+        ? Number(props.fileSize)
+        : null,
+    storagePath: props.storagePath ? String(props.storagePath) : null,
+    previewPath: props.previewPath ? String(props.previewPath) : null,
+    previewMimeType: props.previewMimeType ? String(props.previewMimeType) : null
   };
 }
 
@@ -275,10 +296,21 @@ export async function createDocument(params: {
   description?: string;
   shortCode?: string;
   parentFolder?: string;
+  slug?: string;
+  kind?: DocumentKind;
+  originalFileName?: string;
+  storedFileName?: string;
+  mimeType?: string;
+  fileSize?: number;
+  storagePath?: string;
+  previewPath?: string;
+  previewMimeType?: string;
 }): Promise<DocumentRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
   const now = new Date().toISOString();
+  const resolvedSlug = params.slug ? slugify(params.slug) : slugify(params.name);
+  const parentFolderSlug = params.parentFolder ? slugify(params.parentFolder) : null;
 
   const session = getSession();
   try {
@@ -297,6 +329,14 @@ export async function createDocument(params: {
           tenant: $tenantSlug,
           projectKey: $projectKey,
           parentFolder: $parentFolder,
+          kind: $kind,
+          originalFileName: $originalFileName,
+          storedFileName: $storedFileName,
+          mimeType: $mimeType,
+          fileSize: $fileSize,
+          storagePath: $storagePath,
+          previewPath: $previewPath,
+          previewMimeType: $previewMimeType,
           createdAt: $now,
           updatedAt: $now
         })
@@ -308,11 +348,19 @@ export async function createDocument(params: {
         tenantSlug,
         projectSlug,
         projectKey: params.projectKey,
-        slug: slugify(params.name),
+        slug: resolvedSlug,
         name: params.name,
         description: params.description ?? null,
         shortCode: params.shortCode ?? null,
-        parentFolder: params.parentFolder ? slugify(params.parentFolder) : null,
+        parentFolder: parentFolderSlug,
+        kind: params.kind ?? "structured",
+        originalFileName: params.originalFileName ?? null,
+        storedFileName: params.storedFileName ?? null,
+        mimeType: params.mimeType ?? null,
+        fileSize: params.fileSize ?? null,
+        storagePath: params.storagePath ?? null,
+        previewPath: params.previewPath ?? null,
+        previewMimeType: params.previewMimeType ?? null,
         now
       });
 

@@ -7,11 +7,12 @@ interface ContextMenuProps {
   item: FileItem;
   onClose: () => void;
   onOpen: () => void;
+  onDownload?: () => void;
   onRename: () => void;
   onDelete: () => void;
 }
 
-export function ContextMenu({ x, y, item, onClose, onOpen, onRename, onDelete }: ContextMenuProps) {
+export function ContextMenu({ x, y, item, onClose, onOpen, onRename, onDelete, onDownload }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,13 +60,23 @@ export function ContextMenu({ x, y, item, onClose, onOpen, onRename, onDelete }:
     }
   }, [x, y]);
 
+  const isSurrogate = item.type === "document" && item.documentKind === "surrogate";
+
+  const primaryAction = () => {
+    if (isSurrogate && onDownload) {
+      onDownload();
+    } else {
+      onOpen();
+    }
+  };
+
   return (
     <div 
       ref={menuRef}
       className="context-menu"
       style={{ left: x, top: y }}
     >
-      <div className="context-menu-item" onClick={onOpen}>
+      <div className="context-menu-item" onClick={primaryAction}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           {item.type === "folder" ? (
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -76,10 +87,28 @@ export function ContextMenu({ x, y, item, onClose, onOpen, onRename, onDelete }:
             </>
           )}
         </svg>
-        {item.type === "folder" ? "Open Folder" : "Open Document"}
+        {item.type === "folder"
+          ? "Open Folder"
+          : isSurrogate
+            ? "Download File"
+            : "Open Document"}
       </div>
 
       <div className="context-menu-separator" />
+
+      {isSurrogate && onDownload && (
+        <>
+          <div className="context-menu-item" onClick={() => onDownload()}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download File
+          </div>
+          <div className="context-menu-separator" />
+        </>
+      )}
 
       <div className="context-menu-item" onClick={onRename}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -130,8 +159,21 @@ export function ContextMenu({ x, y, item, onClose, onOpen, onRename, onDelete }:
           <span className="info-value">{new Date(item.updatedAt).toLocaleDateString()}</span>
         </div>
         <div className="info-row">
-          <span className="info-label">Items:</span>
-          <span className="info-value">{item.itemCount || 0}</span>
+          <span className="info-label">{isSurrogate ? "Size:" : "Items:"}</span>
+          <span className="info-value">
+            {isSurrogate
+              ? (() => {
+                  if (!item.fileSize) return "—";
+                  if (item.fileSize < 1024) return `${item.fileSize} B`;
+                  const kb = item.fileSize / 1024;
+                  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+                  const mb = kb / 1024;
+                  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+                  const gb = mb / 1024;
+                  return `${gb.toFixed(1)} GB`;
+                })()
+              : item.itemCount || 0}
+          </span>
         </div>
       </div>
     </div>

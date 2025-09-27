@@ -25,7 +25,7 @@ export function DocumentSelector({
     enabled: Boolean(tenant && project)
   });
 
-  const documents = documentsQuery.data?.documents ?? [];
+  const documents = (documentsQuery.data?.documents ?? []).filter(doc => doc.kind !== "surrogate");
 
   return (
     <div className="selector-field">

@@ -21,6 +21,10 @@ export function useFloatingDocumentsManager({ documents }: UseFloatingDocumentsP
       return;
     }
 
+    if (document.kind === "surrogate") {
+      return;
+    }
+
     setFloatingDocuments(prev => {
       if (prev.some(entry => entry.documentSlug === documentSlug)) {
         return prev;

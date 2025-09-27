@@ -22,6 +22,16 @@ interface DocumentManagerProps {
   onOpenDocument?: (documentSlug: string) => void;
   onCreateFolder?: (parentFolder?: string) => void;
   onCreateDocument?: (parentFolder?: string) => void;
+  onUploadSurrogate?: (parentFolder?: string) => void;
+  onOpenSurrogate?: (params: {
+    slug: string;
+    name: string;
+    downloadUrl?: string | null;
+    mimeType?: string | null;
+    originalFileName?: string | null;
+    previewDownloadUrl?: string | null;
+    previewMimeType?: string | null;
+  }) => void;
 }
 
 export interface FileItem {
@@ -36,6 +46,13 @@ export interface FileItem {
   updatedAt: string;
   createdAt: string;
   itemCount?: number;
+  documentKind?: DocumentRecord["kind"];
+  mimeType?: string | null;
+  fileSize?: number | null;
+  downloadUrl?: string | null;
+  originalFileName?: string | null;
+  previewDownloadUrl?: string | null;
+  previewMimeType?: string | null;
 }
 
 export function DocumentManager({
@@ -45,7 +62,9 @@ export function DocumentManager({
   documents,
   onOpenDocument,
   onCreateFolder,
-  onCreateDocument
+  onCreateDocument,
+  onUploadSurrogate,
+  onOpenSurrogate
 }: DocumentManagerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [sortField, setSortField] = useState<SortField>("name");
@@ -66,6 +85,7 @@ export function DocumentManager({
     isOpen: boolean;
     item: FileItem | null;
   }>({ isOpen: false, item: null });
+  const [downloadingItemId, setDownloadingItemId] = useState<string | null>(null);
 
   const api = useApiClient();
   const queryClient = useQueryClient();
@@ -171,7 +191,14 @@ export function DocumentManager({
         shortCode: doc.shortCode,
         updatedAt: doc.updatedAt,
         createdAt: doc.createdAt,
-        itemCount: doc.requirementCount
+        itemCount: doc.kind === "structured" ? doc.requirementCount : undefined,
+        documentKind: doc.kind,
+        mimeType: doc.mimeType ?? null,
+        fileSize: doc.fileSize ?? null,
+        downloadUrl: doc.downloadUrl ?? null,
+        originalFileName: doc.originalFileName ?? null,
+        previewDownloadUrl: doc.previewDownloadUrl ?? null,
+        previewMimeType: doc.previewMimeType ?? null
       });
     });
 
@@ -184,6 +211,13 @@ export function DocumentManager({
   // Filter items for current directory
   const currentItems = useMemo(() => {
     let items = fileItems.filter(item => item.parentFolder === currentFolder);
+
+    const sizeMetric = (item: FileItem) => {
+      if (item.type === "folder") {
+        return item.itemCount ?? 0;
+      }
+      return item.documentKind === "surrogate" ? item.fileSize ?? 0 : item.itemCount ?? 0;
+    };
 
     // Apply search filter
     if (searchQuery.trim()) {
@@ -211,7 +245,7 @@ export function DocumentManager({
           comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
           break;
         case "size":
-          comparison = (a.itemCount || 0) - (b.itemCount || 0);
+          comparison = sizeMetric(a) - sizeMetric(b);
           break;
         case "type":
           comparison = a.type.localeCompare(b.type);
@@ -262,6 +296,33 @@ export function DocumentManager({
     });
   };
 
+  const handlePrimaryAction = (item: FileItem) => {
+    if (item.type === "folder") {
+      handleNavigateToFolder(item.slug);
+      return;
+    }
+
+    if (item.documentKind === "surrogate") {
+      if (onOpenSurrogate) {
+        onOpenSurrogate({
+          slug: item.slug,
+          name: item.name,
+          downloadUrl: item.downloadUrl ?? null,
+          mimeType: item.mimeType ?? null,
+          originalFileName: item.originalFileName ?? null,
+          previewDownloadUrl: item.previewDownloadUrl ?? null,
+          previewMimeType: item.previewMimeType ?? null
+        });
+        return;
+      }
+
+      void handleDownloadDocument(item);
+      return;
+    }
+
+    onOpenDocument?.(item.slug);
+  };
+
   const handleDeleteItem = (item: FileItem) => {
     setDeleteModal({ isOpen: true, item });
     setContextMenu(null);
@@ -301,6 +362,38 @@ export function DocumentManager({
     }
   };
 
+  const handleDownloadDocument = async (item: FileItem) => {
+    if (!item.downloadUrl) {
+      return;
+    }
+
+    if (downloadingItemId === item.id) {
+      return;
+    }
+
+    try {
+      setDownloadingItemId(item.id);
+      const { blob, fileName } = await api.downloadDocumentFile(
+        item.downloadUrl,
+        item.originalFileName ?? `${item.name}`
+      );
+
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = fileName || item.originalFileName || item.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to download surrogate document", error);
+      window.alert("Failed to download the selected document. Please try again.");
+    } finally {
+      setDownloadingItemId(null);
+    }
+  };
+
   const handleDrop = (targetFolder: string | null) => {
     selectedItems.forEach(itemId => {
       const item = fileItems.find(f => f.id === itemId);
@@ -329,6 +422,7 @@ export function DocumentManager({
         onSearchChange={setSearchQuery}
         onCreateFolder={() => onCreateFolder?.(currentFolder || undefined)}
         onCreateDocument={() => onCreateDocument?.(currentFolder || undefined)}
+        onUploadSurrogate={() => onUploadSurrogate?.(currentFolder || undefined)}
         selectedCount={selectedItems.size}
       />
 
@@ -343,13 +437,7 @@ export function DocumentManager({
             items={currentItems}
             selectedItems={selectedItems}
             onSelectionChange={setSelectedItems}
-            onItemDoubleClick={(item) => {
-              if (item.type === "folder") {
-                handleNavigateToFolder(item.slug);
-              } else {
-                onOpenDocument?.(item.slug);
-              }
-            }}
+            onItemDoubleClick={handlePrimaryAction}
             onContextMenu={handleContextMenu}
             onDrop={handleDrop}
           />
@@ -358,13 +446,7 @@ export function DocumentManager({
             items={currentItems}
             selectedItems={selectedItems}
             onSelectionChange={setSelectedItems}
-            onItemDoubleClick={(item) => {
-              if (item.type === "folder") {
-                handleNavigateToFolder(item.slug);
-              } else {
-                onOpenDocument?.(item.slug);
-              }
-            }}
+            onItemDoubleClick={handlePrimaryAction}
             onContextMenu={handleContextMenu}
             onDrop={handleDrop}
           />
@@ -391,6 +473,12 @@ export function DocumentManager({
                   </button>
                   <button 
                     className="ghost-button"
+                    onClick={() => onUploadSurrogate?.(currentFolder || undefined)}
+                  >
+                    Upload File
+                  </button>
+                  <button 
+                    className="ghost-button"
                     onClick={() => onCreateFolder?.(currentFolder || undefined)}
                   >
                     Create Folder
@@ -411,11 +499,11 @@ export function DocumentManager({
           onRename={() => handleRenameItem(contextMenu.item)}
           onDelete={() => handleDeleteItem(contextMenu.item)}
           onOpen={() => {
-            if (contextMenu.item.type === "document") {
-              onOpenDocument?.(contextMenu.item.slug);
-            } else {
-              handleNavigateToFolder(contextMenu.item.slug);
-            }
+            handlePrimaryAction(contextMenu.item);
+            setContextMenu(null);
+          }}
+          onDownload={() => {
+            void handleDownloadDocument(contextMenu.item);
             setContextMenu(null);
           }}
         />

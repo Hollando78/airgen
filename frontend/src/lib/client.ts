@@ -71,7 +71,8 @@ export function useApiClient() {
   const request = useCallback(
     async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
       const headers = new Headers(options.headers);
-      if (!headers.has("Content-Type") && options.body) {
+      const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+      if (!headers.has("Content-Type") && options.body && !isFormData) {
         headers.set("Content-Type", "application/json");
       }
       if (!options.skipAuth && token) {
@@ -165,6 +166,90 @@ export function useApiClient() {
         request<DocumentResponse>(`/documents/${tenant}/${project}/${documentSlug}`, { method: "PATCH", body: JSON.stringify(updates) }),
       updateDocumentFolder: (tenant: string, project: string, documentSlug: string, parentFolder?: string | null) =>
         request<DocumentResponse>(`/documents/${tenant}/${project}/${documentSlug}`, { method: "PATCH", body: JSON.stringify({ parentFolder }) }),
+      uploadSurrogateDocument: (params: {
+        tenant: string;
+        projectKey: string;
+        file: File;
+        name?: string;
+        description?: string;
+        parentFolder?: string;
+      }) => {
+        const formData = new FormData();
+        formData.append("tenant", params.tenant);
+        formData.append("projectKey", params.projectKey);
+        if (params.name) {
+          formData.append("name", params.name);
+        }
+        if (params.description) {
+          formData.append("description", params.description);
+        }
+        if (params.parentFolder) {
+          formData.append("parentFolder", params.parentFolder);
+        }
+        formData.append("file", params.file);
+
+        return request<DocumentResponse>(`/documents/upload`, {
+          method: "POST",
+          body: formData
+        });
+      },
+      downloadDocumentFile: async (downloadPath: string, fallbackName?: string) => {
+        const headers = new Headers();
+        if (token) {
+          headers.set("Authorization", `Bearer ${token}`);
+        }
+
+        const response = await fetch(`${config.apiBaseUrl}${downloadPath}`, {
+          headers
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          let message = text;
+          try {
+            const json = JSON.parse(text);
+            message = json.error ?? json.message ?? text;
+          } catch (error) {
+            // keep raw text message
+          }
+          throw new Error(message || `Failed to download file (${response.status})`);
+        }
+
+        const blob = await response.blob();
+        const disposition =
+          response.headers.get("Content-Disposition") ?? response.headers.get("content-disposition");
+        let fileName = fallbackName ?? "download";
+
+        if (disposition) {
+          const filenameStarMatch = disposition.match(/filename\*=([^;]+)/i);
+          if (filenameStarMatch) {
+            const raw = filenameStarMatch[1].trim().replace(/^"|"$/g, "");
+            const parts = raw.split("''");
+            if (parts.length === 2) {
+              fileName = decodeURIComponent(parts[1]);
+            } else {
+              try {
+                fileName = decodeURIComponent(raw);
+              } catch {
+                fileName = raw;
+              }
+            }
+          } else {
+            const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+            if (filenameMatch) {
+              fileName = filenameMatch[1];
+            }
+          }
+
+          fileName = fileName.replace(/"/g, "").trim();
+        }
+
+        if (!fileName) {
+          fileName = fallbackName ?? "download";
+        }
+
+        return { blob, fileName };
+      },
       deleteDocument: (tenant: string, project: string, documentSlug: string) =>
         request<DocumentResponse>(`/documents/${tenant}/${project}/${documentSlug}`, { method: "DELETE" }),
       listFolders: (tenant: string, project: string) =>
