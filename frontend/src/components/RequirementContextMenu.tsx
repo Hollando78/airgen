@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { RequirementRecord, TraceLink } from "../types";
 import { useFloatingDocuments } from "../contexts/FloatingDocumentsContext";
 import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Badge } from "./ui/badge";
 
 interface RequirementContextMenuProps {
   x: number;
@@ -133,32 +135,15 @@ export function RequirementContextMenu({
       <div 
         ref={menuRef}
         className="context-menu"
-        style={{ 
-          left: x, 
-          top: y,
-          position: "fixed",
-          backgroundColor: "white",
-          border: "1px solid #e5e7eb",
-          borderRadius: "6px",
-          boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
-          zIndex: 1000,
-          minWidth: "220px",
-          fontSize: "14px"
-        }}
+        style={{ left: x, top: y }}
       >
-        {/* Header with requirement ref */}
-        <div style={{
-          padding: "8px 12px",
-          borderBottom: "1px solid #e5e7eb",
-          fontWeight: "600",
-          color: "#374151",
-          fontSize: "12px",
-          backgroundColor: "#f9fafb"
-        }}>
-          {requirement.ref}
+        <div className="context-menu-info">
+          <div className="info-row">
+            <span className="info-value" style={{ fontWeight: 600 }}>{requirement.ref}</span>
+          </div>
         </div>
+        <div className="context-menu-separator" />
 
-        {/* View Details */}
         <div className="context-menu-item" onClick={handleViewDetails}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -178,23 +163,15 @@ export function RequirementContextMenu({
 
         <div className="context-menu-separator" />
 
-        {/* Link Management */}
         {onStartLink && !isLinkingActive && (
           <div className="context-menu-item" onClick={handleStartLink}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
             </svg>
-            Start Link From Here
+            <span style={{ flex: 1 }}>Start Link From Here</span>
             {outgoingLinks.length > 0 && (
-              <span style={{ 
-                marginLeft: "auto", 
-                fontSize: "11px", 
-                color: "#6b7280",
-                backgroundColor: "#f3f4f6",
-                padding: "2px 6px",
-                borderRadius: "3px"
-              }}>
+              <span style={{ marginLeft: 'auto', fontSize: '11px', background: '#f3f4f6', padding: '2px 6px', borderRadius: '3px' }}>
                 {outgoingLinks.length} →
               </span>
             )}
@@ -207,14 +184,9 @@ export function RequirementContextMenu({
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
             </svg>
-            End Link Here
+            <span style={{ flex: 1 }}>End Link Here</span>
             {linkingRequirement && (
-              <span style={{ 
-                marginLeft: "8px", 
-                fontSize: "11px", 
-                color: "#059669",
-                fontWeight: "500"
-              }}>
+              <span style={{ marginLeft: '8px', fontSize: '11px', color: '#059669', fontWeight: 500 }}>
                 from {linkingRequirement.ref}
               </span>
             )}
@@ -222,35 +194,26 @@ export function RequirementContextMenu({
         )}
 
         {isCurrentRequirementLinking && (
-          <div style={{
-            padding: "8px 12px",
-            backgroundColor: "#ecfdf5",
-            color: "#059669",
-            fontSize: "12px",
-            fontStyle: "italic"
-          }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: "inline", marginRight: "6px", verticalAlign: "middle" }}>
-              <path d="M12 2v20M2 12h20"/>
-            </svg>
-            Link started from this requirement
+          <div className="context-menu-info" style={{ background: '#ecfdf5', color: '#059669', fontStyle: 'italic' }}>
+            <div className="info-row">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline', marginRight: '6px' }}>
+                <path d="M12 2v20M2 12h20"/>
+              </svg>
+              Link started from this requirement
+            </div>
           </div>
         )}
 
         {incomingLinks.length > 0 && (
-          <div style={{
-            padding: "6px 12px",
-            backgroundColor: "#f9fafb",
-            color: "#6b7280",
-            fontSize: "11px",
-            borderTop: "1px solid #e5e7eb"
-          }}>
-            ← {incomingLinks.length} incoming link{incomingLinks.length > 1 ? 's' : ''}
+          <div className="context-menu-info" style={{ background: '#f9fafb', fontSize: '11px' }}>
+            <div className="info-row">
+              ← {incomingLinks.length} incoming link{incomingLinks.length > 1 ? 's' : ''}
+            </div>
           </div>
         )}
 
         <div className="context-menu-separator" />
 
-        {/* Copy Actions */}
         <div className="context-menu-item" onClick={handleCopyRef}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -269,8 +232,7 @@ export function RequirementContextMenu({
 
         <div className="context-menu-separator" />
 
-        {/* Info Section */}
-        <div className="context-menu-info" style={{ maxHeight: "120px", overflowY: "auto" }}>
+        <div className="context-menu-info" style={{ maxHeight: '120px', overflowY: 'auto' }}>
           <div className="info-row">
             <span className="info-label">Pattern:</span>
             <span className="info-value">{requirement.pattern || "—"}</span>
@@ -283,7 +245,8 @@ export function RequirementContextMenu({
             <div className="info-row">
               <span className="info-label">QA Score:</span>
               <span className="info-value" style={{
-                color: requirement.qaScore >= 80 ? "#059669" : requirement.qaScore >= 60 ? "#d97706" : "#dc2626"
+                color: requirement.qaScore >= 80 ? "#059669" : requirement.qaScore >= 60 ? "#d97706" : "#dc2626",
+                fontWeight: 600
               }}>
                 {requirement.qaScore}%
               </span>
@@ -292,176 +255,133 @@ export function RequirementContextMenu({
         </div>
       </div>
 
-      {/* Details Modal */}
-      {showDetails && (
-        <div className="modal-overlay" onClick={() => setShowDetails(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "600px" }}>
-            <div className="modal-header">
-              <h3>Requirement Details</h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowDetails(false)}>×</Button>
+      <Dialog open={showDetails} onOpenChange={setShowDetails}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Requirement Details</DialogTitle>
+            <DialogDescription>
+              View detailed information about this requirement
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1">
+                Reference ID
+              </label>
+              <div className="p-3 bg-gray-50 rounded-md font-mono text-sm border">
+                {requirement.ref}
+              </div>
             </div>
-            <div className="modal-content">
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{ fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
-                  Reference ID
+
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1">
+                Requirement Text
+              </label>
+              <div className="p-3 bg-gray-50 rounded-md leading-relaxed border">
+                {requirement.text}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-1">
+                  Pattern
                 </label>
-                <div style={{ 
-                  padding: "8px 12px", 
-                  backgroundColor: "#f9fafb", 
-                  borderRadius: "4px",
-                  fontFamily: "monospace",
-                  fontSize: "14px"
-                }}>
-                  {requirement.ref}
+                <div className="p-3 bg-gray-50 rounded-md border">
+                  {requirement.pattern || "Not specified"}
                 </div>
               </div>
 
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{ fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
-                  Requirement Text
+              <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-1">
+                  Verification Method
                 </label>
-                <div style={{ 
-                  padding: "12px", 
-                  backgroundColor: "#f9fafb", 
-                  borderRadius: "4px",
-                  lineHeight: "1.6"
-                }}>
-                  {requirement.text}
+                <div className="p-3 bg-gray-50 rounded-md border">
+                  {requirement.verification || "Not specified"}
                 </div>
               </div>
+            </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
-                <div>
-                  <label style={{ fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
-                    Pattern
-                  </label>
-                  <div style={{ 
-                    padding: "8px 12px", 
-                    backgroundColor: "#f9fafb", 
-                    borderRadius: "4px"
-                  }}>
-                    {requirement.pattern || "Not specified"}
+            {requirement.qaScore && (
+              <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-2">
+                  QA Score
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-300 ${
+                        requirement.qaScore >= 80 ? "bg-green-500" : 
+                        requirement.qaScore >= 60 ? "bg-yellow-500" : "bg-red-500"
+                      }`}
+                      style={{ width: `${requirement.qaScore}%` }}
+                    />
                   </div>
-                </div>
-
-                <div>
-                  <label style={{ fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
-                    Verification Method
-                  </label>
-                  <div style={{ 
-                    padding: "8px 12px", 
-                    backgroundColor: "#f9fafb", 
-                    borderRadius: "4px"
-                  }}>
-                    {requirement.verification || "Not specified"}
-                  </div>
+                  <span className={`font-semibold text-sm ${
+                    requirement.qaScore >= 80 ? "text-green-600" : 
+                    requirement.qaScore >= 60 ? "text-yellow-600" : "text-red-600"
+                  }`}>
+                    {requirement.qaScore}%
+                  </span>
                 </div>
               </div>
+            )}
 
-              {requirement.qaScore && (
-                <div style={{ marginBottom: "16px" }}>
-                  <label style={{ fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
-                    QA Score
-                  </label>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <div style={{ 
-                      flex: 1, 
-                      height: "8px", 
-                      backgroundColor: "#e5e7eb", 
-                      borderRadius: "4px",
-                      overflow: "hidden"
-                    }}>
-                      <div style={{
-                        width: `${requirement.qaScore}%`,
-                        height: "100%",
-                        backgroundColor: requirement.qaScore >= 80 ? "#10b981" : requirement.qaScore >= 60 ? "#f59e0b" : "#ef4444",
-                        transition: "width 0.3s ease"
-                      }} />
+            {(outgoingLinks.length > 0 || incomingLinks.length > 0) && (
+              <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-2">
+                  Trace Links
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {outgoingLinks.length > 0 && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <div className="font-medium text-blue-900 mb-1">
+                        Outgoing ({outgoingLinks.length})
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Links to {outgoingLinks.length} requirement{outgoingLinks.length > 1 ? 's' : ''}
+                      </div>
                     </div>
-                    <span style={{ 
-                      fontWeight: "600",
-                      color: requirement.qaScore >= 80 ? "#059669" : requirement.qaScore >= 60 ? "#d97706" : "#dc2626"
-                    }}>
-                      {requirement.qaScore}%
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {(outgoingLinks.length > 0 || incomingLinks.length > 0) && (
-                <div style={{ marginBottom: "16px" }}>
-                  <label style={{ fontWeight: "600", color: "#374151", display: "block", marginBottom: "8px" }}>
-                    Trace Links
-                  </label>
-                  <div style={{ display: "flex", gap: "16px" }}>
-                    {outgoingLinks.length > 0 && (
-                      <div style={{ 
-                        flex: 1,
-                        padding: "12px", 
-                        backgroundColor: "#f0f9ff", 
-                        borderRadius: "4px",
-                        border: "1px solid #bfdbfe"
-                      }}>
-                        <div style={{ fontWeight: "500", marginBottom: "6px", color: "#1e40af" }}>
-                          Outgoing ({outgoingLinks.length})
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#64748b" }}>
-                          This requirement links to {outgoingLinks.length} other requirement{outgoingLinks.length > 1 ? 's' : ''}
-                        </div>
+                  )}
+                  {incomingLinks.length > 0 && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                      <div className="font-medium text-green-900 mb-1">
+                        Incoming ({incomingLinks.length})
                       </div>
-                    )}
-                    {incomingLinks.length > 0 && (
-                      <div style={{ 
-                        flex: 1,
-                        padding: "12px", 
-                        backgroundColor: "#f0fdf4", 
-                        borderRadius: "4px",
-                        border: "1px solid #bbf7d0"
-                      }}>
-                        <div style={{ fontWeight: "500", marginBottom: "6px", color: "#166534" }}>
-                          Incoming ({incomingLinks.length})
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#64748b" }}>
-                          {incomingLinks.length} requirement{incomingLinks.length > 1 ? 's' : ''} link to this
-                        </div>
+                      <div className="text-xs text-gray-600">
+                        {incomingLinks.length} requirement{incomingLinks.length > 1 ? 's' : ''} link here
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+            )}
 
-              {requirement.tags && requirement.tags.length > 0 && (
-                <div style={{ marginBottom: "16px" }}>
-                  <label style={{ fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
-                    Tags
-                  </label>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                    {requirement.tags.map((tag, index) => (
-                      <span key={index} style={{
-                        padding: "4px 8px",
-                        backgroundColor: "#e0e7ff",
-                        color: "#3730a3",
-                        borderRadius: "4px",
-                        fontSize: "12px"
-                      }}>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+            {requirement.tags && requirement.tags.length > 0 && (
+              <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-2">
+                  Tags
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {requirement.tags.map((tag, index) => (
+                    <Badge key={index} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))}
                 </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <Button variant="outline" onClick={() => setShowDetails(false)}>
-                Close
-              </Button>
-              <Button onClick={handleOpenInFloatingWindow}>
-                Open in Document
-              </Button>
-            </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDetails(false)}>
+              Close
+            </Button>
+            <Button onClick={handleOpenInFloatingWindow}>
+              Open in Document
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

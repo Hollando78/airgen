@@ -5,6 +5,7 @@ import { RequirementsRoute } from "./routes/RequirementsRoute";
 import { BaselinesRoute } from "./routes/BaselinesRoute";
 import { ProductionDashboardRoute } from "./routes/ProductionDashboardRoute";
 import { LinksRoute } from "./routes/LinksRoute";
+import { RequirementsSchemaRoute } from "./routes/RequirementsSchemaRoute";
 import { DocumentsRoute } from "./routes/DocumentsRoute";
 import { ArchitectureRoute } from "./routes/ArchitectureRoute";
 import { InterfaceRoute } from "./routes/InterfaceRoute";
@@ -40,6 +41,7 @@ export default function ProductionAppRoutes(): JSX.Element {
         <Route path="/requirements" element={<RequirementsRoute />} />
         <Route path="/baselines" element={<BaselinesRoute />} />
         <Route path="/links" element={<LinksRoute />} />
+        <Route path="/requirements-schema" element={<RequirementsSchemaRoute />} />
         
         {/* Admin routes - only for admin users in dev mode */}
         {isDevMode && user?.roles.includes('admin') && (

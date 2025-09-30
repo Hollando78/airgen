@@ -367,6 +367,7 @@ export type LinkSuggestResponse = {
 // Trace Link Types
 export type TraceLinkType = "satisfies" | "derives" | "verifies" | "implements" | "refines" | "conflicts";
 
+// Legacy individual trace link (being phased out)
 export type TraceLink = {
   id: string;
   sourceRequirementId: string;
@@ -380,6 +381,44 @@ export type TraceLink = {
 };
 
 export type CreateTraceLinkRequest = {
+  sourceRequirementId: string;
+  targetRequirementId: string;
+  linkType: TraceLinkType;
+  description?: string;
+};
+
+// New Linkset Types
+export type TraceLinkItem = {
+  id: string;
+  sourceRequirementId: string;
+  targetRequirementId: string;
+  linkType: TraceLinkType;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DocumentLinkset = {
+  id: string;
+  tenant: string;
+  projectKey: string;
+  sourceDocumentSlug: string;
+  targetDocumentSlug: string;
+  sourceDocument: DocumentRecord;
+  targetDocument: DocumentRecord;
+  linkCount: number;
+  links: TraceLinkItem[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateLinksetRequest = {
+  sourceDocumentSlug: string;
+  targetDocumentSlug: string;
+  links?: TraceLinkItem[];
+};
+
+export type AddLinkToLinksetRequest = {
   sourceRequirementId: string;
   targetRequirementId: string;
   linkType: TraceLinkType;
@@ -552,7 +591,7 @@ export type ArchitectureDiagramRecord = {
   description?: string | null;
   tenant: string;
   projectKey: string;
-  view: "block" | "internal" | "deployment";
+  view: "block" | "internal" | "deployment" | "requirements_schema";
   createdAt: string;
   updatedAt: string;
 };

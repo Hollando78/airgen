@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import * as React from "react";
 import type { DocumentRecord, TraceLink } from "../../types";
 
 const linkTypeColors: Record<string, string> = {
@@ -23,29 +24,85 @@ export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDel
   const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 0 });
   const [forceUpdate, setForceUpdate] = useState(0);
 
+  // Filter trace links to only show those between the currently selected documents
+  const relevantTraceLinks = React.useMemo(() => {
+    if (!leftDocument || !rightDocument) return [];
+    
+    return traceLinks.filter(link => {
+      const leftSlug = leftDocument.slug;
+      const rightSlug = rightDocument.slug;
+      
+      // Simple check: does the requirement ID contain the document slug?
+      const sourceInLeft = link.sourceRequirementId.includes(leftSlug);
+      const targetInRight = link.targetRequirementId.includes(rightSlug);
+      const sourceInRight = link.sourceRequirementId.includes(rightSlug);
+      const targetInLeft = link.targetRequirementId.includes(leftSlug);
+      
+      return (sourceInLeft && targetInRight) || (sourceInRight && targetInLeft);
+    });
+  }, [traceLinks, leftDocument, rightDocument]);
+
+
+
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const observer = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        setSvgDimensions({ width, height });
-        setForceUpdate(prev => prev + 1);
-      }
-    });
+    const updateDimensions = () => {
+      if (!containerRef.current) return;
+      
+      // Get the height of the document panels to match their height
+      const leftPanel = document.querySelector('.document-panel.left-panel');
+      const rightPanel = document.querySelector('.document-panel.right-panel');
+      const containerRect = containerRef.current.getBoundingClientRect();
+      
+      const maxPanelHeight = Math.max(
+        leftPanel?.scrollHeight || 0,
+        rightPanel?.scrollHeight || 0,
+        400 // minimum height
+      );
+      
+      
+      setSvgDimensions({ 
+        width: containerRect.width, 
+        height: Math.max(maxPanelHeight, containerRect.height)
+      });
+      setForceUpdate(prev => prev + 1);
+    };
 
+    const observer = new ResizeObserver(updateDimensions);
+    
+    // Also listen for content changes in document panels
+    const leftPanel = document.querySelector('.document-panel.left-panel');
+    const rightPanel = document.querySelector('.document-panel.right-panel');
+    
+    if (leftPanel) observer.observe(leftPanel);
+    if (rightPanel) observer.observe(rightPanel);
     observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
+    
+    // Initial update
+    updateDimensions();
+    
+    // Update when trace links change (requirements loaded)
+    const timeout = setTimeout(updateDimensions, 500);
+    
+    return () => {
+      observer.disconnect();
+      clearTimeout(timeout);
+    };
+  }, [traceLinks]);
+
+  // Force update when trace links change
+  useEffect(() => {
+    setForceUpdate(prev => prev + 1);
+  }, [traceLinks]);
 
   const calculatePosition = (documentSide: "left" | "right", requirementId: string) => {
-    const container = document.querySelector(
-      `.document-panel.${documentSide}-panel [data-requirement-id="${requirementId}"]`
-    );
+    const selector = `.document-panel.${documentSide}-panel [data-requirement-id="${requirementId}"]`;
+    const container = document.querySelector(selector);
 
-    if (!container || !svgRef.current) return null;
+    if (!container || !svgRef.current || !containerRef.current) return null;
 
-    const containerRect = containerRef.current?.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
     const elementRect = container.getBoundingClientRect();
 
     if (!containerRect) return null;
@@ -73,10 +130,21 @@ export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDel
           </marker>
         </defs>
 
-        {traceLinks.map(link => {
-          const sourcePos = calculatePosition("left", link.sourceRequirementId);
-          const targetPos = calculatePosition("right", link.targetRequirementId);
-          if (!sourcePos || !targetPos) return null;
+        {relevantTraceLinks.map(link => {
+          // Try both directions for source and target positioning
+          let sourcePos = calculatePosition("left", link.sourceRequirementId);
+          let targetPos = calculatePosition("right", link.targetRequirementId);
+          
+          // If that doesn't work, try the reverse (bidirectional support)
+          if (!sourcePos || !targetPos) {
+            sourcePos = calculatePosition("left", link.targetRequirementId);
+            targetPos = calculatePosition("right", link.sourceRequirementId);
+          }
+          
+          if (!sourcePos || !targetPos) {
+            return null;
+          }
+
 
           const color = linkTypeColors[link.linkType] || "#64748b";
 
@@ -126,8 +194,15 @@ export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDel
         })}
       </svg>
 
-      {(forceUpdate + traceLinks.length) === 0 && (
-        <div className="visual-links-placeholder">Select requirements to view trace links</div>
+      {relevantTraceLinks.length === 0 && (
+        <div className="visual-links-placeholder">
+          {!leftDocument || !rightDocument 
+            ? "Select documents to view trace links"
+            : traceLinks.length === 0
+              ? "No trace links exist. Right-click on requirements to create links."
+              : `No trace links between "${leftDocument.name}" and "${rightDocument.name}". Select different documents or create new links.`
+          }
+        </div>
       )}
     </div>
   );

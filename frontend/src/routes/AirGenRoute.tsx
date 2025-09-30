@@ -212,50 +212,53 @@ export function AirGenRoute(): JSX.Element {
   const disabled = !tenant || !project;
 
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <div>
-          <h1>AIRGen</h1>
-          {tenant && project ? (
-            <p>
-              {tenant} / {project}
-            </p>
-          ) : (
-            <p>Select a tenant and project to begin drafting requirements.</p>
-          )}
-        </div>
-      </div>
-
-      <div className="airgen-layout">
-        <section className="airgen-chat">
-          <div className="mode-selector">
-            <h2>AIRGen Mode</h2>
-            <div className="mode-options">
-              <label className="mode-option">
-                <input
-                  type="radio"
-                  name="mode"
-                  value="requirements"
-                  checked={mode === 'requirements'}
-                  onChange={(e) => setMode(e.target.value as 'requirements' | 'diagram')}
-                />
-                Requirements
-              </label>
-              <label className="mode-option">
-                <input
-                  type="radio"
-                  name="mode"
-                  value="diagram"
-                  checked={mode === 'diagram'}
-                  onChange={(e) => setMode(e.target.value as 'requirements' | 'diagram')}
-                />
-                Diagram
-              </label>
-            </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="airgen-container">
+        <header className="airgen-header">
+          <div className="header-content">
+            <h1 className="header-title">AIRGen</h1>
+            {tenant && project ? (
+              <p className="header-subtitle">
+                {tenant} / {project}
+              </p>
+            ) : (
+              <p className="header-subtitle">Select a tenant and project to begin drafting requirements.</p>
+            )}
           </div>
-          
-          <h2>{mode === 'requirements' ? 'Generate candidate requirements' : 'Generate candidate diagram'}</h2>
-          <form className="airgen-form" onSubmit={handleGenerate}>
+        </header>
+
+        <div className="airgen-layout">
+        <section className="airgen-chat">
+          <div className="chat-card">
+            <div className="mode-selector">
+              <h2 className="section-title">AIRGen Mode</h2>
+              <div className="mode-options">
+                <label className="mode-option">
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="requirements"
+                    checked={mode === 'requirements'}
+                    onChange={(e) => setMode(e.target.value as 'requirements' | 'diagram')}
+                  />
+                  <span>Requirements</span>
+                </label>
+                <label className="mode-option">
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="diagram"
+                    checked={mode === 'diagram'}
+                    onChange={(e) => setMode(e.target.value as 'requirements' | 'diagram')}
+                  />
+                  <span>Diagram</span>
+                </label>
+              </div>
+            </div>
+            
+            <div className="form-section">
+              <h2 className="form-title">{mode === 'requirements' ? 'Generate candidate requirements' : 'Generate candidate diagram'}</h2>
+              <form className="airgen-form" onSubmit={handleGenerate}>
             <div className="space-y-2">
               <Label htmlFor="instruction">Stakeholder instruction</Label>
               <Textarea
@@ -315,16 +318,19 @@ export function AirGenRoute(): JSX.Element {
               onAttachmentsChange={setAttachedDiagrams}
             />
 
-            <Button type="submit" disabled={disabled || chatMutation.isPending} className="w-full">
-              {chatMutation.isPending ? "Generating…" : mode === 'requirements' ? "Generate requirements" : "Generate diagram"}
-            </Button>
-          </form>
+                <Button type="submit" disabled={disabled || chatMutation.isPending} className="w-full">
+                  {chatMutation.isPending ? "Generating…" : mode === 'requirements' ? "Generate requirements" : "Generate diagram"}
+                </Button>
+              </form>
+            </div>
+          </div>
         </section>
 
         <section className="airgen-results">
-          <header className="results-header">
-            <h2>{mode === 'requirements' ? 'Candidate requirements' : 'Candidate diagrams'}</h2>
-            <div className="results-actions">
+          <div className="results-card">
+            <header className="results-header">
+              <h2 className="results-title">{mode === 'requirements' ? 'Candidate requirements' : 'Candidate diagrams'}</h2>
+              <div className="results-actions">
               <Input
                 type="search"
                 placeholder="Filter by text"
@@ -537,7 +543,9 @@ export function AirGenRoute(): JSX.Element {
               })}
             </div>
           )}
+          </div>
         </section>
+        </div>
       </div>
 
       <AcceptCandidateModal
@@ -556,24 +564,80 @@ export function AirGenRoute(): JSX.Element {
       />
       
       <style>{`
-        .mode-selector {
-          margin-bottom: 24px;
-          padding: 16px;
-          background: #f8fafc;
-          border-radius: 8px;
-          border: 1px solid #e2e8f0;
+        /* Main Container */
+        .airgen-container {
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 0 24px;
         }
         
-        .mode-selector h2 {
-          margin: 0 0 12px 0;
+        /* Header */
+        .airgen-header {
+          background: white;
+          border-bottom: 1px solid #e2e8f0;
+          margin-bottom: 32px;
+          padding: 24px 0;
+        }
+        
+        .header-content {
+          max-width: 100%;
+        }
+        
+        .header-title {
+          font-size: 32px;
+          font-weight: 700;
+          color: #1e293b;
+          margin: 0 0 8px 0;
+          letter-spacing: -0.025em;
+        }
+        
+        .header-subtitle {
           font-size: 16px;
+          color: #64748b;
+          margin: 0;
+          font-weight: 500;
+        }
+        
+        /* Two Column Layout */
+        .airgen-layout {
+          display: grid;
+          grid-template-columns: 380px 1fr;
+          gap: 28px;
+          align-items: start;
+          min-height: calc(100vh - 200px);
+        }
+        
+        /* Left Column - Input Form */
+        .airgen-chat {
+          position: sticky;
+          top: 20px;
+        }
+        
+        .chat-card {
+          background: white;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+          overflow: hidden;
+        }
+        
+        /* Mode Selector */
+        .mode-selector {
+          padding: 20px;
+          background: #f8fafc;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .section-title {
+          font-size: 15px;
           font-weight: 600;
           color: #1e293b;
+          margin: 0 0 12px 0;
         }
         
         .mode-options {
           display: flex;
-          gap: 16px;
+          gap: 12px;
         }
         
         .mode-option {
@@ -581,42 +645,317 @@ export function AirGenRoute(): JSX.Element {
           align-items: center;
           gap: 6px;
           cursor: pointer;
-          font-weight: 500;
-          color: #475569;
+          padding: 6px 10px;
+          border-radius: 6px;
+          transition: all 0.2s ease;
+          background: white;
+          border: 1px solid #e2e8f0;
+          flex: 1;
+          justify-content: center;
+        }
+        
+        .mode-option:hover {
+          background: #f1f5f9;
+          border-color: #cbd5e1;
         }
         
         .mode-option input[type="radio"] {
           margin: 0;
+          accent-color: #3b82f6;
         }
         
-        .mode-option:hover {
+        .mode-option span {
+          font-weight: 500;
+          color: #475569;
+          font-size: 13px;
+        }
+        
+        /* Form Section */
+        .form-section {
+          padding: 20px;
+        }
+        
+        .form-title {
+          font-size: 16px;
+          font-weight: 600;
           color: #1e293b;
+          margin: 0 0 18px 0;
         }
         
-        .diagram-candidates {
+        .airgen-form {
           display: flex;
           flex-direction: column;
           gap: 16px;
         }
         
-        .diagram-info h3 {
-          margin: 0 0 8px 0;
+        .airgen-form .space-y-2 {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        
+        .airgen-form label {
+          font-size: 13px;
+          font-weight: 500;
+          color: #374151;
+        }
+        
+        .airgen-form textarea {
+          min-height: 70px;
+          resize: vertical;
+        }
+        
+        .airgen-form input[type="number"] {
+          width: 80px;
+        }
+        
+        /* Right Column - Results */
+        .airgen-results {
+          min-height: 600px;
+        }
+        
+        .results-card {
+          background: white;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+          overflow: hidden;
+        }
+        
+        .results-header {
+          padding: 24px;
+          border-bottom: 1px solid #e2e8f0;
+          background: #f8fafc;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        
+        .results-title {
           font-size: 18px;
           font-weight: 600;
           color: #1e293b;
+          margin: 0;
+        }
+        
+        .results-actions {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+        }
+        
+        .results-loading {
+          padding: 48px 24px;
+          text-align: center;
+          color: #64748b;
+        }
+        
+        .filter-results {
+          padding: 16px 24px;
+          background: #fef3c7;
+          border-bottom: 1px solid #f59e0b;
+          color: #92400e;
+          font-size: 14px;
+          font-weight: 500;
+        }
+        
+        /* Candidate Groups */
+        .candidate-groups {
+          padding: 24px;
+        }
+        
+        .candidate-group {
+          margin-bottom: 32px;
+        }
+        
+        .candidate-group:last-child {
+          margin-bottom: 0;
+        }
+        
+        .group-header {
+          cursor: pointer;
+          padding: 16px 20px;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          margin-bottom: 16px;
+          transition: all 0.2s ease;
+        }
+        
+        .group-header:hover {
+          background: #e2e8f0;
+        }
+        
+        .group-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: #1e293b;
+          margin: 0;
+        }
+        
+        .candidate-list {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        
+        /* Candidate Cards */
+        .candidate-card {
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 20px;
+          transition: all 0.2s ease;
+        }
+        
+        .candidate-card:hover {
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .candidate-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+        
+        .candidate-status {
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+        }
+        
+        .status-pending .candidate-status {
+          background: #fef3c7;
+          color: #92400e;
+        }
+        
+        .status-accepted .candidate-status {
+          background: #d1fae5;
+          color: #065f46;
+        }
+        
+        .status-rejected .candidate-status {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+        
+        .candidate-ref {
+          font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+          background: #f1f5f9;
+          color: #475569;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 500;
+        }
+        
+        .candidate-text {
+          color: #1e293b;
+          font-size: 15px;
+          line-height: 1.6;
+          margin: 0 0 16px 0;
+        }
+        
+        .candidate-meta {
+          display: flex;
+          gap: 24px;
+          margin-bottom: 16px;
+          font-size: 13px;
+          color: #64748b;
+        }
+        
+        .candidate-actions {
+          display: flex;
+          gap: 8px;
+          margin-top: 16px;
+        }
+        
+        .candidate-actions button {
+          padding: 8px 16px;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: 1px solid;
+        }
+        
+        .candidate-actions button:first-child {
+          background: #3b82f6;
+          color: white;
+          border-color: #3b82f6;
+        }
+        
+        .candidate-actions button:first-child:hover {
+          background: #2563eb;
+          border-color: #2563eb;
+        }
+        
+        .candidate-reject {
+          background: white;
+          color: #dc2626;
+          border-color: #dc2626;
+        }
+        
+        .candidate-reject:hover {
+          background: #dc2626;
+          color: white;
+        }
+        
+        .candidate-return {
+          background: white;
+          color: #059669;
+          border-color: #059669;
+        }
+        
+        .candidate-return:hover {
+          background: #059669;
+          color: white;
+        }
+        
+        .candidate-note {
+          background: #f0f9ff;
+          border: 1px solid #bae6fd;
+          color: #0c4a6e;
+          padding: 12px;
+          border-radius: 6px;
+          font-size: 14px;
+          margin-top: 16px;
+        }
+        
+        /* Diagram Specific Styles */
+        .diagram-candidates {
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+        
+        .diagram-info h3 {
+          font-size: 18px;
+          font-weight: 600;
+          color: #1e293b;
+          margin: 0 0 8px 0;
         }
         
         .diagram-description {
-          margin: 0 0 12px 0;
           color: #64748b;
           font-size: 14px;
+          margin: 0 0 12px 0;
+          line-height: 1.5;
         }
         
         .diagram-meta {
           display: flex;
-          gap: 16px;
+          gap: 20px;
           flex-wrap: wrap;
-          margin-bottom: 12px;
+          margin-bottom: 16px;
           font-size: 13px;
         }
         
@@ -627,42 +966,99 @@ export function AirGenRoute(): JSX.Element {
         .diagram-action {
           background: #f1f5f9;
           color: #475569;
-          padding: 2px 8px;
+          padding: 4px 8px;
           border-radius: 4px;
           font-size: 11px;
-          font-weight: 500;
+          font-weight: 600;
           text-transform: uppercase;
+          letter-spacing: 0.025em;
         }
         
         .diagram-reasoning {
-          margin-bottom: 16px;
+          margin-bottom: 20px;
         }
         
         .diagram-reasoning details {
           background: #f8fafc;
           border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          padding: 12px;
+          border-radius: 8px;
+          padding: 16px;
         }
         
         .diagram-reasoning summary {
           cursor: pointer;
           font-weight: 500;
           color: #475569;
-          margin-bottom: 8px;
+          margin-bottom: 12px;
+          user-select: none;
         }
         
         .diagram-reasoning p {
           margin: 0;
           color: #64748b;
           font-size: 14px;
-          line-height: 1.5;
+          line-height: 1.6;
         }
         
         .diagram-preview {
-          margin: 16px 0;
+          margin: 20px 0;
           border-radius: 8px;
           overflow: hidden;
+          border: 1px solid #e2e8f0;
+        }
+        
+        .hint {
+          color: #64748b;
+          font-style: italic;
+          text-align: center;
+          padding: 48px 24px;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+          .airgen-layout {
+            grid-template-columns: 340px 1fr;
+            gap: 20px;
+          }
+        }
+        
+        @media (max-width: 1024px) {
+          .airgen-layout {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+          
+          .airgen-chat {
+            position: static;
+          }
+          
+          .mode-selector {
+            padding: 16px;
+          }
+          
+          .form-section {
+            padding: 16px;
+          }
+        }
+        
+        @media (max-width: 768px) {
+          .airgen-container {
+            padding: 0 16px;
+          }
+          
+          .results-header {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          
+          .results-actions {
+            justify-content: stretch;
+          }
+          
+          .candidate-meta {
+            flex-direction: column;
+            gap: 8px;
+          }
         }
       `}</style>
     </div>

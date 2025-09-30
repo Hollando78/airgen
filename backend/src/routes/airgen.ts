@@ -10,203 +10,25 @@ import {
   RequirementCandidateRecord
 } from "../services/graph.js";
 import { draftCandidates } from "../services/drafting.js";
-import { writeRequirementMarkdown, slugify } from "../services/workspace.js";
-import { getDocument } from "../services/graph/documents.js";
-import { listRequirements } from "../services/graph/requirements.js";
+import { generateDiagram } from "../services/diagram-generation.js";
 import { 
-  getArchitectureBlocks, 
-  getArchitectureConnectors, 
-  getArchitectureDiagrams 
-} from "../services/graph/architecture.js";
-import { promises as fs } from "node:fs";
-import { join, resolve } from "node:path";
-import { config } from "../config.js";
+  createDiagramCandidate, 
+  listDiagramCandidates,
+  getDiagramCandidate,
+  updateDiagramCandidate,
+  mapDiagramCandidate
+} from "../services/graph/diagram-candidates.js";
+import {
+  createArchitectureDiagram,
+  createArchitectureBlock,
+  createArchitectureConnector
+} from "../services/graph.js";
+import { writeRequirementMarkdown, slugify } from "../services/workspace.js";
+import { extractDocumentContent } from "../services/document-content.js";
+import { extractDiagramContent } from "../services/diagram-content.js";
 
 const patternEnum = z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]);
 const verificationEnum = z.enum(["Test", "Analysis", "Inspection", "Demonstration"]);
-
-async function extractDocumentContent(
-  tenant: string, 
-  projectKey: string, 
-  attachment: { type: "native" | "surrogate"; documentSlug: string; sectionIds?: string[] }
-): Promise<string> {
-  const tenantSlug = slugify(tenant);
-  const projectSlug = slugify(projectKey);
-  
-  const document = await getDocument(tenantSlug, projectSlug, attachment.documentSlug);
-  if (!document) {
-    throw new Error(`Document not found: ${attachment.documentSlug}`);
-  }
-
-  if (attachment.type === "surrogate") {
-    // For surrogate documents, read the actual file content
-    if (!document.storagePath) {
-      throw new Error(`Surrogate document has no storage path: ${attachment.documentSlug}`);
-    }
-    
-    const baseDirectory = resolve(config.workspaceRoot, tenantSlug, projectSlug);
-    const absolutePath = resolve(baseDirectory, document.storagePath);
-    
-    try {
-      let content: string;
-      
-      if (document.mimeType === 'application/pdf') {
-        // Extract text from PDF using pdftotext (part of poppler-utils)
-        const { exec } = await import('node:child_process');
-        const { promisify } = await import('node:util');
-        const execAsync = promisify(exec);
-        
-        try {
-          // Try pdftotext first (if available)
-          const { stdout } = await execAsync(`pdftotext "${absolutePath}" -`);
-          content = stdout;
-        } catch (pdfError) {
-          // Fallback to LibreOffice for PDF conversion
-          try {
-            const tempDir = '/tmp';
-            const { stdout: convertOutput } = await execAsync(
-              `libreoffice --headless --convert-to txt --outdir "${tempDir}" "${absolutePath}"`
-            );
-            const txtFileName = document.storedFileName?.replace(/\.[^.]+$/, '.txt') || 'output.txt';
-            const txtPath = `${tempDir}/${txtFileName}`;
-            content = await fs.readFile(txtPath, 'utf-8');
-            // Clean up temporary file
-            await fs.unlink(txtPath).catch(() => {});
-          } catch (libreError) {
-            throw new Error(`Failed to extract text from PDF: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`);
-          }
-        }
-      } else {
-        // For other file types, read as text (works for .txt, .md, etc.)
-        content = await fs.readFile(absolutePath, 'utf-8');
-      }
-      
-      return `=== DOCUMENT: ${document.name} ===\n${content.trim()}\n\n`;
-    } catch (error) {
-      throw new Error(`Failed to read surrogate document: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  } else {
-    // For native documents, extract requirements
-    const requirements = await listRequirements(tenantSlug, projectSlug);
-    
-    // Filter by document slug and section IDs if specified
-    const filteredRequirements = requirements.filter(req => {
-      // Check if requirement belongs to the specified document
-      if (req.path && !req.path.includes(attachment.documentSlug)) {
-        return false;
-      }
-      // If section IDs are specified, we would need to add section filtering logic here
-      // For now, we'll include all requirements from the document
-      return true;
-    });
-    
-    if (filteredRequirements.length === 0) {
-      return `=== DOCUMENT: ${document.name} ===\n(No requirements found)\n\n`;
-    }
-    
-    const requirementTexts = filteredRequirements.map(req => 
-      `[${req.ref}] ${req.text}`
-    ).join('\n');
-    
-    return `=== DOCUMENT: ${document.name} ===\n${requirementTexts}\n\n`;
-  }
-}
-
-async function extractDiagramContent(
-  tenant: string,
-  projectKey: string, 
-  attachment: { type: "diagram"; diagramId: string; includeGeometry?: boolean; includeConnections?: boolean }
-): Promise<string> {
-  const tenantSlug = slugify(tenant);
-  const projectSlug = slugify(projectKey);
-  
-  try {
-    // Get diagram metadata
-    const diagrams = await getArchitectureDiagrams({ 
-      tenant: tenantSlug, 
-      projectKey: projectSlug
-    });
-    
-    const diagram = diagrams.find(d => d.id === attachment.diagramId);
-    if (!diagram) {
-      throw new Error(`Diagram not found: ${attachment.diagramId}`);
-    }
-    
-    // Get blocks and connectors
-    const [blocks, connectors] = await Promise.all([
-      getArchitectureBlocks({ 
-        tenant: tenantSlug, 
-        projectKey: projectSlug, 
-        diagramId: attachment.diagramId 
-      }),
-      getArchitectureConnectors({ 
-        tenant: tenantSlug, 
-        projectKey: projectSlug, 
-        diagramId: attachment.diagramId 
-      })
-    ]);
-    
-    let content = `=== DIAGRAM: ${diagram.name} ===\n`;
-    if (diagram.description) {
-      content += `Description: ${diagram.description}\n`;
-    }
-    content += `View: ${diagram.view}\n\n`;
-    
-    // Serialize blocks/components
-    if (blocks.length > 0) {
-      content += `COMPONENTS:\n`;
-      for (const block of blocks) {
-        content += `- [${block.kind}] ${block.name} (id: ${block.id})\n`;
-        if (block.description) {
-          content += `  Description: ${block.description}\n`;
-        }
-        if (block.stereotype) {
-          content += `  Stereotype: ${block.stereotype}\n`;
-        }
-        if (block.ports && block.ports.length > 0) {
-          const portList = block.ports.map(port => `${port.direction}[${port.name}]`).join(', ');
-          content += `  Ports: ${portList}\n`;
-        }
-        if (attachment.includeGeometry) {
-          content += `  Position: (${block.positionX}, ${block.positionY})\n`;
-          content += `  Size: ${block.sizeWidth}x${block.sizeHeight}\n`;
-        }
-        content += `\n`;
-      }
-    }
-    
-    // Serialize connections
-    if (attachment.includeConnections && connectors.length > 0) {
-      content += `CONNECTIONS:\n`;
-      for (const connector of connectors) {
-        const sourceBlock = blocks.find(b => b.id === connector.source);
-        const targetBlock = blocks.find(b => b.id === connector.target);
-        
-        if (sourceBlock && targetBlock) {
-          content += `- ${sourceBlock.name} → ${targetBlock.name} (${connector.kind}`;
-          if (connector.label) {
-            content += `: ${connector.label}`;
-          }
-          content += `)\n`;
-          
-          if (connector.sourcePortId && connector.targetPortId) {
-            const sourcePort = sourceBlock.ports?.find(p => p.id === connector.sourcePortId);
-            const targetPort = targetBlock.ports?.find(p => p.id === connector.targetPortId);
-            if (sourcePort && targetPort) {
-              content += `  From: ${sourceBlock.name}.${sourcePort.name} → ${targetBlock.name}.${targetPort.name}\n`;
-            }
-          }
-          content += `\n`;
-        }
-      }
-    }
-    
-    return content + `\n`;
-    
-  } catch (error) {
-    throw new Error(`Failed to extract diagram content: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
 
 function mapCandidate(record: RequirementCandidateRecord) {
   return {
@@ -231,7 +53,7 @@ function mapCandidate(record: RequirementCandidateRecord) {
 
 export default async function airgenRoutes(app: FastifyInstance) {
   const documentAttachmentSchema = z.object({
-    type: z.enum(["native", "surrogate"]),
+    type: z.enum(["native", "surrogate", "structured"]),
     documentSlug: z.string().min(1),
     sectionIds: z.array(z.string()).optional() // For native docs, specific sections
   });
@@ -250,6 +72,7 @@ export default async function airgenRoutes(app: FastifyInstance) {
     glossary: z.string().optional(),
     constraints: z.string().optional(),
     n: z.number().int().min(1).max(10).optional(),
+    mode: z.enum(["requirements", "diagram"]).optional(),
     attachedDocuments: z.array(documentAttachmentSchema).optional(),
     attachedDiagrams: z.array(diagramAttachmentSchema).optional()
   });
@@ -264,11 +87,14 @@ export default async function airgenRoutes(app: FastifyInstance) {
     // Extract document and diagram context if attachments are provided
     let documentContext = "";
     
+    const tenantSlug = slugify(body.tenant);
+    const projectSlug = slugify(body.projectKey);
+
     // Process document attachments
     if (body.attachedDocuments && body.attachedDocuments.length > 0) {
       try {
         const contextPromises = body.attachedDocuments.map(attachment =>
-          extractDocumentContent(body.tenant, body.projectKey, attachment)
+          extractDocumentContent(tenantSlug, projectSlug, attachment)
         );
         const contexts = await Promise.all(contextPromises);
         documentContext += contexts.join("");
@@ -281,25 +107,72 @@ export default async function airgenRoutes(app: FastifyInstance) {
         });
       }
     }
-    
+
     // Process diagram attachments
     if (body.attachedDiagrams && body.attachedDiagrams.length > 0) {
       try {
         const diagramPromises = body.attachedDiagrams.map(attachment =>
-          extractDiagramContent(body.tenant, body.projectKey, attachment)
+          extractDiagramContent(tenantSlug, projectSlug, attachment)
         );
         const diagramContexts = await Promise.all(diagramPromises);
         documentContext += diagramContexts.join("");
       } catch (error) {
         req.log.error({ err: error }, "Failed to extract diagram context");
         return reply.status(400).send({
-          error: "Bad Request", 
+          error: "Bad Request",
           message: "Failed to process attached diagrams.",
           detail: error instanceof Error ? error.message : undefined
         });
       }
     }
 
+    const mode = body.mode || "requirements";
+
+    if (mode === "diagram") {
+      // Generate diagram candidate
+      try {
+        const diagramAction = body.attachedDiagrams && body.attachedDiagrams.length > 0 ? "update" : "create";
+        const diagramResponse = await generateDiagram({
+          user_input: body.user_input,
+          glossary: body.glossary,
+          constraints: body.constraints,
+          mode: diagramAction,
+          existingDiagramContext: documentContext || undefined,
+          documentContext: documentContext || undefined
+        });
+
+        // Create a diagram candidate record in the database
+        const diagramCandidate = await createDiagramCandidate({
+          tenant: tenantSlug,
+          projectKey: projectSlug,
+          status: "pending",
+          action: diagramResponse.action,
+          diagramId: body.attachedDiagrams?.[0]?.diagramId,
+          diagramName: diagramResponse.diagramName,
+          diagramDescription: diagramResponse.diagramDescription,
+          diagramView: diagramResponse.diagramView || "block",
+          blocks: diagramResponse.blocks,
+          connectors: diagramResponse.connectors,
+          reasoning: diagramResponse.reasoning,
+          prompt: body.user_input,
+          querySessionId
+        });
+
+        return {
+          prompt: body.user_input,
+          candidate: diagramCandidate
+        };
+      } catch (error) {
+        req.log.error({ err: error }, "Failed to generate diagram candidate");
+        return reply.status(502).send({
+          error: "Bad Gateway",
+          message: "Failed to generate diagram candidate.",
+          detail: error instanceof Error ? error.message : undefined
+        });
+      }
+    }
+
+    // Default requirements mode
     let drafts: string[];
     try {
       drafts = await draftCandidates({
@@ -325,8 +198,8 @@ export default async function airgenRoutes(app: FastifyInstance) {
 
     const created = await createRequirementCandidates(
       analyzed.map(item => ({
-        tenant: slugify(body.tenant),
-        projectKey: slugify(body.projectKey),
+        tenant: tenantSlug,
+        projectKey: projectSlug,
         text: item.text,
         qaScore: item.qa.score,
         qaVerdict: item.qa.verdict,
@@ -510,6 +383,164 @@ export default async function airgenRoutes(app: FastifyInstance) {
       req.log.error({ err: error, candidateId: candidate.id }, "Failed to accept candidate");
       return reply.status(500).send({
         error: "Failed to accept candidate requirement.",
+        detail: error instanceof Error ? error.message : undefined
+      });
+    }
+  });
+
+  // Diagram candidate endpoints
+  app.get("/airgen/diagram-candidates/:tenant/:project", { preHandler: [app.authenticate] }, async (req) => {
+    const params = listParams.parse(req.params);
+    const items = await listDiagramCandidates(params.tenant, params.project);
+    return { items };
+  });
+
+  app.post("/airgen/diagram-candidates/:id/reject", { preHandler: [app.authenticate] }, async (req, reply) => {
+    const params = rejectParams.parse(req.params);
+    const body = rejectBody.parse(req.body);
+
+    const candidate = await getDiagramCandidate(params.id);
+    if (!candidate) {
+      return reply.status(404).send({ error: "Diagram candidate not found" });
+    }
+
+    const tenantSlug = slugify(body.tenant);
+    const projectSlug = slugify(body.projectKey);
+    if (candidate.tenant !== tenantSlug || candidate.projectKey !== projectSlug) {
+      return reply.status(400).send({ error: "Diagram candidate does not belong to the provided tenant/project" });
+    }
+    if (candidate.status !== "pending") {
+      return reply.status(400).send({ error: "Only pending diagram candidates can be rejected" });
+    }
+
+    const updated = await updateDiagramCandidate(candidate.id, { status: "rejected" });
+    return { candidate: updated ?? candidate };
+  });
+
+  app.post("/airgen/diagram-candidates/:id/return", { preHandler: [app.authenticate] }, async (req, reply) => {
+    const params = returnParams.parse(req.params);
+    const body = returnBody.parse(req.body);
+
+    const candidate = await getDiagramCandidate(params.id);
+    if (!candidate) {
+      return reply.status(404).send({ error: "Diagram candidate not found" });
+    }
+
+    const tenantSlug = slugify(body.tenant);
+    const projectSlug = slugify(body.projectKey);
+    if (candidate.tenant !== tenantSlug || candidate.projectKey !== projectSlug) {
+      return reply.status(400).send({ error: "Diagram candidate does not belong to the provided tenant/project" });
+    }
+    if (candidate.status !== "rejected") {
+      return reply.status(400).send({ error: "Only rejected diagram candidates can be returned to pending" });
+    }
+
+    const updated = await updateDiagramCandidate(candidate.id, { status: "pending" });
+    return { candidate: updated ?? candidate };
+  });
+
+  const acceptDiagramBody = z.object({
+    tenant: z.string().min(1),
+    projectKey: z.string().min(1),
+    diagramName: z.string().optional(),
+    diagramDescription: z.string().optional()
+  });
+
+  app.post("/airgen/diagram-candidates/:id/accept", { preHandler: [app.authenticate] }, async (req, reply) => {
+    const params = acceptParams.parse(req.params);
+    const body = acceptDiagramBody.parse(req.body);
+
+    const candidate = await getDiagramCandidate(params.id);
+    if (!candidate) {
+      return reply.status(404).send({ error: "Diagram candidate not found" });
+    }
+
+    const tenantSlug = slugify(body.tenant);
+    const projectSlug = slugify(body.projectKey);
+    if (candidate.tenant !== tenantSlug || candidate.projectKey !== projectSlug) {
+      return reply.status(400).send({ error: "Diagram candidate does not belong to the provided tenant/project" });
+    }
+    if (candidate.status !== "pending") {
+      return reply.status(400).send({ error: "Only pending diagram candidates can be accepted" });
+    }
+
+    try {
+      let diagramId = candidate.diagramId;
+      
+      // Create new diagram if action is "create"
+      if (candidate.action === "create") {
+        const newDiagram = await createArchitectureDiagram({
+          tenant: body.tenant,
+          projectKey: body.projectKey,
+          name: body.diagramName || candidate.diagramName || "Generated Diagram",
+          description: body.diagramDescription || candidate.diagramDescription || undefined,
+          view: candidate.diagramView as "block" | "internal" | "deployment" || "block"
+        });
+        diagramId = newDiagram.id;
+      }
+      
+      // Create blocks and connectors if we have a diagram ID
+      if (diagramId && candidate.blocks && candidate.connectors) {
+        // Create blocks first and track their IDs
+        const blockIdMap = new Map<string, string>(); // original name -> created ID
+        
+        for (const block of candidate.blocks) {
+          if (!block.action || block.action === "create") {
+            const createdBlock = await createArchitectureBlock({
+              tenant: body.tenant,
+              projectKey: body.projectKey,
+              diagramId,
+              name: block.name,
+              kind: block.kind as any,
+              stereotype: block.stereotype,
+              description: block.description,
+              positionX: block.positionX,
+              positionY: block.positionY,
+              sizeWidth: block.sizeWidth || 150,
+              sizeHeight: block.sizeHeight || 100,
+              ports: block.ports?.map(p => ({ ...p, direction: p.direction as "in" | "out" | "inout" })) || [],
+              documentIds: []
+            });
+            blockIdMap.set(block.name, createdBlock.id);
+          }
+        }
+        
+        // Create connectors using the mapped block IDs
+        for (const connector of candidate.connectors) {
+          if (!connector.action || connector.action === "create") {
+            const sourceBlockId = blockIdMap.get(connector.source);
+            const targetBlockId = blockIdMap.get(connector.target);
+            
+            if (sourceBlockId && targetBlockId) {
+              await createArchitectureConnector({
+                tenant: body.tenant,
+                projectKey: body.projectKey,
+                diagramId,
+                source: sourceBlockId,
+                target: targetBlockId,
+                kind: connector.kind as any,
+                label: connector.label,
+                sourcePortId: connector.sourcePortId,
+                targetPortId: connector.targetPortId
+              });
+            }
+          }
+        }
+      }
+      
+      // Mark candidate as accepted and store the diagram ID
+      const updated = await updateDiagramCandidate(candidate.id, { 
+        status: "accepted",
+        diagramId,
+        diagramName: body.diagramName || candidate.diagramName,
+        diagramDescription: body.diagramDescription || candidate.diagramDescription
+      });
+      
+      return { candidate: updated ?? candidate, diagramId };
+    } catch (error) {
+      req.log.error({ err: error, candidateId: candidate.id }, "Failed to accept diagram candidate");
+      return reply.status(500).send({
+        error: "Failed to accept diagram candidate.",
         detail: error instanceof Error ? error.message : undefined
       });
     }

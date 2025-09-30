@@ -44,19 +44,140 @@ const draftSchema = z.object({
 });
 
 export default async function registerCoreRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/health", async () => ({
-    ok: true,
-    env: config.environment,
-    workspace: config.workspaceRoot,
-    time: new Date().toISOString()
-  }));
+  app.get("/health", {
+    schema: {
+      tags: ["core"],
+      summary: "Health check endpoint",
+      description: "Returns system health status and metrics",
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean" },
+            timestamp: { type: "string" },
+            uptime: { type: "number" },
+            environment: { type: "string" },
+            version: { type: "string" },
+            memory: {
+              type: "object",
+              properties: {
+                heapUsedMB: { type: "number" },
+                heapTotalMB: { type: "number" },
+                rssMB: { type: "number" }
+              }
+            },
+            services: {
+              type: "object",
+              properties: {
+                database: { type: "string" },
+                llm: { type: "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async () => {
+    const memUsage = process.memoryUsage();
 
-  app.get("/tenants", { preHandler: [app.authenticate] }, async () => {
+    // Check Neo4j connectivity
+    let dbStatus = "unknown";
+    try {
+      const { getSession } = await import("../services/graph/driver.js");
+      const session = getSession();
+      await session.run("RETURN 1");
+      await session.close();
+      dbStatus = "connected";
+    } catch (error) {
+      dbStatus = "disconnected";
+    }
+
+    return {
+      ok: true,
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: config.environment,
+      version: "0.1.0",
+      memory: {
+        heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024 * 100) / 100,
+        heapTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024 * 100) / 100,
+        rssMB: Math.round(memUsage.rss / 1024 / 1024 * 100) / 100
+      },
+      services: {
+        database: dbStatus,
+        llm: isLlmConfigured() ? "configured" : "not-configured"
+      }
+    };
+  });
+
+  app.get("/tenants", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "List all tenants",
+      description: "Retrieves all tenants with project counts",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            tenants: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  slug: { type: "string" },
+                  name: { type: "string", nullable: true },
+                  createdAt: { type: "string", nullable: true },
+                  projectCount: { type: "number" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async () => {
     const tenants = await listTenants();
     return { tenants };
   });
 
-  app.get("/tenants/:tenant/projects", { preHandler: [app.authenticate] }, async (req) => {
+  app.get("/tenants/:tenant/projects", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "List projects for a tenant",
+      description: "Retrieves all projects for a specific tenant with requirement counts",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        required: ["tenant"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            projects: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  slug: { type: "string" },
+                  tenantSlug: { type: "string" },
+                  key: { type: "string", nullable: true },
+                  createdAt: { type: "string", nullable: true },
+                  requirementCount: { type: "number" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (req) => {
     const paramsSchema = z.object({ tenant: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
     const projects = await listProjects(params.tenant);
@@ -64,17 +185,60 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
   });
 
   // Admin-only tenant management endpoints
-  app.post("/tenants", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.post("/tenants", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "Create a new tenant",
+      description: "Creates a new tenant (admin only)",
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: "object",
+        required: ["slug"],
+        properties: {
+          slug: { type: "string", minLength: 1, description: "Tenant slug identifier" },
+          name: { type: "string", description: "Display name for tenant" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            tenant: {
+              type: "object",
+              properties: {
+                slug: { type: "string" },
+                name: { type: "string", nullable: true },
+                createdAt: { type: "string", nullable: true }
+              }
+            }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     if (!req.currentUser?.roles.includes('admin')) {
       return reply.status(403).send({ error: "Admin access required" });
     }
-    
+
     const schema = z.object({
       slug: z.string().min(1),
       name: z.string().optional()
     });
     const body = schema.parse(req.body);
-    
+
     try {
       const tenant = await createTenant(body);
       return { tenant };
@@ -83,37 +247,123 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     }
   });
 
-  app.delete("/tenants/:tenant", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.delete("/tenants/:tenant", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "Delete a tenant",
+      description: "Deletes a tenant and all associated data (admin only)",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        required: ["tenant"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        404: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     if (!req.currentUser?.roles.includes('admin')) {
       return reply.status(403).send({ error: "Admin access required" });
     }
-    
+
     const paramsSchema = z.object({ tenant: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
-    
+
     const success = await deleteTenant(params.tenant);
     if (!success) {
       return reply.status(404).send({ error: "Tenant not found" });
     }
-    
+
     return { success: true };
   });
 
   // Admin-only project management endpoints
-  app.post("/tenants/:tenant/projects", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.post("/tenants/:tenant/projects", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "Create a new project",
+      description: "Creates a new project within a tenant (admin only)",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        required: ["tenant"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" }
+        }
+      },
+      body: {
+        type: "object",
+        required: ["slug"],
+        properties: {
+          slug: { type: "string", minLength: 1, description: "Project slug identifier" },
+          key: { type: "string", description: "Project key (e.g., PROJ)" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            project: {
+              type: "object",
+              properties: {
+                slug: { type: "string" },
+                tenantSlug: { type: "string" },
+                key: { type: "string", nullable: true },
+                createdAt: { type: "string", nullable: true }
+              }
+            }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     if (!req.currentUser?.roles.includes('admin')) {
       return reply.status(403).send({ error: "Admin access required" });
     }
-    
+
     const paramsSchema = z.object({ tenant: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
-    
+
     const schema = z.object({
       slug: z.string().min(1),
       key: z.string().optional()
     });
     const body = schema.parse(req.body);
-    
+
     try {
       const project = await createProject({
         tenantSlug: params.tenant,
@@ -126,32 +376,165 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     }
   });
 
-  app.delete("/tenants/:tenant/projects/:project", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.delete("/tenants/:tenant/projects/:project", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "Delete a project",
+      description: "Deletes a project and all associated data (admin only)",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        required: ["tenant", "project"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        404: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     if (!req.currentUser?.roles.includes('admin')) {
       return reply.status(403).send({ error: "Admin access required" });
     }
-    
-    const paramsSchema = z.object({ 
+
+    const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
-    
+
     const success = await deleteProject(params.tenant, params.project);
     if (!success) {
       return reply.status(404).send({ error: "Project not found" });
     }
-    
+
     return { success: true };
   });
 
-  app.post("/qa", { preHandler: [app.authenticate] }, async (req) => {
+  app.post("/qa", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "Analyze requirement quality",
+      description: "Performs quality analysis on requirement text using @airgen/req-qa",
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: "object",
+        required: ["text"],
+        properties: {
+          text: { type: "string", minLength: 1, description: "Requirement text to analyze" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            quality: { type: "string", description: "Quality rating" },
+            issues: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  type: { type: "string" },
+                  message: { type: "string" },
+                  severity: { type: "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (req) => {
     const schema = z.object({ text: z.string().min(1) });
     const body = schema.parse(req.body);
     return analyzeRequirement(body.text);
   });
 
-  app.post<{ Body: DraftBody }>("/draft", { preHandler: [app.authenticate] }, async (req) => {
+  app.post<{ Body: DraftBody }>("/draft", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "Generate requirement drafts",
+      description: "Generates requirement drafts using heuristics and optionally LLM",
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: "object",
+        required: ["need"],
+        properties: {
+          need: { type: "string", minLength: 12, description: "Need context (≥12 characters)" },
+          pattern: {
+            type: "string",
+            enum: ["ubiquitous", "event", "state", "unwanted", "optional"],
+            description: "Requirement pattern"
+          },
+          verification: {
+            type: "string",
+            enum: ["Test", "Analysis", "Inspection", "Demonstration"],
+            description: "Verification method"
+          },
+          count: { type: "integer", minimum: 1, maximum: 20, description: "Number of drafts to generate" },
+          actor: { type: "string", minLength: 1, description: "Actor for event pattern" },
+          system: { type: "string", minLength: 1, description: "System for event pattern" },
+          trigger: { type: "string", minLength: 1, description: "Trigger for event pattern" },
+          response: { type: "string", minLength: 1, description: "Response for event pattern" },
+          constraint: { type: "string", minLength: 1, description: "Constraint for event pattern" },
+          useLlm: { type: "boolean", description: "Use LLM for draft generation" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  text: { type: "string" },
+                  source: { type: "string" }
+                }
+              }
+            },
+            meta: {
+              type: "object",
+              properties: {
+                heuristics: { type: "number" },
+                llm: {
+                  type: "object",
+                  properties: {
+                    requested: { type: "boolean" },
+                    provided: { type: "number" },
+                    error: { type: "string", nullable: true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, async (req) => {
     const body = draftSchema.parse(req.body);
     const heuristicDrafts = generateDrafts(body);
     let llmDrafts: typeof heuristicDrafts = [];
@@ -183,7 +566,36 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     };
   });
 
-  app.post("/apply-fix", { preHandler: [app.authenticate] }, async (req) => {
+  app.post("/apply-fix", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "Apply quality fixes to requirement",
+      description: "Applies automatic fixes to improve requirement quality based on QA analysis",
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: "object",
+        required: ["text"],
+        properties: {
+          text: { type: "string", minLength: 1, description: "Requirement text to fix" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            before: { type: "string", description: "Original text" },
+            after: { type: "string", description: "Fixed text" },
+            notes: {
+              type: "array",
+              items: { type: "string" },
+              description: "List of changes made"
+            }
+          }
+        }
+      }
+    }
+  }, async (req) => {
     const schema = z.object({ text: z.string().min(1) });
     const { text } = schema.parse(req.body);
     const lower = text.toLowerCase();

@@ -55,7 +55,7 @@ export type DocumentSectionRecord = {
   updatedAt: string;
 };
 
-function mapDocument(node: Neo4jNode, requirementCount?: number): DocumentRecord {
+export function mapDocument(node: Neo4jNode, requirementCount?: number): DocumentRecord {
   const props = node.properties as Record<string, unknown>;
   return {
     id: String(props.id),
