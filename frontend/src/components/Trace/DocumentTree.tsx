@@ -4,7 +4,7 @@ import { useApiClient } from "../../lib/client";
 import { useTenantProject } from "../../hooks/useTenantProject";
 import { Spinner } from "../Spinner";
 import { ErrorState } from "../ErrorState";
-import type { DocumentRecord, RequirementRecord } from "../../types";
+import type { DocumentRecord, RequirementRecord, TraceLink } from "../../types";
 
 export interface DocumentTreeProps {
   document: DocumentRecord | null;
@@ -15,6 +15,8 @@ export interface DocumentTreeProps {
   onDragOver: (event: React.DragEvent) => void;
   onDragLeave: (event: React.DragEvent) => void;
   onDrop: (event: React.DragEvent, requirement: RequirementRecord) => void;
+  traceLinks?: TraceLink[];
+  documentSide?: "left" | "right";
 }
 
 export function DocumentTree({
@@ -25,7 +27,9 @@ export function DocumentTree({
   onDragStart,
   onDragOver,
   onDragLeave,
-  onDrop
+  onDrop,
+  traceLinks = [],
+  documentSide
 }: DocumentTreeProps): JSX.Element {
   const api = useApiClient();
   const { state } = useTenantProject();
@@ -69,6 +73,17 @@ export function DocumentTree({
     onContextMenu(requirement, event);
   };
 
+  const getRequirementLinkInfo = (requirementId: string) => {
+    const outgoingLinks = traceLinks.filter(link => link.sourceRequirementId === requirementId);
+    const incomingLinks = traceLinks.filter(link => link.targetRequirementId === requirementId);
+    return {
+      hasOutgoing: outgoingLinks.length > 0,
+      hasIncoming: incomingLinks.length > 0,
+      outgoingCount: outgoingLinks.length,
+      incomingCount: incomingLinks.length
+    };
+  };
+
   if (!document) {
     return <div className="document-tree-empty">Select a document to view its requirements</div>;
   }
@@ -109,32 +124,54 @@ export function DocumentTree({
 
                 {requirements.length > 0 && (
                   <div className="requirements-list">
-                    {requirements.map(requirement => (
-                      <div
-                        key={requirement.id}
-                        data-requirement-id={requirement.id}
-                        className={`requirement-node ${
-                          selectedRequirements.has(requirement.id) ? "selected" : ""
-                        }`}
-                        draggable
-                        onClick={event => handleRequirementClick(requirement, event)}
-                        onContextMenu={event => handleContextMenuInternal(requirement, event)}
-                        onDragStart={() => onDragStart(requirement)}
-                        onDragOver={onDragOver}
-                        onDragLeave={onDragLeave}
-                        onDrop={event => onDrop(event, requirement)}
-                        title={requirement.text}
-                      >
-                        <div className="requirement-content">
-                          <span className="requirement-ref">{requirement.ref}</span>
-                          <span className="requirement-title">{requirement.title}</span>
-                          <span className="requirement-text">{requirement.text}</span>
+                    {requirements.map(requirement => {
+                      const linkInfo = getRequirementLinkInfo(requirement.id);
+                      return (
+                        <div
+                          key={requirement.id}
+                          data-requirement-id={requirement.id}
+                          className={`requirement-node ${
+                            selectedRequirements.has(requirement.id) ? "selected" : ""
+                          } ${linkInfo.hasOutgoing || linkInfo.hasIncoming ? "has-links" : ""}`}
+                          draggable
+                          onClick={event => handleRequirementClick(requirement, event)}
+                          onContextMenu={event => handleContextMenuInternal(requirement, event)}
+                          onDragStart={() => onDragStart(requirement)}
+                          onDragOver={onDragOver}
+                          onDragLeave={onDragLeave}
+                          onDrop={event => onDrop(event, requirement)}
+                          title={requirement.text}
+                        >
+                          <div className="requirement-content">
+                            <span className="requirement-ref">{requirement.ref}</span>
+                            <span className="requirement-title">{requirement.title}</span>
+                            <span className="requirement-text">{requirement.text}</span>
+                          </div>
+                          
+                          <div className="requirement-indicators">
+                            {linkInfo.hasIncoming && (
+                              <div className="link-indicator incoming" title={`${linkInfo.incomingCount} incoming link${linkInfo.incomingCount > 1 ? 's' : ''}`}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                                </svg>
+                                <span className="link-count">{linkInfo.incomingCount}</span>
+                              </div>
+                            )}
+                            {linkInfo.hasOutgoing && (
+                              <div className="link-indicator outgoing" title={`${linkInfo.outgoingCount} outgoing link${linkInfo.outgoingCount > 1 ? 's' : ''}`}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>
+                                <span className="link-count">{linkInfo.outgoingCount}</span>
+                              </div>
+                            )}
+                            {selectedRequirements.has(requirement.id) && (
+                              <div className="selection-indicator">✓</div>
+                            )}
+                          </div>
                         </div>
-                        {selectedRequirements.has(requirement.id) && (
-                          <div className="selection-indicator">✓</div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

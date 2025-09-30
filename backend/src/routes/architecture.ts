@@ -70,7 +70,7 @@ const architectureDiagramSchema = z.object({
   projectKey: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
-  view: z.enum(["block", "internal", "deployment"]).optional()
+  view: z.enum(["block", "internal", "deployment", "requirements_schema"]).optional()
 });
 
 export default async function registerArchitectureRoutes(app: FastifyInstance): Promise<void> {
@@ -110,7 +110,7 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     const bodySchema = z.object({
       name: z.string().min(1).optional(),
       description: z.string().optional(),
-      view: z.enum(["block", "internal", "deployment"]).optional()
+      view: z.enum(["block", "internal", "deployment", "requirements_schema"]).optional()
     });
 
     const params = paramsSchema.parse(req.params);

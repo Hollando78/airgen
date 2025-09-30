@@ -3,5 +3,5 @@ export * from "./graph/requirements.js";
 export * from "./graph/requirement-candidates.js";
 export * from "./graph/requirement-baselines.js";
 export * from "./graph/documents.js";
-export * from "./graph/architecture.js";
+export * from "./graph/architecture/index.js";
 export * from "./graph/trace.js";

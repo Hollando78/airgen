@@ -41,6 +41,9 @@ import type {
   CreateArchitectureConnectorRequest,
   CreateTraceLinkRequest,
   TraceLink,
+  DocumentLinkset,
+  CreateLinksetRequest,
+  AddLinkToLinksetRequest,
   DevUserListResponse,
   DevUserResponse,
   DiagramCandidate
@@ -299,9 +302,9 @@ export function useApiClient() {
         request<ArchitectureDiagramsResponse>(`/architecture/diagrams/${tenant}/${project}`),
       listArchitectureBlockLibrary: (tenant: string, project: string) =>
         request<ArchitectureBlockLibraryResponse>(`/architecture/block-library/${tenant}/${project}`),
-      createArchitectureDiagram: (body: { tenant: string; projectKey: string; name: string; description?: string; view?: "block" | "internal" | "deployment" }) =>
+      createArchitectureDiagram: (body: { tenant: string; projectKey: string; name: string; description?: string; view?: "block" | "internal" | "deployment" | "requirements_schema" }) =>
         request<ArchitectureDiagramResponse>(`/architecture/diagrams`, { method: "POST", body: JSON.stringify(body) }),
-      updateArchitectureDiagram: (tenant: string, project: string, diagramId: string, body: { name?: string; description?: string; view?: "block" | "internal" | "deployment" }) =>
+      updateArchitectureDiagram: (tenant: string, project: string, diagramId: string, body: { name?: string; description?: string; view?: "block" | "internal" | "deployment" | "requirements_schema" }) =>
         request<ArchitectureDiagramResponse>(`/architecture/diagrams/${tenant}/${project}/${diagramId}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteArchitectureDiagram: (tenant: string, project: string, diagramId: string) =>
         request<{ success: boolean }>(`/architecture/diagrams/${tenant}/${project}/${diagramId}`, { method: "DELETE" }),
@@ -330,6 +333,21 @@ export function useApiClient() {
         request<{ traceLinks: TraceLink[] }>(`/trace-links/${tenant}/${project}/${requirementId}`),
       deleteTraceLink: (tenant: string, project: string, linkId: string) =>
         request<{ success: boolean }>(`/trace-links/${tenant}/${project}/${linkId}`, { method: "DELETE" }),
+      
+      // Linkset API methods
+      listLinksets: (tenant: string, project: string) =>
+        request<{ linksets: DocumentLinkset[] }>(`/linksets/${tenant}/${project}`),
+      getLinkset: (tenant: string, project: string, sourceDoc: string, targetDoc: string) =>
+        request<{ linkset: DocumentLinkset }>(`/linksets/${tenant}/${project}/${sourceDoc}/${targetDoc}`),
+      createLinkset: (tenant: string, project: string, body: CreateLinksetRequest) =>
+        request<{ linkset: DocumentLinkset }>(`/linksets/${tenant}/${project}`, { method: "POST", body: JSON.stringify(body) }),
+      addLinkToLinkset: (tenant: string, project: string, linksetId: string, body: AddLinkToLinksetRequest) =>
+        request<{ linkset: DocumentLinkset }>(`/linksets/${tenant}/${project}/${linksetId}/links`, { method: "POST", body: JSON.stringify(body) }),
+      removeLinkFromLinkset: (tenant: string, project: string, linksetId: string, linkId: string) =>
+        request<{ linkset: DocumentLinkset }>(`/linksets/${tenant}/${project}/${linksetId}/links/${linkId}`, { method: "DELETE" }),
+      deleteLinkset: (tenant: string, project: string, linksetId: string) =>
+        request<{ success: boolean }>(`/linksets/${tenant}/${project}/${linksetId}`, { method: "DELETE" }),
+      
       // Dev admin utilities (development only)
       listDevUsers: () => request<DevUserListResponse>(`/dev/admin/users`),
       createDevUser: (body: { email: string; name?: string; password?: string; roles?: string[]; tenantSlugs?: string[] }) =>

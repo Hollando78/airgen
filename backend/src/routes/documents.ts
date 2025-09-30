@@ -340,7 +340,33 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     return reply.status(201).send({ document: responseDocument });
   });
 
-  app.post("/documents", async (req) => {
+  app.post("/documents", {
+    schema: {
+      tags: ["documents"],
+      summary: "Create a new document",
+      description: "Creates a new document record",
+      body: {
+        type: "object",
+        required: ["tenant", "projectKey", "name"],
+        properties: {
+          tenant: { type: "string", minLength: 1 },
+          projectKey: { type: "string", minLength: 1 },
+          name: { type: "string", minLength: 1 },
+          description: { type: "string" },
+          shortCode: { type: "string" },
+          parentFolder: { type: "string" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            document: { type: "object" }
+          }
+        }
+      }
+    }
+  }, async (req) => {
     const payload = documentSchema.parse(req.body);
     const document = await createDocument({
       tenant: payload.tenant,
@@ -365,7 +391,29 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     return { document: documentWithDownload };
   });
 
-  app.get("/documents/:tenant/:project", async (req) => {
+  app.get("/documents/:tenant/:project", {
+    schema: {
+      tags: ["documents"],
+      summary: "List documents",
+      description: "Lists all documents for a project",
+      params: {
+        type: "object",
+        required: ["tenant", "project"],
+        properties: {
+          tenant: { type: "string" },
+          project: { type: "string" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            documents: { type: "array", items: { type: "object" } }
+          }
+        }
+      }
+    }
+  }, async (req) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
     const documents = await listDocuments(params.tenant, params.project);
@@ -539,7 +587,36 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     return { document: documentWithDownload };
   });
 
-  app.delete("/documents/:tenant/:project/:documentSlug", async (req, reply) => {
+  app.delete("/documents/:tenant/:project/:documentSlug", {
+    schema: {
+      tags: ["documents"],
+      summary: "Delete a document",
+      description: "Soft deletes a document",
+      params: {
+        type: "object",
+        required: ["tenant", "project", "documentSlug"],
+        properties: {
+          tenant: { type: "string" },
+          project: { type: "string" },
+          documentSlug: { type: "string" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            document: { type: "object" }
+          }
+        },
+        404: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
