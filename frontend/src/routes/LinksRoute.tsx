@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { useTenantProject } from "../hooks/useTenantProject";
@@ -6,6 +7,13 @@ import { ErrorState } from "../components/ErrorState";
 import { Spinner } from "../components/Spinner";
 import { DocumentTree } from "../components/Trace/DocumentTree";
 import { VisualLinksArea } from "../components/Trace/VisualLinksArea";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Label } from "../components/ui/label";
+import { Textarea } from "../components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
 import type { 
   DocumentRecord, 
   RequirementRecord, 
@@ -25,36 +33,22 @@ interface ContextMenuProps {
 }
 
 function ContextMenu({ isOpen, x, y, requirement, onClose, onStartLink, onLinkFromStart }: ContextMenuProps): JSX.Element {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isOpen, onClose]);
-
   if (!isOpen || !requirement) return <></>;
 
   return (
-    <div 
-      ref={menuRef}
-      className="context-menu"
-      style={{ left: x, top: y }}
-    >
-      <div className="context-menu-item" onClick={onStartLink}>
-        🔗 Start link from here
-      </div>
-      <div className="context-menu-item" onClick={onLinkFromStart}>
-        ➡️ Link to here
-      </div>
-    </div>
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DropdownMenuContent
+        className="w-48"
+        style={{ position: 'fixed', left: x, top: y }}
+      >
+        <DropdownMenuItem onClick={onStartLink}>
+          🔗 Start link from here
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onLinkFromStart}>
+          ➡️ Link to here
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -85,63 +79,74 @@ function LinkConfirmationModal({ isOpen, sourceRequirements, targetRequirements,
     setDescription('');
   };
 
-  if (!isOpen) return <></>;
-
   return (
-    <div className="modal-overlay">
-      <div className="link-modal">
-        <div className="modal-header">
-          <h3>Confirm Trace Link Creation</h3>
-          <button className="modal-close" onClick={onCancel}>×</button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Confirm Trace Link Creation</DialogTitle>
+          <DialogDescription>
+            Create relationships between the selected requirements
+          </DialogDescription>
+        </DialogHeader>
         
-        <div className="modal-content">
-          <div className="link-summary">
-            <div className="requirements-section">
-              <h4>From ({sourceRequirements.length}):</h4>
-              <div className="requirements-list">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">From ({sourceRequirements.length})</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
                 {sourceRequirements.map(req => (
-                  <div key={req.id} className="req-item">
-                    <span className="req-ref">{req.ref}</span>
-                    <span className="req-title">{req.title}</span>
+                  <div key={req.id} className="flex flex-col space-y-1">
+                    <span className="font-mono text-xs text-muted-foreground">{req.ref}</span>
+                    <span className="text-sm">{req.title}</span>
                   </div>
                 ))}
-              </div>
+              </CardContent>
+            </Card>
+            
+            <div className="flex justify-center">
+              <div className="text-2xl text-muted-foreground">→</div>
             </div>
             
-            <div className="link-arrow-large">→</div>
-            
-            <div className="requirements-section">
-              <h4>To ({targetRequirements.length}):</h4>
-              <div className="requirements-list">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">To ({targetRequirements.length})</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
                 {targetRequirements.map(req => (
-                  <div key={req.id} className="req-item">
-                    <span className="req-ref">{req.ref}</span>
-                    <span className="req-title">{req.title}</span>
+                  <div key={req.id} className="flex flex-col space-y-1">
+                    <span className="font-mono text-xs text-muted-foreground">{req.ref}</span>
+                    <span className="text-sm">{req.title}</span>
                   </div>
                 ))}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
           
-          <div className="link-configuration">
-            <div className="form-field">
-              <label>Link Type:</label>
-              <select value={linkType} onChange={(e) => setLinkType(e.target.value as TraceLinkType)}>
-                {linkTypes.map(type => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-              <div className="field-help">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Link Type</Label>
+              <Select value={linkType} onValueChange={(value) => setLinkType(value as TraceLinkType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {linkTypes.map(type => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
                 {linkTypes.find(t => t.value === linkType)?.description}
-              </div>
+              </p>
             </div>
             
-            <div className="form-field">
-              <label>Description (optional):</label>
-              <textarea
+            <div className="space-y-2">
+              <Label>Description (optional)</Label>
+              <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Additional notes about this relationship..."
@@ -151,16 +156,16 @@ function LinkConfirmationModal({ isOpen, sourceRequirements, targetRequirements,
           </div>
         </div>
         
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onCancel}>
+        <div className="flex justify-end space-x-2 pt-4">
+          <Button variant="outline" onClick={onCancel}>
             Cancel
-          </button>
-          <button className="btn-primary" onClick={handleConfirm}>
+          </Button>
+          <Button onClick={handleConfirm}>
             Create {sourceRequirements.length * targetRequirements.length} Link{sourceRequirements.length * targetRequirements.length > 1 ? 's' : ''}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -191,10 +196,33 @@ export function LinksRoute(): JSX.Element {
     enabled: Boolean(state.tenant && state.project)
   });
 
-  const leftDocumentData =
-    documentsQuery.data?.documents.find(d => d.slug === leftDocument) ?? null;
-  const rightDocumentData =
-    documentsQuery.data?.documents.find(d => d.slug === rightDocument) ?? null;
+  // Find selected documents and handle cases where they might not exist
+  const leftDocumentData = React.useMemo(() => {
+    if (!leftDocument || !documentsQuery.data?.documents) return null;
+    const doc = documentsQuery.data.documents.find(d => d?.slug === leftDocument);
+    return doc || null;
+  }, [leftDocument, documentsQuery.data]);
+  
+  const rightDocumentData = React.useMemo(() => {
+    if (!rightDocument || !documentsQuery.data?.documents) return null;
+    const doc = documentsQuery.data.documents.find(d => d?.slug === rightDocument);
+    return doc || null;
+  }, [rightDocument, documentsQuery.data]);
+  
+  // Reset selections if documents no longer exist
+  React.useEffect(() => {
+    if (leftDocument && documentsQuery.data?.documents && !leftDocumentData) {
+      console.warn(`Left document "${leftDocument}" not found, clearing selection`);
+      setLeftDocument("");
+    }
+  }, [leftDocument, leftDocumentData, documentsQuery.data]);
+  
+  React.useEffect(() => {
+    if (rightDocument && documentsQuery.data?.documents && !rightDocumentData) {
+      console.warn(`Right document "${rightDocument}" not found, clearing selection`);
+      setRightDocument("");
+    }
+  }, [rightDocument, rightDocumentData, documentsQuery.data]);
 
   const traceLinksQuery = useQuery({
     queryKey: ["traceLinks", state.tenant, state.project],
@@ -329,89 +357,186 @@ export function LinksRoute(): JSX.Element {
 
   if (!state.tenant || !state.project) {
     return (
-      <div className="panel">
-        <h1>Trace Links</h1>
-        <p>Select a tenant and project first.</p>
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Trace Links</CardTitle>
+            <CardDescription>Select a tenant and project first.</CardDescription>
+          </CardHeader>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="linking-layout">
-      <div className="linking-header">
-        <h1>Trace Links</h1>
-        <p>Create relationships between requirements across documents</p>
-        
-        <div className="document-selectors">
-          <div className="document-selector">
-            <label htmlFor="left-doc">Left Document:</label>
-            <select
-              id="left-doc"
-              value={leftDocument}
-              onChange={(e) => setLeftDocument(e.target.value)}
-            >
-              <option value="">Select a document...</option>
-              {documentsQuery.data?.documents.map(doc => (
-                <option key={doc.slug} value={doc.slug}>
-                  {doc.name}
-                </option>
-              ))}
-            </select>
+    <div className="p-6 space-y-6 min-h-screen">
+      <Card>
+        <CardHeader>
+          <CardTitle>Trace Links</CardTitle>
+          <CardDescription>
+            Create relationships between requirements across documents
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <Label htmlFor="left-doc" className="text-sm font-medium">
+                Left Document
+              </Label>
+              <Select value={leftDocument} onValueChange={setLeftDocument}>
+                <SelectTrigger id="left-doc" className="h-10">
+                  <SelectValue placeholder="Select a document..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px] bg-white border border-gray-200 shadow-lg">
+                  {documentsQuery.isLoading ? (
+                    <div className="p-2 text-sm text-muted-foreground">Loading documents...</div>
+                  ) : documentsQuery.error ? (
+                    <div className="p-2 text-sm text-destructive">Error loading documents</div>
+                  ) : documentsQuery.data?.documents.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">No documents available</div>
+                  ) : (
+                    documentsQuery.data?.documents
+                      .filter(doc => doc && doc.name && doc.slug) // Filter out invalid documents
+                      .reduce((uniqueDocs: typeof documentsQuery.data.documents, doc) => {
+                        // Deduplicate by slug (slug should be unique)
+                        if (!uniqueDocs.find(existing => existing.slug === doc.slug)) {
+                          uniqueDocs.push(doc);
+                        }
+                        return uniqueDocs;
+                      }, [])
+                      .sort((a, b) => a.name.localeCompare(b.name)) // Sort alphabetically
+                      .map(doc => (
+                        <SelectItem key={doc.slug} value={doc.slug} className="cursor-pointer py-3">
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm">{doc.name}</span>
+                              <span className="text-xs text-muted-foreground font-mono">{doc.slug}</span>
+                            </div>
+                            {(doc as any).version && (
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2">
+                                v{(doc as any).version}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="right-doc" className="text-sm font-medium">
+                Right Document
+              </Label>
+              <Select value={rightDocument} onValueChange={setRightDocument}>
+                <SelectTrigger id="right-doc" className="h-10">
+                  <SelectValue placeholder="Select a document..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px] bg-white border border-gray-200 shadow-lg">
+                  {documentsQuery.isLoading ? (
+                    <div className="p-2 text-sm text-muted-foreground">Loading documents...</div>
+                  ) : documentsQuery.error ? (
+                    <div className="p-2 text-sm text-destructive">Error loading documents</div>
+                  ) : documentsQuery.data?.documents.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">No documents available</div>
+                  ) : (
+                    documentsQuery.data?.documents
+                      .filter(doc => doc && doc.name && doc.slug) // Filter out invalid documents
+                      .reduce((uniqueDocs: typeof documentsQuery.data.documents, doc) => {
+                        // Deduplicate by slug (slug should be unique)
+                        if (!uniqueDocs.find(existing => existing.slug === doc.slug)) {
+                          uniqueDocs.push(doc);
+                        }
+                        return uniqueDocs;
+                      }, [])
+                      .sort((a, b) => a.name.localeCompare(b.name)) // Sort alphabetically
+                      .map(doc => (
+                        <SelectItem key={doc.slug} value={doc.slug} className="cursor-pointer py-3">
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm">{doc.name}</span>
+                              <span className="text-xs text-muted-foreground font-mono">{doc.slug}</span>
+                            </div>
+                            {(doc as any).version && (
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2">
+                                v{(doc as any).version}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="document-selector">
-            <label htmlFor="right-doc">Right Document:</label>
-            <select
-              id="right-doc"
-              value={rightDocument}
-              onChange={(e) => setRightDocument(e.target.value)}
-            >
-              <option value="">Select a document...</option>
-              {documentsQuery.data?.documents.map(doc => (
-                <option key={doc.slug} value={doc.slug}>
-                  {doc.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+      <div className="desktop-three-columns h-[600px]">
+        {/* Left Document Panel */}
+        <Card className="h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              {leftDocumentData?.name || "Left Document"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 h-[calc(100%-4rem)]">
+            <div className="document-panel left-panel h-full overflow-y-auto">
+              <DocumentTree
+                document={leftDocumentData || null}
+                selectedRequirements={selectedRequirements}
+                onRequirementSelect={handleRequirementSelect}
+                onContextMenu={handleContextMenu}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-      <div className="linking-content">
-        <div className="document-panel left-panel">
-          <DocumentTree
-            document={leftDocumentData || null}
-            selectedRequirements={selectedRequirements}
-            onRequirementSelect={handleRequirementSelect}
-            onContextMenu={handleContextMenu}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          />
-        </div>
+        {/* Visual Links Panel */}
+        <Card className="h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Visual Links</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 h-[calc(100%-4rem)]">
+            <div className="linking-panel h-full relative">
+              <VisualLinksArea
+                traceLinks={traceLinksQuery.data?.traceLinks || []}
+                leftDocument={leftDocumentData}
+                rightDocument={rightDocumentData}
+                onDeleteLink={(linkId) => deleteLinkMutation.mutate(linkId)}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="linking-panel">
-          <VisualLinksArea
-            traceLinks={traceLinksQuery.data?.traceLinks || []}
-            leftDocument={leftDocumentData}
-            rightDocument={rightDocumentData}
-            onDeleteLink={(linkId) => deleteLinkMutation.mutate(linkId)}
-          />
-        </div>
-
-        <div className="document-panel right-panel">
-          <DocumentTree
-            document={rightDocumentData || null}
-            selectedRequirements={selectedRequirements}
-            onRequirementSelect={handleRequirementSelect}
-            onContextMenu={handleContextMenu}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          />
-        </div>
+        {/* Right Document Panel */}
+        <Card className="h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              {rightDocumentData?.name || "Right Document"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 h-[calc(100%-4rem)]">
+            <div className="document-panel right-panel h-full overflow-y-auto">
+              <DocumentTree
+                document={rightDocumentData || null}
+                selectedRequirements={selectedRequirements}
+                onRequirementSelect={handleRequirementSelect}
+                onContextMenu={handleContextMenu}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
       
       <ContextMenu

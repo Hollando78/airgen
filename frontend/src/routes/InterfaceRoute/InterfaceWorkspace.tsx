@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { BlockDetailsPanel } from "../../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../../components/architecture/ConnectorDetailsPanel";
 import { ArchitectureTreeBrowser } from "../../components/architecture/ArchitectureTreeBrowser";
-import { FloatingDocumentWindow } from "../../components/FloatingDocumentWindow";
 import type {
   ArchitectureBlockLibraryRecord,
   ArchitectureDiagramRecord,
@@ -23,7 +22,7 @@ import { INTERFACE_PRESETS } from "./constants";
 import { computeBlockPlacement } from "../ArchitectureRoute/utils/diagram";
 import { mapInterfaceConnectorToEdge } from "./utils/diagram";
 import type { BlockPreset } from "./types";
-import { useFloatingDocumentsManager } from "../ArchitectureRoute/hooks/useFloatingDocumentsManager";
+import { useFloatingDocuments } from "../../contexts/FloatingDocumentsContext";
 
 interface InterfaceWorkspaceProps {
   tenant: string;
@@ -115,11 +114,31 @@ export function InterfaceWorkspace({
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const canvasRef = useRef<DiagramCanvasHandle>(null);
 
-  const {
-    floatingDocuments,
-    openDocument,
-    closeDocument
-  } = useFloatingDocumentsManager({ documents: documentList });
+  const { openFloatingDocument } = useFloatingDocuments();
+
+  const openDocument = useCallback((documentSlug: string) => {
+    const document = documentList.find(item => item.slug === documentSlug);
+    if (!document) {
+      return;
+    }
+
+    if (document.kind === "surrogate") {
+      return;
+    }
+
+    openFloatingDocument({
+      documentSlug,
+      documentName: document.name,
+      tenant,
+      project,
+      kind: "structured",
+      downloadUrl: document.downloadUrl,
+      mimeType: document.mimeType,
+      originalFileName: document.originalFileName,
+      previewDownloadUrl: document.previewDownloadUrl,
+      previewMimeType: document.previewMimeType
+    });
+  }, [documentList, tenant, project, openFloatingDocument]);
 
   const documents = useMemo(() => documentList, [documentList]);
   const blocksInDiagram = useMemo(() => new Set(architecture.blocks.map(block => block.id)), [architecture.blocks]);
@@ -299,17 +318,6 @@ export function InterfaceWorkspace({
         </aside>
       </div>
 
-      {floatingDocuments.map(doc => (
-        <FloatingDocumentWindow
-          key={doc.id}
-          tenant={tenant}
-          project={project}
-          documentSlug={doc.documentSlug}
-          documentName={doc.documentName}
-          initialPosition={doc.position}
-          onClose={() => closeDocument(doc.id)}
-        />
-      ))}
     </div>
   );
 }

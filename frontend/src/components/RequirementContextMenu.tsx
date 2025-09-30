@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RequirementRecord, TraceLink } from "../types";
 import { useFloatingDocuments } from "../contexts/FloatingDocumentsContext";
+import { Button } from "./ui/button";
 
 interface RequirementContextMenuProps {
   x: number;
@@ -297,7 +298,7 @@ export function RequirementContextMenu({
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "600px" }}>
             <div className="modal-header">
               <h3>Requirement Details</h3>
-              <button className="modal-close" onClick={() => setShowDetails(false)}>×</button>
+              <Button variant="ghost" size="sm" onClick={() => setShowDetails(false)}>×</Button>
             </div>
             <div className="modal-content">
               <div style={{ marginBottom: "16px" }}>
@@ -451,15 +452,12 @@ export function RequirementContextMenu({
               )}
             </div>
             <div className="modal-footer">
-              <button className="button" onClick={() => setShowDetails(false)}>
+              <Button variant="outline" onClick={() => setShowDetails(false)}>
                 Close
-              </button>
-              <button 
-                className="button button-primary" 
-                onClick={handleOpenInFloatingWindow}
-              >
+              </Button>
+              <Button onClick={handleOpenInFloatingWindow}>
                 Open in Document
-              </button>
+              </Button>
             </div>
           </div>
         </div>

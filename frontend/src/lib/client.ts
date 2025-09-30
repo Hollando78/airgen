@@ -42,7 +42,8 @@ import type {
   CreateTraceLinkRequest,
   TraceLink,
   DevUserListResponse,
-  DevUserResponse
+  DevUserResponse,
+  DiagramCandidate
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -136,6 +137,27 @@ export function useApiClient() {
         }),
       returnRequirementCandidate: (id: string, body: { tenant: string; projectKey: string }) =>
         request<RequirementCandidateActionResponse>(`/airgen/candidates/${id}/return`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      // Diagram candidate methods
+      listDiagramCandidates: (tenant: string, project: string) =>
+        request<{ items: DiagramCandidate[] }>(`/airgen/diagram-candidates/${tenant}/${project}`),
+      acceptDiagramCandidate: (
+        id: string,
+        body: { tenant: string; projectKey: string; diagramName?: string; diagramDescription?: string }
+      ) =>
+        request<{ candidate: DiagramCandidate }>(`/airgen/diagram-candidates/${id}/accept`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      rejectDiagramCandidate: (id: string, body: { tenant: string; projectKey: string }) =>
+        request<{ candidate: DiagramCandidate }>(`/airgen/diagram-candidates/${id}/reject`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      returnDiagramCandidate: (id: string, body: { tenant: string; projectKey: string }) =>
+        request<{ candidate: DiagramCandidate }>(`/airgen/diagram-candidates/${id}/return`, {
           method: "POST",
           body: JSON.stringify(body)
         }),

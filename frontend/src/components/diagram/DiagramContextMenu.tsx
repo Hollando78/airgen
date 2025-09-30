@@ -43,7 +43,9 @@ export function DiagramContextMenu({ x, y, items, onClose }: DiagramContextMenuP
           key={item.label}
           className="context-action"
           onClick={() => {
+            console.log("[ContextMenu] Button clicked:", item.label, "disabled:", item.disabled);
             if (!item.disabled) {
+              console.log("[ContextMenu] Calling onSelect for:", item.label);
               item.onSelect();
               onClose();
             }
