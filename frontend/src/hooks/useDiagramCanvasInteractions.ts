@@ -259,12 +259,14 @@ export function useDiagramCanvasInteractions({
   }, []);
 
   const handleEdgeContextMenu = useCallback((event: ReactMouseEvent, edge: Edge) => {
+    console.log("[DiagramCanvas] handleEdgeContextMenu called for edge:", edge.id);
     event.preventDefault();
     setContextMenuState({
       type: "edge",
       edgeId: edge.id,
       client: { x: event.clientX, y: event.clientY }
     });
+    console.log("[DiagramCanvas] Context menu state set for edge:", edge.id);
   }, []);
 
   const handleSelectionChange = useCallback(
@@ -469,11 +471,22 @@ export function useDiagramCanvasInteractions({
 
     if (contextMenuState.type === "edge") {
       const connector = architecture.connectors.find((item: SysmlConnector) => item.id === contextMenuState.edgeId);
-      if (!connector) return [];
+      if (!connector) {
+        console.error("[DiagramCanvas] Connector not found for edge:", contextMenuState.edgeId);
+        console.log("[DiagramCanvas] Available connectors:", architecture.connectors.map(c => c.id));
+        return [];
+      }
       return [
         {
           label: "Delete connector",
-          onSelect: () => removeConnector(connector.id)
+          onSelect: () => {
+            console.log("[DiagramCanvas] Delete connector clicked");
+            console.log("[DiagramCanvas] Connector to delete:", connector);
+            console.log("[DiagramCanvas] Edge ID:", contextMenuState.edgeId);
+            console.log("[DiagramCanvas] About to call removeConnector with ID:", connector.id);
+            removeConnector(connector.id);
+            console.log("[DiagramCanvas] removeConnector call completed");
+          }
         }
       ];
     }

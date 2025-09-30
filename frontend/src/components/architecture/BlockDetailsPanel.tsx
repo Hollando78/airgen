@@ -128,7 +128,7 @@ export function BlockDetailsPanel({
             setLocalStereotype(newStereotype);
             debouncedUpdate({ stereotype: newStereotype });
           }}
-          placeholder="e.g. block, interface, subsystem"
+          placeholder="e.g. <<system>>, <<subsystem>>, <<component>>, <<actor>>"
         />
       </div>
 

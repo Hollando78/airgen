@@ -303,15 +303,24 @@ export function useArchitecture(tenant: string | null, project: string | null) {
 
   const deleteConnectorMutation = useMutation({
     mutationFn: (connectorId: string) => {
+      console.log("[ArchitectureAPI] deleteConnectorMutation mutationFn called with:", connectorId);
       if (!activeDiagramId) {
+        console.error("[ArchitectureAPI] No active diagram ID!");
         throw new Error("Cannot delete connector without an active diagram");
       }
+      console.log("[ArchitectureAPI] Calling API deleteArchitectureConnector with:", {
+        tenant, project, activeDiagramId, connectorId
+      });
       return api.deleteArchitectureConnector(tenant!, project!, activeDiagramId, connectorId);
     },
     onSuccess: () => {
+      console.log("[ArchitectureAPI] deleteConnectorMutation onSuccess called");
       if (activeDiagramId) {
         queryClient.invalidateQueries({ queryKey: ["architecture-connectors", tenant, project, activeDiagramId] });
       }
+    },
+    onError: (error) => {
+      console.error("[ArchitectureAPI] deleteConnectorMutation onError:", error);
     }
   });
 
@@ -521,8 +530,12 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [updateConnectorMutation]);
 
   const removeConnector = useCallback((connectorId: string) => {
+    console.log("[ArchitectureAPI] removeConnector called with ID:", connectorId);
+    console.log("[ArchitectureAPI] activeDiagramId:", activeDiagramId);
+    console.log("[ArchitectureAPI] tenant:", tenant, "project:", project);
     deleteConnectorMutation.mutate(connectorId);
-  }, [deleteConnectorMutation]);
+    console.log("[ArchitectureAPI] deleteConnectorMutation.mutate called");
+  }, [deleteConnectorMutation, activeDiagramId, tenant, project]);
 
   const clearArchitecture = useCallback(() => {
     if (!activeDiagramId) return;

@@ -43,37 +43,47 @@ export function ArchitectureTreeBrowser({
   const [expandedPackages, setExpandedPackages] = useState<Set<string>>(new Set());
   const dragCounter = useRef(0);
 
+  // Helper function to normalize stereotypes (handle both plain and SysML format)
+  const normalizeStereotype = (stereotype: string | null | undefined): string => {
+    if (!stereotype) return '';
+    // Remove angle brackets if present: <<system>> -> system
+    return stereotype.replace(/^<<(.+)>>$/, '$1');
+  };
+
   // Initialize with default packages and organize blocks
   useEffect(() => {
     const rootPackages: Package[] = [
       {
         id: 'systems',
         name: 'Systems',
-        children: blocks.filter(b => b.stereotype === 'block'),
+        children: blocks.filter(b => {
+          const normalized = normalizeStereotype(b.stereotype);
+          return normalized === 'block' || normalized === 'system';
+        }),
         collapsed: false
       },
       {
         id: 'subsystems',
         name: 'Subsystems', 
-        children: blocks.filter(b => b.stereotype === 'subsystem'),
+        children: blocks.filter(b => normalizeStereotype(b.stereotype) === 'subsystem'),
         collapsed: false
       },
       {
         id: 'components',
         name: 'Components',
-        children: blocks.filter(b => b.stereotype === 'component'),
+        children: blocks.filter(b => normalizeStereotype(b.stereotype) === 'component'),
         collapsed: false
       },
       {
         id: 'actors',
         name: 'Actors',
-        children: blocks.filter(b => b.stereotype === 'actor'),
+        children: blocks.filter(b => normalizeStereotype(b.stereotype) === 'actor'),
         collapsed: false
       },
       {
         id: 'external',
         name: 'External',
-        children: blocks.filter(b => b.stereotype === 'external'),
+        children: blocks.filter(b => normalizeStereotype(b.stereotype) === 'external'),
         collapsed: false
       }
     ];

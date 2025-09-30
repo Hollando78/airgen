@@ -1,5 +1,9 @@
 import { useState } from "react";
 import type { TraceLinkType, RequirementRecord } from "../types";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Textarea } from "./ui/textarea";
+import { cn } from "../lib/utils";
 
 interface LinkTypeSelectionModalProps {
   isOpen: boolean;
@@ -77,7 +81,7 @@ export function LinkTypeSelectionModal({
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "600px" }}>
         <div className="modal-header">
           <h3>Create Trace Link</h3>
-          <button className="modal-close" onClick={handleCancel}>×</button>
+          <Button variant="ghost" size="sm" onClick={handleCancel}>×</Button>
         </div>
         
         <div className="modal-content">
@@ -131,46 +135,25 @@ export function LinkTypeSelectionModal({
             
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
               {LINK_TYPES.map(linkType => (
-                <button
+                <Button
                   key={linkType.value}
+                  variant={selectedType === linkType.value ? "default" : "outline"}
                   onClick={() => setSelectedType(linkType.value)}
-                  style={{
-                    padding: "12px",
-                    border: selectedType === linkType.value ? "2px solid #3b82f6" : "1px solid #e5e7eb",
-                    borderRadius: "6px",
-                    backgroundColor: selectedType === linkType.value ? "#eff6ff" : "white",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    transition: "all 0.2s"
-                  }}
-                  onMouseEnter={(e) => {
-                    if (selectedType !== linkType.value) {
-                      e.currentTarget.style.backgroundColor = "#f9fafb";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (selectedType !== linkType.value) {
-                      e.currentTarget.style.backgroundColor = "white";
-                    }
-                  }}
+                  className={cn(
+                    "h-auto p-3 text-left justify-start",
+                    selectedType === linkType.value && "ring-2 ring-primary"
+                  )}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                    <span style={{ fontSize: "16px" }}>{linkType.icon}</span>
-                    <span style={{ 
-                      fontWeight: selectedType === linkType.value ? "600" : "500",
-                      color: selectedType === linkType.value ? "#1e40af" : "#374151"
-                    }}>
-                      {linkType.label}
-                    </span>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{linkType.icon}</span>
+                      <span className="font-medium">{linkType.label}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground leading-tight">
+                      {linkType.description}
+                    </div>
                   </div>
-                  <div style={{ 
-                    fontSize: "11px", 
-                    color: "#6b7280",
-                    lineHeight: "1.3"
-                  }}>
-                    {linkType.description}
-                  </div>
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -186,30 +169,22 @@ export function LinkTypeSelectionModal({
             }}>
               Description (Optional)
             </label>
-            <textarea
+            <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add any additional context or rationale for this link..."
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-                resize: "vertical",
-                minHeight: "80px"
-              }}
+              className="min-h-[80px]"
             />
           </div>
         </div>
         
         <div className="modal-footer">
-          <button className="button" onClick={handleCancel}>
+          <Button variant="outline" onClick={handleCancel}>
             Cancel
-          </button>
-          <button className="button button-primary" onClick={handleConfirm}>
+          </Button>
+          <Button onClick={handleConfirm}>
             Create Link
-          </button>
+          </Button>
         </div>
       </div>
     </div>

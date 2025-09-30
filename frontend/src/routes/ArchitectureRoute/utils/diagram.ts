@@ -24,7 +24,7 @@ export function getDefaultColorByKind(kind: string): string {
     case "flow": return "#2563eb";
     case "dependency": return "#7c3aed";
     case "association": return "#334155";
-    case "composition": return "#dc2626";
+    case "composition": return "#16a34a"; // Green for parent-child hierarchy
     default: return "#334155";
   }
 }
@@ -32,13 +32,15 @@ export function getDefaultColorByKind(kind: string): string {
 export function mapConnectorToEdge(connector: SysmlConnector): Edge {
   const kind = connector.kind;
   const isFlow = kind === "flow";
+  const isComposition = kind === "composition";
 
-  const lineStyle = connector.lineStyle || (isFlow ? "smoothstep" : "straight");
+  // Composition connectors get special treatment for hierarchy visualization
+  const lineStyle = connector.lineStyle || (isComposition ? "step" : isFlow ? "smoothstep" : "straight");
   const strokeColor = connector.color || getDefaultColorByKind(kind);
-  const strokeWidth = connector.strokeWidth || 2;
+  const strokeWidth = connector.strokeWidth || (isComposition ? 3 : 2);
   const linePattern = connector.linePattern || "solid";
-  const markerEndType = getMarkerType(connector.markerEnd || "arrowclosed");
-  const markerStartType = getMarkerType(connector.markerStart || (kind === "composition" ? "arrowclosed" : "none"));
+  const markerEndType = getMarkerType(connector.markerEnd || (isComposition ? "arrow" : "arrowclosed"));
+  const markerStartType = getMarkerType(connector.markerStart || (isComposition ? "arrowclosed" : "none"));
 
   const getReactFlowEdgeType = (style: string): string => {
     switch (style) {

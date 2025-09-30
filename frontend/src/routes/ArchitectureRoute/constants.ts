@@ -1,11 +1,11 @@
 import type { BlockPreset, ConnectorPreset } from "./types";
 
 export const BLOCK_PRESETS: BlockPreset[] = [
-  { label: "Block", kind: "system", stereotype: "block" },
-  { label: "Subsystem", kind: "subsystem", stereotype: "subsystem" },
-  { label: "Component", kind: "component", stereotype: "component" },
-  { label: "Actor", kind: "actor", stereotype: "actor" },
-  { label: "External", kind: "external", stereotype: "external" }
+  { label: "System", kind: "system", stereotype: "<<system>>" },
+  { label: "Subsystem", kind: "subsystem", stereotype: "<<subsystem>>" },
+  { label: "Component", kind: "component", stereotype: "<<component>>" },
+  { label: "Actor", kind: "actor", stereotype: "<<actor>>" },
+  { label: "External", kind: "external", stereotype: "<<external>>" }
 ];
 
 export const CONNECTOR_PRESETS: ConnectorPreset[] = [
