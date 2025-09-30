@@ -24,6 +24,19 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
   } | null>(null);
   const { openFloatingDocument } = useFloatingDocuments();
 
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(null);
+    
+    if (contextMenu) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [contextMenu]);
+
   // Filter links for this requirement
   const outgoingLinks = traceLinks.filter(link => link.sourceRequirementId === requirementId);
   const incomingLinks = traceLinks.filter(link => link.targetRequirementId === requirementId);
@@ -78,15 +91,6 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
     }
     setContextMenu(null);
   };
-
-  // Close context menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => setContextMenu(null);
-    if (contextMenu) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [contextMenu]);
 
   const arrowStyle = {
     display: "inline-block",

@@ -1,6 +1,9 @@
 import { useState, useRef, useCallback, useMemo } from "react";
-import type { RequirementRecord, DocumentSectionRecord, TraceLink } from "../../types";
+import type { RequirementRecord, DocumentSectionRecord, TraceLink, TraceLinkType } from "../../types";
 import { LinkIndicators } from "./LinkIndicators";
+import { RequirementContextMenu } from "../RequirementContextMenu";
+import { LinkTypeSelectionModal } from "../LinkTypeSelectionModal";
+import { useRequirementLinking } from "../../contexts/RequirementLinkingContext";
 
 export interface RequirementsTableProps {
   section: DocumentSectionRecord & { requirements: RequirementRecord[] };
@@ -34,6 +37,16 @@ export function RequirementsTable({
   const [isResizing, setIsResizing] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    requirement: RequirementRecord;
+  } | null>(null);
+  const { linkingState, startLinking, completeLinking, isRequirementBeingLinked } = useRequirementLinking();
+  const [linkModal, setLinkModal] = useState<{
+    sourceRequirement: RequirementRecord;
+    targetRequirement: RequirementRecord;
+  } | null>(null);
   const [visibleColumns, setVisibleColumns] = useState({
     id: true,
     description: true,
@@ -50,6 +63,35 @@ export function RequirementsTable({
     maxQaScore: ""
   });
   const tableRef = useRef<HTMLTableElement>(null);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, requirement: RequirementRecord) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      requirement
+    });
+  }, []);
+
+  const handleStartLink = useCallback((requirement: RequirementRecord) => {
+    startLinking(requirement);
+  }, [startLinking]);
+
+  const handleEndLink = useCallback((targetRequirement: RequirementRecord) => {
+    if (linkingState.sourceRequirement) {
+      setLinkModal({
+        sourceRequirement: linkingState.sourceRequirement,
+        targetRequirement
+      });
+    }
+  }, [linkingState.sourceRequirement]);
+
+  const handleCreateLink = useCallback(async (linkType: TraceLinkType, description?: string) => {
+    if (linkModal) {
+      await completeLinking(linkModal.targetRequirement, linkType, description);
+      setLinkModal(null);
+    }
+  }, [linkModal, completeLinking]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, columnKey: string) => {
     e.preventDefault();
@@ -601,7 +643,14 @@ export function RequirementsTable({
               </tr>
             ) : (
               filteredRequirements.map((req: RequirementRecord, index: number) => (
-                <tr key={req.id} style={{ backgroundColor: index % 2 === 0 ? "white" : "#f8f9fa" }}>
+                <tr 
+                  key={req.id} 
+                  style={{ 
+                    backgroundColor: index % 2 === 0 ? "white" : "#f8f9fa",
+                    cursor: "pointer"
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e, req)}
+                >
                   {visibleColumns.id && (
                     <td style={cellStyle(columnWidths.id)} title={req.ref}>{req.ref}</td>
                   )}
@@ -713,6 +762,33 @@ export function RequirementsTable({
           </a>
         </div>
       </div>
+
+      {/* Requirement Context Menu */}
+      {contextMenu && (
+        <RequirementContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          requirement={contextMenu.requirement}
+          tenant={tenant}
+          project={project}
+          onClose={() => setContextMenu(null)}
+          onStartLink={handleStartLink}
+          onEndLink={handleEndLink}
+          linkingRequirement={linkingState.sourceRequirement}
+          traceLinks={traceLinks}
+        />
+      )}
+
+      {/* Link Type Selection Modal */}
+      {linkModal && (
+        <LinkTypeSelectionModal
+          isOpen={true}
+          sourceRequirement={linkModal.sourceRequirement}
+          targetRequirement={linkModal.targetRequirement}
+          onConfirm={handleCreateLink}
+          onCancel={() => setLinkModal(null)}
+        />
+      )}
     </div>
   );
 }

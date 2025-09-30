@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "./Spinner";
 import { LinkIndicators } from "./DocumentView/LinkIndicators";
-import type { RequirementRecord } from "../types";
+import { RequirementContextMenu } from "./RequirementContextMenu";
+import { LinkTypeSelectionModal } from "./LinkTypeSelectionModal";
+import { useRequirementLinking } from "../contexts/RequirementLinkingContext";
+import type { RequirementRecord, TraceLinkType } from "../types";
 
 interface FloatingDocumentWindowProps {
   tenant: string;
@@ -41,6 +44,16 @@ export function FloatingDocumentWindow({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [isMinimized, setIsMinimized] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    requirement: RequirementRecord;
+  } | null>(null);
+  const { linkingState, startLinking, completeLinking } = useRequirementLinking();
+  const [linkModal, setLinkModal] = useState<{
+    sourceRequirement: RequirementRecord;
+    targetRequirement: RequirementRecord;
+  } | null>(null);
 
   // Fetch document sections
   const sectionsQuery = useQuery({
@@ -183,6 +196,36 @@ export function FloatingDocumentWindow({
   const toggleMinimize = () => {
     setIsMinimized(prev => !prev);
   };
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, requirement: RequirementRecord) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      requirement
+    });
+  }, []);
+
+  const handleStartLink = useCallback((requirement: RequirementRecord) => {
+    startLinking(requirement);
+  }, [startLinking]);
+
+  const handleEndLink = useCallback((targetRequirement: RequirementRecord) => {
+    if (linkingState.sourceRequirement) {
+      setLinkModal({
+        sourceRequirement: linkingState.sourceRequirement,
+        targetRequirement
+      });
+    }
+  }, [linkingState.sourceRequirement]);
+
+  const handleCreateLink = useCallback(async (linkType: TraceLinkType, description?: string) => {
+    if (linkModal) {
+      await completeLinking(linkModal.targetRequirement, linkType, description);
+      setLinkModal(null);
+    }
+  }, [linkModal, completeLinking]);
 
   const isLoading = sectionsQuery.isLoading || requirementsQueries.isLoading;
   const hasError = sectionsQuery.isError || requirementsQueries.isError;
@@ -389,6 +432,7 @@ export function FloatingDocumentWindow({
                         <div
                           key={req.id}
                           id={`req-${req.id}`}
+                          onContextMenu={(e) => handleContextMenu(e, req)}
                           style={{
                             padding: "8px 12px",
                             background: "#f8fafc",
@@ -396,7 +440,8 @@ export function FloatingDocumentWindow({
                             border: "1px solid #e2e8f0",
                             fontSize: "13px",
                             lineHeight: "1.5",
-                            transition: "background-color 0.3s, border 0.3s"
+                            transition: "background-color 0.3s, border 0.3s",
+                            cursor: "pointer"
                           }}
                         >
                           <div style={{ display: "flex", gap: "8px", marginBottom: "4px" }}>
@@ -435,6 +480,33 @@ export function FloatingDocumentWindow({
             background: "linear-gradient(135deg, transparent 50%, #cbd5e1 50%)",
             borderBottomRightRadius: "8px"
           }}
+        />
+      )}
+
+      {/* Requirement Context Menu */}
+      {contextMenu && (
+        <RequirementContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          requirement={contextMenu.requirement}
+          tenant={tenant}
+          project={project}
+          onClose={() => setContextMenu(null)}
+          onStartLink={handleStartLink}
+          onEndLink={handleEndLink}
+          linkingRequirement={linkingState.sourceRequirement}
+          traceLinks={traceLinksQuery.data?.traceLinks || []}
+        />
+      )}
+
+      {/* Link Type Selection Modal */}
+      {linkModal && (
+        <LinkTypeSelectionModal
+          isOpen={true}
+          sourceRequirement={linkModal.sourceRequirement}
+          targetRequirement={linkModal.targetRequirement}
+          onConfirm={handleCreateLink}
+          onCancel={() => setLinkModal(null)}
         />
       )}
     </div>
