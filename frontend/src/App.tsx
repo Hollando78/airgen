@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./contexts/AuthContext";
+import { RequirementLinkingProvider } from "./contexts/RequirementLinkingContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { LandingPage } from "./LandingPage";
 
@@ -22,17 +23,19 @@ export default function App(): JSX.Element {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          {import.meta.env.PROD || !DevAppRoutes ? (
-            <ProtectedRoute fallback={<LandingPage />}>
+          <RequirementLinkingProvider>
+            {import.meta.env.PROD || !DevAppRoutes ? (
+              <ProtectedRoute fallback={<LandingPage />}>
+                <Suspense fallback={null}>
+                  <ProductionAppRoutes />
+                </Suspense>
+              </ProtectedRoute>
+            ) : (
               <Suspense fallback={null}>
-                <ProductionAppRoutes />
+                <DevAppRoutes />
               </Suspense>
-            </ProtectedRoute>
-          ) : (
-            <Suspense fallback={null}>
-              <DevAppRoutes />
-            </Suspense>
-          )}
+            )}
+          </RequirementLinkingProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

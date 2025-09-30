@@ -21,6 +21,7 @@ export interface FloatingDocument {
 interface FloatingDocumentsContextType {
   floatingDocuments: FloatingDocument[];
   openFloatingDocument: (doc: Omit<FloatingDocument, "id" | "position">) => void;
+  focusRequirementInDocument: (documentSlug: string, tenant: string, project: string, requirementId: string) => void;
   closeFloatingDocument: (documentId: string) => void;
 }
 
@@ -33,6 +34,17 @@ interface FloatingDocumentsProviderProps {
 export function FloatingDocumentsProvider({ children }: FloatingDocumentsProviderProps) {
   const [floatingDocuments, setFloatingDocuments] = useState<FloatingDocument[]>([]);
 
+  const focusRequirementInDocument = (documentSlug: string, tenant: string, project: string, requirementId: string) => {
+    setFloatingDocuments(prev => 
+      prev.map(doc => {
+        if (doc.documentSlug === documentSlug && doc.tenant === tenant && doc.project === project) {
+          return { ...doc, focusRequirementId: requirementId };
+        }
+        return doc;
+      })
+    );
+  };
+
   const openFloatingDocument = (doc: Omit<FloatingDocument, "id" | "position">) => {
     // Check if document is already open
     const existingDoc = floatingDocuments.find(
@@ -44,7 +56,11 @@ export function FloatingDocumentsProvider({ children }: FloatingDocumentsProvide
     );
 
     if (existingDoc) {
-      return; // Document already open
+      // Document already open - focus the requirement if specified
+      if (doc.focusRequirementId) {
+        focusRequirementInDocument(doc.documentSlug, doc.tenant, doc.project, doc.focusRequirementId);
+      }
+      return;
     }
 
     // Calculate position for new window (cascade them)
@@ -73,6 +89,7 @@ export function FloatingDocumentsProvider({ children }: FloatingDocumentsProvide
       value={{
         floatingDocuments,
         openFloatingDocument,
+        focusRequirementInDocument,
         closeFloatingDocument
       }}
     >

@@ -86,6 +86,7 @@ export async function createTraceLink(params: {
         MERGE (link)-[:FROM_REQUIREMENT]->(source)
         MERGE (link)-[:TO_REQUIREMENT]->(target)
         MERGE (source)-[:LINKS_TO {type: $linkType}]->(target)
+        WITH link, source, target
         OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(source)
         OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(target)
         RETURN link, source, target, sourceDoc, targetDoc
@@ -101,6 +102,10 @@ export async function createTraceLink(params: {
         description: params.description ?? null,
         now
       });
+
+      if (res.records.length === 0) {
+        throw new Error(`Failed to create trace link. Check that tenant '${params.tenant}', project '${params.projectKey}', source requirement '${params.sourceRequirementId}', and target requirement '${params.targetRequirementId}' all exist.`);
+      }
 
       const record = res.records[0];
       return mapTraceLink(
