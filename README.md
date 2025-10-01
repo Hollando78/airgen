@@ -144,3 +144,4 @@ Optional: override `LLM_BASE_URL` for Azure/OpenAI-compatible gateways. Requests
 - Layer a front-end or CLI on top of the API and graph data.
 - Extend `services/llm.ts` with more providers (Anthropic, local inference) and fine-grained prompts.
 - Add automated tests (e.g., `node --test`, `vitest`) that cover graph writes and LLM error handling.
+# ESLint Configuration Test

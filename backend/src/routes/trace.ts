@@ -37,14 +37,6 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
           },
           description: { type: "string", description: "Optional description of the link" }
         }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            traceLink: { type: "object" }
-          }
-        }
       }
     }
   }, async (req) => {
@@ -74,14 +66,6 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
           tenant: { type: "string", description: "Tenant slug" },
           project: { type: "string", description: "Project slug" }
         }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            traceLinks: { type: "array", items: { type: "object" } }
-          }
-        }
       }
     }
   }, async (req) => {
@@ -108,14 +92,6 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
           tenant: { type: "string", description: "Tenant slug" },
           project: { type: "string", description: "Project slug" },
           requirementId: { type: "string", description: "Requirement ID" }
-        }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            traceLinks: { type: "array", items: { type: "object" } }
-          }
         }
       }
     }
