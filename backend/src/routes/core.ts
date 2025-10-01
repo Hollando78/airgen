@@ -16,6 +16,10 @@ import {
 } from "../services/graph.js";
 import { generateDrafts } from "../services/drafts.js";
 import { generateLlmDrafts, isLlmConfigured } from "../services/llm.js";
+import { getErrorMessage } from "../lib/type-guards.js";
+import { getCacheStats } from "../lib/cache.js";
+import { areMetricsAvailable } from "../lib/metrics.js";
+import { getSentryStatus } from "../lib/sentry.js";
 
 export type DraftBody = {
   need: string;
@@ -63,14 +67,23 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
               properties: {
                 heapUsedMB: { type: "number" },
                 heapTotalMB: { type: "number" },
-                rssMB: { type: "number" }
+                rssMB: { type: "number" },
+                externalMB: { type: "number" }
               }
             },
             services: {
               type: "object",
               properties: {
                 database: { type: "string" },
+                cache: { type: "string" },
                 llm: { type: "string" }
+              }
+            },
+            observability: {
+              type: "object",
+              properties: {
+                metrics: { type: "boolean" },
+                errorTracking: { type: "boolean" }
               }
             }
           }
@@ -92,6 +105,13 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
       dbStatus = "disconnected";
     }
 
+    // Check cache status
+    const cacheStats = await getCacheStats();
+    const cacheStatus = cacheStats.available ? "connected" : "unavailable";
+
+    // Get Sentry status
+    const sentryStatus = getSentryStatus();
+
     return {
       ok: true,
       timestamp: new Date().toISOString(),
@@ -101,12 +121,26 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
       memory: {
         heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024 * 100) / 100,
         heapTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024 * 100) / 100,
-        rssMB: Math.round(memUsage.rss / 1024 / 1024 * 100) / 100
+        rssMB: Math.round(memUsage.rss / 1024 / 1024 * 100) / 100,
+        externalMB: Math.round(memUsage.external / 1024 / 1024 * 100) / 100
       },
       services: {
         database: dbStatus,
+        cache: cacheStatus,
         llm: isLlmConfigured() ? "configured" : "not-configured"
-      }
+      },
+      observability: {
+        metrics: areMetricsAvailable(),
+        errorTracking: sentryStatus.enabled
+      },
+      ...(cacheStats.available && cacheStats.info && {
+        cacheStats: {
+          totalConnections: cacheStats.info.total_connections_received || '0',
+          totalCommands: cacheStats.info.total_commands_processed || '0',
+          keyspaceHits: cacheStats.info.keyspace_hits || '0',
+          keyspaceMisses: cacheStats.info.keyspace_misses || '0'
+        }
+      })
     };
   });
 
@@ -243,7 +277,7 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
       const tenant = await createTenant(body);
       return { tenant };
     } catch (error) {
-      return reply.status(400).send({ error: (error as Error).message });
+      return reply.status(400).send({ error: getErrorMessage(error) });
     }
   });
 
@@ -372,7 +406,7 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
       });
       return { project };
     } catch (error) {
-      return reply.status(400).send({ error: (error as Error).message });
+      return reply.status(400).send({ error: getErrorMessage(error) });
     }
   });
 
@@ -547,8 +581,8 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
         try {
           llmDrafts = await generateLlmDrafts(body);
         } catch (error) {
-          llmError = (error as Error).message;
-          (app.log as any).error?.({ err: error }, "LLM draft generation failed");
+          llmError = getErrorMessage(error);
+          app.log.error({ err: error }, "LLM draft generation failed");
         }
       }
     }

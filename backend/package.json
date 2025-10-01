@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix"
   },
   "dependencies": {
     "@airgen/req-qa": "file:../packages/req-qa",
@@ -26,6 +28,11 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "@vitest/ui": "^1.6.0",
+    "eslint": "^9.36.0",
+    "eslint-plugin-node": "^11.1.0",
     "pino-pretty": "^13.1.1",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",

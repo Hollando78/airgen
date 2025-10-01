@@ -12,6 +12,11 @@ import { config } from "./config.js";
 import { ensureWorkspace } from "./services/workspace.js";
 import { initGraph, closeGraph } from "./services/graph.js";
 import { registerAuth } from "./plugins/auth.js";
+import { serializeError } from "./lib/type-guards.js";
+import { logger } from "./lib/logger.js";
+import { initMetrics, metricsMiddleware, getMetrics, areMetricsAvailable } from "./lib/metrics.js";
+import { initSentry, sentryErrorHandler, isSentryEnabled, flush as flushSentry } from "./lib/sentry.js";
+import { closeCache } from "./lib/cache.js";
 import draftRoutes from "./routes/draft.js";
 import airgenRoutes from "./routes/airgen.js";
 import coreRoutes from "./routes/core.js";
@@ -23,6 +28,10 @@ import { linksetRoutes } from "./routes/linksets.js";
 import authRoutes from "./routes/auth.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Initialize observability infrastructure
+await initMetrics();
+await initSentry();
 
 await ensureWorkspace();
 await initGraph();
@@ -51,12 +60,10 @@ const app = Fastify({
         };
       },
       err(error) {
+        const serialized = serializeError(error);
         return {
-          type: error.constructor.name,
-          message: error.message,
-          stack: config.environment === "production" ? undefined : error.stack,
-          code: (error as any).code,
-          statusCode: (error as any).statusCode
+          ...serialized,
+          stack: config.environment === "production" ? undefined : serialized.stack
         };
       }
     },
@@ -145,9 +152,50 @@ await registerAuth(app);
 
 app.addHook("onRequest", app.optionalAuthenticate);
 
+// Register metrics middleware for all requests
+if (areMetricsAvailable()) {
+  app.addHook("onRequest", metricsMiddleware);
+}
+
+// Register error handler for Sentry
+if (isSentryEnabled()) {
+  app.setErrorHandler((error, request, reply) => {
+    // Capture error in Sentry
+    sentryErrorHandler(error, request);
+
+    // Log the error
+    app.log.error({ err: error }, 'Request error');
+
+    // Send error response
+    const serialized = serializeError(error);
+    reply.status(error.statusCode || 500).send({
+      error: serialized.message,
+      ...(config.environment !== 'production' && { stack: serialized.stack })
+    });
+  });
+}
+
 app.addHook("onClose", async () => {
+  // Flush Sentry events before closing
+  if (isSentryEnabled()) {
+    await flushSentry(2000);
+  }
+
   await closeGraph();
+  await closeCache();
 });
+
+// Prometheus metrics endpoint (unauthenticated for scraping)
+if (areMetricsAvailable()) {
+  app.get("/metrics", {
+    schema: {
+      hide: true, // Hide from Swagger docs
+    }
+  }, async (_request, reply) => {
+    const metrics = await getMetrics();
+    reply.type('text/plain; version=0.0.4; charset=utf-8').send(metrics);
+  });
+}
 
 await app.register(authRoutes, { prefix: "/api" });
 await app.register(coreRoutes, { prefix: "/api" });
@@ -165,7 +213,11 @@ if (config.environment !== "production") {
 }
 
 const port = config.port;
+
+// Initialize logger with Fastify's logger
+logger.setFastifyLogger(app.log);
+
 app.listen({ port, host: config.host }).catch((e) => {
-  (app.log as any).error?.(e);
+  logger.error({ err: e }, 'Failed to start server');
   process.exit(1);
 });

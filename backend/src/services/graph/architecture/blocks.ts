@@ -8,6 +8,7 @@ import {
   BlockPortRecord
 } from "./types.js";
 import { mapBlockWithPlacement, mapBlockLibraryEntry, toNumber } from "./mappers.js";
+import { getCached, CacheKeys, CacheInvalidation } from "../../lib/cache.js";
 
 export async function createArchitectureBlock(params: {
   tenant: string;
@@ -154,46 +155,80 @@ export async function createArchitectureBlock(params: {
     const blockNode = record.get("block") as Neo4jNode;
     const rel = record.get("rel") as Neo4jRelationship | undefined;
     const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
+
+    // Invalidate architecture cache
+    const tenantSlug = slugify(params.tenant);
+    const projectSlug = slugify(params.projectKey);
+    await CacheInvalidation.invalidateArchitecture(tenantSlug, projectSlug, params.diagramId);
+
     return mapBlockWithPlacement(blockNode, rel, params.diagramId, documentIds);
   } finally {
     await session.close();
   }
 }
 
+export interface ListOptions {
+  limit?: number;     // Default 100, max 1000
+  offset?: number;    // Default 0
+}
+
 export async function getArchitectureBlocks(params: {
   tenant: string;
   projectKey: string;
   diagramId: string;
+  options?: ListOptions;
 }): Promise<ArchitectureBlockRecord[]> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
+  const limit = Math.min(params.options?.limit ?? 100, 1000);
+  const offset = params.options?.offset ?? 0;
 
-  const session = getSession();
-  try {
-    const result = await session.run(
-      `
-        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})
-        MATCH (diagram)-[rel:HAS_BLOCK]->(block:ArchitectureBlock)
-        OPTIONAL MATCH (block)-[:LINKED_DOCUMENT]->(document:Document)
-        RETURN block, rel, collect(DISTINCT document.id) AS documentIds
-        ORDER BY rel.createdAt, block.createdAt
-      `,
-      {
-        tenantSlug,
-        projectSlug,
-        diagramId: params.diagramId
+  // Cache for 10 minutes (600 seconds)
+  const cacheKey = CacheKeys.architectureBlocks(
+    tenantSlug,
+    projectSlug,
+    params.diagramId,
+    limit,
+    offset
+  );
+
+  return getCached(
+    cacheKey,
+    async () => {
+      const session = getSession();
+      try {
+        // QUERY PROFILE: expected <100ms with pagination
+        const result = await session.run(
+          `
+            MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})
+            MATCH (diagram)-[rel:HAS_BLOCK]->(block:ArchitectureBlock)
+            OPTIONAL MATCH (block)-[:LINKED_DOCUMENT]->(document:Document)
+            RETURN block, rel, collect(DISTINCT document.id) AS documentIds
+            ORDER BY rel.createdAt, block.createdAt
+            SKIP $offset
+            LIMIT $limit
+          `,
+          {
+            tenantSlug,
+            projectSlug,
+            diagramId: params.diagramId,
+            offset,
+            limit
+          }
+        );
+
+        return result.records.map(record => {
+          const blockNode = record.get("block") as Neo4jNode;
+          const rel = record.get("rel") as Neo4jRelationship | undefined;
+          const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
+          return mapBlockWithPlacement(blockNode, rel, params.diagramId, documentIds);
+        });
+      } finally {
+        await session.close();
       }
-    );
-
-    return result.records.map(record => {
-      const blockNode = record.get("block") as Neo4jNode;
-      const rel = record.get("rel") as Neo4jRelationship | undefined;
-      const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
-      return mapBlockWithPlacement(blockNode, rel, params.diagramId, documentIds);
-    });
-  } finally {
-    await session.close();
-  }
+    },
+    600 // 10 minutes TTL
+  );
 }
 
 export async function getArchitectureBlockLibrary(params: {
@@ -426,6 +461,12 @@ export async function updateArchitectureBlock(params: {
     const blockNode = record.get("block") as Neo4jNode;
     const rel = record.get("rel") as Neo4jRelationship | undefined;
     const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
+
+    // Invalidate architecture cache
+    const tenantSlug = slugify(params.tenant);
+    const projectSlug = slugify(params.projectKey);
+    await CacheInvalidation.invalidateArchitecture(tenantSlug, projectSlug, params.diagramId);
+
     return mapBlockWithPlacement(blockNode, rel, params.diagramId, documentIds);
   } finally {
     await session.close();
@@ -493,6 +534,11 @@ export async function deleteArchitectureBlock(params: {
         throw new Error("Architecture block not found");
       }
     });
+
+    // Invalidate architecture cache
+    const tenantSlug = slugify(params.tenant);
+    const projectSlug = slugify(params.projectKey);
+    await CacheInvalidation.invalidateArchitecture(tenantSlug, projectSlug, params.diagramId);
   } finally {
     await session.close();
   }

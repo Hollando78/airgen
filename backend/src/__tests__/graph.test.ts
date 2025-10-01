@@ -9,7 +9,7 @@ import {
   deleteTraceLink
 } from "../services/graph.js";
 import * as workspace from "../services/workspace.js";
-import * as requirements from "../services/graph/requirements.js";
+import * as requirements from "../services/graph/requirements/index.js";
 
 type MockRecord = {
   get: (key: string) => unknown;

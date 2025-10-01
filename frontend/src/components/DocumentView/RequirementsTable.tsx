@@ -1,9 +1,12 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import type { RequirementRecord, DocumentSectionRecord, TraceLink, TraceLinkType } from "../../types";
-import { LinkIndicators } from "./LinkIndicators";
 import { RequirementContextMenu } from "../RequirementContextMenu";
 import { LinkTypeSelectionModal } from "../LinkTypeSelectionModal";
 import { useRequirementLinking } from "../../contexts/RequirementLinkingContext";
+import { ColumnResizer } from "./RequirementsTable/ColumnResizer";
+import { ColumnSelector, type ColumnVisibility } from "./RequirementsTable/ColumnSelector";
+import { TableFilterBar, type FilterState } from "./RequirementsTable/TableFilterBar";
+import { RequirementRow } from "./RequirementsTable/RequirementRow";
 
 export interface RequirementsTableProps {
   section: DocumentSectionRecord & { requirements: RequirementRecord[] };
@@ -42,12 +45,12 @@ export function RequirementsTable({
     y: number;
     requirement: RequirementRecord;
   } | null>(null);
-  const { linkingState, startLinking, completeLinking, isRequirementBeingLinked } = useRequirementLinking();
+  const { linkingState, startLinking, completeLinking } = useRequirementLinking();
   const [linkModal, setLinkModal] = useState<{
     sourceRequirement: RequirementRecord;
     targetRequirement: RequirementRecord;
   } | null>(null);
-  const [visibleColumns, setVisibleColumns] = useState({
+  const [visibleColumns, setVisibleColumns] = useState<ColumnVisibility>({
     id: true,
     description: true,
     pattern: true,
@@ -55,7 +58,7 @@ export function RequirementsTable({
     qaScore: true,
     actions: true
   });
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<FilterState>({
     text: "",
     pattern: "",
     verification: "",
@@ -93,31 +96,12 @@ export function RequirementsTable({
     }
   }, [linkModal, completeLinking]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, columnKey: string) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startWidth = columnWidths[columnKey as keyof typeof columnWidths];
-    setIsResizing(columnKey);
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const diff = e.clientX - startX;
-      const newWidth = Math.max(50, startWidth + diff);
-      
-      setColumnWidths(prev => ({
-        ...prev,
-        [columnKey]: newWidth
-      }));
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(null);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [columnWidths]);
+  const handleColumnWidthChange = useCallback((columnKey: string, width: number) => {
+    setColumnWidths(prev => ({
+      ...prev,
+      [columnKey]: width
+    }));
+  }, []);
 
   const filteredRequirements = useMemo(() => {
     return section.requirements.filter(req => {
@@ -125,26 +109,26 @@ export function RequirementsTable({
       if (filters.text && !req.text.toLowerCase().includes(filters.text.toLowerCase()) && !req.ref.toLowerCase().includes(filters.text.toLowerCase())) {
         return false;
       }
-      
+
       // Pattern filter
       if (filters.pattern && req.pattern !== filters.pattern) {
         return false;
       }
-      
+
       // Verification filter
       if (filters.verification && req.verification !== filters.verification) {
         return false;
       }
-      
+
       // QA Score filters
       if (filters.minQaScore && req.qaScore && req.qaScore < parseInt(filters.minQaScore)) {
         return false;
       }
-      
+
       if (filters.maxQaScore && req.qaScore && req.qaScore > parseInt(filters.maxQaScore)) {
         return false;
       }
-      
+
       return true;
     });
   }, [section.requirements, filters]);
@@ -162,32 +146,6 @@ export function RequirementsTable({
   const hasActiveFilters = Object.values(filters).some(value => value !== "");
   const visibleColumnCount = Object.values(visibleColumns).filter(Boolean).length;
 
-  const ResizeHandle = ({ columnKey }: { columnKey: string }) => (
-    <div
-      onMouseDown={(e) => handleMouseDown(e, columnKey)}
-      style={{
-        position: 'absolute',
-        right: 0,
-        top: 0,
-        bottom: 0,
-        width: '4px',
-        cursor: 'col-resize',
-        backgroundColor: isResizing === columnKey ? '#3b82f6' : 'transparent',
-        zIndex: 1
-      }}
-      onMouseEnter={(e) => {
-        if (!isResizing) {
-          e.currentTarget.style.backgroundColor = '#e2e8f0';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isResizing) {
-          e.currentTarget.style.backgroundColor = 'transparent';
-        }
-      }}
-    />
-  );
-
   const headerStyle = (width: number) => ({
     border: "1px solid #e2e8f0",
     padding: "12px",
@@ -195,16 +153,6 @@ export function RequirementsTable({
     width: `${width}px`,
     position: "relative" as const,
     userSelect: "none" as const
-  });
-
-  const cellStyle = (width: number) => ({
-    border: "1px solid #e2e8f0",
-    padding: "12px",
-    width: `${width}px`,
-    maxWidth: `${width}px`,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap" as const
   });
 
   return (
@@ -284,305 +232,19 @@ export function RequirementsTable({
       </div>
 
       {showFilters && (
-        <div style={{
-          padding: "16px 24px",
-          backgroundColor: "#f1f5f9",
-          borderBottom: "1px solid #e2e8f0",
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto",
-          gap: "12px",
-          alignItems: "end"
-        }}>
-          <div>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
-              Text Search
-            </label>
-            <input
-              type="text"
-              placeholder="Search in ID or description..."
-              value={filters.text}
-              onChange={(e) => setFilters(prev => ({ ...prev, text: e.target.value }))}
-              style={{
-                width: "100%",
-                padding: "6px 8px",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "12px"
-              }}
-            />
-          </div>
-          
-          <div>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
-              Pattern
-            </label>
-            <select
-              value={filters.pattern}
-              onChange={(e) => setFilters(prev => ({ ...prev, pattern: e.target.value }))}
-              style={{
-                width: "100%",
-                padding: "6px 8px",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "12px"
-              }}
-            >
-              <option value="">All</option>
-              <option value="ubiquitous">Ubiquitous</option>
-              <option value="event">Event</option>
-              <option value="state">State</option>
-              <option value="unwanted">Unwanted</option>
-              <option value="optional">Optional</option>
-            </select>
-          </div>
-          
-          <div>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
-              Verification
-            </label>
-            <select
-              value={filters.verification}
-              onChange={(e) => setFilters(prev => ({ ...prev, verification: e.target.value }))}
-              style={{
-                width: "100%",
-                padding: "6px 8px",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "12px"
-              }}
-            >
-              <option value="">All</option>
-              <option value="Test">Test</option>
-              <option value="Analysis">Analysis</option>
-              <option value="Inspection">Inspection</option>
-              <option value="Demonstration">Demonstration</option>
-            </select>
-          </div>
-          
-          <div>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
-              Min QA Score
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              placeholder="0"
-              value={filters.minQaScore}
-              onChange={(e) => setFilters(prev => ({ ...prev, minQaScore: e.target.value }))}
-              style={{
-                width: "100%",
-                padding: "6px 8px",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "12px"
-              }}
-            />
-          </div>
-          
-          <div>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
-              Max QA Score
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              placeholder="100"
-              value={filters.maxQaScore}
-              onChange={(e) => setFilters(prev => ({ ...prev, maxQaScore: e.target.value }))}
-              style={{
-                width: "100%",
-                padding: "6px 8px",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "12px"
-              }}
-            />
-          </div>
-          
-          <button
-            onClick={clearFilters}
-            disabled={!hasActiveFilters}
-            style={{
-              padding: "6px 12px",
-              backgroundColor: hasActiveFilters ? "#ef4444" : "#e5e7eb",
-              color: hasActiveFilters ? "white" : "#9ca3af",
-              border: "none",
-              borderRadius: "4px",
-              cursor: hasActiveFilters ? "pointer" : "not-allowed",
-              fontSize: "12px",
-              whiteSpace: "nowrap"
-            }}
-          >
-            Clear
-          </button>
-        </div>
+        <TableFilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          onClearFilters={clearFilters}
+          hasActiveFilters={hasActiveFilters}
+        />
       )}
 
       {showColumnSelector && (
-        <div style={{
-          padding: "16px 24px",
-          backgroundColor: "#f0f9ff",
-          borderBottom: "1px solid #e2e8f0",
-          display: "flex",
-          flexDirection: "column",
-          gap: "12px"
-        }}>
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}>
-            <h4 style={{ margin: 0, fontSize: "14px", fontWeight: "600" }}>
-              Column Visibility
-            </h4>
-            <button
-              onClick={() => {
-                const allVisible = Object.values(visibleColumns).every(v => v);
-                if (allVisible) {
-                  // Hide all except description and actions (keep these always visible)
-                  setVisibleColumns({
-                    id: false,
-                    description: true,
-                    pattern: false,
-                    verification: false,
-                    qaScore: false,
-                    actions: true
-                  });
-                } else {
-                  // Show all
-                  setVisibleColumns({
-                    id: true,
-                    description: true,
-                    pattern: true,
-                    verification: true,
-                    qaScore: true,
-                    actions: true
-                  });
-                }
-              }}
-              style={{
-                padding: "4px 8px",
-                backgroundColor: "transparent",
-                color: "#3b82f6",
-                border: "1px solid #3b82f6",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "11px"
-              }}
-            >
-              {Object.values(visibleColumns).every(v => v) ? "Hide All" : "Show All"}
-            </button>
-          </div>
-          
-          <div style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "16px",
-            alignItems: "center"
-          }}>
-            <label style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "6px", 
-              fontSize: "13px",
-              minWidth: "60px",
-              fontWeight: "500"
-            }}>
-              <input
-                type="checkbox"
-                checked={visibleColumns.id}
-                onChange={(e) => setVisibleColumns(prev => ({ ...prev, id: e.target.checked }))}
-              />
-              ID
-            </label>
-            
-            <label style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "6px", 
-              fontSize: "13px",
-              minWidth: "120px",
-              fontWeight: "500"
-            }}>
-              <input
-                type="checkbox"
-                checked={visibleColumns.description}
-                onChange={(e) => setVisibleColumns(prev => ({ ...prev, description: e.target.checked }))}
-                disabled={true}
-              />
-              Description
-              <span style={{ fontSize: "10px", color: "#9ca3af", fontWeight: "normal" }}>(required)</span>
-            </label>
-            
-            <label style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "6px", 
-              fontSize: "13px",
-              minWidth: "80px",
-              fontWeight: "500"
-            }}>
-              <input
-                type="checkbox"
-                checked={visibleColumns.pattern}
-                onChange={(e) => setVisibleColumns(prev => ({ ...prev, pattern: e.target.checked }))}
-              />
-              Pattern
-            </label>
-            
-            <label style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "6px", 
-              fontSize: "13px",
-              minWidth: "100px",
-              fontWeight: "500"
-            }}>
-              <input
-                type="checkbox"
-                checked={visibleColumns.verification}
-                onChange={(e) => setVisibleColumns(prev => ({ ...prev, verification: e.target.checked }))}
-              />
-              Verification
-            </label>
-            
-            <label style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "6px", 
-              fontSize: "13px",
-              minWidth: "90px",
-              fontWeight: "500"
-            }}>
-              <input
-                type="checkbox"
-                checked={visibleColumns.qaScore}
-                onChange={(e) => setVisibleColumns(prev => ({ ...prev, qaScore: e.target.checked }))}
-              />
-              QA Score
-            </label>
-            
-            <label style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "6px", 
-              fontSize: "13px",
-              minWidth: "100px",
-              fontWeight: "500"
-            }}>
-              <input
-                type="checkbox"
-                checked={visibleColumns.actions}
-                onChange={(e) => setVisibleColumns(prev => ({ ...prev, actions: e.target.checked }))}
-                disabled={true}
-              />
-              Actions
-              <span style={{ fontSize: "10px", color: "#9ca3af", fontWeight: "normal" }}>(required)</span>
-            </label>
-          </div>
-        </div>
+        <ColumnSelector
+          visibleColumns={visibleColumns}
+          onVisibleColumnsChange={setVisibleColumns}
+        />
       )}
 
       <div style={{ flex: 1, overflow: "auto" }}>
@@ -592,31 +254,61 @@ export function RequirementsTable({
               {visibleColumns.id && (
                 <th style={headerStyle(columnWidths.id)}>
                   ID
-                  <ResizeHandle columnKey="id" />
+                  <ColumnResizer
+                    columnKey="id"
+                    columnWidths={columnWidths}
+                    isResizing={isResizing === "id"}
+                    onColumnWidthChange={handleColumnWidthChange}
+                    onResizingChange={setIsResizing}
+                  />
                 </th>
               )}
               {visibleColumns.description && (
                 <th style={headerStyle(columnWidths.description)}>
                   Description
-                  <ResizeHandle columnKey="description" />
+                  <ColumnResizer
+                    columnKey="description"
+                    columnWidths={columnWidths}
+                    isResizing={isResizing === "description"}
+                    onColumnWidthChange={handleColumnWidthChange}
+                    onResizingChange={setIsResizing}
+                  />
                 </th>
               )}
               {visibleColumns.pattern && (
                 <th style={headerStyle(columnWidths.pattern)}>
                   Pattern
-                  <ResizeHandle columnKey="pattern" />
+                  <ColumnResizer
+                    columnKey="pattern"
+                    columnWidths={columnWidths}
+                    isResizing={isResizing === "pattern"}
+                    onColumnWidthChange={handleColumnWidthChange}
+                    onResizingChange={setIsResizing}
+                  />
                 </th>
               )}
               {visibleColumns.verification && (
                 <th style={headerStyle(columnWidths.verification)}>
                   Verification
-                  <ResizeHandle columnKey="verification" />
+                  <ColumnResizer
+                    columnKey="verification"
+                    columnWidths={columnWidths}
+                    isResizing={isResizing === "verification"}
+                    onColumnWidthChange={handleColumnWidthChange}
+                    onResizingChange={setIsResizing}
+                  />
                 </th>
               )}
               {visibleColumns.qaScore && (
                 <th style={headerStyle(columnWidths.qaScore)}>
                   QA Score
-                  <ResizeHandle columnKey="qaScore" />
+                  <ColumnResizer
+                    columnKey="qaScore"
+                    columnWidths={columnWidths}
+                    isResizing={isResizing === "qaScore"}
+                    onColumnWidthChange={handleColumnWidthChange}
+                    onResizingChange={setIsResizing}
+                  />
                 </th>
               )}
               {visibleColumns.actions && (
@@ -635,7 +327,7 @@ export function RequirementsTable({
                   textAlign: "center",
                   color: "#64748b"
                 }}>
-                  {section.requirements.length === 0 
+                  {section.requirements.length === 0
                     ? "No requirements in this section yet"
                     : "No requirements match the current filters"
                   }
@@ -643,82 +335,18 @@ export function RequirementsTable({
               </tr>
             ) : (
               filteredRequirements.map((req: RequirementRecord, index: number) => (
-                <tr 
-                  key={req.id} 
-                  style={{ 
-                    backgroundColor: index % 2 === 0 ? "white" : "#f8f9fa",
-                    cursor: "pointer"
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e, req)}
-                >
-                  {visibleColumns.id && (
-                    <td style={cellStyle(columnWidths.id)} title={req.ref}>{req.ref}</td>
-                  )}
-                  {visibleColumns.description && (
-                    <td style={cellStyle(columnWidths.description)} title={req.text}>
-                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                        <span style={{ flex: 1, marginRight: "8px" }}>{req.text}</span>
-                        <LinkIndicators 
-                          requirementId={req.id}
-                          traceLinks={traceLinks}
-                          tenant={tenant}
-                          project={project}
-                        />
-                      </div>
-                    </td>
-                  )}
-                  {visibleColumns.pattern && (
-                    <td style={cellStyle(columnWidths.pattern)}>
-                      <span style={{ padding: "2px 6px", borderRadius: "3px", fontSize: "12px", backgroundColor: "#e2e8f0" }}>
-                        {req.pattern || "—"}
-                      </span>
-                    </td>
-                  )}
-                  {visibleColumns.verification && (
-                    <td style={cellStyle(columnWidths.verification)}>
-                      <span style={{ padding: "2px 6px", borderRadius: "3px", fontSize: "12px", backgroundColor: "#e2e8f0" }}>
-                        {req.verification || "—"}
-                      </span>
-                    </td>
-                  )}
-                  {visibleColumns.qaScore && (
-                    <td style={{ ...cellStyle(columnWidths.qaScore), textAlign: "center" }}>
-                      {req.qaScore ? (
-                        <span
-                          style={{
-                            padding: "2px 6px",
-                            borderRadius: "3px",
-                            fontSize: "12px",
-                            backgroundColor:
-                              req.qaScore >= 80 ? "#d4edda" : req.qaScore >= 60 ? "#fff3cd" : "#f8d7da",
-                            color:
-                              req.qaScore >= 80 ? "#155724" : req.qaScore >= 60 ? "#856404" : "#721c24"
-                          }}
-                        >
-                          {req.qaScore}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                  )}
-                  {visibleColumns.actions && (
-                    <td style={{ ...cellStyle(columnWidths.actions), textAlign: "center" }}>
-                      <button
-                        onClick={() => onEditRequirement(req)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: "4px",
-                          borderRadius: "3px"
-                        }}
-                      >
-                        ✏️
-                      </button>
-                    </td>
-                  )}
-                </tr>
+                <RequirementRow
+                  key={req.id}
+                  requirement={req}
+                  index={index}
+                  columnWidths={columnWidths}
+                  visibleColumns={visibleColumns}
+                  tenant={tenant}
+                  project={project}
+                  traceLinks={traceLinks}
+                  onContextMenu={handleContextMenu}
+                  onEdit={onEditRequirement}
+                />
               ))
             )}
           </tbody>

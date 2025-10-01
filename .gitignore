@@ -29,3 +29,9 @@ yarn-error.log*
 .vscode
 workspace/**
 !workspace/.gitkeep
+
+# Testing
+test-results/
+playwright-report/
+playwright/.cache/
+*.trace.zip

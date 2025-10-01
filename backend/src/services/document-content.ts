@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
-import { getDocument } from "./graph/documents.js";
-import { listRequirements } from "./graph/requirements.js";
+import { getDocument } from "./graph/documents/index.js";
+import { listRequirements } from "./graph/requirements/index.js";
 import { readFileSafely, getWorkspacePath } from "./secure-file.js";
 
 /**

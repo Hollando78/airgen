@@ -1,7 +1,7 @@
 import { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
-import { mapRequirement } from "./requirements.js";
+import { mapRequirement } from "./requirements/index.js";
 
 export type TraceLinkRecord = {
   id: string;
@@ -133,6 +133,7 @@ export async function listTraceLinks(params: {
   const session = getSession();
   try {
     const result = await session.executeRead(async (tx: ManagedTransaction) => {
+      // QUERY PROFILE: expected <100ms - optimized to avoid cartesian products with OPTIONAL MATCH
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink)
         MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement)
@@ -171,6 +172,7 @@ export async function listTraceLinksByRequirement(params: {
   const session = getSession();
   try {
     const result = await session.executeRead(async (tx: ManagedTransaction) => {
+      // QUERY PROFILE: expected <50ms - optimized with OPTIONAL MATCH to avoid cartesian products
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink)
         MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement)

@@ -132,22 +132,33 @@ export async function createRequirementCandidates(
   }
 }
 
+export interface ListOptions {
+  limit?: number;     // Default 100, max 1000
+  offset?: number;    // Default 0
+}
+
 export async function listRequirementCandidates(
   tenant: string,
-  projectKey: string
+  projectKey: string,
+  options?: ListOptions
 ): Promise<RequirementCandidateRecord[]> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(projectKey);
+  const limit = Math.min(options?.limit ?? 100, 1000);
+  const offset = options?.offset ?? 0;
   const session = getSession();
 
   try {
+    // QUERY PROFILE: expected <50ms with pagination
     const result = await session.run(
       `
         MATCH (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})-[:HAS_CANDIDATE]->(candidate:RequirementCandidate)
         RETURN candidate
         ORDER BY candidate.createdAt DESC
+        SKIP $offset
+        LIMIT $limit
       `,
-      { tenantSlug, projectSlug }
+      { tenantSlug, projectSlug, offset, limit }
     );
 
     return result.records.map(record => mapRequirementCandidate(record.get("candidate")));
