@@ -4,6 +4,15 @@ export type BlockPortRecord = {
   id: string;
   name: string;
   direction: "in" | "out" | "inout";
+  edge?: "top" | "right" | "bottom" | "left";
+  offset?: number; // 0-100% position along edge
+  // Styling properties
+  backgroundColor?: string | null;
+  borderColor?: string | null;
+  borderWidth?: number | null;
+  size?: number | null;
+  shape?: "circle" | "square" | "diamond" | null;
+  iconColor?: string | null;
 };
 
 export type ArchitectureBlockDefinitionRecord = {

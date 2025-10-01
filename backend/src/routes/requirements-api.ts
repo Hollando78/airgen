@@ -1,8 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
-  RequirementPattern,
-  VerificationMethod,
   readRequirementMarkdown,
   writeRequirementMarkdown
 } from "../services/workspace.js";
@@ -123,25 +121,6 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
           sortBy: { type: "string", enum: ["createdAt", "ref", "qaScore"], description: "Field to sort by" },
           sortOrder: { type: "string", enum: ["asc", "desc"], default: "desc", description: "Sort direction" }
         }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            data: { type: "array", items: { type: "object" } },
-            meta: {
-              type: "object",
-              properties: {
-                currentPage: { type: "integer" },
-                pageSize: { type: "integer" },
-                totalItems: { type: "integer" },
-                totalPages: { type: "integer" },
-                hasNextPage: { type: "boolean" },
-                hasPrevPage: { type: "boolean" }
-              }
-            }
-          }
-        }
       }
     }
   }, async (req) => {
@@ -184,21 +163,6 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
           tenant: { type: "string", description: "Tenant slug" },
           project: { type: "string", description: "Project slug" },
           ref: { type: "string", description: "Requirement reference" }
-        }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            record: { type: "object" },
-            markdown: { type: "string" }
-          }
-        },
-        404: {
-          type: "object",
-          properties: {
-            error: { type: "string" }
-          }
         }
       }
     }

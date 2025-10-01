@@ -16,7 +16,7 @@ export function InterfacePalette({ presets, onAddPreset, disabled = false }: Pal
       <div className="palette-items">
         {presets.map(preset => (
           <button
-            key={preset.kind}
+            key={preset.stereotype}
             className={`palette-item ${disabled ? "disabled" : ""}`}
             onClick={() => {
               if (!disabled) {

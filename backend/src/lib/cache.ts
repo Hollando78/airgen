@@ -21,7 +21,7 @@ let createClient: any = null;
 try {
   const redisModule = await import('redis');
   createClient = redisModule.createClient;
-} catch (err) {
+} catch {
   // Redis not installed - caching will be disabled
 }
 
@@ -279,7 +279,7 @@ async function invalidateByPattern(pattern: string): Promise<void> {
     }
 
     if (keys.length > 0) {
-      await redisClient.del(keys);
+      await redisClient.del(...keys);
       logger.debug({ pattern, count: keys.length }, 'Invalidated cache keys by pattern');
     }
   } catch (err) {

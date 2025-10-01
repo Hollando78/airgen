@@ -59,8 +59,11 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
           properties: {
             ok: { type: "boolean" },
             timestamp: { type: "string" },
+            time: { type: "string" },
             uptime: { type: "number" },
             environment: { type: "string" },
+            env: { type: "string" },
+            workspace: { type: "string" },
             version: { type: "string" },
             memory: {
               type: "object",
@@ -101,7 +104,7 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
       await session.run("RETURN 1");
       await session.close();
       dbStatus = "connected";
-    } catch (error) {
+    } catch {
       dbStatus = "disconnected";
     }
 
@@ -112,11 +115,16 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     // Get Sentry status
     const sentryStatus = getSentryStatus();
 
+    const timestamp = new Date().toISOString();
+
     return {
       ok: true,
-      timestamp: new Date().toISOString(),
+      timestamp,
+      time: timestamp,  // Alias for frontend compatibility
       uptime: process.uptime(),
       environment: config.environment,
+      env: config.environment,  // Alias for frontend compatibility
+      workspace: config.workspaceRoot,  // Workspace root path
       version: "0.1.0",
       memory: {
         heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024 * 100) / 100,

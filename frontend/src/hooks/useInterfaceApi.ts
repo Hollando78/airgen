@@ -69,6 +69,18 @@ export function useInterface(tenant: string | null, project: string | null) {
 
   const diagrams = useMemo(() => allDiagrams.filter(matchesInterfaceDiagram), [allDiagrams]);
 
+  // Auto-create interface diagram if none exist
+  useEffect(() => {
+    if (tenant && project && allDiagrams.length > 0 && diagrams.length === 0) {
+      baseCreateDiagram({
+        name: "Interface View 1",
+        view: "block"
+      }).catch(err => {
+        console.error("Failed to auto-create interface diagram:", err);
+      });
+    }
+  }, [tenant, project, allDiagrams.length, diagrams.length, baseCreateDiagram]);
+
   const activeDiagramId = useMemo(() => {
     if (baseActiveDiagramId && diagrams.some(diagram => diagram.id === baseActiveDiagramId)) {
       return baseActiveDiagramId;

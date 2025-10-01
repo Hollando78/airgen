@@ -158,8 +158,6 @@ export async function createArchitectureBlock(params: {
     const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
 
     // Invalidate architecture cache
-    const tenantSlug = slugify(params.tenant);
-    const projectSlug = slugify(params.projectKey);
     await CacheInvalidation.invalidateArchitecture(tenantSlug, projectSlug, params.diagramId);
 
     return mapBlockWithPlacement(blockNode, rel, params.diagramId, documentIds);
@@ -464,8 +462,6 @@ export async function updateArchitectureBlock(params: {
     const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
 
     // Invalidate architecture cache
-    const tenantSlug = slugify(params.tenant);
-    const projectSlug = slugify(params.projectKey);
     await CacheInvalidation.invalidateArchitecture(tenantSlug, projectSlug, params.diagramId);
 
     return mapBlockWithPlacement(blockNode, rel, params.diagramId, documentIds);
@@ -537,8 +533,6 @@ export async function deleteArchitectureBlock(params: {
     });
 
     // Invalidate architecture cache
-    const tenantSlug = slugify(params.tenant);
-    const projectSlug = slugify(params.projectKey);
     await CacheInvalidation.invalidateArchitecture(tenantSlug, projectSlug, params.diagramId);
   } finally {
     await session.close();

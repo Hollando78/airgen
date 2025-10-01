@@ -153,12 +153,12 @@ export function mapArchitectureConnector(node: Neo4jNode): ArchitectureConnector
     diagramId: String(props.diagramId ?? ""),
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt),
-    // Styling properties
-    lineStyle: props.lineStyle ? String(props.lineStyle) : null,
-    markerStart: props.markerStart ? String(props.markerStart) : null,
-    markerEnd: props.markerEnd ? String(props.markerEnd) : null,
-    linePattern: props.linePattern ? String(props.linePattern) : null,
-    color: props.color ? String(props.color) : null,
-    strokeWidth: props.strokeWidth ? toNumber(props.strokeWidth) : null
+    // Styling properties - preserve explicit values including "none"
+    lineStyle: props.lineStyle !== undefined && props.lineStyle !== null ? String(props.lineStyle) : null,
+    markerStart: props.markerStart !== undefined && props.markerStart !== null ? String(props.markerStart) : null,
+    markerEnd: props.markerEnd !== undefined && props.markerEnd !== null ? String(props.markerEnd) : null,
+    linePattern: props.linePattern !== undefined && props.linePattern !== null ? String(props.linePattern) : null,
+    color: props.color !== undefined && props.color !== null ? String(props.color) : null,
+    strokeWidth: props.strokeWidth !== undefined && props.strokeWidth !== null ? toNumber(props.strokeWidth) : null
   };
 }

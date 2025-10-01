@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useImperativeHandle,
+  useState,
   type ForwardRefRenderFunction,
   type MouseEvent as ReactMouseEvent
 } from "react";
@@ -20,6 +21,7 @@ import { BlockStylingPopup } from "../architecture/BlockStylingPopup";
 import { ConnectorStylingPopup } from "../architecture/ConnectorStylingPopup";
 import { DiagramContextMenu } from "./DiagramContextMenu";
 import { ConnectorStylingToolbar } from "./ConnectorStylingToolbar";
+import { DiagramToolbar } from "./DiagramToolbar";
 import { Spinner } from "../Spinner";
 import type { ArchitectureDiagramRecord, DocumentRecord } from "../../types";
 import type {
@@ -56,8 +58,10 @@ interface DiagramCanvasProps {
   documents: DocumentRecord[];
   selectedBlockId: string | null;
   selectedConnectorId: string | null;
+  selectedPortId?: string | null;
   onSelectBlock: (blockId: string | null) => void;
   onSelectConnector: (connectorId: string | null) => void;
+  onSelectPort?: (blockId: string, portId: string | null) => void;
   blockPresets: DiagramBlockPreset[];
   computePlacement: (blockCount: number) => XYPosition;
   addBlock: (
@@ -93,7 +97,8 @@ interface DiagramCanvasProps {
   removeConnector: (connectorId: string) => void;
   onOpenDocument: (documentSlug: string) => void;
   isLoading: boolean;
-  mapConnectorToEdge: (connector: SysmlConnector) => Edge;
+  mapConnectorToEdge: (connector: SysmlConnector, blocks?: SysmlBlock[]) => Edge;
+  hideDefaultHandles?: boolean;
 }
 
 const DiagramCanvasComponent: ForwardRefRenderFunction<
@@ -109,8 +114,10 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       documents,
       selectedBlockId,
       selectedConnectorId,
+      selectedPortId,
       onSelectBlock,
       onSelectConnector,
+      onSelectPort,
       addBlock,
       reuseBlock,
       updateBlock,
@@ -127,10 +134,13 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       isLoading,
       blockPresets,
       computePlacement,
-      mapConnectorToEdge
+      mapConnectorToEdge,
+      hideDefaultHandles
   },
   ref
 ) => {
+    const [isConnectMode, setIsConnectMode] = useState(false);
+
     const {
       minimapOpen,
       setMinimapOpen,
@@ -166,10 +176,15 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       documents,
       selectedBlockId,
       selectedConnectorId,
+      selectedPortId,
       onSelectBlock,
       onSelectConnector,
+      onSelectPort,
       blockPresets,
       computePlacement,
+      mapConnectorToEdge,
+      hideDefaultHandles,
+      isConnectMode,
       addBlock,
       reuseBlock,
       updateBlock,
@@ -182,8 +197,7 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       addConnector,
       updateConnector,
       removeConnector,
-      onOpenDocument,
-      mapConnectorToEdge
+      onOpenDocument
     });
 
     useImperativeHandle(ref, () => ({
@@ -213,33 +227,7 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                   closeContextMenu();
                   onSelectBlock(node.id);
                   onSelectConnector(null);
-
-                  if (reactFlowInstanceRef.current) {
-                    let nodeElement = document.querySelector(`[data-id="${node.id}"]`) as HTMLElement;
-                    if (!nodeElement) {
-                      nodeElement = document.querySelector(`.react-flow__node[data-id="${node.id}"]`) as HTMLElement;
-                    }
-                    if (!nodeElement) {
-                      nodeElement = event.currentTarget as HTMLElement;
-                    }
-
-                    if (nodeElement) {
-                      const rect = nodeElement.getBoundingClientRect();
-                      const popupPosition = {
-                        x: Math.max(10, rect.left + rect.width / 2 - 160),
-                        y: Math.max(10, rect.top - 20)
-                      };
-                      setBlockStylingPopup({
-                        blockId: node.id,
-                        position: popupPosition
-                      });
-                    } else {
-                      setBlockStylingPopup({
-                        blockId: node.id,
-                        position: { x: 200, y: 100 }
-                      });
-                    }
-                  }
+                  setBlockStylingPopup(null);
                   setConnectorStylingPopup(null);
                 }}
                 onEdgeClick={(event: ReactMouseEvent, edge: Edge) => {
@@ -247,15 +235,8 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                   closeContextMenu();
                   onSelectConnector(edge.id);
                   onSelectBlock(null);
-
-                  setConnectorStylingPopup({
-                    connectorId: edge.id,
-                    position: {
-                      x: event.clientX + 10,
-                      y: event.clientY - 50
-                    }
-                  });
                   setBlockStylingPopup(null);
+                  setConnectorStylingPopup(null);
                 }}
                 onNodesDelete={(nodesToDelete: Node[]) =>
                   nodesToDelete.forEach(node => removeBlock(node.id))
@@ -304,6 +285,11 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 )}
                 <Controls position="bottom-right" showInteractive={false} />
               </ReactFlow>
+
+              <DiagramToolbar
+                isConnectMode={isConnectMode}
+                onToggleConnectMode={() => setIsConnectMode(prev => !prev)}
+              />
 
               <div className="architecture-canvas-toolbar">
                 <button className="ghost-button" onClick={() => setMinimapOpen(prev => !prev)}>

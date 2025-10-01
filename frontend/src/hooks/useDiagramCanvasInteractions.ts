@@ -51,11 +51,15 @@ interface UseCanvasInteractionsParams {
   documents: DocumentRecord[];
   selectedBlockId: string | null;
   selectedConnectorId: string | null;
+  selectedPortId?: string | null;
   onSelectBlock: (id: string | null) => void;
   onSelectConnector: (id: string | null) => void;
+  onSelectPort?: (blockId: string, portId: string | null) => void;
   blockPresets: DiagramBlockPreset[];
   computePlacement: (blockCount: number) => XYPosition;
-  mapConnectorToEdge: (connector: SysmlConnector) => Edge;
+  mapConnectorToEdge: (connector: SysmlConnector, blocks?: SysmlBlock[]) => Edge;
+  hideDefaultHandles?: boolean;
+  isConnectMode?: boolean;
   addBlock: (
     input:
       | {
@@ -75,7 +79,7 @@ interface UseCanvasInteractionsParams {
   updateBlockSize: (blockId: string, size: { width: number; height: number }) => void;
   removeBlock: (blockId: string) => void;
   addPort: (blockId: string, port: { name: string; direction: PortDirection }) => void;
-  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection }) => void;
+  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection; edge?: "top" | "right" | "bottom" | "left"; offset?: number }) => void;
   removePort: (blockId: string, portId: string) => void;
   addConnector: (input: {
     source: string;
@@ -135,11 +139,15 @@ export function useDiagramCanvasInteractions({
   documents,
   selectedBlockId,
   selectedConnectorId,
+  selectedPortId,
   onSelectBlock,
   onSelectConnector,
+  onSelectPort,
   blockPresets,
   computePlacement,
   mapConnectorToEdge,
+  hideDefaultHandles = false,
+  isConnectMode = false,
   addBlock,
   reuseBlock,
   updateBlock,
@@ -342,11 +350,17 @@ export function useDiagramCanvasInteractions({
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (!activeDiagramId || !connection.source || !connection.target) {return;}
+
+        // Strip "-target" suffix from target port ID if present
+        const targetPortId = connection.targetHandle?.endsWith('-target')
+          ? connection.targetHandle.slice(0, -7) // Remove "-target" (7 chars)
+          : connection.targetHandle;
+
         const newId = addConnector({
           source: connection.source,
           target: connection.target,
           sourcePortId: connection.sourceHandle ?? undefined,
-          targetPortId: connection.targetHandle ?? undefined
+          targetPortId: targetPortId ?? undefined
         });
       onSelectConnector(newId);
       onSelectBlock(null);
@@ -435,17 +449,22 @@ export function useDiagramCanvasInteractions({
       if (!block) {return [];}
 
       const sharedBaseName = block.name.replace(/\s+copy$/i, "");
-      const existingInputs = block.ports.filter((port: BlockPort) => port.direction !== "out").length;
-      const existingOutputs = block.ports.filter((port: BlockPort) => port.direction !== "in").length;
+      const existingPorts = block.ports.length;
 
       return [
         {
-          label: "Add input port",
-          onSelect: () => addPort(block.id, { name: `in${existingInputs + 1}`, direction: "in" })
+          label: "Style block",
+          onSelect: () => {
+            setBlockStylingPopup({
+              blockId: block.id,
+              position: { x: contextMenuState.client.x + 10, y: contextMenuState.client.y }
+            });
+            closeContextMenu();
+          }
         },
         {
-          label: "Add output port",
-          onSelect: () => addPort(block.id, { name: `out${existingOutputs + 1}`, direction: "out" })
+          label: "Add Port",
+          onSelect: () => addPort(block.id, { name: `port${existingPorts + 1}`, direction: "inout" })
         },
         {
           label: "Duplicate block",
@@ -478,6 +497,16 @@ export function useDiagramCanvasInteractions({
       }
       return [
         {
+          label: "Style connector",
+          onSelect: () => {
+            setConnectorStylingPopup({
+              connectorId: connector.id,
+              position: { x: contextMenuState.client.x + 10, y: contextMenuState.client.y }
+            });
+            closeContextMenu();
+          }
+        },
+        {
           label: "Delete connector",
           onSelect: () => {
             console.log("[DiagramCanvas] Delete connector clicked");
@@ -501,17 +530,62 @@ export function useDiagramCanvasInteractions({
     handleAddBlock,
     addPort,
     removeBlock,
-    removeConnector
+    removeConnector,
+    setBlockStylingPopup,
+    setConnectorStylingPopup,
+    closeContextMenu
   ]);
 
+  /**
+   * PERFORMANCE OPTIMIZATION:
+   * Memoize node data template to prevent all nodes from re-rendering when only
+   * internal hook state changes. This significantly improves responsiveness during
+   * user interactions like dragging, resizing, and port manipulation.
+   */
+  const nodeDataTemplate = useMemo(() => ({
+    documents: memoizedDocuments,
+    onOpenDocument,
+    hideDefaultHandles,
+    isConnectMode,
+    selectedPortId,
+    onSelectPort,
+    updatePort,
+    removePort
+  }), [memoizedDocuments, onOpenDocument, hideDefaultHandles, isConnectMode, selectedPortId, onSelectPort, updatePort, removePort]);
+
+  /**
+   * SMART NODE SYNCHRONIZATION:
+   * Syncs ReactFlow nodes with architecture blocks state while minimizing re-renders.
+   * Key optimizations:
+   * 1. Preserves node instances during drag operations to avoid visual glitches
+   * 2. Only updates nodes when actual data changes (not on every render)
+   * 3. Uses structural comparison to detect when nodes are added/removed
+   * 4. Maintains position continuity during drag operations
+   */
   useLayoutEffect(() => {
     setNodes(prevNodes => {
       const prevLookup = new Map(prevNodes.map(node => [node.id, node]));
+      const newBlockIds = new Set(architecture.blocks.map((b: SysmlBlock) => b.id));
+
+      // Check if we need to update - avoid unnecessary re-renders
+      const hasStructuralChanges =
+        prevNodes.length !== architecture.blocks.length ||
+        prevNodes.some(node => !newBlockIds.has(node.id));
 
       return architecture.blocks.map((block: SysmlBlock) => {
         const prev = prevLookup.get(block.id);
         const shouldPreservePosition = draggingNodes.current.has(block.id);
         const position = shouldPreservePosition && prev ? prev.position : block.position;
+
+        // Only update node if block data changed or it's a new node
+        const needsUpdate = !prev || hasStructuralChanges ||
+          prev.data.block !== block ||
+          prev.selected !== (block.id === selectedBlockId);
+
+        if (prev && !needsUpdate && shouldPreservePosition) {
+          // Return existing node to avoid unnecessary re-render during drag
+          return prev;
+        }
 
         return {
           ...prev,
@@ -519,9 +593,8 @@ export function useDiagramCanvasInteractions({
           type: "sysmlBlock",
           position,
           data: {
-            block,
-            documents: memoizedDocuments,
-            onOpenDocument
+            ...nodeDataTemplate,
+            block
           },
           style: {
             width: block.size.width,
@@ -536,23 +609,83 @@ export function useDiagramCanvasInteractions({
         } satisfies Node;
       });
     });
-  }, [architecture.blocks, memoizedDocuments, onOpenDocument, selectedBlockId]);
+  }, [architecture.blocks, selectedBlockId, nodeDataTemplate]);
 
+  /**
+   * SMART EDGE SYNCHRONIZATION:
+   * Syncs ReactFlow edges with architecture connectors while avoiding unnecessary updates.
+   * Preserves edge instances when possible to prevent flickering and maintain smooth animations.
+   */
   useEffect(() => {
     setEdges(prevEdges => {
       const prevLookup = new Map(prevEdges.map(edge => [edge.id, edge]));
+      const newConnectorIds = new Set(architecture.connectors.map((c: SysmlConnector) => c.id));
 
+      // Check for structural changes (added/removed connectors)
+      const hasStructuralChanges =
+        prevEdges.length !== architecture.connectors.length ||
+        prevEdges.some(edge => !newConnectorIds.has(edge.id));
+
+      // If no structural changes and same connectors, be very conservative about updates
+      if (!hasStructuralChanges && prevEdges.length === architecture.connectors.length) {
+        // Only update edges that actually changed
+        const newEdges = architecture.connectors.map((connector: SysmlConnector) => {
+          const prev = prevLookup.get(connector.id);
+          const mappedEdge = mapConnectorToEdge(connector, architecture.blocks);
+
+          // If no previous edge, return new one
+          if (!prev) {
+            return {
+              ...mappedEdge,
+              selected: connector.id === selectedConnectorId
+            } satisfies Edge;
+          }
+
+          // Check if anything meaningful changed
+          const selectionChanged = prev.selected !== (connector.id === selectedConnectorId);
+          const handleChanged = prev.sourceHandle !== mappedEdge.sourceHandle || prev.targetHandle !== mappedEdge.targetHandle;
+          const visualChanged =
+            prev.type !== mappedEdge.type ||
+            prev.animated !== mappedEdge.animated ||
+            prev.style?.stroke !== mappedEdge.style?.stroke ||
+            prev.style?.strokeWidth !== mappedEdge.style?.strokeWidth ||
+            prev.style?.strokeDasharray !== mappedEdge.style?.strokeDasharray ||
+            prev.markerStart?.type !== mappedEdge.markerStart?.type ||
+            prev.markerStart?.color !== mappedEdge.markerStart?.color ||
+            prev.markerEnd?.type !== mappedEdge.markerEnd?.type ||
+            prev.markerEnd?.color !== mappedEdge.markerEnd?.color ||
+            prev.label !== mappedEdge.label;
+
+          // If nothing changed, return existing edge reference (critical for performance)
+          if (!selectionChanged && !handleChanged && !visualChanged) {
+            return prev;
+          }
+
+          // Only selection changed - just update that property
+          if (selectionChanged && !handleChanged && !visualChanged) {
+            return { ...prev, selected: connector.id === selectedConnectorId };
+          }
+
+          // Something meaningful changed, return new edge
+          return {
+            ...mappedEdge,
+            selected: connector.id === selectedConnectorId
+          } satisfies Edge;
+        });
+
+        return newEdges;
+      }
+
+      // Structural changes detected, rebuild all edges
       return architecture.connectors.map((connector: SysmlConnector) => {
-        const prev = prevLookup.get(connector.id);
-
+        const mappedEdge = mapConnectorToEdge(connector, architecture.blocks);
         return {
-          ...prev,
-          ...mapConnectorToEdge(connector),
+          ...mappedEdge,
           selected: connector.id === selectedConnectorId
         } satisfies Edge;
       });
     });
-  }, [architecture.connectors, selectedConnectorId, mapConnectorToEdge]);
+  }, [architecture.connectors, architecture.blocks, selectedConnectorId, mapConnectorToEdge]);
 
   useLayoutEffect(() => {
     if (!architecture.blocks.length) {

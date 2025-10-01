@@ -437,14 +437,17 @@ export type DocumentTreeNode = {
 export type BlockKind = "system" | "subsystem" | "component" | "actor" | "external" | "interface";
 export type ConnectorKind = "association" | "flow" | "dependency" | "composition";
 export type PortDirection = "in" | "out" | "inout";
+export type PortEdge = "top" | "right" | "bottom" | "left";
 export type ConnectorLineStyle = "straight" | "smoothstep" | "step" | "bezier";
-export type ConnectorMarkerType = "arrow" | "arrowclosed" | "diamond" | "circle" | "none";
+export type ConnectorMarkerType = "arrow" | "arrowclosed" | "none";
 export type ConnectorLinePattern = "solid" | "dashed" | "dotted";
 
 export type BlockPortRecord = {
   id: string;
   name: string;
   direction: PortDirection;
+  edge?: PortEdge;      // Which edge of the block (default: auto-position based on direction)
+  offset?: number;      // Position along the edge, 0-100% (default: evenly spaced)
 };
 
 export type ArchitectureBlockDefinitionRecord = {

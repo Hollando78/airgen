@@ -1,12 +1,12 @@
 import { MarkerType, type Edge, type XYPosition } from "@xyflow/react";
-import type { SysmlConnector } from "../../../hooks/useArchitectureApi";
+import type { SysmlConnector, SysmlBlock } from "../../../hooks/useArchitectureApi";
 
 export function getMarkerType(markerType?: string) {
   switch (markerType) {
     case "arrow": return MarkerType.Arrow;
     case "arrowclosed": return MarkerType.ArrowClosed;
     case "none": return undefined;
-    default: return MarkerType.ArrowClosed;
+    default: return undefined;
   }
 }
 
@@ -29,18 +29,36 @@ export function getDefaultColorByKind(kind: string): string {
   }
 }
 
-export function mapConnectorToEdge(connector: SysmlConnector): Edge {
+export function mapConnectorToEdge(connector: SysmlConnector, blocks?: SysmlBlock[]): Edge {
   const kind = connector.kind;
   const isFlow = kind === "flow";
   const isComposition = kind === "composition";
 
-  // Composition connectors get special treatment for hierarchy visualization
-  const lineStyle = connector.lineStyle || (isComposition ? "step" : isFlow ? "smoothstep" : "straight");
-  const strokeColor = connector.color || getDefaultColorByKind(kind);
-  const strokeWidth = connector.strokeWidth || (isComposition ? 3 : 2);
-  const linePattern = connector.linePattern || "solid";
-  const markerEndType = getMarkerType(connector.markerEnd || (isComposition ? "arrow" : "arrowclosed"));
-  const markerStartType = getMarkerType(connector.markerStart || (isComposition ? "arrowclosed" : "none"));
+  // Use explicit values if set, otherwise fall back to kind-based defaults
+  // Check if properties are explicitly set (even to "none") vs. undefined (not set)
+  const lineStyle = connector.lineStyle !== undefined && connector.lineStyle !== null
+    ? connector.lineStyle
+    : (isComposition ? "step" : isFlow ? "smoothstep" : "straight");
+
+  const strokeColor = connector.color !== undefined && connector.color !== null
+    ? connector.color
+    : getDefaultColorByKind(kind);
+
+  const strokeWidth = connector.strokeWidth !== undefined && connector.strokeWidth !== null
+    ? connector.strokeWidth
+    : (isComposition ? 3 : 2);
+
+  const linePattern = connector.linePattern !== undefined && connector.linePattern !== null
+    ? connector.linePattern
+    : "solid";
+
+  const markerEndType = connector.markerEnd !== undefined && connector.markerEnd !== null
+    ? getMarkerType(connector.markerEnd)
+    : getMarkerType(isComposition ? "arrow" : "arrowclosed");
+
+  const markerStartType = connector.markerStart !== undefined && connector.markerStart !== null
+    ? getMarkerType(connector.markerStart)
+    : getMarkerType(isComposition ? "arrowclosed" : "none");
 
   const getReactFlowEdgeType = (style: string): string => {
     switch (style) {
@@ -52,12 +70,18 @@ export function mapConnectorToEdge(connector: SysmlConnector): Edge {
     }
   };
 
+  // In Architecture view, don't use port handles - always use default top/bottom handles
+  // Port handles are only used in specialized views like Interface diagrams
+  // Use explicit "default-out" and "default-in" to force React Flow to use the default handles
+  const sourceHandle = "default-out";
+  const targetHandle = "default-in";
+
   return {
     id: connector.id,
     source: connector.source,
     target: connector.target,
-    sourceHandle: connector.sourcePortId ?? undefined,
-    targetHandle: connector.targetPortId ?? undefined,
+    sourceHandle,
+    targetHandle,
     label: connector.label,
     type: getReactFlowEdgeType(lineStyle),
     animated: isFlow,
