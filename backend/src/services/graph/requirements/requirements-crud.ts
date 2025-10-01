@@ -183,6 +183,9 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
     // Invalidate requirement cache
     await CacheInvalidation.invalidateRequirements(tenantSlug, projectSlug);
 
+    // Invalidate documents cache since requirement count changed
+    await CacheInvalidation.invalidateDocuments(tenantSlug, projectSlug);
+
     return result;
   } finally {
     await session.close();
@@ -351,6 +354,9 @@ export async function softDeleteRequirement(
 
     // Invalidate requirement cache
     await CacheInvalidation.invalidateRequirements(tenantSlug, projectSlug);
+
+    // Invalidate documents cache since requirement count changed
+    await CacheInvalidation.invalidateDocuments(tenantSlug, projectSlug);
 
     return mapRequirement(node);
   } finally {

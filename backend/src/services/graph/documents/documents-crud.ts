@@ -219,6 +219,7 @@ export async function listDocuments(
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document)
             WHERE document.deletedAt IS NULL
             OPTIONAL MATCH (document)-[:CONTAINS]->(requirement:Requirement)
+            WHERE requirement IS NULL OR (requirement.deleted IS NULL OR requirement.deleted = false)
             RETURN document, count(requirement) AS requirementCount
             ORDER BY document.name
             SKIP $offset
@@ -258,6 +259,7 @@ export async function getDocument(
       `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
         OPTIONAL MATCH (document)-[:CONTAINS]->(requirement:Requirement)
+        WHERE requirement IS NULL OR (requirement.deleted IS NULL OR requirement.deleted = false)
         RETURN document, count(requirement) AS requirementCount
       `,
       { tenantSlug, projectSlug, documentSlug }

@@ -17,8 +17,12 @@ interface DiagramContextMenuProps {
 export function DiagramContextMenu({ x, y, items, onClose }: DiagramContextMenuProps) {
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
-      if (event.button !== 2) {
-        onClose();
+      // Don't close if clicking on the context menu itself
+      if (event.button !== 2 && event.target instanceof Element) {
+        const menu = document.querySelector('.architecture-context-menu');
+        if (!menu?.contains(event.target)) {
+          onClose();
+        }
       }
     };
     const handleKey = (event: KeyboardEvent) => {

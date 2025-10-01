@@ -58,8 +58,8 @@ const architectureConnectorSchema = z.object({
   diagramId: z.string().min(1),
   // Styling properties
   lineStyle: z.enum(["straight", "smoothstep", "step", "bezier"]).optional(),
-  markerStart: z.enum(["arrow", "arrowclosed", "diamond", "circle", "none"]).optional(),
-  markerEnd: z.enum(["arrow", "arrowclosed", "diamond", "circle", "none"]).optional(),
+  markerStart: z.enum(["arrow", "arrowclosed", "none"]).optional(),
+  markerEnd: z.enum(["arrow", "arrowclosed", "none"]).optional(),
   linePattern: z.enum(["solid", "dashed", "dotted"]).optional(),
   color: z.string().optional(),
   strokeWidth: z.number().min(1).max(10).optional()
@@ -211,7 +211,9 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
           z.object({
             id: z.string(),
             name: z.string(),
-            direction: z.enum(["in", "out", "inout"])
+            direction: z.enum(["in", "out", "inout"]),
+            edge: z.enum(["top", "right", "bottom", "left"]).optional(),
+            offset: z.number().min(0).max(100).optional()
           })
         )
         .optional(),
@@ -265,7 +267,7 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
         diagramId: query.diagramId
       });
       return { success: true };
-    } catch (error) {
+    } catch {
       return reply.status(404).send({ error: "Architecture block not found" });
     }
   });
@@ -365,7 +367,7 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
         diagramId: query.diagramId
       });
       return { success: true };
-    } catch (error) {
+    } catch {
       return reply.status(404).send({ error: "Architecture connector not found" });
     }
   });

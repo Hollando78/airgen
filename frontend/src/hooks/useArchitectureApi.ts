@@ -5,6 +5,7 @@ import type {
   ArchitectureBlockRecord,
   ArchitectureBlockLibraryRecord,
   ArchitectureConnectorRecord,
+  ArchitectureConnectorsResponse,
   ArchitectureDiagramRecord,
   BlockKind,
   PortDirection,
@@ -40,6 +41,8 @@ export interface BlockPort {
   id: string;
   name: string;
   direction: PortDirection;
+  edge?: "top" | "right" | "bottom" | "left";
+  offset?: number;  // 0-100%
 }
 
 export interface SysmlConnector {
@@ -251,10 +254,53 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   const updateBlockMutation = useMutation({
     mutationFn: ({ blockId, updates }: { blockId: string; updates: UpdateArchitectureBlockRequest }) =>
       api.updateArchitectureBlock(tenant!, project!, blockId, updates),
-    onSuccess: () => {
-      if (activeDiagramId) {
-        queryClient.invalidateQueries({ queryKey: ["architecture-blocks", tenant, project, activeDiagramId] });
+    onMutate: async ({ blockId, updates }) => {
+      // Cancel outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({
+        queryKey: ["architecture-blocks", tenant, project, activeDiagramId]
+      });
+
+      // Snapshot the previous value
+      const previousBlocks = queryClient.getQueryData(
+        ["architecture-blocks", tenant, project, activeDiagramId]
+      );
+
+      // Optimistically update the cache
+      queryClient.setQueryData(
+        ["architecture-blocks", tenant, project, activeDiagramId],
+        (old: { blocks: ArchitectureBlockRecord[] } | undefined) => {
+          if (!old) return old;
+
+          return {
+            ...old,
+            blocks: old.blocks.map(block =>
+              block.id === blockId
+                ? {
+                    ...block,
+                    ...updates,
+                    positionX: updates.positionX ?? block.positionX,
+                    positionY: updates.positionY ?? block.positionY,
+                    updatedAt: new Date().toISOString()
+                  }
+                : block
+            )
+          };
+        }
+      );
+
+      return { previousBlocks };
+    },
+    onError: (err, variables, context) => {
+      // Rollback to previous value on error
+      if (context?.previousBlocks) {
+        queryClient.setQueryData(
+          ["architecture-blocks", tenant, project, activeDiagramId],
+          context.previousBlocks
+        );
       }
+    },
+    onSuccess: () => {
+      // Still invalidate block library cache for metadata updates
       queryClient.invalidateQueries({ queryKey: ["architecture-block-library", tenant, project] });
     }
   });
@@ -325,8 +371,8 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   });
 
   const updateConnectorMutation = useMutation({
-    mutationFn: ({ connectorId, updates }: { 
-      connectorId: string; 
+    mutationFn: ({ connectorId, updates }: {
+      connectorId: string;
       updates: Partial<Pick<
         CreateArchitectureConnectorRequest,
         "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
@@ -340,7 +386,40 @@ export function useArchitecture(tenant: string | null, project: string | null) {
         ...updates
       });
     },
-    onSuccess: () => {
+    onMutate: async ({ connectorId, updates }) => {
+      if (!activeDiagramId) return;
+
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["architecture-connectors", tenant, project, activeDiagramId] });
+
+      // Snapshot previous value
+      const previousData = queryClient.getQueryData<ArchitectureConnectorsResponse>(["architecture-connectors", tenant, project, activeDiagramId]);
+
+      // Optimistically update
+      queryClient.setQueryData<ArchitectureConnectorsResponse>(
+        ["architecture-connectors", tenant, project, activeDiagramId],
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            connectors: old.connectors.map(c =>
+              c.id === connectorId
+                ? { ...c, ...updates, updatedAt: new Date().toISOString() }
+                : c
+            )
+          };
+        }
+      );
+
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback on error
+      if (activeDiagramId && context?.previousData) {
+        queryClient.setQueryData(["architecture-connectors", tenant, project, activeDiagramId], context.previousData);
+      }
+    },
+    onSettled: () => {
       if (activeDiagramId) {
         queryClient.invalidateQueries({ queryKey: ["architecture-connectors", tenant, project, activeDiagramId] });
       }
@@ -458,7 +537,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     });
   }, [activeDiagramId, blocks, updateBlockMutation]);
 
-  const updatePort = useCallback((blockId: string, portId: string, updates: { name?: string; direction?: PortDirection }) => {
+  const updatePort = useCallback((blockId: string, portId: string, updates: { name?: string; direction?: PortDirection; edge?: "top" | "right" | "bottom" | "left"; offset?: number }) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) {return;}
 
@@ -517,7 +596,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
 
     if (updates.kind !== undefined) {sanitizedUpdates.kind = updates.kind;}
     if (updates.label !== undefined) {sanitizedUpdates.label = updates.label;}
-    if (updates.lineStyle !== undefined) {sanitizedUpdates.lineStyle = updates.lineStyle as CreateArchitectureConnectorRequest["lineStyle"];} 
+    if (updates.lineStyle !== undefined) {sanitizedUpdates.lineStyle = updates.lineStyle as CreateArchitectureConnectorRequest["lineStyle"];}
     if (updates.markerStart !== undefined) {sanitizedUpdates.markerStart = updates.markerStart as CreateArchitectureConnectorRequest["markerStart"];}
     if (updates.markerEnd !== undefined) {sanitizedUpdates.markerEnd = updates.markerEnd as CreateArchitectureConnectorRequest["markerEnd"];}
     if (updates.linePattern !== undefined) {sanitizedUpdates.linePattern = updates.linePattern as CreateArchitectureConnectorRequest["linePattern"];}

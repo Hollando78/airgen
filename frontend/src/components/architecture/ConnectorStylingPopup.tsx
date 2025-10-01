@@ -230,8 +230,6 @@ export function ConnectorStylingPopup({ connector, position: initialPosition, on
               <option value="none">None</option>
               <option value="arrow">Arrow</option>
               <option value="arrowclosed">Arrow Closed</option>
-              <option value="diamond">Diamond</option>
-              <option value="circle">Circle</option>
             </select>
           </div>
           
@@ -247,8 +245,6 @@ export function ConnectorStylingPopup({ connector, position: initialPosition, on
               <option value="none">None</option>
               <option value="arrow">Arrow</option>
               <option value="arrowclosed">Arrow Closed</option>
-              <option value="diamond">Diamond</option>
-              <option value="circle">Circle</option>
             </select>
           </div>
         </div>

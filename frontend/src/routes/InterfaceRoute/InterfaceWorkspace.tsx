@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { BlockDetailsPanel } from "../../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../../components/architecture/ConnectorDetailsPanel";
+import { PortDetailsPanel } from "../../components/architecture/PortDetailsPanel";
 import { ArchitectureTreeBrowser } from "../../components/architecture/ArchitectureTreeBrowser";
 import type {
   ArchitectureBlockLibraryRecord,
@@ -15,13 +16,11 @@ import type {
   SysmlBlock,
   SysmlConnector
 } from "../../hooks/useArchitectureApi";
-import { InterfacePalette } from "./components/InterfacePalette";
 import { DiagramTabs } from "../ArchitectureRoute/components/DiagramTabs";
 import { DiagramCanvas, type DiagramCanvasHandle } from "../../components/diagram/DiagramCanvas";
 import { INTERFACE_PRESETS } from "./constants";
 import { computeBlockPlacement } from "../ArchitectureRoute/utils/diagram";
 import { mapInterfaceConnectorToEdge } from "./utils/diagram";
-import type { BlockPreset } from "./types";
 import { useFloatingDocuments } from "../../contexts/FloatingDocumentsContext";
 
 interface InterfaceWorkspaceProps {
@@ -54,7 +53,7 @@ interface InterfaceWorkspaceProps {
   updateBlockSize: (blockId: string, size: { width: number; height: number }) => void;
   removeBlock: (blockId: string) => void;
   addPort: (blockId: string, port: { name: string; direction: PortDirection }) => void;
-  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection }) => void;
+  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection; edge?: "top" | "right" | "bottom" | "left"; offset?: number }) => void;
   removePort: (blockId: string, portId: string) => void;
   addConnector: (input: {
     source: string;
@@ -112,7 +111,16 @@ export function InterfaceWorkspace({
 }: InterfaceWorkspaceProps): JSX.Element {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
+  const [selectedPortId, setSelectedPortId] = useState<string | null>(null);
+  const [selectedPortBlockId, setSelectedPortBlockId] = useState<string | null>(null);
   const canvasRef = useRef<DiagramCanvasHandle>(null);
+
+  const handleSelectPort = useCallback((blockId: string, portId: string | null) => {
+    setSelectedPortBlockId(blockId);
+    setSelectedPortId(portId);
+    setSelectedBlockId(null);
+    setSelectedConnectorId(null);
+  }, []);
 
   const { openFloatingDocument } = useFloatingDocuments();
 
@@ -183,10 +191,6 @@ export function InterfaceWorkspace({
     clearArchitecture();
   }, [activeDiagramId, clearArchitecture, hasChanges]);
 
-  const handlePaletteAdd = useCallback((preset: BlockPreset) => {
-    canvasRef.current?.addBlockFromPreset(preset);
-  }, []);
-
   const handleReuseExistingBlock = useCallback((blockId: string) => {
     canvasRef.current?.reuseExistingBlock(blockId);
   }, []);
@@ -232,11 +236,6 @@ export function InterfaceWorkspace({
 
       <div className="architecture-body">
         <aside className="architecture-pane palette-pane">
-          <InterfacePalette
-            presets={INTERFACE_PRESETS}
-            onAddPreset={preset => handlePaletteAdd(preset)}
-            disabled={!activeDiagramId}
-          />
           <ArchitectureTreeBrowser
             blocks={blocksLibrary}
             disabled={!activeDiagramId}
@@ -258,8 +257,10 @@ export function InterfaceWorkspace({
           documents={documents}
           selectedBlockId={selectedBlockId}
           selectedConnectorId={selectedConnectorId}
+          selectedPortId={selectedPortId}
           onSelectBlock={setSelectedBlockId}
           onSelectConnector={setSelectedConnectorId}
+          onSelectPort={handleSelectPort}
           addBlock={addBlock}
           reuseBlock={reuseBlock}
           updateBlock={updateBlock}
@@ -277,6 +278,7 @@ export function InterfaceWorkspace({
           blockPresets={INTERFACE_PRESETS}
           computePlacement={computeBlockPlacement}
           mapConnectorToEdge={mapInterfaceConnectorToEdge}
+          hideDefaultHandles={true}
         />
 
         <aside className="architecture-pane inspector-pane">
@@ -304,7 +306,24 @@ export function InterfaceWorkspace({
             />
           )}
 
-          {!selectedBlock && !selectedConnector && (
+          {selectedPortId && selectedPortBlockId && (() => {
+            const block = architecture.blocks.find(b => b.id === selectedPortBlockId);
+            const port = block?.ports.find(p => p.id === selectedPortId);
+            return port && block ? (
+              <PortDetailsPanel
+                port={port}
+                blockName={block.name}
+                onUpdate={(updates) => updatePort(selectedPortBlockId, selectedPortId, updates)}
+                onRemove={() => {
+                  removePort(selectedPortBlockId, selectedPortId);
+                  setSelectedPortId(null);
+                  setSelectedPortBlockId(null);
+                }}
+              />
+            ) : null;
+          })()}
+
+          {!selectedBlock && !selectedConnector && !selectedPortId && (
             <div className="architecture-hint">
               <h3>Workspace tips</h3>
               <ul>
