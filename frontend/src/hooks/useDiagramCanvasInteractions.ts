@@ -233,7 +233,7 @@ export function useDiagramCanvasInteractions({
     onSelectBlock(null);
     onSelectConnector(null);
 
-    if (!canvasWrapperRef.current || !reactFlowInstanceRef.current) return;
+    if (!canvasWrapperRef.current || !reactFlowInstanceRef.current) {return;}
     const bounds = canvasWrapperRef.current.getBoundingClientRect();
     const nativeEvent = 'nativeEvent' in event ? event.nativeEvent : event;
     const relative = {
@@ -341,7 +341,7 @@ export function useDiagramCanvasInteractions({
 
   const handleConnect = useCallback(
     (connection: Connection) => {
-      if (!activeDiagramId || !connection.source || !connection.target) return;
+      if (!activeDiagramId || !connection.source || !connection.target) {return;}
         const newId = addConnector({
           source: connection.source,
           target: connection.target,
@@ -379,7 +379,7 @@ export function useDiagramCanvasInteractions({
         y: placement.y
       });
 
-      if (!id) return;
+      if (!id) {return;}
 
       onSelectBlock(id);
       onSelectConnector(null);
@@ -405,7 +405,7 @@ export function useDiagramCanvasInteractions({
       const placement = computeNextPlacement();
       const id = reuseBlock(blockId, placement);
 
-      if (!id) return;
+      if (!id) {return;}
 
       onSelectBlock(id);
       onSelectConnector(null);
@@ -432,7 +432,7 @@ export function useDiagramCanvasInteractions({
 
     if (contextMenuState.type === "node") {
       const block = architecture.blocks.find((item: SysmlBlock) => item.id === contextMenuState.nodeId);
-      if (!block) return [];
+      if (!block) {return [];}
 
       const sharedBaseName = block.name.replace(/\s+copy$/i, "");
       const existingInputs = block.ports.filter((port: BlockPort) => port.direction !== "out").length;

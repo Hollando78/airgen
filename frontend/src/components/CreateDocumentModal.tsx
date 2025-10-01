@@ -36,7 +36,7 @@ export function CreateDocumentModal({
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!name.trim()) throw new Error("Document name is required");
+      if (!name.trim()) {throw new Error("Document name is required");}
       return api.createDocument({
         tenant,
         projectKey: project,

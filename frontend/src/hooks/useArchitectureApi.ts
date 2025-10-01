@@ -374,7 +374,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     y?: number;
     size?: { width: number; height: number };
   } | { x: number; y: number }) => {
-    if (!activeDiagramId) return null;
+    if (!activeDiagramId) {return null;}
 
     const name = 'name' in input ? input.name : `Block ${blocks.length + 1}`;
     const kind = 'kind' in input ? input.kind : 'component';
@@ -402,12 +402,12 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [activeDiagramId, blocks.length, createBlockMutation]);
 
   const updateBlock = useCallback((blockId: string, updates: Partial<Pick<SysmlBlock, "name" | "kind" | "stereotype" | "description" | "backgroundColor" | "borderColor" | "borderWidth" | "borderStyle" | "textColor" | "fontSize" | "fontWeight" | "borderRadius">>) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({ blockId, updates: { diagramId: activeDiagramId, ...updates } });
   }, [activeDiagramId, updateBlockMutation]);
 
   const updateBlockPosition = useCallback((blockId: string, position: { x: number; y: number }) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
       updates: { diagramId: activeDiagramId, positionX: position.x, positionY: position.y }
@@ -415,7 +415,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [activeDiagramId, updateBlockMutation]);
 
   const updateBlockSize = useCallback((blockId: string, size: { width: number; height: number }) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
       updates: { diagramId: activeDiagramId, sizeWidth: size.width, sizeHeight: size.height }
@@ -427,7 +427,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [deleteBlockMutation]);
 
   const reuseBlock = useCallback((blockId: string, position: { x: number; y: number }, size?: { width: number; height: number }) => {
-    if (!activeDiagramId) return null;
+    if (!activeDiagramId) {return null;}
 
     createBlockMutation.mutate({
       existingBlockId: blockId,
@@ -442,7 +442,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
 
   const addPort = useCallback((blockId: string, port: { name: string; direction: PortDirection }) => {
     const block = blocks.find(b => b.id === blockId);
-    if (!block) return;
+    if (!block) {return;}
 
     const newPort = {
       id: `port-${Date.now()}`,
@@ -451,7 +451,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     };
 
     const updatedPorts = [...block.ports, newPort];
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
       updates: { diagramId: activeDiagramId, ports: updatedPorts }
@@ -460,13 +460,13 @@ export function useArchitecture(tenant: string | null, project: string | null) {
 
   const updatePort = useCallback((blockId: string, portId: string, updates: { name?: string; direction?: PortDirection }) => {
     const block = blocks.find(b => b.id === blockId);
-    if (!block) return;
+    if (!block) {return;}
 
     const updatedPorts = block.ports.map(port =>
       port.id === portId ? { ...port, ...updates } : port
     );
 
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
       updates: { diagramId: activeDiagramId, ports: updatedPorts }
@@ -475,10 +475,10 @@ export function useArchitecture(tenant: string | null, project: string | null) {
 
   const removePort = useCallback((blockId: string, portId: string) => {
     const block = blocks.find(b => b.id === blockId);
-    if (!block) return;
+    if (!block) {return;}
 
     const updatedPorts = block.ports.filter(port => port.id !== portId);
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
       updates: { diagramId: activeDiagramId, ports: updatedPorts }
@@ -493,7 +493,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     kind?: ConnectorKind;
     label?: string;
   }) => {
-    if (!activeDiagramId) return null;
+    if (!activeDiagramId) {return null;}
 
     const connectorData = {
       source: input.source,
@@ -515,16 +515,16 @@ export function useArchitecture(tenant: string | null, project: string | null) {
       "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
     >> = {};
 
-    if (updates.kind !== undefined) sanitizedUpdates.kind = updates.kind;
-    if (updates.label !== undefined) sanitizedUpdates.label = updates.label;
-    if (updates.lineStyle !== undefined) sanitizedUpdates.lineStyle = updates.lineStyle as CreateArchitectureConnectorRequest["lineStyle"]; 
-    if (updates.markerStart !== undefined) sanitizedUpdates.markerStart = updates.markerStart as CreateArchitectureConnectorRequest["markerStart"];
-    if (updates.markerEnd !== undefined) sanitizedUpdates.markerEnd = updates.markerEnd as CreateArchitectureConnectorRequest["markerEnd"];
-    if (updates.linePattern !== undefined) sanitizedUpdates.linePattern = updates.linePattern as CreateArchitectureConnectorRequest["linePattern"];
-    if (updates.color !== undefined) sanitizedUpdates.color = updates.color;
-    if (updates.strokeWidth !== undefined) sanitizedUpdates.strokeWidth = updates.strokeWidth;
-    if (updates.sourcePortId !== undefined) sanitizedUpdates.sourcePortId = updates.sourcePortId ?? undefined;
-    if (updates.targetPortId !== undefined) sanitizedUpdates.targetPortId = updates.targetPortId ?? undefined;
+    if (updates.kind !== undefined) {sanitizedUpdates.kind = updates.kind;}
+    if (updates.label !== undefined) {sanitizedUpdates.label = updates.label;}
+    if (updates.lineStyle !== undefined) {sanitizedUpdates.lineStyle = updates.lineStyle as CreateArchitectureConnectorRequest["lineStyle"];} 
+    if (updates.markerStart !== undefined) {sanitizedUpdates.markerStart = updates.markerStart as CreateArchitectureConnectorRequest["markerStart"];}
+    if (updates.markerEnd !== undefined) {sanitizedUpdates.markerEnd = updates.markerEnd as CreateArchitectureConnectorRequest["markerEnd"];}
+    if (updates.linePattern !== undefined) {sanitizedUpdates.linePattern = updates.linePattern as CreateArchitectureConnectorRequest["linePattern"];}
+    if (updates.color !== undefined) {sanitizedUpdates.color = updates.color;}
+    if (updates.strokeWidth !== undefined) {sanitizedUpdates.strokeWidth = updates.strokeWidth;}
+    if (updates.sourcePortId !== undefined) {sanitizedUpdates.sourcePortId = updates.sourcePortId ?? undefined;}
+    if (updates.targetPortId !== undefined) {sanitizedUpdates.targetPortId = updates.targetPortId ?? undefined;}
 
     updateConnectorMutation.mutate({ connectorId, updates: sanitizedUpdates });
   }, [updateConnectorMutation]);
@@ -538,20 +538,20 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [deleteConnectorMutation, activeDiagramId, tenant, project]);
 
   const clearArchitecture = useCallback(() => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     blocks.forEach(block => deleteBlockMutation.mutate(block.id));
     connectors.forEach(connector => deleteConnectorMutation.mutate(connector.id));
   }, [activeDiagramId, blocks, connectors, deleteBlockMutation, deleteConnectorMutation]);
 
   const addDocumentToBlock = useCallback((blockId: string, documentId: string) => {
     const block = blocks.find(b => b.id === blockId);
-    if (!block) return;
+    if (!block) {return;}
 
     const currentDocIds = block.documentIds || [];
-    if (currentDocIds.includes(documentId)) return;
+    if (currentDocIds.includes(documentId)) {return;}
 
     const updatedDocIds = [...currentDocIds, documentId];
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
       updates: { diagramId: activeDiagramId, documentIds: updatedDocIds }
@@ -560,10 +560,10 @@ export function useArchitecture(tenant: string | null, project: string | null) {
 
   const removeDocumentFromBlock = useCallback((blockId: string, documentId: string) => {
     const block = blocks.find(b => b.id === blockId);
-    if (!block) return;
+    if (!block) {return;}
 
     const updatedDocIds = (block.documentIds || []).filter(id => id !== documentId);
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
       updates: { diagramId: activeDiagramId, documentIds: updatedDocIds }
@@ -571,7 +571,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [activeDiagramId, blocks, updateBlockMutation]);
 
   const setBlockDocuments = useCallback((blockId: string, documentIds: string[]) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
       updates: { diagramId: activeDiagramId, documentIds }
@@ -579,7 +579,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [activeDiagramId, updateBlockMutation]);
 
   const createDiagram = useCallback((input: { name: string; description?: string; view?: ArchitectureDiagramRecord["view"] }) => {
-    if (!tenant || !project) return Promise.reject(new Error("Missing tenant or project"));
+    if (!tenant || !project) {return Promise.reject(new Error("Missing tenant or project"));}
     return createDiagramMutation.mutateAsync(input);
   }, [createDiagramMutation, tenant, project]);
 
@@ -588,7 +588,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
   }, [updateDiagramMutation]);
 
   const deleteDiagram = useCallback((diagramId: string) => {
-    if (!diagramId) return Promise.resolve();
+    if (!diagramId) {return Promise.resolve();}
     if (diagrams.length <= 1) {
       return Promise.reject(new Error("At least one diagram must remain"));
     }

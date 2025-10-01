@@ -82,18 +82,18 @@ function requirementMarkdown(record: RequirementRecord): string {
 
   const yaml = Object.entries(metadata)
     .map(([key, value]) => {
-      if (value === null || value === undefined) return `${key}: null`;
+      if (value === null || value === undefined) {return `${key}: null`;}
       if (Array.isArray(value)) {
-        if (value.length === 0) return `${key}: []`;
+        if (value.length === 0) {return `${key}: []`;}
         const items = value.map(item => `  - ${item}`).join("\n");
         return `${key}:\n${items}`;
       }
       if (typeof value === "object") {
         const nested = Object.entries(value)
           .map(([nestedKey, nestedValue]) => {
-            if (nestedValue === null || nestedValue === undefined) return `  ${nestedKey}: null`;
+            if (nestedValue === null || nestedValue === undefined) {return `  ${nestedKey}: null`;}
             if (Array.isArray(nestedValue)) {
-              if (nestedValue.length === 0) return `  ${nestedKey}: []`;
+              if (nestedValue.length === 0) {return `  ${nestedKey}: []`;}
               const nestedItems = nestedValue.map(item => `    - ${item}`).join("\n");
               return `  ${nestedKey}:\n${nestedItems}`;
             }

@@ -68,8 +68,8 @@ describe("graph service integrations", () => {
 
       const record: MockRecord = {
         get: (key: string) => {
-          if (key === "project") return projectNode;
-          if (key === "requirementCount") return 2;
+          if (key === "project") {return projectNode;}
+          if (key === "requirementCount") {return 2;}
           throw new Error(`Unexpected key ${key}`);
         }
       };
@@ -150,7 +150,7 @@ describe("graph service integrations", () => {
         records: [
           {
             get: (key: string) => {
-              if (key === "requirement") return requirementNode;
+              if (key === "requirement") {return requirementNode;}
               throw new Error(`Unexpected key ${key}`);
             }
           }
@@ -213,7 +213,7 @@ describe("graph service integrations", () => {
           records: [
             {
               get: (key: string) => {
-                if (key === "document") return documentNode;
+                if (key === "document") {return documentNode;}
                 throw new Error(`Unexpected key ${key}`);
               }
             }

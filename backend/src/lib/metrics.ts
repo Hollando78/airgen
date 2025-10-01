@@ -12,7 +12,7 @@
  * Install with: npm install prom-client
  */
 
-import { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import { logger } from './logger.js';
 
 // Type definitions for prom-client (conditional)
@@ -131,7 +131,7 @@ function normalizeRoute(url: string): string {
   const path = url.split('?')[0];
 
   // Replace UUIDs and IDs with placeholders
-  let normalized = path
+  const normalized = path
     .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '/:id')
     .replace(/\/[0-9]+/g, '/:id')
     // Replace tenant slugs (assume format /tenants/:slug/)

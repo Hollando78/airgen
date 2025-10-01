@@ -18,13 +18,13 @@ interface FloatingSurrogateDocumentWindowProps {
 }
 
 function canPreviewInline(mimeType?: string | null): boolean {
-  if (!mimeType) return false;
+  if (!mimeType) {return false;}
   const normalized = mimeType.toLowerCase();
-  if (normalized.startsWith("image/")) return true;
+  if (normalized.startsWith("image/")) {return true;}
   if (["application/pdf", "text/plain", "text/markdown", "text/csv", "text/html"].includes(normalized)) {
     return true;
   }
-  if (normalized.startsWith("text/")) return true;
+  if (normalized.startsWith("text/")) {return true;}
   return false;
 }
 
@@ -78,7 +78,7 @@ export function FloatingSurrogateDocumentWindow({
           previewSourceUrl,
           `${documentSlug}-preview`
         );
-        if (abort) return;
+        if (abort) {return;}
         currentUrl = URL.createObjectURL(blob);
         setObjectUrl(currentUrl);
         setDownloadName(fileName);
@@ -109,7 +109,7 @@ export function FloatingSurrogateDocumentWindow({
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
+      if (!isDragging) {return;}
 
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
@@ -140,14 +140,14 @@ export function FloatingSurrogateDocumentWindow({
   }, [isDragging, dragStart]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest(".window-controls")) return;
+    if ((e.target as HTMLElement).closest(".window-controls")) {return;}
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
   };
 
   const handleDownload = async () => {
     const sourceUrl = downloadUrl ?? previewDownloadUrl;
-    if (!sourceUrl) return;
+    if (!sourceUrl) {return;}
     try {
       const { blob, fileName } = await api.downloadDocumentFile(sourceUrl, downloadName);
       const link = document.createElement("a");
@@ -178,7 +178,7 @@ export function FloatingSurrogateDocumentWindow({
 
   useEffect(() => {
     const handleResizeMove = (event: MouseEvent) => {
-      if (!isResizing || !resizeStartRef.current) return;
+      if (!isResizing || !resizeStartRef.current) {return;}
 
       const deltaX = event.clientX - resizeStartRef.current.x;
       const deltaY = event.clientY - resizeStartRef.current.y;

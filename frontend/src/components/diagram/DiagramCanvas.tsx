@@ -286,7 +286,7 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                     }}
                     nodeColor={node => {
                       const block = architecture.blocks.find((candidate: SysmlBlock) => candidate.id === node.id);
-                      if (!block) return "#e2e8f0";
+                      if (!block) {return "#e2e8f0";}
                       switch (block.kind) {
                         case "system":
                           return "#2563eb";

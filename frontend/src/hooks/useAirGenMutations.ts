@@ -23,8 +23,8 @@ export function useAirGenMutations({ tenant, project, mode }: UseAirGenMutations
 
   const chatMutation = useMutation({
     mutationFn: async (params: ChatParams) => {
-      if (!tenant || !project) throw new Error("Select a tenant and project first");
-      if (!params.instruction.trim()) throw new Error("Enter a stakeholder instruction");
+      if (!tenant || !project) {throw new Error("Select a tenant and project first");}
+      if (!params.instruction.trim()) {throw new Error("Enter a stakeholder instruction");}
 
       return api.airgenChat({
         tenant,
@@ -49,7 +49,7 @@ export function useAirGenMutations({ tenant, project, mode }: UseAirGenMutations
 
   const rejectMutation = useMutation({
     mutationFn: async (candidate: RequirementCandidate) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.rejectRequirementCandidate(candidate.id, { tenant, projectKey: project });
     },
     onSuccess: () => {
@@ -59,7 +59,7 @@ export function useAirGenMutations({ tenant, project, mode }: UseAirGenMutations
 
   const returnMutation = useMutation({
     mutationFn: async (candidate: RequirementCandidate) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.returnRequirementCandidate(candidate.id, { tenant, projectKey: project });
     },
     onSuccess: () => {
@@ -69,7 +69,7 @@ export function useAirGenMutations({ tenant, project, mode }: UseAirGenMutations
 
   const rejectDiagramMutation = useMutation({
     mutationFn: async (candidate: DiagramCandidate) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.rejectDiagramCandidate(candidate.id, { tenant, projectKey: project });
     },
     onSuccess: () => {
@@ -79,7 +79,7 @@ export function useAirGenMutations({ tenant, project, mode }: UseAirGenMutations
 
   const returnDiagramMutation = useMutation({
     mutationFn: async (candidate: DiagramCandidate) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.returnDiagramCandidate(candidate.id, { tenant, projectKey: project });
     },
     onSuccess: () => {
@@ -89,7 +89,7 @@ export function useAirGenMutations({ tenant, project, mode }: UseAirGenMutations
 
   const acceptDiagramMutation = useMutation({
     mutationFn: async (params: { candidate: DiagramCandidate; diagramName?: string; diagramDescription?: string }) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.acceptDiagramCandidate(params.candidate.id, {
         tenant,
         projectKey: project,

@@ -151,7 +151,7 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
           </div>
           {tooltip.links.slice(0, 5).map((link, index) => {
             const targetReq = tooltip.type === "outgoing" ? link.targetRequirement : link.sourceRequirement;
-            if (!targetReq) return null;
+            if (!targetReq) {return null;}
             return (
               <div key={link.id} style={{ marginBottom: index < Math.min(tooltip.links.length, 5) - 1 ? "2px" : "0" }}>
                 <span style={{ color: "#9ca3af" }}>{link.linkType}:</span> {targetReq.ref || 'Unknown'} - {(targetReq.text || 'No description').substring(0, 50)}...
@@ -194,7 +194,7 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
           </div>
           {contextMenu.links.map((link) => {
             const targetReq = contextMenu.type === "outgoing" ? link.targetRequirement : link.sourceRequirement;
-            if (!targetReq) return null;
+            if (!targetReq) {return null;}
             return (
               <button
                 key={link.id}

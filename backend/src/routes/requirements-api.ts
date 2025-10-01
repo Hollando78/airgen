@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
   RequirementPattern,
@@ -158,7 +158,7 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
         const aVal = a[pagination.sortBy as keyof typeof a];
         const bVal = b[pagination.sortBy as keyof typeof b];
 
-        if (aVal === undefined || bVal === undefined) return 0;
+        if (aVal === undefined || bVal === undefined) {return 0;}
 
         const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
         return pagination.sortOrder === "asc" ? comparison : -comparison;
@@ -210,7 +210,7 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     });
     const params = paramsSchema.parse(req.params);
     const record = await getRequirement(params.tenant, params.project, params.ref);
-    if (!record) return reply.status(404).send({ error: "Requirement not found" });
+    if (!record) {return reply.status(404).send({ error: "Requirement not found" });}
     let markdown: string;
     try {
       markdown = await readRequirementMarkdown({
@@ -286,7 +286,7 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const body = bodySchema.parse(req.body);
 
     const requirement = await updateRequirement(params.tenant, params.project, params.requirementId, body);
-    if (!requirement) return reply.status(404).send({ error: "Requirement not found" });
+    if (!requirement) {return reply.status(404).send({ error: "Requirement not found" });}
     return { requirement };
   });
 
@@ -328,7 +328,7 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const params = paramsSchema.parse(req.params);
 
     const requirement = await softDeleteRequirement(params.tenant, params.project, params.requirementId);
-    if (!requirement) return reply.status(404).send({ error: "Requirement not found" });
+    if (!requirement) {return reply.status(404).send({ error: "Requirement not found" });}
     return { requirement };
   });
 

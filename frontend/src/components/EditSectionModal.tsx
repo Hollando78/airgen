@@ -40,7 +40,7 @@ export function EditSectionModal({
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!section || !name.trim()) throw new Error("Section name is required");
+      if (!section || !name.trim()) {throw new Error("Section name is required");}
       return api.updateDocumentSection(section.id, {
         name: name.trim(),
         description: description.trim() || undefined,

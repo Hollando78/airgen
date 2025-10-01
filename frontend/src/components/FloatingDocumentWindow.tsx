@@ -66,7 +66,7 @@ export function FloatingDocumentWindow({
   const requirementsQueries = useQuery({
     queryKey: ["document-requirements", tenant, project, documentSlug],
     queryFn: async () => {
-      if (!sectionsQuery.data?.sections) return [];
+      if (!sectionsQuery.data?.sections) {return [];}
       
       const sectionRequirements = await Promise.all(
         sectionsQuery.data.sections.map(async (section) => {
@@ -92,7 +92,7 @@ export function FloatingDocumentWindow({
 
   // Combine sections with their requirements
   const sectionsWithRequirements: Section[] = useMemo(() => {
-    if (!sectionsQuery.data?.sections) return [];
+    if (!sectionsQuery.data?.sections) {return [];}
     
     return sectionsQuery.data.sections.map(section => ({
       id: section.id,
@@ -107,7 +107,7 @@ export function FloatingDocumentWindow({
 
   // Handle focusing on a specific requirement
   useEffect(() => {
-    if (!focusRequirementId || !sectionsWithRequirements.length) return;
+    if (!focusRequirementId || !sectionsWithRequirements.length) {return;}
 
     // Find the section containing the requirement and expand it
     const sectionWithRequirement = sectionsWithRequirements.find(section =>
@@ -145,7 +145,7 @@ export function FloatingDocumentWindow({
   // Handle dragging
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
+      if (!isDragging) {return;}
       
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
@@ -176,7 +176,7 @@ export function FloatingDocumentWindow({
   }, [isDragging, dragStart]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest(".window-controls")) return;
+    if ((e.target as HTMLElement).closest(".window-controls")) {return;}
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
   };

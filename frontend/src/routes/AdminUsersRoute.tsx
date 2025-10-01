@@ -1,4 +1,5 @@
-import { FormEvent, useMemo, useState } from "react";
+import type { FormEvent} from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
@@ -127,7 +128,7 @@ export function AdminUsersRoute(): JSX.Element {
 
   const handleUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!editingId) return;
+    if (!editingId) {return;}
     setEditError(null);
     const email = editForm.email.trim();
     if (!email) {
@@ -150,7 +151,7 @@ export function AdminUsersRoute(): JSX.Element {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this user?")) return;
+    if (!window.confirm("Delete this user?")) {return;}
     await deleteMutation.mutateAsync(id);
   };
 

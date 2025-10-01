@@ -32,7 +32,7 @@ export function BlockStylingPopup({ block, position: initialPosition, onUpdate, 
   };
 
   const handleMouseMove = (e: MouseEvent) => {
-    if (!isDragging) return;
+    if (!isDragging) {return;}
     
     const deltaX = e.clientX - dragRef.current.startX;
     const deltaY = e.clientY - dragRef.current.startY;

@@ -48,7 +48,7 @@ export function ConnectorStylingPopup({ connector, position: initialPosition, on
   };
 
   const handleMouseMove = (e: MouseEvent) => {
-    if (!isDragging) return;
+    if (!isDragging) {return;}
     
     const deltaX = e.clientX - dragRef.current.startX;
     const deltaY = e.clientY - dragRef.current.startY;

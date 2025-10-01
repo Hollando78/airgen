@@ -188,7 +188,7 @@ export function LinkSetsRoute(): JSX.Element {
 
   // Save node positions to localStorage
   const saveNodePositions = useCallback((nodes: DocumentNode[]) => {
-    if (!tenant || !project) return;
+    if (!tenant || !project) {return;}
     const key = `linksets-positions-${tenant}-${project}`;
     const positions = nodes.reduce((acc, node) => {
       acc[node.id] = { x: node.x, y: node.y };
@@ -199,7 +199,7 @@ export function LinkSetsRoute(): JSX.Element {
 
   // Load node positions from localStorage
   const loadNodePositions = useCallback((): Record<string, { x: number; y: number }> => {
-    if (!tenant || !project) return {};
+    if (!tenant || !project) {return {};}
     const key = `linksets-positions-${tenant}-${project}`;
     try {
       const saved = localStorage.getItem(key);
@@ -248,7 +248,7 @@ export function LinkSetsRoute(): JSX.Element {
   }, [linksetsQuery.data?.linksets]);
 
   const getMousePosition = useCallback((event: React.MouseEvent) => {
-    if (!canvasRef.current) return { x: 0, y: 0 };
+    if (!canvasRef.current) {return { x: 0, y: 0 };}
     
     const rect = canvasRef.current.getBoundingClientRect();
     return {
@@ -311,7 +311,7 @@ export function LinkSetsRoute(): JSX.Element {
       const mousePos = getMousePosition(event);
       const node = nodes.find(n => n.id === nodeId);
       
-      if (!node) return;
+      if (!node) {return;}
 
       // Disable edge updates during drag for better performance
       setEdgeUpdatesEnabled(false);
@@ -345,7 +345,7 @@ export function LinkSetsRoute(): JSX.Element {
     }
     
     // Only handle clicks in connection mode
-    if (!connectionMode) return;
+    if (!connectionMode) {return;}
     
     event.preventDefault();
     event.stopPropagation();
@@ -388,7 +388,7 @@ export function LinkSetsRoute(): JSX.Element {
   // Global mouse move handler for smooth dragging
   useEffect(() => {
     const handleGlobalMouseMove = (event: MouseEvent) => {
-      if (!dragState.isDragging || !canvasRef.current) return;
+      if (!dragState.isDragging || !canvasRef.current) {return;}
       
       const rect = canvasRef.current.getBoundingClientRect();
       const mousePos = {
@@ -501,12 +501,12 @@ export function LinkSetsRoute(): JSX.Element {
   }, [newLinkset, createLinksetMutation]);
 
   const getConnectionPath = useCallback((fromId: string, toId: string) => {
-    if (!edgeUpdatesEnabled) return ''; // Skip during drag for performance
+    if (!edgeUpdatesEnabled) {return '';} // Skip during drag for performance
     
     const fromNode = nodes.find(n => n.id === fromId);
     const toNode = nodes.find(n => n.id === toId);
     
-    if (!fromNode || !toNode) return '';
+    if (!fromNode || !toNode) {return '';}
     
     const fromX = fromNode.x + fromNode.width / 2;
     const fromY = fromNode.y + fromNode.height / 2;

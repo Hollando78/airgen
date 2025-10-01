@@ -19,7 +19,7 @@ export function ConfirmDeleteModal({
   onCancel,
   isDeleting = false
 }: ConfirmDeleteModalProps): JSX.Element | null {
-  if (!isOpen) return null;
+  if (!isOpen) {return null;}
 
   return (
     <div className="modal-backdrop" onClick={onCancel}>

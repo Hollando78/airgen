@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Node as Neo4jNode } from "neo4j-driver";
+import type { Node as Neo4jNode } from "neo4j-driver";
 import { config } from "../../config.js";
 import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";

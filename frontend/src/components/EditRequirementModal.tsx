@@ -110,7 +110,7 @@ export function EditRequirementModal({
     </>
   );
 
-  if (!requirement) return <div></div>;
+  if (!requirement) {return <div></div>;}
 
   return (
     <Modal

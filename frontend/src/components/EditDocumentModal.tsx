@@ -38,7 +38,7 @@ export function EditDocumentModal({
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!document || !name.trim()) throw new Error("Document name is required");
+      if (!document || !name.trim()) {throw new Error("Document name is required");}
       return api.updateDocument(tenant, project, document.slug, {
         name: name.trim(),
         description: description.trim() || undefined,

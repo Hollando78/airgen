@@ -1,4 +1,4 @@
-import { Node as Neo4jNode, ManagedTransaction } from "neo4j-driver";
+import type { Node as Neo4jNode, ManagedTransaction } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { mapRequirement } from "./requirements-crud.js";
@@ -94,7 +94,7 @@ export async function suggestLinks(params: {
   const limit = params.limit ?? 3;
   const needle = params.text.split(/\s+/)[0]?.toLowerCase() ?? "";
 
-  if (!needle) return [];
+  if (!needle) {return [];}
 
   const session = getSession();
   try {

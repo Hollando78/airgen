@@ -7,7 +7,7 @@ import { useTenantProject } from "../hooks/useTenantProject";
 import { useAuth } from "../contexts/AuthContext";
 
 function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) {return "—";}
   try {
     return new Intl.DateTimeFormat(undefined, {
       dateStyle: "medium",
@@ -83,7 +83,7 @@ export function DashboardRoute(): JSX.Element {
   });
 
   const activeProject = useMemo(() => {
-    if (!state.project || !projectsQuery.data) return null;
+    if (!state.project || !projectsQuery.data) {return null;}
     return projectsQuery.data.projects.find(project => project.slug === state.project) ?? null;
   }, [state.project, projectsQuery.data]);
 

@@ -51,8 +51,8 @@ export function AirGenRoute(): JSX.Element {
   // Mutations
   const chatMutation = useMutation({
     mutationFn: async () => {
-      if (!tenant || !project) throw new Error("Select a tenant and project first");
-      if (!instruction.trim()) throw new Error("Enter a stakeholder instruction");
+      if (!tenant || !project) {throw new Error("Select a tenant and project first");}
+      if (!instruction.trim()) {throw new Error("Enter a stakeholder instruction");}
       return api.airgenChat({
         tenant,
         projectKey: project,
@@ -77,7 +77,7 @@ export function AirGenRoute(): JSX.Element {
 
   const rejectMutation = useMutation({
     mutationFn: async (candidate: RequirementCandidate) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.rejectRequirementCandidate(candidate.id, { tenant, projectKey: project });
     },
     onSuccess: () => {
@@ -87,7 +87,7 @@ export function AirGenRoute(): JSX.Element {
 
   const returnMutation = useMutation({
     mutationFn: async (candidate: RequirementCandidate) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.returnRequirementCandidate(candidate.id, { tenant, projectKey: project });
     },
     onSuccess: () => {
@@ -97,7 +97,7 @@ export function AirGenRoute(): JSX.Element {
 
   const rejectDiagramMutation = useMutation({
     mutationFn: async (candidate: DiagramCandidate) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.rejectDiagramCandidate(candidate.id, { tenant, projectKey: project });
     },
     onSuccess: () => {
@@ -107,7 +107,7 @@ export function AirGenRoute(): JSX.Element {
 
   const returnDiagramMutation = useMutation({
     mutationFn: async (candidate: DiagramCandidate) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.returnDiagramCandidate(candidate.id, { tenant, projectKey: project });
     },
     onSuccess: () => {
@@ -117,7 +117,7 @@ export function AirGenRoute(): JSX.Element {
 
   const acceptDiagramMutation = useMutation({
     mutationFn: async (params: { candidate: DiagramCandidate; diagramName?: string; diagramDescription?: string }) => {
-      if (!tenant || !project) throw new Error("Select a tenant/project first");
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.acceptDiagramCandidate(params.candidate.id, {
         tenant,
         projectKey: project,

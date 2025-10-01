@@ -25,7 +25,7 @@ export function TenantProjectSelector(): JSX.Element {
       }
       return;
     }
-    if (!projectsQuery.data || !projectsQuery.data.projects.length) return;
+    if (!projectsQuery.data || !projectsQuery.data.projects.length) {return;}
     if (!state.project) {
       setProject(projectsQuery.data.projects[0]?.slug ?? null);
     }

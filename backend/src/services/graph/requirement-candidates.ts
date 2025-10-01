@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Node as Neo4jNode } from "neo4j-driver";
+import type { Node as Neo4jNode } from "neo4j-driver";
 import { config } from "../../config.js";
 import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
@@ -69,7 +69,7 @@ export function mapRequirementCandidate(node: Neo4jNode): RequirementCandidateRe
 export async function createRequirementCandidates(
   inputs: RequirementCandidateInput[]
 ): Promise<RequirementCandidateRecord[]> {
-  if (inputs.length === 0) return [];
+  if (inputs.length === 0) {return [];}
 
   const rows = inputs.map(input => {
     const tenantSlug = slugify(input.tenant || config.defaultTenant);

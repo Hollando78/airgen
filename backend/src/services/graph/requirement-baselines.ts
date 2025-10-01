@@ -1,5 +1,6 @@
-import { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
-import { BaselineRecord, slugify } from "../workspace.js";
+import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
+import type { BaselineRecord} from "../workspace.js";
+import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
 
 function mapBaseline(node: Neo4jNode): BaselineRecord {

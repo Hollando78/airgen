@@ -95,7 +95,7 @@ export async function generateLlmDrafts(request: DraftRequest): Promise<Draft[]>
 
   for (const item of requirements.slice(0, count)) {
     const text = String(item.text ?? "").trim();
-    if (!text) continue;
+    if (!text) {continue;}
     const pattern = (item.pattern as Draft["pattern"]) ?? request.pattern ?? "ubiquitous";
     const verification = (item.verification as Draft["verification"]) ?? request.verification ?? "Test";
     const rationale = String(item.rationale ?? "LLM-generated requirement");

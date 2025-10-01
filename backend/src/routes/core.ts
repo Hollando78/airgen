@@ -1,8 +1,8 @@
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { analyzeRequirement, AMBIGUOUS } from "@airgen/req-qa";
 import { config } from "../config.js";
-import {
+import type {
   RequirementPattern,
   VerificationMethod
 } from "../services/workspace.js";

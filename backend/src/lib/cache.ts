@@ -37,7 +37,7 @@ let isRedisAvailable = false;
  * Gracefully handles connection failures
  */
 async function initializeRedis(): Promise<void> {
-  if (redisClient) return;
+  if (redisClient) {return;}
 
   // If redis module is not installed, skip initialization
   if (!createClient) {
@@ -192,7 +192,7 @@ export const CacheInvalidation = {
    * Invalidate all document-related caches for a project
    */
   invalidateDocuments: async (tenant: string, project: string): Promise<void> => {
-    if (!isRedisAvailable || !redisClient) return;
+    if (!isRedisAvailable || !redisClient) {return;}
 
     try {
       const pattern = `documents:${tenant}:${project}:*`;
@@ -207,7 +207,7 @@ export const CacheInvalidation = {
    * Invalidate all requirement-related caches for a project
    */
   invalidateRequirements: async (tenant: string, project: string): Promise<void> => {
-    if (!isRedisAvailable || !redisClient) return;
+    if (!isRedisAvailable || !redisClient) {return;}
 
     try {
       const pattern = `requirements:${tenant}:${project}:*`;
@@ -222,7 +222,7 @@ export const CacheInvalidation = {
    * Invalidate all architecture-related caches for a diagram
    */
   invalidateArchitecture: async (tenant: string, project: string, diagramId?: string): Promise<void> => {
-    if (!isRedisAvailable || !redisClient) return;
+    if (!isRedisAvailable || !redisClient) {return;}
 
     try {
       const pattern = diagramId
@@ -239,7 +239,7 @@ export const CacheInvalidation = {
    * Invalidate all trace link caches for a project
    */
   invalidateTraceLinks: async (tenant: string, project: string): Promise<void> => {
-    if (!isRedisAvailable || !redisClient) return;
+    if (!isRedisAvailable || !redisClient) {return;}
 
     try {
       const pattern = `trace:links:${tenant}:${project}:*`;
@@ -254,7 +254,7 @@ export const CacheInvalidation = {
    * Invalidate specific cache key
    */
   invalidateKey: async (key: string): Promise<void> => {
-    if (!isRedisAvailable || !redisClient) return;
+    if (!isRedisAvailable || !redisClient) {return;}
 
     try {
       await redisClient.del(key);
@@ -269,7 +269,7 @@ export const CacheInvalidation = {
  * Helper to invalidate all keys matching a pattern
  */
 async function invalidateByPattern(pattern: string): Promise<void> {
-  if (!isRedisAvailable || !redisClient) return;
+  if (!isRedisAvailable || !redisClient) {return;}
 
   try {
     // Use SCAN to avoid blocking Redis

@@ -83,13 +83,13 @@ export function BlockDetailsPanel({
   const availableDocuments = documents.filter(doc => !block.documentIds?.includes(doc.id));
 
   const handleAddPort = () => {
-    if (!portDraft.name.trim()) return;
+    if (!portDraft.name.trim()) {return;}
     onAddPort({ name: portDraft.name.trim(), direction: portDraft.direction });
     setPortDraft({ name: "", direction: "in" });
   };
 
   const handleAddDocument = () => {
-    if (!selectedDocumentId) return;
+    if (!selectedDocumentId) {return;}
     onAddDocument(selectedDocumentId);
     setSelectedDocumentId("");
   };

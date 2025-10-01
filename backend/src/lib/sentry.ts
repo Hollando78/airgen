@@ -17,7 +17,7 @@
  * Set SENTRY_TRACES_SAMPLE_RATE for performance monitoring (0.0 to 1.0)
  */
 
-import { FastifyRequest } from 'fastify';
+import type { FastifyRequest } from 'fastify';
 import { logger } from './logger.js';
 
 // Type definitions for Sentry (conditional)

@@ -87,7 +87,7 @@ class Logger {
         ...sanitizedContext
       };
 
-      /* eslint-disable no-console */
+       
       if (level === 'error') {
         console.error(JSON.stringify(logEntry));
         // TODO: Send to Sentry or other monitoring service
@@ -97,7 +97,7 @@ class Logger {
         // In production, only log errors and warnings to reduce noise
         // Debug and info logs can be enabled via feature flag if needed
       }
-      /* eslint-enable no-console */
+       
     }
   }
 
