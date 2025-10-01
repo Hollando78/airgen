@@ -1,4 +1,5 @@
 import type { ManagedTransaction, Node as Neo4jNode, Relationship as Neo4jRelationship } from "neo4j-driver";
+import { int as neo4jInt } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import type {
@@ -8,7 +9,7 @@ import type {
   BlockPortRecord
 } from "./types.js";
 import { mapBlockWithPlacement, mapBlockLibraryEntry, toNumber } from "./mappers.js";
-import { getCached, CacheKeys, CacheInvalidation } from "../../lib/cache.js";
+import { getCached, CacheKeys, CacheInvalidation } from "../../../lib/cache.js";
 
 export async function createArchitectureBlock(params: {
   tenant: string;
@@ -180,8 +181,8 @@ export async function getArchitectureBlocks(params: {
 }): Promise<ArchitectureBlockRecord[]> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
-  const limit = Math.min(params.options?.limit ?? 100, 1000);
-  const offset = params.options?.offset ?? 0;
+  const limit = parseInt(String(Math.min(params.options?.limit ?? 100, 1000)), 10);
+  const offset = parseInt(String(params.options?.offset ?? 0), 10);
 
   // Cache for 10 minutes (600 seconds)
   const cacheKey = CacheKeys.architectureBlocks(
@@ -212,8 +213,8 @@ export async function getArchitectureBlocks(params: {
             tenantSlug,
             projectSlug,
             diagramId: params.diagramId,
-            offset,
-            limit
+            offset: neo4jInt(offset),
+            limit: neo4jInt(limit)
           }
         );
 

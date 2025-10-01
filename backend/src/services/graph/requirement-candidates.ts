@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Node as Neo4jNode } from "neo4j-driver";
+import { int as neo4jInt } from "neo4j-driver";
 import { config } from "../../config.js";
 import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
@@ -144,8 +145,8 @@ export async function listRequirementCandidates(
 ): Promise<RequirementCandidateRecord[]> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(projectKey);
-  const limit = Math.min(options?.limit ?? 100, 1000);
-  const offset = options?.offset ?? 0;
+  const limit = parseInt(String(Math.min(options?.limit ?? 100, 1000)), 10);
+  const offset = parseInt(String(options?.offset ?? 0), 10);
   const session = getSession();
 
   try {
@@ -158,7 +159,7 @@ export async function listRequirementCandidates(
         SKIP $offset
         LIMIT $limit
       `,
-      { tenantSlug, projectSlug, offset, limit }
+      { tenantSlug, projectSlug, offset: neo4jInt(offset), limit: neo4jInt(limit) }
     );
 
     return result.records.map(record => mapRequirementCandidate(record.get("candidate")));

@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { RequirementRecord, TraceLink } from "../types";
 import { useFloatingDocuments } from "../contexts/FloatingDocumentsContext";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogOverlay } from "./ui/dialog";
 import { Badge } from "./ui/badge";
 
 interface RequirementContextMenuProps {
@@ -35,15 +35,45 @@ export function RequirementContextMenu({
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
+    console.log('[RequirementContextMenu] showDetails state changed to:', showDetails);
+  }, [showDetails]);
+
+  const handleViewDetails = useCallback(() => {
+    console.log('[RequirementContextMenu] handleViewDetails called');
+    console.log('[RequirementContextMenu] Current showDetails state:', showDetails);
+    console.log('[RequirementContextMenu] Setting showDetails to true');
+    setShowDetails(true);
+    console.log('[RequirementContextMenu] After setState call (may not be updated yet)');
+  }, [showDetails]);
+
+  const handleCloseDetails = useCallback(() => {
+    console.log('[RequirementContextMenu] handleCloseDetails called');
+    setShowDetails(false);
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Don't close if dialog is open
+      if (showDetails) {
+        console.log('[RequirementContextMenu] Click outside ignored - dialog is open');
+        return;
+      }
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        console.log('[RequirementContextMenu] Click outside detected - closing context menu');
         onClose();
       }
     };
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        if (showDetails) {
+          console.log('[RequirementContextMenu] Escape pressed - closing dialog');
+          handleCloseDetails();
+        } else {
+          console.log('[RequirementContextMenu] Escape pressed - closing context menu');
+          onClose();
+        }
       }
     };
 
@@ -54,7 +84,7 @@ export function RequirementContextMenu({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [onClose]);
+  }, [onClose, showDetails, handleCloseDetails]);
 
   // Adjust position if menu would go off screen
   useEffect(() => {
@@ -79,14 +109,24 @@ export function RequirementContextMenu({
     }
   }, [x, y]);
 
-  const handleViewDetails = () => {
-    setShowDetails(true);
-  };
-
   const handleOpenInFloatingWindow = () => {
-    const documentSlug = requirement.documentSlug || requirement.path;
-    
+    let documentSlug = requirement.documentSlug;
+
+    // If documentSlug is not available, try to extract it from path
+    if (!documentSlug && requirement.path) {
+      // Path format is typically: "tenant/project/requirements/REQ-001.md"
+      // or for documents: "tenant/project/documents/doc-slug"
+      const pathParts = requirement.path.split('/');
+      if (pathParts.length >= 4 && pathParts[2] === 'documents') {
+        documentSlug = pathParts[3];
+      }
+    }
+
     if (documentSlug) {
+      // Remove .md extension if present
+      documentSlug = documentSlug.replace(/\.md$/, '');
+
+      console.log('[RequirementContextMenu] Opening floating document:', documentSlug);
       openFloatingDocument({
         documentSlug,
         documentName: documentSlug,
@@ -95,8 +135,11 @@ export function RequirementContextMenu({
         kind: "structured",
         focusRequirementId: requirement.id
       });
+    } else {
+      console.warn('[RequirementContextMenu] No document slug found for requirement:', requirement);
     }
-    onClose();
+
+    handleCloseDetails();
   };
 
   const handleStartLink = () => {
@@ -132,10 +175,10 @@ export function RequirementContextMenu({
 
   return (
     <>
-      <div 
+      <div
         ref={menuRef}
         className="context-menu"
-        style={{ left: x, top: y }}
+        style={{ left: x, top: y, display: showDetails ? 'none' : 'block' }}
       >
         <div className="context-menu-info">
           <div className="info-row">
@@ -255,8 +298,29 @@ export function RequirementContextMenu({
         </div>
       </div>
 
-      <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="max-w-2xl">
+      {showDetails && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, pointerEvents: 'none' }}>
+          <Dialog open={true} modal={false} onOpenChange={(open) => {
+            console.log('[RequirementContextMenu] Dialog onOpenChange called with:', open);
+            if (!open) handleCloseDetails();
+          }}>
+            <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', pointerEvents: 'auto' }} onClick={() => handleCloseDetails()} />
+            <DialogContent
+              className="max-w-2xl"
+              style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 10000, pointerEvents: 'auto' }}
+              onOpenAutoFocus={(e) => {
+                console.log('[RequirementContextMenu] Dialog content mounted and focused');
+              }}
+              onEscapeKeyDown={() => handleCloseDetails()}
+              onPointerDownOutside={(e) => {
+                e.preventDefault();
+                handleCloseDetails();
+              }}
+              onInteractOutside={(e) => {
+                e.preventDefault();
+                handleCloseDetails();
+              }}
+            >
           <DialogHeader>
             <DialogTitle>Requirement Details</DialogTitle>
             <DialogDescription>
@@ -309,16 +373,16 @@ export function RequirementContextMenu({
                 </label>
                 <div className="flex items-center gap-3">
                   <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className={`h-full transition-all duration-300 ${
-                        requirement.qaScore >= 80 ? "bg-green-500" : 
+                        requirement.qaScore >= 80 ? "bg-green-500" :
                         requirement.qaScore >= 60 ? "bg-yellow-500" : "bg-red-500"
                       }`}
                       style={{ width: `${requirement.qaScore}%` }}
                     />
                   </div>
                   <span className={`font-semibold text-sm ${
-                    requirement.qaScore >= 80 ? "text-green-600" : 
+                    requirement.qaScore >= 80 ? "text-green-600" :
                     requirement.qaScore >= 60 ? "text-yellow-600" : "text-red-600"
                   }`}>
                     {requirement.qaScore}%
@@ -373,15 +437,17 @@ export function RequirementContextMenu({
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDetails(false)}>
+            <Button variant="outline" onClick={handleCloseDetails}>
               Close
             </Button>
             <Button onClick={handleOpenInFloatingWindow}>
               Open in Document
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
     </>
   );
 }

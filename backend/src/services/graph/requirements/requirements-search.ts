@@ -1,9 +1,10 @@
 import type { Node as Neo4jNode, ManagedTransaction } from "neo4j-driver";
+import { int as neo4jInt } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { mapRequirement } from "./requirements-crud.js";
 import type { RequirementRecord } from "../../workspace.js";
-import { getCached, CacheKeys, CacheInvalidation } from "../../lib/cache.js";
+import { getCached, CacheKeys, CacheInvalidation } from "../../../lib/cache.js";
 
 export interface ListOptions {
   limit?: number;     // Default 100, max 1000
@@ -17,8 +18,8 @@ export async function listRequirements(
 ): Promise<RequirementRecord[]> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(projectKey);
-  const limit = Math.min(options?.limit ?? 100, 1000);
-  const offset = options?.offset ?? 0;
+  const limit = parseInt(String(Math.min(options?.limit ?? 100, 1000)), 10);
+  const offset = parseInt(String(options?.offset ?? 0), 10);
 
   // Cache for 1 minute (60 seconds) - invalidate on update
   const cacheKey = CacheKeys.requirements(tenantSlug, projectSlug, limit, offset);
@@ -43,7 +44,7 @@ export async function listRequirements(
             SKIP $offset
             LIMIT $limit
           `,
-          { tenantSlug, projectSlug, offset, limit }
+          { tenantSlug, projectSlug, offset: neo4jInt(offset), limit: neo4jInt(limit) }
         );
 
         return result.records.map(record => {

@@ -1,8 +1,9 @@
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
+import { int as neo4jInt } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { updateRequirementRefsForDocument } from "../requirements/index.js";
-import { getCached, CacheKeys, CacheInvalidation } from "../../lib/cache.js";
+import { getCached, CacheKeys, CacheInvalidation } from "../../../lib/cache.js";
 
 export type DocumentKind = "structured" | "surrogate";
 
@@ -201,8 +202,8 @@ export async function listDocuments(
 ): Promise<DocumentRecord[]> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(projectKey);
-  const limit = Math.min(options?.limit ?? 100, 1000);
-  const offset = options?.offset ?? 0;
+  const limit = parseInt(String(Math.min(options?.limit ?? 100, 1000)), 10);
+  const offset = parseInt(String(options?.offset ?? 0), 10);
 
   // Cache for 5 minutes (300 seconds)
   const cacheKey = CacheKeys.documents(tenantSlug, projectSlug, limit, offset);
@@ -223,7 +224,7 @@ export async function listDocuments(
             SKIP $offset
             LIMIT $limit
           `,
-          { tenantSlug, projectSlug, offset, limit }
+          { tenantSlug, projectSlug, offset: neo4jInt(offset), limit: neo4jInt(limit) }
         );
 
         const documents: DocumentRecord[] = [];

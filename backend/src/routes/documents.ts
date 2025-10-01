@@ -403,14 +403,6 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
           tenant: { type: "string" },
           project: { type: "string" }
         }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            documents: { type: "array", items: { type: "object" } }
-          }
-        }
       }
     }
   }, async (req) => {

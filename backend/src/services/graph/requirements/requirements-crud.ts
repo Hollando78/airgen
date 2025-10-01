@@ -10,7 +10,7 @@ import {
   writeRequirementMarkdown
 } from "../../workspace.js";
 import { getSession } from "../driver.js";
-import { CacheInvalidation } from "../../lib/cache.js";
+import { CacheInvalidation } from "../../../lib/cache.js";
 
 export type RequirementInput = {
   tenant: string;

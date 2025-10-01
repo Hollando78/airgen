@@ -1,4 +1,5 @@
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
+import { int as neo4jInt } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { mapFolder, type FolderRecord, type ListOptions } from "./documents-crud.js";
@@ -69,8 +70,9 @@ export async function listFolders(
 ): Promise<FolderRecord[]> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(projectKey);
-  const limit = Math.min(options?.limit ?? 100, 1000);
-  const offset = options?.offset ?? 0;
+  const limit = parseInt(String(Math.min(options?.limit ?? 100, 1000)), 10);
+  const offset = parseInt(String(options?.offset ?? 0), 10);
+
   const session = getSession();
 
   try {
@@ -85,7 +87,7 @@ export async function listFolders(
         SKIP $offset
         LIMIT $limit
       `,
-      { tenantSlug, projectSlug, offset, limit }
+      { tenantSlug, projectSlug, offset: neo4jInt(offset), limit: neo4jInt(limit) }
     );
 
     const folders: FolderRecord[] = [];

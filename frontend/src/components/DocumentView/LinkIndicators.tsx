@@ -92,22 +92,32 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
     setContextMenu(null);
   };
 
-  const arrowStyle = {
-    display: "inline-block",
-    width: "12px",
-    height: "12px",
-    marginLeft: "4px",
+  const outgoingArrowStyle = {
+    display: "block",
     cursor: "pointer",
-    fontSize: "10px",
-    color: "#6b7280",
-    userSelect: "none" as const
+    fontSize: "14px",
+    fontWeight: "bold" as const,
+    color: "#2563eb",
+    userSelect: "none" as const,
+    lineHeight: "1",
+    marginBottom: incomingLinks.length > 0 ? "2px" : "0"
+  };
+
+  const incomingArrowStyle = {
+    display: "block",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: "bold" as const,
+    color: "#059669",
+    userSelect: "none" as const,
+    lineHeight: "1"
   };
 
   return (
-    <span style={{ whiteSpace: "nowrap" }}>
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", marginLeft: "6px" }}>
       {outgoingLinks.length > 0 && (
         <span
-          style={arrowStyle}
+          style={outgoingArrowStyle}
           onMouseEnter={(e) => handleMouseEnter("outgoing", e)}
           onMouseLeave={handleMouseLeave}
           onContextMenu={(e) => handleRightClick("outgoing", e)}
@@ -118,7 +128,7 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
       )}
       {incomingLinks.length > 0 && (
         <span
-          style={arrowStyle}
+          style={incomingArrowStyle}
           onMouseEnter={(e) => handleMouseEnter("incoming", e)}
           onMouseLeave={handleMouseLeave}
           onContextMenu={(e) => handleRightClick("incoming", e)}
