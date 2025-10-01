@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo } from "react";
-import {
-  useArchitecture,
-  type SysmlBlock,
-  type SysmlConnector,
+import type {
   BlockKind,
   ConnectorKind,
   PortDirection
+} from "./useArchitectureApi";
+import {
+  useArchitecture,
+  type SysmlBlock,
+  type SysmlConnector
 } from "./useArchitectureApi";
 import type { ArchitectureDiagramRecord } from "../types";
 

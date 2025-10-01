@@ -6,7 +6,7 @@ import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
 
 function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) {return "—";}
   try {
     return new Intl.DateTimeFormat(undefined, {
       dateStyle: "medium",
@@ -39,7 +39,7 @@ export function RequirementsRoute(): JSX.Element {
   const items = requirementsQuery.data?.items ?? [];
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return items;
+    if (!search.trim()) {return items;}
     const needle = search.toLowerCase();
     return items.filter(item =>
       item.ref.toLowerCase().includes(needle) ||

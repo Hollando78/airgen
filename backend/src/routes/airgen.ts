@@ -1,13 +1,15 @@
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { analyzeRequirement } from "@airgen/req-qa";
+import type {
+  RequirementCandidateRecord
+} from "../services/graph.js";
 import {
   createRequirementCandidates,
   listRequirementCandidates,
   getRequirementCandidate,
   updateRequirementCandidate,
-  createRequirement,
-  RequirementCandidateRecord
+  createRequirement
 } from "../services/graph.js";
 import { draftCandidates } from "../services/drafting.js";
 import { generateDiagram } from "../services/diagram-generation.js";

@@ -1,10 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
+import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { config } from "../../../config.js";
-import {
+import type {
   RequirementRecord,
   RequirementPattern,
-  VerificationMethod,
+  VerificationMethod} from "../../workspace.js";
+import {
   slugify,
   writeRequirementMarkdown
 } from "../../workspace.js";
@@ -211,7 +212,7 @@ export async function getRequirement(
       { tenantSlug, projectSlug, ref }
     );
 
-    if (result.records.length === 0) return null;
+    if (result.records.length === 0) {return null;}
     const node = result.records[0].get("requirement") as Neo4jNode;
     return mapRequirement(node);
   } finally {

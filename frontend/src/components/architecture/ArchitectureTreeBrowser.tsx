@@ -45,7 +45,7 @@ export function ArchitectureTreeBrowser({
 
   // Helper function to normalize stereotypes (handle both plain and SysML format)
   const normalizeStereotype = (stereotype: string | null | undefined): string => {
-    if (!stereotype) return '';
+    if (!stereotype) {return '';}
     // Remove angle brackets if present: <<system>> -> system
     return stereotype.replace(/^<<(.+)>>$/, '$1');
   };

@@ -146,7 +146,7 @@ export function InterfaceWorkspace({
   const handleCreateDiagram = useCallback(async () => {
     const baseName = `View ${diagrams.length + 1}`;
     const name = window.prompt("Name for the new diagram", baseName);
-    if (!name || !name.trim()) return;
+    if (!name || !name.trim()) {return;}
 
     try {
       await createDiagram({ name: name.trim() });
@@ -157,10 +157,10 @@ export function InterfaceWorkspace({
 
   const handleRenameDiagram = useCallback((diagramId: string) => {
     const diagram = diagrams.find(item => item.id === diagramId);
-    if (!diagram) return;
+    if (!diagram) {return;}
 
     const nextName = window.prompt("Rename diagram", diagram.name);
-    if (!nextName || !nextName.trim() || nextName.trim() === diagram.name) return;
+    if (!nextName || !nextName.trim() || nextName.trim() === diagram.name) {return;}
 
     renameDiagram(diagramId, { name: nextName.trim() }).catch(error => {
       window.alert((error as Error).message);
@@ -169,17 +169,17 @@ export function InterfaceWorkspace({
 
   const handleDeleteDiagram = useCallback((diagramId: string) => {
     const diagram = diagrams.find(item => item.id === diagramId);
-    if (!diagram) return;
+    if (!diagram) {return;}
     const confirmed = window.confirm(`Delete diagram "${diagram.name}"? This removes its blocks and connectors.`);
-    if (!confirmed) return;
+    if (!confirmed) {return;}
     deleteDiagram(diagramId).catch(error => {
       window.alert((error as Error).message);
     });
   }, [deleteDiagram, diagrams]);
 
   const handleClearDiagram = useCallback(() => {
-    if (!activeDiagramId || !hasChanges) return;
-    if (!window.confirm("Remove all blocks and connectors from this diagram?")) return;
+    if (!activeDiagramId || !hasChanges) {return;}
+    if (!window.confirm("Remove all blocks and connectors from this diagram?")) {return;}
     clearArchitecture();
   }, [activeDiagramId, clearArchitecture, hasChanges]);
 

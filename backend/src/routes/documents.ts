@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { promises as fs } from "node:fs";
 import { createReadStream } from "node:fs";
@@ -182,7 +182,7 @@ function parseMultipartFormData(body: Buffer, boundary: string): ParsedMultipart
   const parts = body.toString("binary").split(boundaryMarker);
 
   for (const rawPart of parts) {
-    if (!rawPart || rawPart === "--" || rawPart === "--\r\n") continue;
+    if (!rawPart || rawPart === "--" || rawPart === "--\r\n") {continue;}
 
     let part = rawPart;
     if (part.startsWith("\r\n")) {
@@ -191,20 +191,20 @@ function parseMultipartFormData(body: Buffer, boundary: string): ParsedMultipart
     if (part.endsWith("\r\n")) {
       part = part.slice(0, -2);
     }
-    if (part === "--") continue;
+    if (part === "--") {continue;}
 
     const headerEndIndex = part.indexOf("\r\n\r\n");
-    if (headerEndIndex === -1) continue;
+    if (headerEndIndex === -1) {continue;}
 
     const headerSection = part.slice(0, headerEndIndex);
     const bodySection = part.slice(headerEndIndex + 4);
 
     const headers = headerSection.split("\r\n");
     const dispositionHeader = headers.find(header => header.toLowerCase().startsWith("content-disposition"));
-    if (!dispositionHeader) continue;
+    if (!dispositionHeader) {continue;}
 
     const nameMatch = dispositionHeader.match(/name="([^"]+)"/);
-    if (!nameMatch) continue;
+    if (!nameMatch) {continue;}
     const fieldName = nameMatch[1];
 
     const filenameMatch = dispositionHeader.match(/filename="([^"]*)"/);
@@ -440,7 +440,7 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     });
     const params = paramsSchema.parse(req.params);
     const document = await getDocument(params.tenant, params.project, params.documentSlug);
-    if (!document) return reply.status(404).send({ error: "Document not found" });
+    if (!document) {return reply.status(404).send({ error: "Document not found" });}
     const documentWithDownload = {
       ...document,
       downloadUrl:
@@ -570,7 +570,7 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
       });
     }
 
-    if (!document) return reply.status(404).send({ error: "Document not found" });
+    if (!document) {return reply.status(404).send({ error: "Document not found" });}
 
     const documentWithDownload = {
       ...document,
@@ -624,7 +624,7 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     });
     const params = paramsSchema.parse(req.params);
     const document = await softDeleteDocument(params.tenant, params.project, params.documentSlug);
-    if (!document) return reply.status(404).send({ error: "Document not found" });
+    if (!document) {return reply.status(404).send({ error: "Document not found" });}
 
     const documentWithDownload = {
       ...document,
@@ -674,7 +674,7 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     const body = bodySchema.parse(req.body);
 
     const folder = await updateFolder(params.tenant, params.project, params.folderSlug, body);
-    if (!folder) return reply.status(404).send({ error: "Folder not found" });
+    if (!folder) {return reply.status(404).send({ error: "Folder not found" });}
     return { folder };
   });
 
@@ -686,7 +686,7 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     });
     const params = paramsSchema.parse(req.params);
     const folder = await softDeleteFolder(params.tenant, params.project, params.folderSlug);
-    if (!folder) return reply.status(404).send({ error: "Folder not found" });
+    if (!folder) {return reply.status(404).send({ error: "Folder not found" });}
     return { folder };
   });
 

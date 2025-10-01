@@ -35,7 +35,7 @@ export function CreateFolderModal({
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!name.trim()) throw new Error("Folder name is required");
+      if (!name.trim()) {throw new Error("Folder name is required");}
       return api.createFolder({
         tenant,
         projectKey: project,

@@ -58,7 +58,7 @@ function ContextMenu({ isOpen, x, y, requirement, onClose, onStartLink, onLinkFr
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen || !requirement) return <></>;
+  if (!isOpen || !requirement) {return <></>;}
 
   return (
     <div 
@@ -228,7 +228,7 @@ export function LinksRoute(): JSX.Element {
 
   // Find selected linkset
   const selectedLinkset = React.useMemo(() => {
-    if (!selectedLinksetId || !linksetsQuery.data?.linksets) return null;
+    if (!selectedLinksetId || !linksetsQuery.data?.linksets) {return null;}
     const linkset = linksetsQuery.data.linksets.find(ls => ls.id === selectedLinksetId);
     return linkset || null;
   }, [selectedLinksetId, linksetsQuery.data]);
@@ -434,7 +434,7 @@ function TraceLinksView(): JSX.Element {
 
   // Get selected linkset
   const selectedLinkset = React.useMemo(() => {
-    if (!selectedLinksetId || !linksetsQuery.data?.linksets) return null;
+    if (!selectedLinksetId || !linksetsQuery.data?.linksets) {return null;}
     return linksetsQuery.data.linksets.find(ls => ls.id === selectedLinksetId) || null;
   }, [selectedLinksetId, linksetsQuery.data?.linksets]);
 

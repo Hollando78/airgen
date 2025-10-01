@@ -221,7 +221,7 @@ export function DocumentView({
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
   }) => {
-    if (!selectedSection) return;
+    if (!selectedSection) {return;}
 
     createRequirementMutation.mutate({
       text: newReq.text,
@@ -240,7 +240,7 @@ export function DocumentView({
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
   }) => {
-    if (!editRequirementModal.requirement) return;
+    if (!editRequirementModal.requirement) {return;}
 
     updateRequirementMutation.mutate({
       requirementId: editRequirementModal.requirement.id,
@@ -249,7 +249,7 @@ export function DocumentView({
   };
 
   const handleDeleteRequirement = () => {
-    if (!editRequirementModal.requirement) return;
+    if (!editRequirementModal.requirement) {return;}
     
     deleteRequirementMutation.mutate(editRequirementModal.requirement.id);
   };
@@ -275,7 +275,7 @@ export function DocumentView({
     const draggedIndex = sections.findIndex(s => s.id === draggedId);
     const targetIndex = sections.findIndex(s => s.id === targetId);
     
-    if (draggedIndex === -1 || targetIndex === -1) return;
+    if (draggedIndex === -1 || targetIndex === -1) {return;}
     
     const newSections = [...sections];
     const [draggedSection] = newSections.splice(draggedIndex, 1);
@@ -294,7 +294,7 @@ export function DocumentView({
   };
 
   const handleOpenFloatingDocument = () => {
-    if (!document) return;
+    if (!document) {return;}
     
     openFloatingDocument({
       documentSlug,

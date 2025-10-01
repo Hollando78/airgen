@@ -26,7 +26,7 @@ export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDel
 
   // Filter trace links to only show those between the currently selected documents
   const relevantTraceLinks = React.useMemo(() => {
-    if (!leftDocument || !rightDocument) return [];
+    if (!leftDocument || !rightDocument) {return [];}
     
     return traceLinks.filter(link => {
       const leftSlug = leftDocument.slug;
@@ -45,10 +45,10 @@ export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDel
 
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current) {return;}
 
     const updateDimensions = () => {
-      if (!containerRef.current) return;
+      if (!containerRef.current) {return;}
       
       // Get the height of the document panels to match their height
       const leftPanel = document.querySelector('.document-panel.left-panel');
@@ -75,8 +75,8 @@ export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDel
     const leftPanel = document.querySelector('.document-panel.left-panel');
     const rightPanel = document.querySelector('.document-panel.right-panel');
     
-    if (leftPanel) observer.observe(leftPanel);
-    if (rightPanel) observer.observe(rightPanel);
+    if (leftPanel) {observer.observe(leftPanel);}
+    if (rightPanel) {observer.observe(rightPanel);}
     observer.observe(containerRef.current);
     
     // Initial update
@@ -100,12 +100,12 @@ export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDel
     const selector = `.document-panel.${documentSide}-panel [data-requirement-id="${requirementId}"]`;
     const container = document.querySelector(selector);
 
-    if (!container || !svgRef.current || !containerRef.current) return null;
+    if (!container || !svgRef.current || !containerRef.current) {return null;}
 
     const containerRect = containerRef.current.getBoundingClientRect();
     const elementRect = container.getBoundingClientRect();
 
-    if (!containerRect) return null;
+    if (!containerRect) {return null;}
 
     const y = elementRect.top - containerRect.top + elementRect.height / 2;
     const x = documentSide === "left"

@@ -12,7 +12,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps): JSX.Element | 
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen) {return null;}
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

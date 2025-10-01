@@ -56,7 +56,7 @@ export function RenameModal({ isOpen, item, onClose, onRename }: RenameModalProp
     </>
   );
 
-  if (!item) return <div></div>;
+  if (!item) {return <div></div>;}
 
   return (
     <Modal

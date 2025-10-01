@@ -1,5 +1,5 @@
-import { Node as Neo4jNode, Relationship as Neo4jRelationship, Integer } from "neo4j-driver";
-import {
+import type { Node as Neo4jNode, Relationship as Neo4jRelationship, Integer } from "neo4j-driver";
+import type {
   ArchitectureBlockDefinitionRecord,
   ArchitectureBlockRecord,
   ArchitectureBlockLibraryRecord,
@@ -11,7 +11,7 @@ import {
 } from "./types.js";
 
 export function toNumber(value: unknown, fallback = 0): number {
-  if (typeof value === "number") return value;
+  if (typeof value === "number") {return value;}
   if (typeof value === "string") {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -27,8 +27,8 @@ export function toNumber(value: unknown, fallback = 0): number {
 }
 
 export function parseJsonArray<T>(value: unknown): T[] {
-  if (!value) return [];
-  if (Array.isArray(value)) return value as T[];
+  if (!value) {return [];}
+  if (Array.isArray(value)) {return value as T[];}
   try {
     return JSON.parse(String(value)) as T[];
   } catch {

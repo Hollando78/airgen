@@ -1,4 +1,4 @@
-import { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
+import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { updateRequirementRefsForDocument } from "../requirements/index.js";
@@ -90,7 +90,7 @@ export function mapFolder(
 }
 
 function transformDocumentRecord(node: Neo4jNode | null): DocumentRecord | null {
-  if (!node) return null;
+  if (!node) {return null;}
   const props = node.properties as Record<string, unknown>;
   const requirementCount =
     props.requirementCount !== undefined ? Number(props.requirementCount) : undefined;

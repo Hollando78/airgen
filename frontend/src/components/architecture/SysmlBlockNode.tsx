@@ -10,7 +10,7 @@ export type SysmlBlockNodeData = {
 };
 
 function formatStereotype(value?: string) {
-  if (!value || !value.trim()) return "«block»";
+  if (!value || !value.trim()) {return "«block»";}
   const trimmed = value.trim();
   return trimmed.startsWith("«") ? trimmed : `«${trimmed.replace(/^<</, "").replace(/>>$/, "")}»`;
 }

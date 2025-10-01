@@ -97,7 +97,7 @@ export function DocumentTree({
     // Build hierarchy
     folders.forEach(folder => {
       const node = nodeMap.get(folder.slug);
-      if (!node) return;
+      if (!node) {return;}
 
       if (folder.parentFolder) {
         const parent = nodeMap.get(folder.parentFolder);
@@ -113,7 +113,7 @@ export function DocumentTree({
 
     documents.forEach(doc => {
       const node = nodeMap.get(`doc-${doc.slug}`);
-      if (!node) return;
+      if (!node) {return;}
 
       if (doc.parentFolder) {
         const parent = nodeMap.get(doc.parentFolder);

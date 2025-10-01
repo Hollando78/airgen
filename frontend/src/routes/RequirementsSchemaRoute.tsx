@@ -63,7 +63,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
   const diagramContentQuery = useQuery({
     queryKey: ["requirements-schema-content", tenant, project, activeDiagramId],
     queryFn: async () => {
-      if (!activeDiagramId) return null;
+      if (!activeDiagramId) {return null;}
       const blocks = await api.listArchitectureBlocks(tenant, project, activeDiagramId);
       const connectors = await api.listArchitectureConnectors(tenant, project, activeDiagramId);
       return { blocks: blocks.blocks, connectors: connectors.connectors };
@@ -93,10 +93,10 @@ export function RequirementsSchemaRoute(): JSX.Element {
   
   // Add document block to diagram
   const addDocumentBlock = useCallback(async (documentId: string, position: { x: number; y: number }) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     
     const document = documentsQuery.data?.documents.find(d => d.id === documentId);
-    if (!document) return;
+    if (!document) {return;}
     
     await api.createArchitectureBlock(tenant, project, activeDiagramId, {
       name: document.name,
@@ -114,7 +114,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
   
   // Add connector between documents
   const addConnector = useCallback(async (sourceId: string, targetId: string, label?: string) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     
     await api.createArchitectureConnector(tenant, project, activeDiagramId, {
       source: sourceId,
@@ -189,13 +189,13 @@ export function RequirementsSchemaRoute(): JSX.Element {
   const handleAddBlock = () => null;
   const handleReuseBlock = () => null;
   const handleUpdateBlock = async (blockId: string, updates: any) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     await api.updateArchitectureBlock(tenant, project, blockId, updates);
     queryClient.invalidateQueries({ queryKey: ["requirements-schema-content"] });
   };
   
   const handleUpdateBlockPosition = async (blockId: string, position: { x: number; y: number }) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     await api.updateArchitectureBlock(tenant, project, blockId, { 
       positionX: position.x, 
       positionY: position.y 
@@ -204,7 +204,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
   };
   
   const handleUpdateBlockSize = async (blockId: string, size: { width: number; height: number }) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     await api.updateArchitectureBlock(tenant, project, blockId, { 
       sizeWidth: size.width, 
       sizeHeight: size.height 
@@ -213,7 +213,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
   };
   
   const handleRemoveBlock = async (blockId: string) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     await api.deleteArchitectureBlock(tenant, project, activeDiagramId, blockId);
     queryClient.invalidateQueries({ queryKey: ["requirements-schema-content"] });
   };
@@ -223,13 +223,13 @@ export function RequirementsSchemaRoute(): JSX.Element {
   const handleRemovePort = () => {};
   
   const handleUpdateConnector = async (connectorId: string, updates: any) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     await api.updateArchitectureConnector(tenant, project, connectorId, updates);
     queryClient.invalidateQueries({ queryKey: ["requirements-schema-content"] });
   };
   
   const handleRemoveConnector = async (connectorId: string) => {
-    if (!activeDiagramId) return;
+    if (!activeDiagramId) {return;}
     await api.deleteArchitectureConnector(tenant, project, connectorId);
     queryClient.invalidateQueries({ queryKey: ["requirements-schema-content"] });
   };

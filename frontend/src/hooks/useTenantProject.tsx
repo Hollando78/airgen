@@ -20,7 +20,7 @@ function readInitialState(): TenantProjectState {
   }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { tenant: null, project: null };
+    if (!raw) {return { tenant: null, project: null };}
     const parsed = JSON.parse(raw) as TenantProjectState;
     return {
       tenant: parsed.tenant ?? null,

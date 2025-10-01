@@ -5,7 +5,7 @@ export function UserMenu(): JSX.Element {
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
-  if (!user) return <></>;
+  if (!user) {return <></>;}
 
   const handleLogout = () => {
     logout();

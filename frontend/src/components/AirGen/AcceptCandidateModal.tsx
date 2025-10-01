@@ -269,7 +269,7 @@ export function AcceptCandidateModal({
                       className="btn btn--secondary btn--compact"
                       onClick={() => {
                         const selectedDoc = documents.find(d => d.slug === documentSlug && d.kind === "structured");
-                        if (selectedDoc) handleEditDocumentClick(selectedDoc);
+                        if (selectedDoc) {handleEditDocumentClick(selectedDoc);}
                       }}
                       title="Edit document"
                     >
@@ -307,7 +307,7 @@ export function AcceptCandidateModal({
                       className="btn btn--secondary btn--compact"
                       onClick={() => {
                         const selectedSection = sections.find(s => s.id === sectionId);
-                        if (selectedSection) handleEditSectionClick(selectedSection);
+                        if (selectedSection) {handleEditSectionClick(selectedSection);}
                       }}
                       title="Edit section"
                     >

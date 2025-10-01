@@ -1,7 +1,7 @@
-import { ManagedTransaction, Node as Neo4jNode, Relationship as Neo4jRelationship } from "neo4j-driver";
+import type { ManagedTransaction, Node as Neo4jNode, Relationship as Neo4jRelationship } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
-import {
+import type {
   ArchitectureBlockRecord,
   ArchitectureBlockLibraryRecord,
   BlockKind,

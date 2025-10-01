@@ -1,5 +1,5 @@
 import { analyzeRequirement } from "@airgen/req-qa";
-import { RequirementPattern, VerificationMethod } from "./workspace.js";
+import type { RequirementPattern, VerificationMethod } from "./workspace.js";
 
 export type DraftRequest = {
   need: string;
@@ -27,7 +27,7 @@ const PATTERNS: RequirementPattern[] = ["event", "state", "ubiquitous", "unwante
 const VERIFICATIONS: VerificationMethod[] = ["Test", "Analysis", "Inspection", "Demonstration"];
 
 function choosePatterns(requested: RequirementPattern | undefined, count: number): RequirementPattern[] {
-  if (requested) return Array.from({ length: count }, () => requested);
+  if (requested) {return Array.from({ length: count }, () => requested);}
   const sequences: RequirementPattern[] = [];
   for (let i = 0; i < count; i += 1) {
     sequences.push(PATTERNS[i % PATTERNS.length]);

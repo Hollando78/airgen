@@ -1,4 +1,4 @@
-import { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
+import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
 import { mapRequirement } from "./requirements/index.js";
