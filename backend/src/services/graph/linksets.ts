@@ -1,7 +1,7 @@
 import { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
-import { mapDocument } from "./documents.js";
+import { mapDocument } from "./documents/index.js";
 
 export type TraceLinkItem = {
   id: string;
