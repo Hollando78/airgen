@@ -139,9 +139,18 @@ LLM_TEMPERATURE=0.2
 ```
 Optional: override `LLM_BASE_URL` for Azure/OpenAI-compatible gateways. Requests that set `"useLlm": true` will prepend LLM-generated drafts to the output while always preserving heuristic fallbacks.
 
+## Troubleshooting
+
+Having issues? Check **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** for solutions to common problems:
+
+- **RBAC / 403 Forbidden errors** - Missing author role in dev users
+- **Slow dev server startup** - Optional services causing delays
+- **TypeScript build failures** - Import errors and module resolution
+- **Service connectivity issues** - Port conflicts, Docker networking
+- **Complete startup procedures** - How to run all services correctly
+
 ## Next steps
 - Add additional node types (needs, tests, risks) and relationships inside Neo4j.
 - Layer a front-end or CLI on top of the API and graph data.
 - Extend `services/llm.ts` with more providers (Anthropic, local inference) and fine-grained prompts.
 - Add automated tests (e.g., `node --test`, `vitest`) that cover graph writes and LLM error handling.
-# ESLint Configuration Test
