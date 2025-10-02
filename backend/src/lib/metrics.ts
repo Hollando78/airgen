@@ -39,6 +39,14 @@ let isMetricsAvailable = false;
  * Gracefully handles missing prom-client dependency
  */
 export async function initMetrics(): Promise<void> {
+  // Skip metrics in development unless explicitly enabled
+  const environment = process.env.API_ENV || process.env.NODE_ENV || "development";
+  if (environment === "development" && !process.env.METRICS_ENABLED) {
+    logger.info("Prometheus metrics disabled in development mode (set METRICS_ENABLED=true to enable)");
+    isMetricsAvailable = false;
+    return;
+  }
+
   try {
     // Dynamically import prom-client
     const promClient = await import('prom-client');

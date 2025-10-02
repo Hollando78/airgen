@@ -42,6 +42,14 @@ let isSentryAvailable = false;
 let isSentryInitialized = false;
 
 export async function initSentry(): Promise<void> {
+  // Skip Sentry in development unless explicitly enabled
+  const environment = process.env.API_ENV || process.env.NODE_ENV || "development";
+  if (environment === "development" && !process.env.SENTRY_ENABLED) {
+    logger.info("Sentry disabled in development mode (set SENTRY_ENABLED=true to enable)");
+    isSentryAvailable = false;
+    return;
+  }
+
   const dsn = process.env.SENTRY_DSN;
 
   if (!dsn || dsn.trim() === "") {
