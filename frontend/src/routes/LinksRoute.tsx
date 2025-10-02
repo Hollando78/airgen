@@ -408,15 +408,17 @@ function TraceLinksView(): JSX.Element {
     sourceRequirement: RequirementRecord | null;
     isLinking: boolean;
   }>({ sourceRequirement: null, isLinking: false });
-  
+
   const [linkModal, setLinkModal] = useState<{
     isOpen: boolean;
     sourceRequirements: RequirementRecord[];
     targetRequirements: RequirementRecord[];
   }>({ isOpen: false, sourceRequirements: [], targetRequirements: [] });
-  
+
   const [linkType, setLinkType] = useState<TraceLinkType>("satisfies");
   const [description, setDescription] = useState("");
+  const [selectedRequirements, setSelectedRequirements] = useState<Set<string>>(new Set());
+  const [draggedRequirement, setDraggedRequirement] = useState<RequirementRecord | null>(null);
 
   // Fetch linksets
   const linksetsQuery = useQuery({
@@ -515,6 +517,23 @@ function TraceLinksView(): JSX.Element {
     setDescription("");
   }, []);
 
+  const handleRequirementSelect = React.useCallback((requirement: RequirementRecord, isMultiSelect: boolean) => {
+    setSelectedRequirements(prev => {
+      const newSet = new Set(prev);
+      if (isMultiSelect) {
+        if (newSet.has(requirement.id)) {
+          newSet.delete(requirement.id);
+        } else {
+          newSet.add(requirement.id);
+        }
+      } else {
+        newSet.clear();
+        newSet.add(requirement.id);
+      }
+      return newSet;
+    });
+  }, []);
+
   const handleRequirementContextMenu = React.useCallback((event: React.MouseEvent, requirement: RequirementRecord) => {
     event.preventDefault();
     setContextMenu({
@@ -525,7 +544,49 @@ function TraceLinksView(): JSX.Element {
     });
   }, []);
 
-  
+  // Alias for DocumentTree compatibility
+  const handleContextMenu = React.useCallback((requirement: RequirementRecord, event: React.MouseEvent) => {
+    event.preventDefault();
+    setContextMenu({
+      isOpen: true,
+      x: event.clientX,
+      y: event.clientY,
+      requirement
+    });
+  }, []);
+
+  const handleDragStart = React.useCallback((requirement: RequirementRecord) => {
+    setDraggedRequirement(requirement);
+  }, []);
+
+  const handleDragOver = React.useCallback((event: React.DragEvent) => {
+    event.preventDefault(); // Allow drop
+    const target = event.currentTarget as HTMLElement;
+    target.classList.add('drag-over');
+  }, []);
+
+  const handleDragLeave = React.useCallback((event: React.DragEvent) => {
+    const target = event.currentTarget as HTMLElement;
+    target.classList.remove('drag-over');
+  }, []);
+
+  const handleDrop = React.useCallback((event: React.DragEvent, targetRequirement: RequirementRecord) => {
+    event.preventDefault();
+    const target = event.currentTarget as HTMLElement;
+    target.classList.remove('drag-over');
+
+    if (draggedRequirement && draggedRequirement.id !== targetRequirement.id) {
+      // Show link confirmation modal
+      setLinkModal({
+        isOpen: true,
+        sourceRequirements: [draggedRequirement],
+        targetRequirements: [targetRequirement]
+      });
+    }
+    setDraggedRequirement(null);
+  }, [draggedRequirement]);
+
+
   if (!tenant || !project) {
     return (
       <div className="p-6 space-y-6 min-h-screen">
@@ -577,11 +638,11 @@ function TraceLinksView(): JSX.Element {
                         <div className="flex flex-col gap-1 w-full">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">{linkset.sourceDocument.name}</span>
-                            <span className="text-xs text-muted-foreground">↔</span>
+                            <span className="text-xs font-bold text-blue-600">→</span>
                             <span className="font-medium text-sm">{linkset.targetDocument.name}</span>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {linkset.linkCount} link{linkset.linkCount !== 1 ? 's' : ''}
+                            {linkset.linkCount} link{linkset.linkCount !== 1 ? 's' : ''} • Directional linkset
                           </div>
                         </div>
                       </SelectItem>
@@ -593,8 +654,10 @@ function TraceLinksView(): JSX.Element {
             
             {selectedLinkset && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <div className="text-sm font-medium text-blue-900">
-                  {selectedLinkset.sourceDocument.name} ↔ {selectedLinkset.targetDocument.name}
+                <div className="text-sm font-medium text-blue-900 flex items-center gap-2">
+                  <span>{selectedLinkset.sourceDocument.name}</span>
+                  <span className="text-base font-bold text-blue-600">→</span>
+                  <span>{selectedLinkset.targetDocument.name}</span>
                 </div>
                 <div className="text-xs text-blue-700 mt-1">
                   {selectedLinkset.linkCount} trace link{selectedLinkset.linkCount !== 1 ? 's' : ''} between these documents
