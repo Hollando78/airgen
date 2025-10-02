@@ -9,21 +9,11 @@ import {
   type SysmlBlock,
   type SysmlConnector
 } from "./useArchitectureApi";
-import type { ArchitectureDiagramRecord } from "../types";
+import { isInterfaceDiagram } from "../lib/architectureDiagrams";
 
 export type InterfaceBlock = SysmlBlock;
 export type InterfaceConnector = SysmlConnector;
 export type { BlockKind, ConnectorKind, PortDirection };
-
-function matchesInterfaceDiagram(diagram: ArchitectureDiagramRecord): boolean {
-  const lowerName = diagram.name.toLowerCase();
-  if (lowerName.includes("interface")) {
-    return true;
-  }
-
-  const lowerDescription = diagram.description?.toLowerCase();
-  return Boolean(lowerDescription && lowerDescription.includes("interface"));
-}
 
 function ensureInterfaceName(raw: string): string {
   const trimmed = raw.trim();
@@ -37,7 +27,6 @@ export function useInterface(tenant: string | null, project: string | null) {
   const {
     architecture,
     diagrams: allDiagrams,
-    activeDiagram: baseActiveDiagram,
     activeDiagramId: baseActiveDiagramId,
     setActiveDiagramId: baseSetActiveDiagramId,
     createDiagram: baseCreateDiagram,
@@ -59,6 +48,9 @@ export function useInterface(tenant: string | null, project: string | null) {
     addDocumentToBlock,
     removeDocumentFromBlock,
     setBlockDocuments,
+    addDocumentToConnector,
+    removeDocumentFromConnector,
+    setConnectorDocuments,
     blocksLibrary,
     hasChanges,
     isLoading,
@@ -67,7 +59,7 @@ export function useInterface(tenant: string | null, project: string | null) {
     libraryError
   } = useArchitecture(tenant, project);
 
-  const diagrams = useMemo(() => allDiagrams.filter(matchesInterfaceDiagram), [allDiagrams]);
+  const diagrams = useMemo(() => allDiagrams.filter(isInterfaceDiagram), [allDiagrams]);
 
   // Auto-create interface diagram if none exist
   useEffect(() => {
@@ -152,6 +144,9 @@ export function useInterface(tenant: string | null, project: string | null) {
     addDocumentToBlock,
     removeDocumentFromBlock,
     setBlockDocuments,
+    addDocumentToConnector,
+    removeDocumentFromConnector,
+    setConnectorDocuments,
     hasChanges,
     blocksLibrary,
     isLoading,

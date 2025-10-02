@@ -7,6 +7,7 @@ import {
 import {
   createRequirement,
   listRequirements,
+  countRequirements,
   getRequirement,
   updateRequirement,
   softDeleteRequirement,
@@ -128,27 +129,23 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const params = paramsSchema.parse(req.params);
     const pagination = parsePaginationParams(req.query);
 
-    // Get all items (in production, this should be a database query with SKIP/LIMIT)
-    const allItems = await listRequirements(params.tenant, params.project);
-
-    // Sort if requested
-    if (pagination.sortBy) {
-      allItems.sort((a, b) => {
-        const aVal = a[pagination.sortBy as keyof typeof a];
-        const bVal = b[pagination.sortBy as keyof typeof b];
-
-        if (aVal === undefined || bVal === undefined) {return 0;}
-
-        const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-        return pagination.sortOrder === "asc" ? comparison : -comparison;
-      });
-    }
-
-    // Paginate
     const { skip, limit } = getSkipLimit(pagination.page, pagination.limit);
-    const paginatedItems = allItems.slice(skip, skip + limit);
+    const orderBy = (pagination.sortBy as "createdAt" | "ref" | "qaScore" | undefined) ?? "ref";
+    const orderDirection = pagination.sortBy
+      ? (pagination.sortOrder === "asc" ? "ASC" : "DESC")
+      : "ASC";
 
-    return createPaginatedResponse(paginatedItems, allItems.length, pagination);
+    const [items, total] = await Promise.all([
+      listRequirements(params.tenant, params.project, {
+        limit,
+        offset: skip,
+        orderBy,
+        orderDirection
+      }),
+      countRequirements(params.tenant, params.project)
+    ]);
+
+    return createPaginatedResponse(items, total, pagination);
   });
 
   app.get("/requirements/:tenant/:project/:ref", {

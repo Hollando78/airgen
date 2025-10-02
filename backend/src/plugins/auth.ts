@@ -43,7 +43,7 @@ function normalizeUser(payload: JwtPayload): AuthenticatedUser {
   };
 }
 
-export async function registerAuth(app: FastifyInstance): Promise<void> {
+export async function registerAuth(app: FastifyInstance<any, any, any, any, any>): Promise<void> {
   await app.register(jwt, { secret: config.jwtSecret });
 
   app.decorateRequest("currentUser", null);

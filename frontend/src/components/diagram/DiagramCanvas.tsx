@@ -2,6 +2,7 @@ import {
   forwardRef,
   useImperativeHandle,
   useState,
+  useCallback,
   type ForwardRefRenderFunction,
   type MouseEvent as ReactMouseEvent
 } from "react";
@@ -23,6 +24,7 @@ import { DiagramContextMenu } from "./DiagramContextMenu";
 import { ConnectorStylingToolbar } from "./ConnectorStylingToolbar";
 import { DiagramToolbar } from "./DiagramToolbar";
 import { Spinner } from "../Spinner";
+import { StraightEdge, SmoothStepEdge, StepEdge, BezierEdge } from "./CustomEdge";
 import type { ArchitectureDiagramRecord, DocumentRecord } from "../../types";
 import type {
   ArchitectureState,
@@ -35,6 +37,12 @@ import type {
 import { useDiagramCanvasInteractions } from "../../hooks/useDiagramCanvasInteractions";
 
 const nodeTypes = { sysmlBlock: SysmlBlockNode };
+const edgeTypes = {
+  straight: StraightEdge,
+  smoothstep: SmoothStepEdge,
+  step: StepEdge,
+  default: BezierEdge
+};
 
 type DiagramBlockPreset = {
   label: string;
@@ -99,6 +107,7 @@ interface DiagramCanvasProps {
   isLoading: boolean;
   mapConnectorToEdge: (connector: SysmlConnector, blocks?: SysmlBlock[]) => Edge;
   hideDefaultHandles?: boolean;
+  onDropDocument?: (documentId: string, position: XYPosition) => void;
 }
 
 const DiagramCanvasComponent: ForwardRefRenderFunction<
@@ -135,7 +144,8 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       blockPresets,
       computePlacement,
       mapConnectorToEdge,
-      hideDefaultHandles
+      hideDefaultHandles,
+      onDropDocument
   },
   ref
 ) => {
@@ -206,6 +216,32 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       reuseExistingBlock: (blockId: string) => reuseExistingBlock(blockId)
     }), [addBlockFromPreset, reuseExistingBlock]);
 
+    const handleDrop = useCallback((event: React.DragEvent) => {
+      event.preventDefault();
+
+      if (!onDropDocument || !reactFlowInstanceRef.current) {
+        return;
+      }
+
+      const documentId = event.dataTransfer.getData("documentId");
+      if (!documentId) {
+        return;
+      }
+
+      // Convert screen coordinates to flow coordinates
+      const position = reactFlowInstanceRef.current.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY
+      });
+
+      onDropDocument(documentId, position);
+    }, [onDropDocument]);
+
+    const handleDragOver = useCallback((event: React.DragEvent) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    }, []);
+
     return (
       <div className="architecture-canvas-area">
         <div className="architecture-canvas-shell" ref={canvasWrapperRef}>
@@ -215,6 +251,7 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 onNodesChange={nodesChangeHandler}
                 onEdgesChange={edgesChangeHandler}
                 onConnect={handleConnect}
@@ -222,6 +259,8 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 onPaneContextMenu={handlePaneContextMenu}
                 onNodeContextMenu={handleNodeContextMenu}
                 onEdgeContextMenu={handleEdgeContextMenu}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
                 onNodeClick={(event: ReactMouseEvent, node: Node) => {
                   event.stopPropagation();
                   closeContextMenu();

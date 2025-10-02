@@ -33,15 +33,20 @@ const patternEnum = z.enum(["ubiquitous", "event", "state", "unwanted", "optiona
 const verificationEnum = z.enum(["Test", "Analysis", "Inspection", "Demonstration"]);
 
 function mapCandidate(record: RequirementCandidateRecord) {
+  const qa = {
+    score: record.qaScore ?? null,
+    verdict: record.qaVerdict ?? null,
+    suggestions: record.suggestions ?? []
+  };
+
   return {
     id: record.id,
     text: record.text,
     status: record.status,
-    qa: {
-      score: record.qaScore ?? null,
-      verdict: record.qaVerdict ?? null,
-      suggestions: record.suggestions ?? []
-    },
+    qa,
+    qaScore: record.qaScore ?? undefined,
+    qaVerdict: record.qaVerdict ?? undefined,
+    suggestions: record.suggestions ?? [],
     prompt: record.prompt ?? null,
     querySessionId: record.querySessionId ?? null,
     requirementRef: record.requirementRef ?? null,
@@ -213,15 +218,7 @@ export default async function airgenRoutes(app: FastifyInstance) {
     );
 
     // Align QA info with stored records in order
-    const responseItems = created.map((record, index) => {
-      const qa = analyzed[index]?.qa;
-      return mapCandidate({
-        ...record,
-        qaScore: qa?.score ?? record.qaScore,
-        qaVerdict: qa?.verdict ?? record.qaVerdict,
-        suggestions: qa?.suggestions ?? record.suggestions
-      });
-    });
+    const responseItems = created.map((record, index) => mapCandidate(record));
 
     return {
       prompt: body.user_input,

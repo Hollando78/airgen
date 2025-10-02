@@ -43,6 +43,24 @@ export default async function draftRoutes(app: FastifyInstance) {
               }
             }
           }
+        },
+        400: {
+          type: "object",
+          description: "Bad request - invalid input",
+          properties: {
+            error: { type: "string" },
+            message: { type: "string" },
+            detail: { type: "string" }
+          }
+        },
+        502: {
+          type: "object",
+          description: "Bad gateway - failed to draft requirement candidates",
+          properties: {
+            error: { type: "string" },
+            message: { type: "string" },
+            detail: { type: "string" }
+          }
         }
       }
     }

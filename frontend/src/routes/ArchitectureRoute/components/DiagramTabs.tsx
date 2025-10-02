@@ -18,7 +18,7 @@ export function DiagramTabs({ diagrams, activeDiagramId, onSelect, onRename, onD
 
   return (
     <div className="architecture-tabs">
-      {diagrams.map(diagram => (
+      {diagrams.map((diagram) => (
         <div
           key={diagram.id}
           className={`diagram-tab ${diagram.id === activeDiagramId ? "active" : ""}`}

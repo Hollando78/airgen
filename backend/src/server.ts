@@ -17,6 +17,7 @@ import { logger } from "./lib/logger.js";
 import { initMetrics, metricsMiddleware, getMetrics, areMetricsAvailable } from "./lib/metrics.js";
 import { initSentry, sentryErrorHandler, isSentryEnabled, flush as flushSentry } from "./lib/sentry.js";
 import { closeCache } from "./lib/cache.js";
+import { sanitizeNeo4jResponse } from "./lib/neo4j-utils.js";
 import draftRoutes from "./routes/draft.js";
 import airgenRoutes from "./routes/airgen.js";
 import coreRoutes from "./routes/core.js";
@@ -35,6 +36,22 @@ await initSentry();
 
 await ensureWorkspace();
 await initGraph();
+
+let prettyTransport: { target: string; options: Record<string, unknown> } | undefined;
+if (config.environment === "development") {
+  try {
+    await import("pino-pretty");
+    prettyTransport = {
+      target: "pino-pretty",
+      options: {
+        translateTime: "HH:MM:ss Z",
+        ignore: "pid,hostname"
+      }
+    };
+  } catch {
+    logger.warn("pino-pretty not installed, development logs will be JSON");
+  }
+}
 
 const app = Fastify({
   logger: {
@@ -61,27 +78,36 @@ const app = Fastify({
       },
       err(error) {
         const serialized = serializeError(error);
+        const { stack: _omitStack, ...rest } = serialized;
+        const stackValue = config.environment === "production" ? "" : serialized.stack ?? "";
         return {
-          ...serialized,
-          stack: config.environment === "production" ? undefined : serialized.stack
+          ...rest,
+          stack: stackValue
         };
       }
     },
-    ...(config.environment === "production" && {
-      // Production: JSON logging for aggregation
-      transport: undefined
-    }),
-    ...( config.environment === "development" && {
-      // Development: Pretty printing
-      transport: {
-        target: "pino-pretty",
-        options: {
-          translateTime: "HH:MM:ss Z",
-          ignore: "pid,hostname"
-        }
-      }
-    })
+    transport: prettyTransport
   }
+});
+
+// Add custom JSON serializer to handle Neo4j types
+app.addHook("onSend", async (request, reply, payload) => {
+  // Only process JSON responses
+  const contentType = reply.getHeader("content-type");
+  if (typeof contentType === "string" && contentType.includes("application/json")) {
+    if (typeof payload === "string") {
+      try {
+        // Parse, sanitize, and re-stringify
+        const parsed = JSON.parse(payload);
+        const sanitized = sanitizeNeo4jResponse(parsed);
+        return JSON.stringify(sanitized);
+      } catch {
+        // If parsing fails, return original payload
+        return payload;
+      }
+    }
+  }
+  return payload;
 });
 
 await app.register(cors, { origin: true });

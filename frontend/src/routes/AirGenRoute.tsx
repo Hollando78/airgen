@@ -582,6 +582,11 @@ export function AirGenRoute(): JSX.Element {
           color: #991b1b;
         }
 
+        .status-unknown .candidate-status {
+          background: #e2e8f0;
+          color: #475569;
+        }
+
         .candidate-ref {
           font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
           background: #f1f5f9;

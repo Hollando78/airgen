@@ -33,7 +33,6 @@ class Logger {
       const msg = typeof context === 'string' ? context : message;
       const ctx = typeof context === 'object' ? context : undefined;
 
-      /* eslint-disable no-console */
       if (level === 'error') {
         console.error(msg, ctx);
       } else if (level === 'warn') {
@@ -41,7 +40,6 @@ class Logger {
       } else {
         console.log(`[${level}]`, msg, ctx);
       }
-      /* eslint-enable no-console */
     }
   }
 

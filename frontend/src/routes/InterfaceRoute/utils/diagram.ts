@@ -92,9 +92,13 @@ export function mapInterfaceConnectorToEdge(connector: InterfaceConnector, block
     target: connector.target,
     sourceHandle: validatedSourceHandle,
     targetHandle: validatedTargetHandle,
-    label: connector.label,
+    label: connector.label || "",
     type: getReactFlowEdgeType(lineStyle),
     animated: isFlow,
+    data: {
+      documentIds: connector.documentIds || [],
+      originalLabel: connector.label
+    },
     style: {
       strokeWidth,
       strokeDasharray: getStrokeDashArray(linePattern),

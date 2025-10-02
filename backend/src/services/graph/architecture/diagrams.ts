@@ -79,7 +79,7 @@ export async function getArchitectureDiagrams(params: {
       `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
         OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram)
-        RETURN diagram
+        RETURN DISTINCT diagram
         ORDER BY diagram.createdAt
       `,
       { tenantSlug, projectSlug }

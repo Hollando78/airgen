@@ -105,6 +105,9 @@ export type RequirementCandidate = {
     verdict: string | null;
     suggestions: string[];
   };
+  qaScore?: number;
+  qaVerdict?: string;
+  suggestions?: string[];
   prompt?: string | null;
   querySessionId?: string | null;
   requirementRef?: string | null;
@@ -448,6 +451,12 @@ export type BlockPortRecord = {
   direction: PortDirection;
   edge?: PortEdge;      // Which edge of the block (default: auto-position based on direction)
   offset?: number;      // Position along the edge, 0-100% (default: evenly spaced)
+  size?: number;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  iconColor?: string;
+  shape?: "circle" | "square" | "diamond";
 };
 
 export type ArchitectureBlockDefinitionRecord = {
@@ -498,6 +507,7 @@ export type ArchitectureConnectorRecord = {
   tenant: string;
   projectKey: string;
   diagramId: string;
+  documentIds: string[];
   createdAt: string;
   updatedAt: string;
   // Styling properties
@@ -559,6 +569,7 @@ export type CreateArchitectureConnectorRequest = {
   sourcePortId?: string;
   targetPortId?: string;
   diagramId: string;
+  documentIds?: string[];
   // Styling properties
   lineStyle?: ConnectorLineStyle;
   markerStart?: ConnectorMarkerType;
