@@ -14,6 +14,10 @@ interface RequirementContextMenuProps {
   onClose: () => void;
   onStartLink?: (requirement: RequirementRecord) => void;
   onEndLink?: (requirement: RequirementRecord) => void;
+  onCancelLink?: () => void;
+  onDeleteLink?: (linkId: string) => void;
+  onArchive?: (requirementId: string) => void;
+  onUnarchive?: (requirementId: string) => void;
   linkingRequirement?: RequirementRecord | null;
   traceLinks?: TraceLink[];
 }
@@ -27,6 +31,10 @@ export function RequirementContextMenu({
   onClose,
   onStartLink,
   onEndLink,
+  onCancelLink,
+  onDeleteLink,
+  onArchive,
+  onUnarchive,
   linkingRequirement,
   traceLinks = []
 }: RequirementContextMenuProps) {
@@ -236,6 +244,20 @@ export function RequirementContextMenu({
           </div>
         )}
 
+        {isCurrentRequirementLinking && onCancelLink && (
+          <div className="context-menu-item" style={{ color: '#dc2626' }} onClick={() => {
+            onCancelLink();
+            onClose();
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="15" y1="9" x2="9" y2="15"/>
+              <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            Cancel Link
+          </div>
+        )}
+
         {isCurrentRequirementLinking && (
           <div className="context-menu-info" style={{ background: '#ecfdf5', color: '#059669', fontStyle: 'italic' }}>
             <div className="info-row">
@@ -244,6 +266,19 @@ export function RequirementContextMenu({
               </svg>
               Link started from this requirement
             </div>
+          </div>
+        )}
+
+        {(outgoingLinks.length > 0 || incomingLinks.length > 0) && onDeleteLink && (
+          <div className="context-menu-item" onClick={() => setShowDetails(true)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+            <span style={{ flex: 1 }}>Manage Links</span>
+            <span style={{ marginLeft: 'auto', fontSize: '11px', background: '#f3f4f6', padding: '2px 6px', borderRadius: '3px' }}>
+              {outgoingLinks.length + incomingLinks.length}
+            </span>
           </div>
         )}
 
@@ -272,6 +307,37 @@ export function RequirementContextMenu({
           </svg>
           Copy Requirement Text
         </div>
+
+        <div className="context-menu-separator" />
+
+        {!requirement.archived && onArchive && (
+          <div className="context-menu-item" onClick={() => {
+            onArchive(requirement.id);
+            onClose();
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 8v13H3V8"/>
+              <path d="M1 3h22v5H1z"/>
+              <path d="M10 12h4"/>
+            </svg>
+            Archive Requirement
+          </div>
+        )}
+
+        {requirement.archived && onUnarchive && (
+          <div className="context-menu-item" onClick={() => {
+            onUnarchive(requirement.id);
+            onClose();
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 8v13H3V8"/>
+              <path d="M1 3h22v5H1z"/>
+              <path d="M10 12h4"/>
+              <path d="M12 10v4"/>
+            </svg>
+            Unarchive Requirement
+          </div>
+        )}
 
         <div className="context-menu-separator" />
 
@@ -396,28 +462,82 @@ export function RequirementContextMenu({
                 <label className="text-sm font-semibold text-gray-700 block mb-2">
                   Trace Links
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {outgoingLinks.length > 0 && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <div className="font-medium text-blue-900 mb-1">
-                        Outgoing ({outgoingLinks.length})
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        Links to {outgoingLinks.length} requirement{outgoingLinks.length > 1 ? 's' : ''}
-                      </div>
+
+                {outgoingLinks.length > 0 && (
+                  <div className="mb-3">
+                    <div className="text-xs font-medium text-blue-900 mb-2">Outgoing Links ({outgoingLinks.length})</div>
+                    <div className="space-y-2">
+                      {outgoingLinks.map(link => (
+                        <div key={link.id} className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-mono font-medium text-blue-900">{link.targetRequirement.ref}</div>
+                            <div className="text-gray-600 mt-0.5 truncate">{link.targetRequirement.text.substring(0, 60)}...</div>
+                            <div className="mt-1">
+                              <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium">
+                                {link.linkType}
+                              </span>
+                            </div>
+                          </div>
+                          {onDeleteLink && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`Delete link to ${link.targetRequirement.ref}?`)) {
+                                  onDeleteLink(link.id);
+                                  handleCloseDetails();
+                                }
+                              }}
+                              className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors"
+                              title="Delete link"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="3,6 5,6 21,6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  )}
-                  {incomingLinks.length > 0 && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                      <div className="font-medium text-green-900 mb-1">
-                        Incoming ({incomingLinks.length})
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {incomingLinks.length} requirement{incomingLinks.length > 1 ? 's' : ''} link here
-                      </div>
+                  </div>
+                )}
+
+                {incomingLinks.length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium text-green-900 mb-2">Incoming Links ({incomingLinks.length})</div>
+                    <div className="space-y-2">
+                      {incomingLinks.map(link => (
+                        <div key={link.id} className="flex items-start gap-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-mono font-medium text-green-900">{link.sourceRequirement.ref}</div>
+                            <div className="text-gray-600 mt-0.5 truncate">{link.sourceRequirement.text.substring(0, 60)}...</div>
+                            <div className="mt-1">
+                              <span className="inline-block px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium">
+                                {link.linkType}
+                              </span>
+                            </div>
+                          </div>
+                          {onDeleteLink && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`Delete link from ${link.sourceRequirement.ref}?`)) {
+                                  onDeleteLink(link.id);
+                                  handleCloseDetails();
+                                }
+                              }}
+                              className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors"
+                              title="Delete link"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="3,6 5,6 21,6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
 

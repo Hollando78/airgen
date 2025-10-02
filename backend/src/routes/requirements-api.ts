@@ -11,6 +11,8 @@ import {
   getRequirement,
   updateRequirement,
   softDeleteRequirement,
+  archiveRequirements,
+  unarchiveRequirements,
   findDuplicateRequirementRefs,
   fixDuplicateRequirementRefs,
   createBaseline,
@@ -291,6 +293,106 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const requirement = await softDeleteRequirement(params.tenant, params.project, params.requirementId);
     if (!requirement) {return reply.status(404).send({ error: "Requirement not found" });}
     return { requirement };
+  });
+
+  app.post("/requirements/:tenant/:project/archive", {
+    schema: {
+      tags: ["requirements"],
+      summary: "Archive requirements",
+      description: "Archives one or more requirements (hides from default view)",
+      params: {
+        type: "object",
+        required: ["tenant", "project"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" }
+        }
+      },
+      body: {
+        type: "object",
+        required: ["requirementIds"],
+        properties: {
+          requirementIds: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            description: "Array of requirement IDs to archive"
+          }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            requirements: { type: "array", items: { type: "object" } },
+            count: { type: "integer" }
+          }
+        }
+      }
+    }
+  }, async (req) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1)
+    });
+    const bodySchema = z.object({
+      requirementIds: z.array(z.string().min(1)).min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+    const body = bodySchema.parse(req.body);
+
+    const requirements = await archiveRequirements(params.tenant, params.project, body.requirementIds);
+    return { requirements, count: requirements.length };
+  });
+
+  app.post("/requirements/:tenant/:project/unarchive", {
+    schema: {
+      tags: ["requirements"],
+      summary: "Unarchive requirements",
+      description: "Unarchives one or more requirements (shows in default view)",
+      params: {
+        type: "object",
+        required: ["tenant", "project"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" }
+        }
+      },
+      body: {
+        type: "object",
+        required: ["requirementIds"],
+        properties: {
+          requirementIds: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            description: "Array of requirement IDs to unarchive"
+          }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            requirements: { type: "array", items: { type: "object" } },
+            count: { type: "integer" }
+          }
+        }
+      }
+    }
+  }, async (req) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1)
+    });
+    const bodySchema = z.object({
+      requirementIds: z.array(z.string().min(1)).min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+    const body = bodySchema.parse(req.body);
+
+    const requirements = await unarchiveRequirements(params.tenant, params.project, body.requirementIds);
+    return { requirements, count: requirements.length };
   });
 
   app.get("/requirements/:tenant/:project/duplicates", {

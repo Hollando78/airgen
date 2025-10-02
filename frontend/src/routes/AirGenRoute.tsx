@@ -130,6 +130,18 @@ export function AirGenRoute(): JSX.Element {
     }
   });
 
+  // Archive mutation for batch archiving requirements
+  const archiveGroupMutation = useMutation({
+    mutationFn: async (requirementIds: string[]) => {
+      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
+      return api.archiveRequirements(tenant, project, requirementIds);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["airgen", "candidates", "grouped", tenant, project] });
+      queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
+    }
+  });
+
   // Computed values
   const candidateGroups = useMemo(() => {
     let groups = candidatesQuery.data?.groups ?? [];
@@ -263,6 +275,7 @@ export function AirGenRoute(): JSX.Element {
                   onAcceptClick={handleAcceptClick}
                   onRejectClick={(candidate) => rejectMutation.mutate(candidate)}
                   onReturnClick={(candidate) => returnMutation.mutate(candidate)}
+                  onArchiveGroup={(requirementIds) => archiveGroupMutation.mutate(requirementIds)}
                   isRejectPending={rejectMutation.isPending}
                   isReturnPending={returnMutation.isPending}
                 />
