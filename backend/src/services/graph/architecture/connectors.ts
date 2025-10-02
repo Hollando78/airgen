@@ -2,7 +2,8 @@ import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import type { ArchitectureConnectorRecord, ConnectorKind } from "./types.js";
-import { mapArchitectureConnector, toNumber } from "./mappers.js";
+import { mapArchitectureConnector } from "./mappers.js";
+import { toNumber } from "../../../lib/neo4j-utils.js";
 
 export async function createArchitectureConnector(params: {
   tenant: string;

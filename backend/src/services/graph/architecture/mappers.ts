@@ -9,7 +9,10 @@ import type {
   ConnectorKind,
   BlockPortRecord
 } from "./types.js";
-import { toNumber } from "../../../lib/neo4j-utils.js";
+import { toNumber as toNumberUtil } from "../../../lib/neo4j-utils.js";
+
+// Re-export for backwards compatibility
+export { toNumberUtil as toNumber };
 
 export function parseJsonArray<T>(value: unknown): T[] {
   if (!value) {return [];}
@@ -54,10 +57,10 @@ export function mapBlockWithPlacement(
     ? String(relProps.diagramId)
     : fallbackDiagramId ?? String((node.properties as Record<string, unknown>).diagramId ?? "");
 
-  const positionX = toNumber(relProps?.positionX ?? (node.properties as Record<string, unknown>).positionX, 0);
-  const positionY = toNumber(relProps?.positionY ?? (node.properties as Record<string, unknown>).positionY, 0);
-  const sizeWidth = toNumber(relProps?.sizeWidth ?? (node.properties as Record<string, unknown>).sizeWidth, 220);
-  const sizeHeight = toNumber(relProps?.sizeHeight ?? (node.properties as Record<string, unknown>).sizeHeight, 140);
+  const positionX = toNumberUtil(relProps?.positionX ?? (node.properties as Record<string, unknown>).positionX, 0);
+  const positionY = toNumberUtil(relProps?.positionY ?? (node.properties as Record<string, unknown>).positionY, 0);
+  const sizeWidth = toNumberUtil(relProps?.sizeWidth ?? (node.properties as Record<string, unknown>).sizeWidth, 220);
+  const sizeHeight = toNumberUtil(relProps?.sizeHeight ?? (node.properties as Record<string, unknown>).sizeHeight, 140);
 
   const placementCreatedAt = relProps?.createdAt
     ? String(relProps.createdAt)
@@ -79,12 +82,12 @@ export function mapBlockWithPlacement(
     // Styling properties
     backgroundColor: relProps?.backgroundColor ? String(relProps.backgroundColor) : null,
     borderColor: relProps?.borderColor ? String(relProps.borderColor) : null,
-    borderWidth: relProps?.borderWidth ? toNumber(relProps.borderWidth) : null,
+    borderWidth: relProps?.borderWidth ? toNumberUtil(relProps.borderWidth) : null,
     borderStyle: relProps?.borderStyle ? String(relProps.borderStyle) : null,
     textColor: relProps?.textColor ? String(relProps.textColor) : null,
-    fontSize: relProps?.fontSize ? toNumber(relProps.fontSize) : null,
+    fontSize: relProps?.fontSize ? toNumberUtil(relProps.fontSize) : null,
     fontWeight: relProps?.fontWeight ? String(relProps.fontWeight) : null,
-    borderRadius: relProps?.borderRadius ? toNumber(relProps.borderRadius) : null
+    borderRadius: relProps?.borderRadius ? toNumberUtil(relProps.borderRadius) : null
   };
 }
 
@@ -145,6 +148,6 @@ export function mapArchitectureConnector(node: Neo4jNode): ArchitectureConnector
     markerEnd: props.markerEnd !== undefined && props.markerEnd !== null ? String(props.markerEnd) : null,
     linePattern: props.linePattern !== undefined && props.linePattern !== null ? String(props.linePattern) : null,
     color: props.color !== undefined && props.color !== null ? String(props.color) : null,
-    strokeWidth: props.strokeWidth !== undefined && props.strokeWidth !== null ? toNumber(props.strokeWidth) : null
+    strokeWidth: props.strokeWidth !== undefined && props.strokeWidth !== null ? toNumberUtil(props.strokeWidth) : null
   };
 }

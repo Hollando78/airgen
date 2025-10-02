@@ -2,7 +2,8 @@ import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import type { ArchitectureDiagramRecord } from "./types.js";
-import { mapArchitectureDiagram, toNumber } from "./mappers.js";
+import { mapArchitectureDiagram } from "./mappers.js";
+import { toNumber } from "../../../lib/neo4j-utils.js";
 
 export async function createArchitectureDiagram(params: {
   tenant: string;
