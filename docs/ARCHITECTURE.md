@@ -20,14 +20,20 @@ AIRGen helps engineering teams move from stakeholder needs to compliant, testabl
 3. Client saves the requirement via `/requirements`.
    - Metadata is written to Neo4j in a single transaction (unique `REQ-` reference, slugged tenant/project, QA metadata, tags).
    - Markdown is rendered with YAML front matter and persisted on disk.
-4. `/baseline` snapshots the current set of requirements for a project by creating a `Baseline` node linked to each requirement (`Baseline-[:SNAPSHOT_OF]->Requirement`).
-5. `/link/suggest` performs a graph query (`CONTAINS` relationship + text match) to propose potential trace links.
+4. Requirements can be archived via `/requirements/:tenant/:project/archive` or unarchived via `/unarchive`.
+   - Archived requirements are flagged with `archived: true` in Neo4j but remain in the database and on disk.
+   - All list/search queries filter out archived requirements by default, effectively hiding them from normal views.
+   - Archive operations support batch processing (multiple requirements at once).
+5. `/baseline` snapshots the current set of requirements for a project by creating a `Baseline` node linked to each requirement (`Baseline-[:SNAPSHOT_OF]->Requirement`).
+6. `/link/suggest` performs a graph query (`CONTAINS` relationship + text match) to propose potential trace links.
 
 ## Graph Schema Highlights
 - `(:Tenant {slug})-[:OWNS]->(:Project {slug})`
-- `(:Project)-[:CONTAINS]->(:Requirement {ref, title, path, qaScore, ...})`
+- `(:Project)-[:CONTAINS]->(:Requirement {ref, title, path, qaScore, archived, ...})`
 - `(:Project)-[:HAS_BASELINE]->(:Baseline {ref, requirementRefs[]})`
 - `(:Baseline)-[:SNAPSHOT_OF]->(:Requirement)`
+
+Requirements support soft-delete (`deleted: true`) and archive (`archived: true`) flags. List queries filter both by default.
 
 This structure allows future expansion for needs, risks, or test cases as additional node labels with contextual relationships.
 
