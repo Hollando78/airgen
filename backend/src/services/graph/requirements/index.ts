@@ -16,6 +16,8 @@ export {
 // Search and listing operations
 export {
   listRequirements,
+  countRequirements,
+  listDocumentRequirements,
   listSectionRequirements,
   suggestLinks,
   findDuplicateRequirementRefs,

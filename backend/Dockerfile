@@ -50,9 +50,10 @@ COPY --from=build /root/.local/share/pnpm /root/.local/share/pnpm
 
 ENV PNPM_HOME=/root/.local/share/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+ENV HUSKY=0
 
 RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
-RUN pnpm install --filter @airgen/backend... --prod --frozen-lockfile
+RUN pnpm install --filter @airgen/backend... --prod --frozen-lockfile --ignore-scripts
 
 WORKDIR /app/backend
 EXPOSE 8787

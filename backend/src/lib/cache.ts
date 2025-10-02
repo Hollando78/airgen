@@ -14,12 +14,13 @@
  */
 
 // Redis types - conditional import
-type RedisClientType = any;
-let createClient: any = null;
+type RedisClientType = import("redis").RedisClientType;
+type CreateClientFn = typeof import("redis").createClient;
+let createClient: CreateClientFn | null = null;
 
 // Try to import redis, but don't fail if it's not installed
 try {
-  const redisModule = await import('redis');
+  const redisModule = await import("redis");
   createClient = redisModule.createClient;
 } catch {
   // Redis not installed - caching will be disabled
@@ -52,7 +53,7 @@ async function initializeRedis(): Promise<void> {
     redisClient = createClient({
       url: redisUrl,
       socket: {
-        reconnectStrategy: (retries) => {
+        reconnectStrategy: (retries: number) => {
           // Stop reconnecting after 3 attempts
           if (retries > 3) {
             logger.warn('Redis reconnection failed after 3 attempts, disabling cache');
@@ -65,7 +66,7 @@ async function initializeRedis(): Promise<void> {
       }
     });
 
-    redisClient.on('error', (err) => {
+    redisClient.on('error', (err: unknown) => {
       logger.warn({ err }, 'Redis client error, cache operations will be skipped');
       isRedisAvailable = false;
     });
@@ -99,7 +100,7 @@ async function initializeRedis(): Promise<void> {
 }
 
 // Initialize on module load
-initializeRedis().catch(err => {
+initializeRedis().catch((err: unknown) => {
   logger.warn({ err }, 'Redis initialization failed during module load');
 });
 
@@ -212,6 +213,7 @@ export const CacheInvalidation = {
     try {
       const pattern = `requirements:${tenant}:${project}:*`;
       await invalidateByPattern(pattern);
+      await redisClient.del(CacheKeys.requirementCount(tenant, project));
       logger.debug({ tenant, project }, 'Invalidated requirement caches');
     } catch (err) {
       logger.warn({ err, tenant, project }, 'Failed to invalidate requirement caches');
@@ -275,11 +277,13 @@ async function invalidateByPattern(pattern: string): Promise<void> {
     // Use SCAN to avoid blocking Redis
     const keys: string[] = [];
     for await (const key of redisClient.scanIterator({ MATCH: pattern, COUNT: 100 })) {
-      keys.push(key);
+      keys.push(typeof key === "string" ? key : key.toString());
     }
 
     if (keys.length > 0) {
-      await redisClient.del(...keys);
+      for (const key of keys) {
+        await redisClient.del(key);
+      }
       logger.debug({ pattern, count: keys.length }, 'Invalidated cache keys by pattern');
     }
   } catch (err) {
@@ -303,7 +307,7 @@ export async function getCacheStats(): Promise<{
     const stats: Record<string, string> = {};
 
     // Parse Redis INFO output
-    info.split('\r\n').forEach(line => {
+  info.split('\r\n').forEach((line: string) => {
       if (line && !line.startsWith('#')) {
         const [key, value] = line.split(':');
         if (key && value) {

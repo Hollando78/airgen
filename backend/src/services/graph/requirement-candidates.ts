@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Node as Neo4jNode } from "neo4j-driver";
 import { int as neo4jInt } from "neo4j-driver";
+import { toNumber } from "../../lib/neo4j-utils.js";
 import { config } from "../../config.js";
 import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
@@ -49,7 +50,7 @@ export function mapRequirementCandidate(node: Neo4jNode): RequirementCandidateRe
     status: String(props.status) as RequirementCandidateStatus,
     qaScore:
       props.qaScore !== null && props.qaScore !== undefined
-        ? Number(props.qaScore)
+        ? toNumber(props.qaScore)
         : undefined,
     qaVerdict: props.qaVerdict ? String(props.qaVerdict) : undefined,
     suggestions: Array.isArray(props.suggestions)

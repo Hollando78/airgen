@@ -65,6 +65,7 @@ export type ArchitectureConnectorRecord = {
   tenant: string;
   projectKey: string;
   diagramId: string;
+  documentIds: string[];
   createdAt: string;
   updatedAt: string;
   // Styling properties

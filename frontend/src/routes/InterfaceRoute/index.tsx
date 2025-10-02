@@ -57,6 +57,8 @@ export function InterfaceRoute(): JSX.Element {
       clearArchitecture={interfaceState.clearArchitecture}
       addDocumentToBlock={interfaceState.addDocumentToBlock}
       removeDocumentFromBlock={interfaceState.removeDocumentFromBlock}
+      addDocumentToConnector={interfaceState.addDocumentToConnector}
+      removeDocumentFromConnector={interfaceState.removeDocumentFromConnector}
       blocksLibrary={interfaceState.blocksLibrary}
       isLibraryLoading={interfaceState.isLibraryLoading}
       libraryError={interfaceState.libraryError}

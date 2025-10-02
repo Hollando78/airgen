@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { config } from "../../../config.js";
+import { toNumber } from "../../../lib/neo4j-utils.js";
 import type {
   RequirementRecord,
   RequirementPattern,
@@ -45,7 +46,7 @@ export function mapRequirement(node: Neo4jNode): RequirementRecord {
     verification: props.verification ? (props.verification as VerificationMethod) : undefined,
     qaScore:
       props.qaScore !== null && props.qaScore !== undefined
-        ? Number(props.qaScore)
+        ? toNumber(props.qaScore)
         : undefined,
     qaVerdict: props.qaVerdict ? String(props.qaVerdict) : undefined,
     suggestions: Array.isArray(props.suggestions)
@@ -109,7 +110,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
         WITH tenant, project, document, section, prefix, counter, padded,
              prefix + '-' + padded AS ref
 
-        OPTIONAL MATCH (existingReq:Requirement)
+        OPTIONAL MATCH (existingReq:Requirement {tenant: $tenantSlug, projectKey: $projectSlug})
         WHERE existingReq.ref STARTS WITH prefix + '-' AND existingReq.ref =~ (prefix + '-[0-9]{3}')
         WITH tenant, project, document, section, prefix, counter, padded, ref,
              max(toInteger(split(existingReq.ref, '-')[size(split(existingReq.ref, '-'))-1])) AS maxExisting

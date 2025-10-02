@@ -69,7 +69,6 @@ class Logger {
       // Development: Pretty console logging
       const style = level === 'error' ? 'color: red' : level === 'warn' ? 'color: orange' : 'color: blue';
 
-      /* eslint-disable no-console */
       if (level === 'error') {
         console.error(`[${timestamp}] ${message}`, sanitizedContext);
       } else if (level === 'warn') {
@@ -77,7 +76,6 @@ class Logger {
       } else {
         console.log(`%c[${timestamp}] [${level}] ${message}`, style, sanitizedContext);
       }
-      /* eslint-enable no-console */
     } else {
       // Production: Structured logging (ready for Sentry/monitoring)
       const logEntry = {

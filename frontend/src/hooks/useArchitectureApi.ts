@@ -43,6 +43,12 @@ export interface BlockPort {
   direction: PortDirection;
   edge?: "top" | "right" | "bottom" | "left";
   offset?: number;  // 0-100%
+  size?: number;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  iconColor?: string;
+  shape?: "circle" | "square" | "diamond";
 }
 
 export interface SysmlConnector {
@@ -53,6 +59,7 @@ export interface SysmlConnector {
   label?: string;
   sourcePortId?: string | null;
   targetPortId?: string | null;
+  documentIds?: string[];
   // Styling properties
   lineStyle?: string;
   markerStart?: string;
@@ -102,6 +109,7 @@ function mapConnectorFromApi(connector: ArchitectureConnectorRecord): SysmlConne
     label: connector.label || undefined,
     sourcePortId: connector.sourcePortId,
     targetPortId: connector.targetPortId,
+    documentIds: connector.documentIds ?? [],
     // Styling properties
     lineStyle: connector.lineStyle,
     markerStart: connector.markerStart,
@@ -328,6 +336,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
       label?: string;
       sourcePortId?: string;
       targetPortId?: string;
+      documentIds?: string[];
     }) => {
       if (!activeDiagramId) {
         throw new Error("Cannot create connector without an active diagram");
@@ -337,7 +346,8 @@ export function useArchitecture(tenant: string | null, project: string | null) {
         tenant: tenant!,
         projectKey: project!,
         diagramId: activeDiagramId,
-        ...connector
+        ...connector,
+        documentIds: connector.documentIds ?? []
       });
     },
     onSuccess: () => {
@@ -375,7 +385,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
       connectorId: string;
       updates: Partial<Pick<
         CreateArchitectureConnectorRequest,
-        "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
+        "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
       >>
     }) => {
       if (!activeDiagramId) {
@@ -588,14 +598,15 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     return `temp-connector-${Date.now()}`;
   }, [activeDiagramId, createConnectorMutation]);
 
-  const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth">>) => {
+  const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth">>) => {
     const sanitizedUpdates: Partial<Pick<
       CreateArchitectureConnectorRequest,
-      "kind" | "label" | "sourcePortId" | "targetPortId" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
+      "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
     >> = {};
 
     if (updates.kind !== undefined) {sanitizedUpdates.kind = updates.kind;}
     if (updates.label !== undefined) {sanitizedUpdates.label = updates.label;}
+    if (updates.documentIds !== undefined) {sanitizedUpdates.documentIds = updates.documentIds;}
     if (updates.lineStyle !== undefined) {sanitizedUpdates.lineStyle = updates.lineStyle as CreateArchitectureConnectorRequest["lineStyle"];}
     if (updates.markerStart !== undefined) {sanitizedUpdates.markerStart = updates.markerStart as CreateArchitectureConnectorRequest["markerStart"];}
     if (updates.markerEnd !== undefined) {sanitizedUpdates.markerEnd = updates.markerEnd as CreateArchitectureConnectorRequest["markerEnd"];}
@@ -657,6 +668,29 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     });
   }, [activeDiagramId, updateBlockMutation]);
 
+  const addDocumentToConnector = useCallback((connectorId: string, documentId: string) => {
+    const connector = connectors.find(c => c.id === connectorId);
+    if (!connector) {return;}
+
+    const currentDocIds = connector.documentIds || [];
+    if (currentDocIds.includes(documentId)) {return;}
+
+    const updatedDocIds = [...currentDocIds, documentId];
+    updateConnector(connectorId, { documentIds: updatedDocIds });
+  }, [connectors, updateConnector]);
+
+  const removeDocumentFromConnector = useCallback((connectorId: string, documentId: string) => {
+    const connector = connectors.find(c => c.id === connectorId);
+    if (!connector) {return;}
+
+    const updatedDocIds = (connector.documentIds || []).filter(id => id !== documentId);
+    updateConnector(connectorId, { documentIds: updatedDocIds });
+  }, [connectors, updateConnector]);
+
+  const setConnectorDocuments = useCallback((connectorId: string, documentIds: string[]) => {
+    updateConnector(connectorId, { documentIds });
+  }, [updateConnector]);
+
   const createDiagram = useCallback((input: { name: string; description?: string; view?: ArchitectureDiagramRecord["view"] }) => {
     if (!tenant || !project) {return Promise.reject(new Error("Missing tenant or project"));}
     return createDiagramMutation.mutateAsync(input);
@@ -702,6 +736,9 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     addDocumentToBlock,
     removeDocumentFromBlock,
     setBlockDocuments,
+    addDocumentToConnector,
+    removeDocumentFromConnector,
+    setConnectorDocuments,
     blocksLibrary,
     hasChanges: blocks.length > 0 || connectors.length > 0,
     isLoading:

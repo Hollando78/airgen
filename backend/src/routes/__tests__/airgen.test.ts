@@ -112,6 +112,11 @@ describe("AIRGen Routes", () => {
 
       expect(body.items).toHaveLength(3);
       expect(body.prompt).toBe(testCandidates.chat.user_input);
+      expect(body.items[0].qa).toEqual({
+        score: 85,
+        verdict: "PASS",
+        suggestions: []
+      });
       expect(draftCandidates).toHaveBeenCalledWith(
         expect.objectContaining({
           user_input: testCandidates.chat.user_input,
@@ -182,6 +187,12 @@ describe("AIRGen Routes", () => {
           constraints: "Must comply with GDPR"
         })
       );
+      const body = JSON.parse(response.body);
+      expect(body.items[0].qa).toEqual({
+        score: 90,
+        verdict: "PASS",
+        suggestions: []
+      });
     });
 
     it("should handle attached documents", async () => {

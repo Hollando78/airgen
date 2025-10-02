@@ -5,6 +5,7 @@
     "name": "Dev Admin",
     "roles": [
       "admin",
+      "author",
       "user"
     ],
     "tenantSlugs": [
@@ -20,6 +21,7 @@
     "email": "user@dev.local",
     "name": "Regular User",
     "roles": [
+      "author",
       "user"
     ],
     "tenantSlugs": [],
@@ -34,6 +36,7 @@
     "name": "Steve",
     "roles": [
       "admin",
+      "author",
       "user"
     ],
     "tenantSlugs": [
@@ -51,6 +54,7 @@
     "name": "Test User",
     "roles": [
       "admin",
+      "author",
       "user"
     ],
     "tenantSlugs": [

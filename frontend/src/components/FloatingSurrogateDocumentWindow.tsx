@@ -25,6 +25,49 @@ function canPreviewInline(mimeType?: string | null): boolean {
     return true;
   }
   if (normalized.startsWith("text/")) {return true;}
+  // PowerPoint files are converted to PDF previews by the backend
+  if ([
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.ms-powerpoint.presentation.macroEnabled.12"  // .pptm
+  ].includes(normalized)) {
+    return true;
+  }
+  // Word and Excel files are also converted to PDF previews
+  if ([
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-word.document.macroEnabled.12"  // .docm
+  ].includes(normalized)) {
+    return true;
+  }
+  if ([
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel.sheet.macroEnabled.12"  // .xlsm
+  ].includes(normalized)) {
+    return true;
+  }
+  return false;
+}
+
+function isConvertedPreview(originalMimeType?: string | null, previewMimeType?: string | null): boolean {
+  if (!originalMimeType || !previewMimeType) {return false;}
+  const original = originalMimeType.toLowerCase();
+  const preview = previewMimeType.toLowerCase();
+
+  // Check if preview is PDF but original is an Office format
+  if (preview === "application/pdf") {
+    const officeFormats = [
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ];
+    return officeFormats.includes(original);
+  }
   return false;
 }
 
@@ -104,7 +147,6 @@ export function FloatingSurrogateDocumentWindow({
         URL.revokeObjectURL(currentUrl);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, previewDownloadUrl, downloadUrl, documentSlug, originalFileName]);
 
   useEffect(() => {
@@ -344,6 +386,58 @@ export function FloatingSurrogateDocumentWindow({
 
       {!isMinimized && (
         <div style={{ padding: "16px", overflow: "auto", flex: 1, background: "#f8fafc", position: "relative" }}>
+          {isConvertedPreview(mimeType, previewMimeType) && !loading && !error && (
+            <div style={{
+              marginBottom: "12px",
+              padding: "8px 12px",
+              background: "#dbeafe",
+              border: "1px solid #93c5fd",
+              borderRadius: "6px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#1e40af" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="16" x2="12" y2="12"/>
+                  <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                <span>Viewing PDF preview of {originalFileName || downloadName}</span>
+              </div>
+              {downloadUrl && (
+                <button
+                  onClick={handleDownload}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    background: "#3b82f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    fontWeight: 500,
+                    whiteSpace: "nowrap"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "#2563eb"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "#3b82f6"}
+                  title="Download original file"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Download Original
+                </button>
+              )}
+            </div>
+          )}
+
           {loading && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
               <Spinner />

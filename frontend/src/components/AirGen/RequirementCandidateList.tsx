@@ -1,10 +1,16 @@
-import type { RequirementCandidate, RequirementCandidateGroup } from "../../types";
+import type {
+  RequirementCandidate,
+  RequirementCandidateGroup,
+  RequirementCandidateStatus
+} from "../../types";
 
-const statusLabels: Record<RequirementCandidate["status"], { label: string; className: string }> = {
+const statusLabels: Record<RequirementCandidateStatus, { label: string; className: string }> = {
   pending: { label: "Pending", className: "status-pending" },
   accepted: { label: "Accepted", className: "status-accepted" },
   rejected: { label: "Rejected", className: "status-rejected" }
 };
+
+const unknownStatus = { label: "Unknown", className: "status-unknown" };
 
 /**
  * Props for the RequirementCandidateList component
@@ -78,30 +84,48 @@ export function RequirementCandidateList({
 
               {!isCollapsed && (
                 <div className="candidate-list">
-                  {group.candidates.map(candidate => {
-                    const status = statusLabels[candidate.status];
+                  {group.candidates.map((candidate, index) => {
+                    const rawStatus = typeof candidate.status === "string"
+                      ? candidate.status.toLowerCase()
+                      : undefined;
+                    const isKnownStatus = rawStatus === "pending" || rawStatus === "accepted" || rawStatus === "rejected";
+                    const status = isKnownStatus
+                      ? statusLabels[rawStatus as RequirementCandidateStatus]
+                      : {
+                          ...unknownStatus,
+                          label: candidate.status ?? unknownStatus.label
+                        };
+                    const qa = candidate.qa ?? {
+                      score: candidate.qaScore ?? null,
+                      verdict: candidate.qaVerdict ?? null,
+                      suggestions: candidate.suggestions ?? []
+                    };
+                    const candidateKey = candidate.id ?? `${group.sessionId}-${index}`;
+                    const candidateText = candidate.text?.trim()
+                      || candidate.prompt?.trim()
+                      || "(No requirement text provided)";
                     return (
-                      <article key={candidate.id} className={`candidate-card ${status.className}`}>
+                      <article key={candidateKey} className={`candidate-card ${status.className}`}>
                         <header className="candidate-header">
                           <span className="candidate-status">{status.label}</span>
                           {candidate.requirementRef && (
                             <span className="candidate-ref">{candidate.requirementRef}</span>
                           )}
                         </header>
-                        <p className="candidate-text">{candidate.text}</p>
+                        <p className="candidate-text">{candidateText}</p>
                         <div className="candidate-meta">
                           <span>
-                            <strong>Score:</strong> {candidate.qa.score ?? "—"}
+                            <strong>Score:</strong> {qa.score ?? "—"}
                           </span>
                           <span>
-                            <strong>Verdict:</strong> {candidate.qa.verdict ?? "—"}
+                            <strong>Verdict:</strong> {qa.verdict ?? "—"}
                           </span>
                         </div>
-                        {candidate.qa.suggestions.length > 0 && (
+                        {qa.suggestions.length > 0 && (
                           <details>
-                            <summary>Suggestions ({candidate.qa.suggestions.length})</summary>
+                            <summary>Suggestions ({qa.suggestions.length})</summary>
                             <ul>
-                              {candidate.qa.suggestions.map((suggestion, index) => (
+                              {qa.suggestions.map((suggestion, index) => (
                                 <li key={index}>{suggestion}</li>
                               ))}
                             </ul>

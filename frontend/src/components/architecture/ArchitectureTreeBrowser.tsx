@@ -242,8 +242,10 @@ export function ArchitectureTreeBrowser({
               {node.stereotype === 'actor' && '👤'}
               {node.stereotype === 'external' && '🌐'}
             </span>
-            <span className="tree-label">{node.name}</span>
-            {node.stereotype && <span className="tree-stereotype">{node.stereotype}</span>}
+            <div className="tree-label-container">
+              <span className="tree-label">{node.name}</span>
+              {node.stereotype && <span className="tree-stereotype">{node.stereotype}</span>}
+            </div>
             <button
               className="tree-add-button"
               onClick={() => onInsert(node.id)}

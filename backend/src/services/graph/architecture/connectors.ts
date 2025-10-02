@@ -14,6 +14,7 @@ export async function createArchitectureConnector(params: {
   label?: string;
   sourcePortId?: string;
   targetPortId?: string;
+  documentIds?: string[];
   // Styling properties
   lineStyle?: string;
   markerStart?: string;
@@ -45,6 +46,7 @@ export async function createArchitectureConnector(params: {
           tenant: $tenant,
           projectKey: $projectKey,
           diagramId: $diagramId,
+          documentIds: $documentIds,
           lineStyle: $lineStyle,
           markerStart: $markerStart,
           markerEnd: $markerEnd,
@@ -74,6 +76,7 @@ export async function createArchitectureConnector(params: {
         targetPortId: params.targetPortId ?? null,
         tenant: params.tenant,
         projectKey: params.projectKey,
+        documentIds: JSON.stringify(params.documentIds ?? []),
         lineStyle: params.lineStyle ?? null,
         markerStart: params.markerStart ?? null,
         markerEnd: params.markerEnd ?? null,
@@ -135,6 +138,7 @@ export async function updateArchitectureConnector(params: {
   label?: string;
   sourcePortId?: string;
   targetPortId?: string;
+  documentIds?: string[];
   // Styling properties
   lineStyle?: string;
   markerStart?: string;
@@ -175,6 +179,10 @@ export async function updateArchitectureConnector(params: {
       if (params.targetPortId !== undefined) {
         setFields.push("connector.targetPortId = $targetPortId");
         setParams.targetPortId = params.targetPortId;
+      }
+      if (params.documentIds !== undefined) {
+        setFields.push("connector.documentIds = $documentIds");
+        setParams.documentIds = JSON.stringify(params.documentIds);
       }
       if (params.lineStyle !== undefined) {
         setFields.push("connector.lineStyle = $lineStyle");
@@ -265,4 +273,3 @@ export async function deleteArchitectureConnector(params: {
     await session.close();
   }
 }
-

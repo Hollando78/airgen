@@ -68,6 +68,8 @@ interface InterfaceWorkspaceProps {
   clearArchitecture: () => void;
   addDocumentToBlock: (blockId: string, documentId: string) => void;
   removeDocumentFromBlock: (blockId: string, documentId: string) => void;
+  addDocumentToConnector: (connectorId: string, documentId: string) => void;
+  removeDocumentFromConnector: (connectorId: string, documentId: string) => void;
   blocksLibrary: ArchitectureBlockLibraryRecord[];
   isLibraryLoading: boolean;
   libraryError: unknown;
@@ -102,6 +104,8 @@ export function InterfaceWorkspace({
   clearArchitecture,
   addDocumentToBlock,
   removeDocumentFromBlock,
+  addDocumentToConnector,
+  removeDocumentFromConnector,
   blocksLibrary,
   isLibraryLoading,
   libraryError,
@@ -130,16 +134,12 @@ export function InterfaceWorkspace({
       return;
     }
 
-    if (document.kind === "surrogate") {
-      return;
-    }
-
     openFloatingDocument({
       documentSlug,
       documentName: document.name,
       tenant,
       project,
-      kind: "structured",
+      kind: document.kind === "surrogate" ? "surrogate" : "structured",
       downloadUrl: document.downloadUrl,
       mimeType: document.mimeType,
       originalFileName: document.originalFileName,
@@ -303,6 +303,9 @@ export function InterfaceWorkspace({
               connector={selectedConnector}
               onUpdate={updates => updateConnector(selectedConnector.id, updates)}
               onRemove={() => removeConnector(selectedConnector.id)}
+              documents={documents}
+              onAddDocument={documentId => addDocumentToConnector(selectedConnector.id, documentId)}
+              onRemoveDocument={documentId => removeDocumentFromConnector(selectedConnector.id, documentId)}
             />
           )}
 

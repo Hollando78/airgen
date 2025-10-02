@@ -1,4 +1,4 @@
-import type { Node as Neo4jNode, Relationship as Neo4jRelationship, Integer } from "neo4j-driver";
+import type { Node as Neo4jNode, Relationship as Neo4jRelationship } from "neo4j-driver";
 import type {
   ArchitectureBlockDefinitionRecord,
   ArchitectureBlockRecord,
@@ -9,22 +9,7 @@ import type {
   ConnectorKind,
   BlockPortRecord
 } from "./types.js";
-
-export function toNumber(value: unknown, fallback = 0): number {
-  if (typeof value === "number") {return value;}
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  }
-  if (value && typeof value === "object" && "toNumber" in value) {
-    try {
-      return (value as Integer).toNumber();
-    } catch {
-      return fallback;
-    }
-  }
-  return fallback;
-}
+import { toNumber } from "../../../lib/neo4j-utils.js";
 
 export function parseJsonArray<T>(value: unknown): T[] {
   if (!value) {return [];}
@@ -151,6 +136,7 @@ export function mapArchitectureConnector(node: Neo4jNode): ArchitectureConnector
     tenant: String(props.tenant),
     projectKey: String(props.projectKey),
     diagramId: String(props.diagramId ?? ""),
+    documentIds: parseJsonArray<string>(props.documentIds),
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt),
     // Styling properties - preserve explicit values including "none"

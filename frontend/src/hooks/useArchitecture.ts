@@ -9,6 +9,14 @@ export interface BlockPort {
   id: string;
   name: string;
   direction: PortDirection;
+  edge?: "top" | "right" | "bottom" | "left";
+  offset?: number;
+  size?: number;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  iconColor?: string;
+  shape?: "circle" | "square" | "diamond";
 }
 
 export interface SysmlBlock {

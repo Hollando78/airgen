@@ -637,13 +637,19 @@ export function useDiagramCanvasInteractions({
           if (!prev) {
             return {
               ...mappedEdge,
-              selected: connector.id === selectedConnectorId
+              selected: connector.id === selectedConnectorId,
+              data: {
+                ...mappedEdge.data,
+                documents,
+                onOpenDocument
+              }
             } satisfies Edge;
           }
 
           // Check if anything meaningful changed
           const selectionChanged = prev.selected !== (connector.id === selectedConnectorId);
           const handleChanged = prev.sourceHandle !== mappedEdge.sourceHandle || prev.targetHandle !== mappedEdge.targetHandle;
+          const dataChanged = JSON.stringify(prev.data?.documentIds) !== JSON.stringify(mappedEdge.data?.documentIds);
           const visualChanged =
             prev.type !== mappedEdge.type ||
             prev.animated !== mappedEdge.animated ||
@@ -657,19 +663,24 @@ export function useDiagramCanvasInteractions({
             prev.label !== mappedEdge.label;
 
           // If nothing changed, return existing edge reference (critical for performance)
-          if (!selectionChanged && !handleChanged && !visualChanged) {
+          if (!selectionChanged && !handleChanged && !visualChanged && !dataChanged) {
             return prev;
           }
 
           // Only selection changed - just update that property
-          if (selectionChanged && !handleChanged && !visualChanged) {
+          if (selectionChanged && !handleChanged && !visualChanged && !dataChanged) {
             return { ...prev, selected: connector.id === selectedConnectorId };
           }
 
           // Something meaningful changed, return new edge
           return {
             ...mappedEdge,
-            selected: connector.id === selectedConnectorId
+            selected: connector.id === selectedConnectorId,
+            data: {
+              ...mappedEdge.data,
+              documents,
+              onOpenDocument
+            }
           } satisfies Edge;
         });
 
@@ -681,11 +692,16 @@ export function useDiagramCanvasInteractions({
         const mappedEdge = mapConnectorToEdge(connector, architecture.blocks);
         return {
           ...mappedEdge,
-          selected: connector.id === selectedConnectorId
+          selected: connector.id === selectedConnectorId,
+          data: {
+            ...mappedEdge.data,
+            documents,
+            onOpenDocument
+          }
         } satisfies Edge;
       });
     });
-  }, [architecture.connectors, architecture.blocks, selectedConnectorId, mapConnectorToEdge]);
+  }, [architecture.connectors, architecture.blocks, selectedConnectorId, mapConnectorToEdge, documents, onOpenDocument]);
 
   useLayoutEffect(() => {
     if (!architecture.blocks.length) {
