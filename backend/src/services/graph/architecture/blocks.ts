@@ -8,8 +8,9 @@ import type {
   BlockKind,
   BlockPortRecord
 } from "./types.js";
-import { mapBlockWithPlacement, mapBlockLibraryEntry, toNumber } from "./mappers.js";
+import { mapBlockWithPlacement, mapBlockLibraryEntry } from "./mappers.js";
 import { getCached, CacheKeys, CacheInvalidation } from "../../../lib/cache.js";
+import { toNumber } from "../../../lib/neo4j-utils.js";
 
 export async function createArchitectureBlock(params: {
   tenant: string;
