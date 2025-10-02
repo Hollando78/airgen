@@ -27,7 +27,7 @@ export type RequirementInput = {
   tags?: string[];
 };
 
-export function mapRequirement(node: Neo4jNode): RequirementRecord {
+export function mapRequirement(node: Neo4jNode, documentSlug?: string): RequirementRecord {
   const props = node.properties as Record<string, unknown>;
   const text = props.text ? String(props.text) : "";
   const titleProp = props.title ? String(props.title) : null;
@@ -54,6 +54,7 @@ export function mapRequirement(node: Neo4jNode): RequirementRecord {
       : [],
     tags: Array.isArray(props.tags) ? (props.tags as string[]) : [],
     path: String(props.path),
+    documentSlug,
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt),
     deleted: props.deleted ? Boolean(props.deleted) : undefined

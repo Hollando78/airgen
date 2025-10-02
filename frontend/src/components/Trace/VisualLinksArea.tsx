@@ -27,17 +27,32 @@ export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDel
   // Filter trace links to only show those between the currently selected documents
   const relevantTraceLinks = React.useMemo(() => {
     if (!leftDocument || !rightDocument) {return [];}
-    
+
     return traceLinks.filter(link => {
       const leftSlug = leftDocument.slug;
       const rightSlug = rightDocument.slug;
-      
-      // Simple check: does the requirement ID contain the document slug?
+
+      // If requirements have documentSlug property, use that for accurate filtering
+      if (link.sourceRequirement?.documentSlug && link.targetRequirement?.documentSlug) {
+        const sourceDocSlug = link.sourceRequirement.documentSlug;
+        const targetDocSlug = link.targetRequirement.documentSlug;
+
+        return (sourceDocSlug === leftSlug && targetDocSlug === rightSlug) ||
+               (sourceDocSlug === rightSlug && targetDocSlug === leftSlug);
+      }
+
+      // Fallback: check if the requirement ID contains the document slug
       const sourceInLeft = link.sourceRequirementId.includes(leftSlug);
       const targetInRight = link.targetRequirementId.includes(rightSlug);
       const sourceInRight = link.sourceRequirementId.includes(rightSlug);
       const targetInLeft = link.targetRequirementId.includes(leftSlug);
-      
+
+      // If we can't determine from IDs, assume all links are relevant
+      // (this happens when viewing a specific linkset where all links are between the selected documents)
+      if (!sourceInLeft && !targetInRight && !sourceInRight && !targetInLeft) {
+        return true;
+      }
+
       return (sourceInLeft && targetInRight) || (sourceInRight && targetInLeft);
     });
   }, [traceLinks, leftDocument, rightDocument]);

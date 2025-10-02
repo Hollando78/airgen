@@ -20,6 +20,7 @@ export type RequirementRecord = {
   suggestions?: string[];
   tags?: string[];
   path: string;
+  documentSlug?: string;
   createdAt: string;
   updatedAt: string;
   deleted?: boolean;

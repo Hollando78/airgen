@@ -49,11 +49,16 @@ export function FloatingDocumentWindow({
     y: number;
     requirement: RequirementRecord;
   } | null>(null);
-  const { linkingState, startLinking, completeLinking } = useRequirementLinking();
+  const { linkingState, startLinking, completeLinking, cancelLinking } = useRequirementLinking();
   const [linkModal, setLinkModal] = useState<{
     sourceRequirement: RequirementRecord;
     targetRequirement: RequirementRecord;
   } | null>(null);
+
+  // Debug: log linkModal changes
+  useEffect(() => {
+    console.log('[FloatingDocumentWindow] linkModal state changed:', linkModal);
+  }, [linkModal]);
 
   // Fetch document sections
   const sectionsQuery = useQuery({
@@ -212,20 +217,55 @@ export function FloatingDocumentWindow({
   }, [startLinking]);
 
   const handleEndLink = useCallback((targetRequirement: RequirementRecord) => {
+    console.log('[FloatingDocumentWindow] handleEndLink called:', {
+      hasSourceRequirement: !!linkingState.sourceRequirement,
+      sourceRef: linkingState.sourceRequirement?.ref,
+      targetRef: targetRequirement.ref
+    });
     if (linkingState.sourceRequirement) {
       setLinkModal({
         sourceRequirement: linkingState.sourceRequirement,
         targetRequirement
       });
+      console.log('[FloatingDocumentWindow] Link modal set - should open now');
+    } else {
+      console.warn('[FloatingDocumentWindow] No source requirement - cannot end link');
     }
   }, [linkingState.sourceRequirement]);
 
   const handleCreateLink = useCallback(async (linkType: TraceLinkType, description?: string) => {
     if (linkModal) {
-      await completeLinking(linkModal.targetRequirement, linkType, description);
-      setLinkModal(null);
+      try {
+        console.log('[FloatingDocumentWindow] Creating link:', {
+          source: linkingState.sourceRequirement?.ref,
+          target: linkModal.targetRequirement.ref,
+          linkType,
+          description
+        });
+        await completeLinking(linkModal.targetRequirement, linkType, description);
+        console.log('[FloatingDocumentWindow] Link created successfully');
+        setLinkModal(null);
+      } catch (error) {
+        console.error('[FloatingDocumentWindow] Failed to create link:', error);
+        alert(`Failed to create link: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
-  }, [linkModal, completeLinking]);
+  }, [linkModal, completeLinking, linkingState.sourceRequirement]);
+
+  const handleCancelLink = useCallback(() => {
+    cancelLinking();
+  }, [cancelLinking]);
+
+  const handleDeleteLink = useCallback(async (linkId: string) => {
+    try {
+      await api.deleteTraceLink(tenant, project, linkId);
+      // Invalidate queries to refresh data
+      await traceLinksQuery.refetch();
+    } catch (error) {
+      console.error('[FloatingDocumentWindow] Failed to delete link:', error);
+      alert(`Failed to delete link: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [api, tenant, project, traceLinksQuery]);
 
   const isLoading = sectionsQuery.isLoading || requirementsQueries.isLoading;
   const hasError = sectionsQuery.isError || requirementsQueries.isError;
@@ -494,6 +534,8 @@ export function FloatingDocumentWindow({
           onClose={() => setContextMenu(null)}
           onStartLink={handleStartLink}
           onEndLink={handleEndLink}
+          onCancelLink={handleCancelLink}
+          onDeleteLink={handleDeleteLink}
           linkingRequirement={linkingState.sourceRequirement}
           traceLinks={traceLinksQuery.data?.traceLinks || []}
         />

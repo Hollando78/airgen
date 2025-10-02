@@ -137,8 +137,9 @@ export async function listSectionRequirements(sectionId: string): Promise<Requir
     const result = await session.run(
       `
         MATCH (section:DocumentSection {id: $sectionId})-[:HAS_REQUIREMENT]->(requirement:Requirement)
+        OPTIONAL MATCH (doc:Document)-[:CONTAINS]->(requirement)
         WHERE requirement.deleted IS NULL OR requirement.deleted = false
-        RETURN requirement
+        RETURN requirement, doc.slug AS documentSlug
         ORDER BY requirement.ref
       `,
       { sectionId }
@@ -147,7 +148,8 @@ export async function listSectionRequirements(sectionId: string): Promise<Requir
     const items: RequirementRecord[] = [];
     for (const record of result.records) {
       const node = record.get("requirement") as Neo4jNode;
-      items.push(mapRequirement(node));
+      const documentSlug = record.get("documentSlug");
+      items.push(mapRequirement(node, documentSlug ? String(documentSlug) : undefined));
     }
 
     return items;
