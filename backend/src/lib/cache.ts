@@ -40,6 +40,14 @@ let isRedisAvailable = false;
 async function initializeRedis(): Promise<void> {
   if (redisClient) {return;}
 
+  // Skip Redis in development unless explicitly enabled
+  const environment = process.env.API_ENV || process.env.NODE_ENV || "development";
+  if (environment === "development" && !process.env.REDIS_ENABLED) {
+    logger.info("Redis caching disabled in development mode (set REDIS_ENABLED=true to enable)");
+    isRedisAvailable = false;
+    return;
+  }
+
   // If redis module is not installed, skip initialization
   if (!createClient) {
     logger.info('Redis module not installed, caching disabled. Install with: npm install redis');
