@@ -3,13 +3,46 @@
 AIRGen is an AI-assisted requirements generation service tailored for a self-hosted VPS. It blends deterministic QA with templated EARS-style drafts, persists curated requirements as Markdown, stores metadata/relationships in Neo4j, and exposes a Fastify API that can be consumed by any front-end or automation.
 
 ## Features
-- **Draft generation** – `/draft` produces 1–5 candidate requirements from a need. Enable `useLlm` to let OpenAI (or future providers) synthesize additional drafts.
-- **Deterministic QA** – `/qa` scores requirements against ISO/IEC/IEEE 29148 inspired checks.
-- **Graph metadata** – requirements, projects, tenants, and baselines live in Neo4j for traceability queries.
-- **Markdown-first storage** – `/requirements` writes approved text to `workspace/<tenant>/<project>/requirements/*.md` with YAML front matter.
-- **Baselining** – `/baseline` snapshots the current requirement set for release audits.
-- **Trace suggestions** – `/link/suggest` proposes related requirements using graph queries.
-- **Docker-native** – Traefik + Neo4j + Fastify API + Redis (Postgres optional) compose stack for quick VPS deployment.
+
+### Requirements Management
+- **Draft generation** – Produces 1–5 candidate requirements from a need. Enable `useLlm` to let OpenAI (or future providers) synthesize additional drafts.
+- **Deterministic QA** – Scores requirements against ISO/IEC/IEEE 29148 inspired checks.
+- **Archive management** – Archive/unarchive requirements to hide them from default views without deletion. Works for individual requirements and groups.
+- **Duplicate detection** – Identifies and helps fix duplicate requirements.
+
+### Document Management
+- **Document upload** – Support for Word, PDF, and other document formats.
+- **Document parsing** – Extracts sections and content from uploaded documents.
+- **Folder organization** – Organize documents in hierarchical folder structures.
+- **Section management** – Create and manage document sections with requirement linking.
+
+### Traceability & Linking
+- **Trace links** – Create and manage trace relationships between requirements.
+- **Linksets** – Organize related trace links into linksets for structured traceability.
+- **Link suggestions** – AI-powered suggestions for potential trace links using graph queries.
+- **Visual tracing** – Navigate and visualize requirement relationships.
+
+### Architecture & Diagrams
+- **Architecture diagrams** – Create and edit system architecture diagrams.
+- **Block library** – Reusable architecture blocks and components.
+- **Connectors** – Define relationships and data flows between blocks.
+- **Visual workspace** – Interactive diagram canvas with ReactFlow.
+
+### AI-Assisted Generation (AIRGen)
+- **Conversational AI** – Chat-based interface for requirement generation.
+- **Smart candidates** – AI generates requirement candidates from natural language.
+- **Accept/Reject workflow** – Review and approve AI-generated requirements.
+- **Context-aware** – Maintains project context for better suggestions.
+
+### Data & Persistence
+- **Graph database** – Requirements, projects, tenants, and baselines live in Neo4j for rich traceability queries.
+- **Markdown-first storage** – Approved requirements stored as `workspace/<tenant>/<project>/requirements/*.md` with YAML front matter.
+- **Baselining** – Snapshot requirement sets for release audits and version control.
+
+### Deployment & Infrastructure
+- **Docker-native** – Traefik + Neo4j + Fastify API + Redis compose stack for quick VPS deployment.
+- **Multi-tenant** – Full tenant and project isolation with RBAC.
+- **Authentication** – JWT-based authentication with role-based access control.
 
 ## Repository layout
 ```
@@ -74,20 +107,71 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 - **Composable workspaces** – Route-level workspace components now just coordinate tenant/project context, floating document windows, palettes, and inspectors around the shared canvas, keeping each route lightweight.
 
 ## Key API endpoints
+
+### Core & System
 | Method | Path                                      | Purpose |
 | ------ | ----------------------------------------- | ------- |
 | GET    | `/health`                                 | Health and environment details |
 | GET    | `/tenants`                                | List tenants and project counts |
+| POST   | `/tenants`                                | Create a new tenant |
 | GET    | `/tenants/:tenant/projects`               | Projects for a tenant with requirement counts |
+| POST   | `/tenants/:tenant/projects`               | Create a new project |
+
+### Requirements & QA
+| Method | Path                                      | Purpose |
+| ------ | ----------------------------------------- | ------- |
 | POST   | `/draft`                                  | Generate candidate requirements (heuristic + optional LLM) |
 | POST   | `/qa`                                     | Run deterministic QA |
 | POST   | `/apply-fix`                              | Suggest edits for ambiguous phrases |
-| POST   | `/requirements`                           | Persist a requirement (Markdown + Neo4j metadata) |
+| POST   | `/requirements`                           | Create a requirement (Markdown + Neo4j metadata) |
 | GET    | `/requirements/:tenant/:project`          | List stored requirements |
 | GET    | `/requirements/:tenant/:project/:ref`     | Fetch requirement metadata + Markdown |
+| PATCH  | `/requirements/:tenant/:project/:id`      | Update a requirement |
+| DELETE | `/requirements/:tenant/:project/:id`      | Delete a requirement |
+| POST   | `/requirements/:tenant/:project/archive`  | Archive requirements (hide from default views) |
+| POST   | `/requirements/:tenant/:project/unarchive`| Unarchive requirements (restore to default views) |
+
+### Documents & Sections
+| Method | Path                                      | Purpose |
+| ------ | ----------------------------------------- | ------- |
+| POST   | `/documents`                              | Create a document |
+| GET    | `/documents/:tenant/:project`             | List documents |
+| GET    | `/documents/:tenant/:project/:slug`       | Get document metadata |
+| POST   | `/documents/upload`                       | Upload document file |
+| PATCH  | `/documents/:tenant/:project/:slug`       | Update document |
+| DELETE | `/documents/:tenant/:project/:slug`       | Delete document |
+| POST   | `/folders`                                | Create a folder |
+| GET    | `/folders/:tenant/:project`               | List folders |
+| POST   | `/sections`                               | Create a section |
+| GET    | `/sections/:tenant/:project/:docSlug`     | List sections |
+
+### Traceability & Linking
+| Method | Path                                      | Purpose |
+| ------ | ----------------------------------------- | ------- |
+| POST   | `/link/suggest`                           | Suggest trace links |
+| POST   | `/trace-links`                            | Create trace link |
+| GET    | `/trace-links/:tenant/:project`           | List trace links |
+| POST   | `/linksets/:tenant/:project`              | Create linkset |
+| GET    | `/linksets/:tenant/:project`              | List linksets |
+| POST   | `/linksets/:tenant/:project/:id/links`    | Add links to linkset |
+
+### Baselines & Architecture
+| Method | Path                                      | Purpose |
+| ------ | ----------------------------------------- | ------- |
 | POST   | `/baseline`                               | Create a baseline snapshot |
 | GET    | `/baselines/:tenant/:project`             | List baselines for a project |
-| POST   | `/link/suggest`                           | Lightweight trace suggestions |
+| POST   | `/architecture/diagrams`                  | Create architecture diagram |
+| GET    | `/architecture/diagrams/:tenant/:project` | List diagrams |
+| POST   | `/architecture/blocks`                    | Create diagram block |
+| POST   | `/architecture/connectors`                | Create diagram connector |
+
+### AIRGen
+| Method | Path                                      | Purpose |
+| ------ | ----------------------------------------- | ------- |
+| POST   | `/airgen/chat`                            | AI-assisted requirement generation chat |
+| GET    | `/airgen/candidates/:tenant/:project`     | List requirement candidates |
+| POST   | `/airgen/candidates/:id/accept`           | Accept a candidate |
+| POST   | `/airgen/candidates/:id/reject`           | Reject a candidate |
 
 ## Web UI frontend
 - `pnpm -C frontend dev` launches a Vite dev server on http://localhost:5173 with a proxy to the Fastify API at `/api`.
