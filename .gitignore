@@ -30,6 +30,12 @@ yarn-error.log*
 workspace/**
 !workspace/.gitkeep
 
+# Credentials and sensitive files
+**/login.json
+**/*credentials*.json
+**/*secret*.json
+**/*password*.txt
+
 # Testing
 test-results/
 playwright-report/
