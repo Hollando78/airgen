@@ -60,7 +60,9 @@ export async function listRequirements(
             WITH project, collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
             UNWIND reqs AS requirement
             WITH DISTINCT requirement
-            WHERE requirement IS NOT NULL AND (requirement.deleted IS NULL OR requirement.deleted = false)
+            WHERE requirement IS NOT NULL
+              AND (requirement.deleted IS NULL OR requirement.deleted = false)
+              AND (requirement.archived IS NULL OR requirement.archived = false)
             RETURN requirement
             ORDER BY ${orderField} ${orderDirection}, requirement.ref ASC
             SKIP $offset
@@ -102,7 +104,9 @@ export async function countRequirements(
             WITH project, collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
             UNWIND reqs AS requirement
             WITH DISTINCT requirement
-            WHERE requirement IS NOT NULL AND (requirement.deleted IS NULL OR requirement.deleted = false)
+            WHERE requirement IS NOT NULL
+              AND (requirement.deleted IS NULL OR requirement.deleted = false)
+              AND (requirement.archived IS NULL OR requirement.archived = false)
             RETURN count(requirement) AS total
           `,
           { tenantSlug, projectSlug }
@@ -138,7 +142,8 @@ export async function listSectionRequirements(sectionId: string): Promise<Requir
       `
         MATCH (section:DocumentSection {id: $sectionId})-[:HAS_REQUIREMENT]->(requirement:Requirement)
         OPTIONAL MATCH (doc:Document)-[:CONTAINS]->(requirement)
-        WHERE requirement.deleted IS NULL OR requirement.deleted = false
+        WHERE (requirement.deleted IS NULL OR requirement.deleted = false)
+          AND (requirement.archived IS NULL OR requirement.archived = false)
         RETURN requirement, doc.slug AS documentSlug
         ORDER BY requirement.ref
       `,
@@ -180,7 +185,8 @@ export async function listDocumentRequirements(
           `
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
             MATCH (document)-[:CONTAINS]->(requirement:Requirement)
-            WHERE requirement.deleted IS NULL OR requirement.deleted = false
+            WHERE (requirement.deleted IS NULL OR requirement.deleted = false)
+              AND (requirement.archived IS NULL OR requirement.archived = false)
             RETURN requirement
             ORDER BY requirement.ref
             SKIP $offset

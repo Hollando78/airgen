@@ -73,6 +73,8 @@ export type RequirementRecord = {
   documentSlug?: string;
   createdAt: string;
   updatedAt: string;
+  deleted?: boolean;
+  archived?: boolean;
 };
 
 export type RequirementDetail = {

@@ -57,7 +57,8 @@ export function mapRequirement(node: Neo4jNode, documentSlug?: string): Requirem
     documentSlug,
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt),
-    deleted: props.deleted ? Boolean(props.deleted) : undefined
+    deleted: props.deleted ? Boolean(props.deleted) : undefined,
+    archived: props.archived ? Boolean(props.archived) : undefined
   };
 }
 
@@ -361,6 +362,92 @@ export async function softDeleteRequirement(
     await CacheInvalidation.invalidateDocuments(tenantSlug, projectSlug);
 
     return mapRequirement(node);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function archiveRequirements(
+  tenant: string,
+  projectKey: string,
+  requirementIds: string[]
+): Promise<RequirementRecord[]> {
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(projectKey);
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        MATCH (requirement:Requirement)
+        WHERE requirement.id IN $requirementIds
+          AND requirement.tenant = $tenantSlug
+          AND requirement.projectKey = $projectSlug
+        SET requirement.archived = true, requirement.updatedAt = $now
+        RETURN requirement
+      `;
+
+      return await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        requirementIds,
+        now: new Date().toISOString()
+      });
+    });
+
+    // Invalidate requirement cache
+    await CacheInvalidation.invalidateRequirements(tenantSlug, projectSlug);
+
+    // Invalidate documents cache since requirement visibility changed
+    await CacheInvalidation.invalidateDocuments(tenantSlug, projectSlug);
+
+    return result.records.map(record => {
+      const node = record.get("requirement") as Neo4jNode;
+      return mapRequirement(node);
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+export async function unarchiveRequirements(
+  tenant: string,
+  projectKey: string,
+  requirementIds: string[]
+): Promise<RequirementRecord[]> {
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(projectKey);
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        MATCH (requirement:Requirement)
+        WHERE requirement.id IN $requirementIds
+          AND requirement.tenant = $tenantSlug
+          AND requirement.projectKey = $projectSlug
+        SET requirement.archived = false, requirement.updatedAt = $now
+        RETURN requirement
+      `;
+
+      return await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        requirementIds,
+        now: new Date().toISOString()
+      });
+    });
+
+    // Invalidate requirement cache
+    await CacheInvalidation.invalidateRequirements(tenantSlug, projectSlug);
+
+    // Invalidate documents cache since requirement visibility changed
+    await CacheInvalidation.invalidateDocuments(tenantSlug, projectSlug);
+
+    return result.records.map(record => {
+      const node = record.get("requirement") as Neo4jNode;
+      return mapRequirement(node);
+    });
   } finally {
     await session.close();
   }

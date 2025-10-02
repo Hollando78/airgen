@@ -177,6 +177,10 @@ export function useApiClient() {
         request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "PATCH", body: JSON.stringify(updates) }),
       deleteRequirement: (tenant: string, project: string, requirementId: string) =>
         request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "DELETE" }),
+      archiveRequirements: (tenant: string, project: string, requirementIds: string[]) =>
+        request<{ requirements: RequirementRecord[]; count: number }>(`/requirements/${tenant}/${project}/archive`, { method: "POST", body: JSON.stringify({ requirementIds }) }),
+      unarchiveRequirements: (tenant: string, project: string, requirementIds: string[]) =>
+        request<{ requirements: RequirementRecord[]; count: number }>(`/requirements/${tenant}/${project}/unarchive`, { method: "POST", body: JSON.stringify({ requirementIds }) }),
       createBaseline: (body: { tenant: string; projectKey: string; label?: string; author?: string }) =>
         request<BaselineResponse>(`/baseline`, { method: "POST", body: JSON.stringify(body) }),
       listBaselines: (tenant: string, project: string) =>
@@ -325,8 +329,8 @@ export function useApiClient() {
       deleteArchitectureConnector: (tenant: string, project: string, diagramId: string, connectorId: string) =>
         request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}?diagramId=${diagramId}`, { method: "DELETE" }),
       // Trace Links API methods
-      createTraceLink: (body: CreateTraceLinkRequest & { tenant: string; projectKey: string }) =>
-        request<{ traceLink: TraceLink }>(`/trace-links`, { method: "POST", body: JSON.stringify(body) }),
+      createTraceLink: (tenant: string, project: string, body: CreateTraceLinkRequest) =>
+        request<{ traceLink: TraceLink }>(`/trace-links`, { method: "POST", body: JSON.stringify({ ...body, tenant, projectKey: project }) }),
       listTraceLinks: (tenant: string, project: string) =>
         request<{ traceLinks: TraceLink[] }>(`/trace-links/${tenant}/${project}`),
       listTraceLinksByRequirement: (tenant: string, project: string, requirementId: string) =>
