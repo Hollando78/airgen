@@ -326,6 +326,60 @@ Neo4jError: The client is unauthorized due to authentication failure.
 
 ---
 
+### Requirements Route Shows "No Requirements Found"
+
+**Symptoms:**
+- Frontend shows empty list or "No requirements found" message
+- Requirements exist in the database and as markdown files
+- Other routes may also fail with no data
+
+**Root Cause:**
+User is not logged in. All API routes (including GET requests) require JWT authentication.
+
+**Solution:**
+1. **Login to the frontend:**
+   - Navigate to http://localhost:5173
+   - Click the login button (or navigate to login page)
+   - Use one of the dev credentials:
+     ```
+     Email: steven.holland@outlook.com
+     Password: Tynebridge001!
+     ```
+
+2. **Verify authentication:**
+   ```bash
+   # Check browser localStorage has auth token
+   # In browser console:
+   localStorage.getItem('auth_token')
+   # Should return a JWT token string
+   ```
+
+3. **Test API directly (optional):**
+   ```bash
+   # Login and get token
+   cat > /tmp/login.json << 'EOF'
+   {"email":"steven.holland@outlook.com","password":"Tynebridge001!"}
+   EOF
+   curl -X POST http://localhost:18787/api/auth/login \
+     -H 'Content-Type: application/json' \
+     -d @/tmp/login.json
+
+   # Use token to fetch requirements
+   TOKEN="<token_from_above>"
+   curl http://localhost:18787/api/requirements/hollando/main-battle-tank \
+     -H "Authorization: Bearer $TOKEN"
+   ```
+
+**Available Dev Users:**
+- `steven.holland@outlook.com` (password: Tynebridge001!) - admin, author, user (hollando, admin-dev tenants)
+- `test@dev.local` (password: test123) - admin, author, user (admin-dev tenant)
+- `admin@dev.local` (password: admin123) - admin, author, user (admin-dev tenant)
+- `user@dev.local` (password: user123) - author, user
+
+**Note:** If login fails, check backend logs for authentication errors and verify dev-users.json has the expected user records.
+
+---
+
 ### OpenAI API Errors
 
 **Error:**

@@ -165,7 +165,7 @@ export function useApiClient() {
           body: JSON.stringify(body)
         }),
       listRequirements: (tenant: string, project: string) =>
-        request<{ items: RequirementRecord[] }>(`/requirements/${tenant}/${project}`),
+        request<{ data: RequirementRecord[]; meta: { currentPage: number; pageSize: number; totalItems: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }>(`/requirements/${tenant}/${project}`),
       getRequirement: (tenant: string, project: string, ref: string) =>
         request<RequirementDetail>(`/requirements/${tenant}/${project}/${ref}`),
       createRequirement: (body: CreateRequirementRequest) =>
