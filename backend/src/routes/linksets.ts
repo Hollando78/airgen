@@ -1,14 +1,18 @@
 import type { FastifyInstance } from "fastify";
-import { 
-  createLinkset, 
-  listLinksets, 
-  getLinkset, 
-  addLinkToLinkset, 
-  removeLinkFromLinkset, 
+import {
+  createLinkset,
+  listLinksets,
+  getLinkset,
+  addLinkToLinkset,
+  removeLinkFromLinkset,
   deleteLinkset,
   type DocumentLinksetRecord,
   type TraceLinkItem
 } from "../services/graph/linksets.js";
+import {
+  migrateOrphanedTraceLinks,
+  checkOrphanedTraceLinks
+} from "../services/graph/migrate-linksets.js";
 
 export async function linksetRoutes(fastify: FastifyInstance) {
   // List all linksets for a project
@@ -25,21 +29,6 @@ export async function linksetRoutes(fastify: FastifyInstance) {
         properties: {
           tenant: { type: "string", description: "Tenant slug" },
           project: { type: "string", description: "Project slug" }
-        }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            linksets: { type: "array", items: { type: "object" } }
-          }
-        },
-        500: {
-          type: "object",
-          properties: {
-            error: { type: "string" },
-            message: { type: "string" }
-          }
         }
       }
     }
@@ -80,27 +69,6 @@ export async function linksetRoutes(fastify: FastifyInstance) {
           sourceDoc: { type: "string", description: "Source document slug" },
           targetDoc: { type: "string", description: "Target document slug" }
         }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            linkset: { type: "object" }
-          }
-        },
-        404: {
-          type: "object",
-          properties: {
-            error: { type: "string" }
-          }
-        },
-        500: {
-          type: "object",
-          properties: {
-            error: { type: "string" },
-            message: { type: "string" }
-          }
-        }
       }
     }
   }, async (request, reply) => {
@@ -136,10 +104,11 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       links?: TraceLinkItem[];
     };
   }>("/linksets/:tenant/:project", {
+    preHandler: [fastify.authenticate],
     schema: {
       tags: ["linksets"],
       summary: "Create a new linkset",
-      description: "Creates a new linkset between two documents",
+      description: "Creates a new linkset between two documents (admin only)",
       params: {
         type: "object",
         required: ["tenant", "project"],
@@ -168,6 +137,13 @@ export async function linksetRoutes(fastify: FastifyInstance) {
             linkset: { type: "object" }
           }
         },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" },
+            message: { type: "string" }
+          }
+        },
         500: {
           type: "object",
           properties: {
@@ -178,6 +154,10 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
+    if (!request.currentUser?.roles.includes('admin')) {
+      return reply.status(403).send({ error: "Admin access required to create linksets" });
+    }
+
     try {
       const { tenant, project } = request.params;
       const { sourceDocumentSlug, targetDocumentSlug, links } = request.body;
@@ -350,10 +330,11 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       linksetId: string;
     };
   }>("/linksets/:tenant/:project/:linksetId", {
+    preHandler: [fastify.authenticate],
     schema: {
       tags: ["linksets"],
       summary: "Delete a linkset",
-      description: "Deletes an entire linkset and all its links",
+      description: "Deletes an entire linkset and all its links (admin only)",
       params: {
         type: "object",
         required: ["tenant", "project", "linksetId"],
@@ -370,6 +351,13 @@ export async function linksetRoutes(fastify: FastifyInstance) {
             success: { type: "boolean" }
           }
         },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" },
+            message: { type: "string" }
+          }
+        },
         500: {
           type: "object",
           properties: {
@@ -380,6 +368,10 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
+    if (!request.currentUser?.roles.includes('admin')) {
+      return reply.status(403).send({ error: "Admin access required to delete linksets" });
+    }
+
     try {
       const { tenant, project, linksetId } = request.params;
 
@@ -394,6 +386,90 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       fastify.log.error(error);
       return reply.status(500).send({
         error: "Failed to delete linkset",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Migrate orphaned TraceLink nodes (admin only)
+  fastify.post("/linksets/migrate", {
+    preHandler: [fastify.authenticate],
+    schema: {
+      tags: ["linksets"],
+      summary: "Migrate orphaned TraceLink nodes",
+      description: "Migrates orphaned TraceLink nodes into DocumentLinkset structures (admin only)",
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            migratedLinks: { type: "number" },
+            createdLinksets: { type: "number" },
+            errors: { type: "array", items: { type: "string" } }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" },
+            message: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    if (!request.currentUser?.roles.includes('admin')) {
+      return reply.status(403).send({ error: "Admin access required to migrate trace links" });
+    }
+
+    try {
+      const result = await migrateOrphanedTraceLinks();
+      return reply.send(result);
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.status(500).send({
+        error: "Failed to migrate orphaned trace links",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Check for orphaned TraceLink nodes
+  fastify.get("/linksets/orphaned-count", {
+    preHandler: [fastify.authenticate],
+    schema: {
+      tags: ["linksets"],
+      summary: "Check for orphaned TraceLink nodes",
+      description: "Returns count of orphaned TraceLink nodes that need migration",
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            count: { type: "number" }
+          }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" },
+            message: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const count = await checkOrphanedTraceLinks();
+      return reply.send({ count });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.status(500).send({
+        error: "Failed to check orphaned trace links",
         message: error instanceof Error ? error.message : "Unknown error"
       });
     }

@@ -291,8 +291,8 @@ async function generatePDFThumbnail(pdfPath: string, outputPath: string): Promis
   // Render PDF page to canvas with Image constructor for embedded images
   await page.render({
     canvasContext: canvasAndContext.context as any,
+    canvas: canvasAndContext.canvas as any,
     viewport: scaledViewport,
-    canvasFactory: canvasFactory as any,
     background: 'white'
   }).promise;
 

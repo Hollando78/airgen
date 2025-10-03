@@ -15,8 +15,7 @@ async function extractPdfText(filePath: string): Promise<string> {
   try {
     // Lazy load pdf-parse to avoid test file loading issues
     const pdfModule = await import("pdf-parse");
-    const pdfFactory = pdfModule as unknown as { default?: typeof import("pdf-parse") };
-    const pdf = (pdfFactory.default ?? (pdfModule as typeof import("pdf-parse")));
+    const pdf = pdfModule.default ?? pdfModule;
     const dataBuffer = await fs.readFile(filePath);
     const data = await pdf(dataBuffer);
     return data.text;
