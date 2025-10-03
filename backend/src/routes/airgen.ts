@@ -288,8 +288,37 @@ export default async function airgenRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: "Only pending candidates can be rejected" });
     }
 
-    const updated = await updateRequirementCandidate(candidate.id, { status: "rejected" });
-    return { candidate: mapCandidate(updated ?? candidate) };
+    try {
+      // Create a requirement for the rejected candidate (preserves data)
+      const requirement = await createRequirement({
+        tenant: candidate.tenant,
+        projectKey: candidate.projectKey,
+        text: candidate.text,
+        qaScore: candidate.qaScore,
+        qaVerdict: candidate.qaVerdict,
+        suggestions: candidate.suggestions
+      });
+
+      try {
+        await writeRequirementMarkdown(requirement);
+      } catch (error) {
+        req.log.error({ err: error, requirementId: requirement.id }, "Failed to write requirement markdown");
+      }
+
+      const updated = await updateRequirementCandidate(candidate.id, {
+        status: "rejected",
+        requirementId: requirement.id,
+        requirementRef: requirement.ref
+      });
+
+      return { candidate: mapCandidate(updated ?? candidate), requirement };
+    } catch (error) {
+      req.log.error({ err: error, candidateId: candidate.id }, "Failed to reject candidate");
+      return reply.status(500).send({
+        error: "Failed to reject candidate.",
+        detail: error instanceof Error ? error.message : undefined
+      });
+    }
   });
 
   const returnParams = z.object({ id: z.string().min(1) });

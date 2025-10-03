@@ -155,6 +155,11 @@ export async function listRequirementCandidates(
     const result = await session.run(
       `
         MATCH (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})-[:HAS_CANDIDATE]->(candidate:RequirementCandidate)
+        WHERE candidate.requirementId IS NULL
+           OR NOT EXISTS {
+             MATCH (req:Requirement {id: candidate.requirementId})
+             WHERE req.archived = true
+           }
         RETURN candidate
         ORDER BY candidate.createdAt DESC
         SKIP $offset
