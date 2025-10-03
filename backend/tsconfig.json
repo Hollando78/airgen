@@ -5,7 +5,9 @@
     "outDir": "dist",
     "moduleResolution": "node",
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src/**/*"],
   "exclude": [
