@@ -5,6 +5,7 @@ import { CreateDocumentModal } from "../components/CreateDocumentModal";
 import { CreateFolderModal } from "../components/CreateFolderModal";
 import { DocumentManager } from "../components/FileManager/DocumentManager";
 import { DocumentView } from "../components/DocumentView";
+import { MarkdownEditorView } from "../components/MarkdownEditor/MarkdownEditorView";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
@@ -20,6 +21,7 @@ export function DocumentsRoute(): JSX.Element {
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [openedDocument, setOpenedDocument] = useState<string | null>(null);
+  const [markdownEditor, setMarkdownEditor] = useState<{ slug: string; name: string } | null>(null);
   const [createFolderParent, setCreateFolderParent] = useState<string | undefined>(undefined);
   const [createDocumentParent, setCreateDocumentParent] = useState<string | undefined>(undefined);
   const [uploadParentFolder, setUploadParentFolder] = useState<string | undefined>(undefined);
@@ -92,6 +94,9 @@ export function DocumentsRoute(): JSX.Element {
               setUploadParentFolder(parentFolder);
               setShowUploadModal(true);
             }}
+            onEditMarkdown={(documentSlug, documentName) => {
+              setMarkdownEditor({ slug: documentSlug, name: documentName });
+            }}
             onOpenSurrogate={(doc) => {
               const match = documents.find(d => d.slug === doc.slug);
               openFloatingDocument({
@@ -160,6 +165,16 @@ export function DocumentsRoute(): JSX.Element {
           project={project}
           documentSlug={openedDocument}
           onClose={() => setOpenedDocument(null)}
+        />
+      )}
+
+      {markdownEditor && tenant && project && (
+        <MarkdownEditorView
+          tenant={tenant}
+          project={project}
+          documentSlug={markdownEditor.slug}
+          documentName={markdownEditor.name}
+          onClose={() => setMarkdownEditor(null)}
         />
       )}
     </>

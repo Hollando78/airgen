@@ -351,7 +351,21 @@ export function useApiClient() {
         request<{ linkset: DocumentLinkset }>(`/linksets/${tenant}/${project}/${linksetId}/links/${linkId}`, { method: "DELETE" }),
       deleteLinkset: (tenant: string, project: string, linksetId: string) =>
         request<{ success: boolean }>(`/linksets/${tenant}/${project}/${linksetId}`, { method: "DELETE" }),
-      
+
+      // Markdown Editor API methods
+      getMarkdownContent: (tenant: string, project: string, documentSlug: string) =>
+        request<{ content: string; document: any }>(`/markdown/${tenant}/${project}/${documentSlug}/content`),
+      saveMarkdownContent: (tenant: string, project: string, documentSlug: string, content: string, validate?: boolean) =>
+        request<{ success: boolean; document: any; validation?: any; parsed?: any }>(`/markdown/${tenant}/${project}/${documentSlug}/content`, {
+          method: "PUT",
+          body: JSON.stringify({ content, validate })
+        }),
+      validateMarkdown: (tenant: string, project: string, documentSlug: string, content: string) =>
+        request<{ validation: any; parsed: any }>(`/markdown/${tenant}/${project}/${documentSlug}/validate`, {
+          method: "POST",
+          body: JSON.stringify({ content })
+        }),
+
       // Dev admin utilities (development only)
       listDevUsers: () => request<DevUserListResponse>(`/dev/admin/users`),
       createDevUser: (body: { email: string; name?: string; password?: string; roles?: string[]; tenantSlugs?: string[] }) =>

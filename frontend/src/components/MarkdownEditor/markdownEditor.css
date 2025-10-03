@@ -1,0 +1,539 @@
+/* Markdown Editor Styles */
+
+.markdown-editor-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #f8f9fa;
+}
+
+.markdown-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background-color: white;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.markdown-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.markdown-editor-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.unsaved-indicator {
+  color: #f59e0b;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.markdown-editor-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.markdown-editor-button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background-color: white;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.markdown-editor-button:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.markdown-editor-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.markdown-editor-button.primary {
+  background-color: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+.markdown-editor-button.primary:hover:not(:disabled) {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.markdown-validation-panel {
+  margin: 1rem 1.5rem;
+  padding: 1rem;
+  background-color: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 0.375rem;
+}
+
+.markdown-validation-panel h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.markdown-validation-panel ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style: none;
+}
+
+.markdown-validation-panel li {
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.validation-error {
+  color: #dc2626;
+}
+
+.validation-warning {
+  color: #d97706;
+}
+
+.validation-info {
+  color: #2563eb;
+}
+
+.markdown-editor-container {
+  flex: 1;
+  margin: 1rem 1.5rem;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.markdown-editor-container .w-md-editor {
+  border-radius: 0.5rem;
+  box-shadow: none;
+}
+
+.markdown-editor-container .w-md-editor-toolbar {
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.5rem;
+}
+
+.markdown-editor-container .w-md-editor-content {
+  background-color: white;
+}
+
+.markdown-editor-container .w-md-editor-text-pre,
+.markdown-editor-container .w-md-editor-text-input {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.markdown-editor-container .w-md-editor-preview {
+  padding: 1.5rem;
+  background-color: white;
+}
+
+/* Custom markdown preview styles */
+.markdown-editor-container .wmde-markdown {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  color: #1f2937;
+  line-height: 1.75;
+}
+
+.markdown-editor-container .wmde-markdown h1 {
+  font-size: 2em;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+  color: #111827;
+}
+
+.markdown-editor-container .wmde-markdown h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: #374151;
+}
+
+.markdown-editor-container .wmde-markdown h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #4b5563;
+}
+
+.markdown-editor-container .wmde-markdown code {
+  background-color: #f3f4f6;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  color: #dc2626;
+}
+
+.markdown-editor-container .wmde-markdown pre {
+  background-color: #1f2937;
+  color: #f3f4f6;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.markdown-editor-container .wmde-markdown pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.markdown-editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  background-color: white;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.markdown-editor-stats {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.markdown-editor-help a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.markdown-editor-help a:hover {
+  text-decoration: underline;
+}
+
+.markdown-editor-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 1.125rem;
+  color: #6b7280;
+}
+
+/* Requirement block styles in preview */
+.markdown-editor-container .wmde-markdown .requirement-block {
+  background-color: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+}
+
+.markdown-editor-container .wmde-markdown .requirement-block .requirement-id {
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-editor-container .wmde-markdown .requirement-block .requirement-text {
+  margin-bottom: 0.75rem;
+  line-height: 1.6;
+}
+
+.markdown-editor-container .wmde-markdown .requirement-block .requirement-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* Info block styles */
+.markdown-editor-container .wmde-markdown .info-block {
+  background-color: #f0f9ff;
+  border-left: 4px solid #0ea5e9;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+}
+
+/* Warning block styles */
+.markdown-editor-container .wmde-markdown .warning-block {
+  background-color: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+}
+
+/* Diagram block styles */
+.markdown-editor-container .wmde-markdown .diagram-block {
+  margin: 1.5rem 0;
+}
+
+.markdown-editor-container .wmde-markdown .diagram-link {
+  display: block;
+  background-color: #f0f9ff;
+  border: 2px solid #3b82f6;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.markdown-editor-container .wmde-markdown .diagram-link:hover {
+  background-color: #dbeafe;
+  border-color: #2563eb;
+  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
+  transform: translateY(-2px);
+}
+
+.markdown-editor-container .wmde-markdown .diagram-preview {
+  margin-bottom: 0.75rem;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.markdown-editor-container .wmde-markdown .diagram-info {
+  text-align: center;
+  color: #1e40af;
+}
+
+/* Surrogate block styles */
+.markdown-editor-container .wmde-markdown .surrogate-block {
+  background-color: #faf5ff;
+  border: 2px solid #a855f7;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.markdown-editor-container .wmde-markdown .surrogate-block:hover {
+  background-color: #f3e8ff;
+  border-color: #9333ea;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.markdown-editor-container .wmde-markdown .surrogate-placeholder {
+  color: #6b21a8;
+}
+
+/* Insert Toolbar Styles */
+.markdown-insert-toolbar {
+  position: relative;
+  padding: 0.75rem 1.5rem;
+  background-color: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.insert-menu-toggle {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background-color: white;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.insert-menu-toggle:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.insert-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 1.5rem;
+  margin-top: 0.5rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: 0.5rem;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  min-width: 600px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.insert-menu-section {
+  padding: 0.5rem;
+}
+
+.insert-menu-section h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.insert-menu-section button {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.25rem;
+  border: none;
+  border-radius: 0.375rem;
+  background-color: transparent;
+  color: #374151;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.insert-menu-section button:hover {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+.insert-menu-section button:active {
+  background-color: #e5e7eb;
+}
+
+/* Asset Browser Styles */
+.markdown-editor-main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.markdown-asset-browser {
+  width: 300px;
+  background-color: white;
+  border-right: 1px solid #e5e7eb;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.asset-browser-header {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+}
+
+.asset-browser-header h3 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.asset-browser-section {
+  padding: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.asset-browser-section h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.asset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.asset-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.asset-item:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.asset-thumbnail {
+  width: 60px;
+  height: 45px;
+  flex-shrink: 0;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  background-color: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.asset-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.asset-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.asset-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-id {
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-empty {
+  padding: 1rem;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.markdown-editor-container.with-sidebar {
+  flex: 1;
+  margin: 0;
+  border-radius: 0;
+}
