@@ -27,6 +27,8 @@ import architectureRoutes from "./routes/architecture.js";
 import traceRoutes from "./routes/trace.js";
 import { linksetRoutes } from "./routes/linksets.js";
 import authRoutes from "./routes/auth.js";
+import markdownRoutes from "./routes/markdown-api.js";
+import thumbnailRoutes from "./routes/thumbnails.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -227,6 +229,8 @@ await app.register(authRoutes, { prefix: "/api" });
 await app.register(coreRoutes, { prefix: "/api" });
 await app.register(requirementsRoutes, { prefix: "/api" });
 await app.register(documentRoutes, { prefix: "/api" });
+await app.register(markdownRoutes, { prefix: "/api" });
+await app.register(thumbnailRoutes, { prefix: "/api" });
 await app.register(architectureRoutes, { prefix: "/api" });
 await app.register(traceRoutes, { prefix: "/api" });
 await app.register(linksetRoutes, { prefix: "/api" });
