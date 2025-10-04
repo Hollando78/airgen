@@ -27,6 +27,7 @@ import type {
   DocumentSectionsResponse,
   DocumentSectionResponse,
   CreateSectionRequest,
+  InfoRecord,
   LinkSuggestRequest,
   LinkSuggestResponse,
   ArchitectureBlocksResponse,
@@ -299,6 +300,8 @@ export function useApiClient() {
         request<{ success: boolean }>(`/sections/${sectionId}`, { method: "DELETE" }),
       listSectionRequirements: (sectionId: string) =>
         request<{ requirements: RequirementRecord[] }>(`/sections/${sectionId}/requirements`),
+      listSectionInfos: (sectionId: string) =>
+        request<{ infos: InfoRecord[] }>(`/sections/${sectionId}/infos`),
       suggestLinks: (body: LinkSuggestRequest) =>
         request<LinkSuggestResponse>(`/link/suggest`, { method: "POST", body: JSON.stringify(body) }),
       // Architecture API methods
@@ -356,7 +359,7 @@ export function useApiClient() {
       getMarkdownContent: (tenant: string, project: string, documentSlug: string) =>
         request<{ content: string; document: any }>(`/markdown/${tenant}/${project}/${documentSlug}/content`),
       saveMarkdownContent: (tenant: string, project: string, documentSlug: string, content: string, validate?: boolean) =>
-        request<{ success: boolean; document: any; validation?: any; parsed?: any }>(`/markdown/${tenant}/${project}/${documentSlug}/content`, {
+        request<{ success: boolean; document: any; validation?: any; parsed?: any; draft?: { updatedAt: string } }>(`/markdown/${tenant}/${project}/${documentSlug}/content`, {
           method: "PUT",
           body: JSON.stringify({ content, validate })
         }),

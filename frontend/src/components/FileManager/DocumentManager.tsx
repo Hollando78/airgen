@@ -9,6 +9,7 @@ import { FileManagerList } from "./FileManagerList";
 import { ContextMenu } from "./ContextMenu";
 import { RenameModal } from "./RenameModal";
 import { ConfirmDeleteModal } from "../ConfirmDeleteModal";
+import { useFloatingDocuments } from "../../contexts/FloatingDocumentsContext";
 
 export type ViewMode = "grid" | "list";
 export type SortField = "name" | "modified" | "size" | "type";
@@ -23,6 +24,7 @@ interface DocumentManagerProps {
   onCreateFolder?: (parentFolder?: string) => void;
   onCreateDocument?: (parentFolder?: string) => void;
   onUploadSurrogate?: (parentFolder?: string) => void;
+  onEditMarkdown?: (documentSlug: string, documentName: string) => void;
   onOpenSurrogate?: (params: {
     slug: string;
     name: string;
@@ -64,6 +66,7 @@ export function DocumentManager({
   onCreateFolder,
   onCreateDocument,
   onUploadSurrogate,
+  onEditMarkdown,
   onOpenSurrogate
 }: DocumentManagerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -89,6 +92,7 @@ export function DocumentManager({
 
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const { openFloatingDocument } = useFloatingDocuments();
 
   const moveDocumentMutation = useMutation({
     mutationFn: ({ documentSlug, parentFolder }: { documentSlug: string; parentFolder?: string | null }) =>
@@ -394,6 +398,25 @@ export function DocumentManager({
     }
   };
 
+  const handlePopOutDocument = (item: FileItem) => {
+    if (item.type !== "document") {
+      return;
+    }
+
+    openFloatingDocument({
+      documentSlug: item.slug,
+      documentName: item.name,
+      tenant,
+      project,
+      kind: item.documentKind === "surrogate" ? "surrogate" : "structured",
+      downloadUrl: item.downloadUrl,
+      mimeType: item.mimeType,
+      originalFileName: item.originalFileName,
+      previewDownloadUrl: item.previewDownloadUrl,
+      previewMimeType: item.previewMimeType
+    });
+  };
+
   const handleDrop = (targetFolder: string | null) => {
     selectedItems.forEach(itemId => {
       const item = fileItems.find(f => f.id === itemId);
@@ -502,10 +525,18 @@ export function DocumentManager({
             handlePrimaryAction(contextMenu.item);
             setContextMenu(null);
           }}
+          onPopOut={() => handlePopOutDocument(contextMenu.item)}
           onDownload={() => {
             void handleDownloadDocument(contextMenu.item);
             setContextMenu(null);
           }}
+          onEditMarkdown={contextMenu.item.type === "document" && contextMenu.item.documentKind === "structured" && onEditMarkdown
+            ? () => {
+                onEditMarkdown(contextMenu.item.slug, contextMenu.item.name);
+                setContextMenu(null);
+              }
+            : undefined
+          }
         />
       )}
 

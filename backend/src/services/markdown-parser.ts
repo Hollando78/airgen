@@ -2,11 +2,13 @@ import { analyzeRequirement } from "@airgen/req-qa";
 
 export type ParsedRequirement = {
   id?: string;
+  ref?: string;
   text: string;
   title?: string;
   pattern?: string;
   verification?: string;
   line: number;
+  sectionName?: string;
 };
 
 export type ParsedSection = {
@@ -14,6 +16,29 @@ export type ParsedSection = {
   shortCode?: string;
   level: number;
   line: number;
+};
+
+export type ParsedInfo = {
+  id?: string;
+  ref?: string;
+  text: string;
+  title?: string;
+  line: number;
+  sectionName?: string;
+};
+
+export type ParsedContentBlockType =
+  | "frontmatter"
+  | "heading"
+  | "requirement"
+  | "info"
+  | "raw";
+
+export type ParsedContentBlock = {
+  type: ParsedContentBlockType;
+  raw: string;
+  line: number;
+  metadata?: Record<string, unknown>;
 };
 
 export type ValidationError = {
@@ -33,7 +58,9 @@ export type ValidationResult = {
 export type ParsedDocument = {
   requirements: ParsedRequirement[];
   sections: ParsedSection[];
+  infos: ParsedInfo[];
   metadata: Record<string, unknown>;
+  blocks: ParsedContentBlock[];
 };
 
 /**
@@ -50,14 +77,47 @@ export async function parseMarkdownDocument(
   const lines = content.split("\n");
   const requirements: ParsedRequirement[] = [];
   const sections: ParsedSection[] = [];
+  const infos: ParsedInfo[] = [];
+  const blocks: ParsedContentBlock[] = [];
   let metadata: Record<string, unknown> = {};
+  let currentSection: string | undefined;
 
   let inRequirementBlock = false;
   let currentRequirement: Partial<ParsedRequirement> | null = null;
   let requirementStartLine = 0;
+  let requirementLines: string[] = [];
+
+  let inInfoBlock = false;
+  let currentInfo: Partial<ParsedInfo> | null = null;
+  let infoStartLine = 0;
+  let infoLines: string[] = [];
+
+  let rawBuffer: string[] = [];
+  let rawStartLine: number | null = null;
+
+  const flushRawBuffer = () => {
+    if (rawBuffer.length === 0) {
+      return;
+    }
+    blocks.push({
+      type: "raw",
+      raw: rawBuffer.join("\n"),
+      line: rawStartLine ?? 1
+    });
+    rawBuffer = [];
+    rawStartLine = null;
+  };
+
+  const addToRawBuffer = (value: string, lineNum: number) => {
+    if (rawStartLine === null) {
+      rawStartLine = lineNum;
+    }
+    rawBuffer.push(value);
+  };
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const rawLine = lines[i] ?? "";
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
     const lineNum = i + 1;
 
     // Parse YAML frontmatter (first block)
@@ -69,39 +129,71 @@ export async function parseMarkdownDocument(
         j++;
       }
       if (j < lines.length) {
-        // Simple YAML parsing (key: value format)
+        const frontmatterLines = [lines[i], ...yamlLines, lines[j]];
+        const frontmatterMetadata: Record<string, unknown> = {};
+
         yamlLines.forEach(yamlLine => {
           const match = yamlLine.match(/^(\w+):\s*(.+)$/);
           if (match) {
-            metadata[match[1]] = match[2].trim();
+            frontmatterMetadata[match[1]] = match[2].trim();
           }
         });
-        i = j; // Skip past frontmatter
+
+        metadata = frontmatterMetadata;
+
+        blocks.push({
+          type: "frontmatter",
+          raw: frontmatterLines.join("\n"),
+          line: lineNum,
+          metadata: frontmatterMetadata
+        });
+
+        i = j;
         continue;
       }
     }
 
     // Parse section headers (# Header or # [CODE] Header)
     const headerMatch = line.match(/^(#{1,6})\s+(?:\[([^\]]+)\]\s+)?(.+)$/);
-    if (headerMatch) {
+    if (!inRequirementBlock && !inInfoBlock && headerMatch) {
+      flushRawBuffer();
+
+      const sectionName = headerMatch[3].trim();
+      const level = headerMatch[1].length;
+      const shortCode = headerMatch[2];
+
       sections.push({
-        level: headerMatch[1].length,
-        shortCode: headerMatch[2],
-        name: headerMatch[3].trim(),
+        level,
+        shortCode,
+        name: sectionName,
         line: lineNum
+      });
+      currentSection = sectionName;
+
+      blocks.push({
+        type: "heading",
+        raw: line,
+        line: lineNum,
+        metadata: {
+          level,
+          shortCode: shortCode ?? null,
+          title: sectionName
+        }
       });
       continue;
     }
 
     // Parse requirement blocks (:::requirement{...})
-    if (line.trim().startsWith(":::requirement")) {
+    if (!inRequirementBlock && line.trim().startsWith(":::requirement")) {
+      flushRawBuffer();
       inRequirementBlock = true;
       requirementStartLine = lineNum;
+      requirementLines = [rawLine];
 
-      // Parse attributes from directive
       const attrMatch = line.match(/:::requirement\{([^}]+)\}/);
       currentRequirement = {
-        line: lineNum
+        line: lineNum,
+        sectionName: currentSection
       };
 
       if (attrMatch) {
@@ -109,42 +201,129 @@ export async function parseMarkdownDocument(
         const idMatch = attrs.match(/#([^\s]+)/);
         const titleMatch = attrs.match(/title="([^"]+)"/);
 
-        if (idMatch) currentRequirement.id = idMatch[1];
+        if (idMatch) {
+          currentRequirement.id = idMatch[1];
+          currentRequirement.ref = idMatch[1];
+        }
         if (titleMatch) currentRequirement.title = titleMatch[1];
       }
       continue;
     }
 
-    // End of requirement block
-    if (inRequirementBlock && line.trim() === ":::") {
-      if (currentRequirement && currentRequirement.text) {
-        requirements.push(currentRequirement as ParsedRequirement);
+    // Parse info blocks (:::info{...})
+    if (!inInfoBlock && line.trim().startsWith(":::info")) {
+      flushRawBuffer();
+      inInfoBlock = true;
+      infoStartLine = lineNum;
+      infoLines = [rawLine];
+
+      const attrMatch = line.match(/:::info\{([^}]+)\}/);
+      currentInfo = {
+        line: lineNum,
+        sectionName: currentSection
+      };
+
+      if (attrMatch) {
+        const attrs = attrMatch[1];
+        const idMatch = attrs.match(/#([^\s]+)/);
+        const titleMatch = attrs.match(/title="([^"]+)"/);
+
+        if (idMatch) currentInfo.id = idMatch[1];
+        if (titleMatch) currentInfo.title = titleMatch[1];
       }
-      inRequirementBlock = false;
-      currentRequirement = null;
       continue;
     }
 
-    // Parse requirement content
-    if (inRequirementBlock && currentRequirement) {
-      if (line.trim().startsWith("**Pattern:**")) {
-        currentRequirement.pattern = line.replace(/\*\*Pattern:\*\*\s*/, "").trim();
-      } else if (line.trim().startsWith("**Verification:**")) {
-        currentRequirement.verification = line.replace(/\*\*Verification:\*\*\s*/, "").trim();
-      } else if (line.trim() && !currentRequirement.text) {
-        // First non-empty line is the requirement text
-        currentRequirement.text = line.trim();
-      } else if (currentRequirement.text && line.trim()) {
-        // Continuation of requirement text
-        currentRequirement.text += " " + line.trim();
+    if (inRequirementBlock) {
+      requirementLines.push(rawLine);
+
+      if (line.trim() === ":::") {
+        if (currentRequirement) {
+          if (currentRequirement.text) {
+            requirements.push(currentRequirement as ParsedRequirement);
+          }
+
+          blocks.push({
+            type: "requirement",
+            raw: requirementLines.join("\n"),
+            line: requirementStartLine,
+            metadata: {
+              ref: currentRequirement.ref ?? null,
+              title: currentRequirement.title ?? null,
+              sectionName: currentRequirement.sectionName ?? null
+            }
+          });
+        }
+
+        inRequirementBlock = false;
+        currentRequirement = null;
+        requirementLines = [];
+        continue;
       }
+
+      if (currentRequirement) {
+        if (line.trim().startsWith("**Pattern:**")) {
+          currentRequirement.pattern = line.replace(/\*\*Pattern:\*\*\s*/, "").trim();
+        } else if (line.trim().startsWith("**Verification:**")) {
+          currentRequirement.verification = line.replace(/\*\*Verification:\*\*\s*/, "").trim();
+        } else if (line.trim() && !currentRequirement.text) {
+          currentRequirement.text = line.trim();
+        } else if (currentRequirement.text && line.trim()) {
+          currentRequirement.text += " " + line.trim();
+        }
+      }
+      continue;
     }
+
+    if (inInfoBlock) {
+      infoLines.push(rawLine);
+
+      if (line.trim() === ":::") {
+        if (currentInfo) {
+          if (currentInfo.text) {
+            infos.push(currentInfo as ParsedInfo);
+          }
+
+          blocks.push({
+            type: "info",
+            raw: infoLines.join("\n"),
+            line: infoStartLine,
+            metadata: {
+              ref: currentInfo.ref ?? null,
+              title: currentInfo.title ?? null,
+              sectionName: currentInfo.sectionName ?? null
+            }
+          });
+        }
+
+        inInfoBlock = false;
+        currentInfo = null;
+        infoLines = [];
+        continue;
+      }
+
+      if (currentInfo) {
+        if (line.trim() && !currentInfo.text) {
+          currentInfo.text = line.trim();
+        } else if (currentInfo.text && line.trim()) {
+          currentInfo.text += " " + line.trim();
+        }
+      }
+      continue;
+    }
+
+    // Default handling: aggregate raw content
+    addToRawBuffer(rawLine, lineNum);
   }
+
+  flushRawBuffer();
 
   return {
     requirements,
     sections,
-    metadata
+    infos,
+    metadata,
+    blocks
   };
 }
 
@@ -163,7 +342,8 @@ export async function validateMarkdownStructure(content: string): Promise<Valida
   const seenIds = new Set<string>();
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const rawLine = lines[i] ?? "";
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
     const lineNum = i + 1;
 
     // Check for requirement block start

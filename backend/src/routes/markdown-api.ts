@@ -1,26 +1,17 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { promises as fs } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { analyzeRequirement } from "@airgen/req-qa";
 import { getDocument } from "../services/graph.js";
-import {
-  createRequirement,
-  listDocumentRequirements,
-  listSectionRequirements,
-  softDeleteRequirement,
-  updateRequirement
-} from "../services/graph/requirements/index.js";
-import {
-  createDocumentSection,
-  deleteDocumentSection,
-  listDocumentSections,
-  updateDocumentSection
-} from "../services/graph/documents/index.js";
-import { listDocumentInfos, createInfo, updateInfo, deleteInfo } from "../services/graph/infos.js";
 import { config } from "../config.js";
+import { CacheInvalidation } from "../lib/cache.js";
 import { parseMarkdownDocument, validateMarkdownStructure } from "../services/markdown-parser.js";
-import type { RequirementPattern, VerificationMethod } from "../services/workspace.js";
+import { syncParsedDocument } from "../services/markdown-sync.js";
+import { getSession } from "../services/graph/driver.js";
+import { slugify } from "../services/workspace.js";
+import { listDocumentSections } from "../services/graph/documents/documents-sections.js";
+import { listSectionRequirements, listDocumentRequirements } from "../services/graph/requirements/requirements-search.js";
 
 const getContentParams = z.object({
   tenant: z.string().min(1),
@@ -39,6 +30,51 @@ const saveContentBody = z.object({
   validate: z.boolean().optional()
 });
 
+const DOCUMENTS_DIR = "documents";
+const DRAFTS_DIR = ".drafts";
+
+function getDraftPath(tenant: string, project: string, documentSlug: string): string {
+  return join(
+    config.workspaceRoot,
+    tenant,
+    project,
+    DOCUMENTS_DIR,
+    DRAFTS_DIR,
+    `${documentSlug}.md`
+  );
+}
+
+async function readDraftIfExists(tenant: string, project: string, documentSlug: string): Promise<string | null> {
+  const draftPath = getDraftPath(tenant, project, documentSlug);
+  try {
+    const draft = await fs.readFile(draftPath, "utf-8");
+    return draft.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function writeDraft(tenant: string, project: string, documentSlug: string, content: string): Promise<void> {
+  const draftPath = getDraftPath(tenant, project, documentSlug);
+  await fs.mkdir(dirname(draftPath), { recursive: true });
+  await fs.writeFile(draftPath, content, "utf-8");
+}
+
+async function deleteDraftIfExists(tenant: string, project: string, documentSlug: string): Promise<void> {
+  const draftPath = getDraftPath(tenant, project, documentSlug);
+  try {
+    await fs.rm(draftPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+}
+
 const validateContentBody = z.object({
   content: z.string()
 });
@@ -46,20 +82,52 @@ const validateContentBody = z.object({
 /**
  * Generate markdown content from Neo4j data
  */
-async function generateMarkdownFromNeo4j(
+export async function generateMarkdownFromNeo4j(
   tenant: string,
   project: string,
   documentSlug: string,
   documentName: string
 ): Promise<string> {
+  const session = getSession();
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(project);
+
   try {
-    // Get sections from Neo4j
+    const blocksResult = await session.run(
+      `
+        MATCH (doc:Document {slug: $documentSlug, tenant: $tenantSlug, projectKey: $projectSlug})
+        OPTIONAL MATCH (doc)-[:HAS_CONTENT_BLOCK]->(block:DocumentContentBlock)
+        RETURN block
+        ORDER BY block.order
+      `,
+      { documentSlug, tenantSlug, projectSlug }
+    );
+
+    const blocks = blocksResult.records
+      .map(record => record.get("block") as any)
+      .filter(Boolean);
+
+    if (blocks.length > 0) {
+      const markdownFromBlocks = blocks
+        .map(blockNode => {
+          const props = blockNode.properties as Record<string, unknown>;
+          const rawValue = props.raw;
+          return typeof rawValue === "string" ? rawValue : "";
+        })
+        .filter(raw => raw !== null && raw !== undefined)
+        .join("\n");
+
+      if (markdownFromBlocks.trim().length > 0) {
+        return markdownFromBlocks;
+      }
+    }
+
+    // Fallback to legacy generation for documents without content blocks recorded yet
     const sections = await listDocumentSections(tenant, project, documentSlug);
 
     let markdown = `# ${documentName}\n\n`;
 
     if (sections.length > 0) {
-      // For each section, get its requirements
       for (const section of sections) {
         const sectionReqs = await listSectionRequirements(section.id);
         const prefix = section.shortCode ? `[${section.shortCode}] ` : "";
@@ -80,7 +148,6 @@ async function generateMarkdownFromNeo4j(
         }
       }
 
-      // Get all document requirements to find unsectioned ones
       const allRequirements = await listDocumentRequirements(tenant, project, documentSlug);
       const sectionedReqIds = new Set<string>();
 
@@ -107,7 +174,6 @@ async function generateMarkdownFromNeo4j(
         }
       }
     } else {
-      // No sections, just list all requirements
       const requirements = await listDocumentRequirements(tenant, project, documentSlug);
 
       if (requirements.length > 0) {
@@ -132,6 +198,8 @@ async function generateMarkdownFromNeo4j(
   } catch (error) {
     console.error("Error generating markdown from Neo4j:", error);
     return `# ${documentName}\n\n*Error loading document content. Please try again.*\n`;
+  } finally {
+    await session.close();
   }
 }
 
@@ -160,32 +228,19 @@ export default async function markdownRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: "Only structured documents support markdown editing" });
       }
 
-      // Build path to markdown file
-      const workspacePath = join(
-        config.workspaceRoot,
+      // Prefer draft content if present
+      const draft = await readDraftIfExists(params.tenant, params.project, params.documentSlug);
+      if (draft !== null) {
+        return { content: draft, document, draft: true };
+      }
+
+      const generatedContent = await generateMarkdownFromNeo4j(
         params.tenant,
         params.project,
-        "documents",
-        `${params.documentSlug}.md`
+        params.documentSlug,
+        document.name
       );
-
-      try {
-        const content = await fs.readFile(workspacePath, "utf-8");
-        const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-        return { content: normalizedContent, document };
-      } catch (error) {
-        // If file doesn't exist, generate markdown from Neo4j data
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          const generatedContent = await generateMarkdownFromNeo4j(
-            params.tenant,
-            params.project,
-            params.documentSlug,
-            document.name
-          );
-          return { content: generatedContent, document };
-        }
-        throw error;
-      }
+      return { content: generatedContent, document, draft: false };
     }
   );
 
@@ -212,16 +267,30 @@ export default async function markdownRoutes(app: FastifyInstance) {
 
       const normalizedContent = body.content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-      // Validate if requested
-      let validationResult = null;
-      if (body.validate) {
-        validationResult = await validateMarkdownStructure(normalizedContent);
-        if (validationResult.errors.length > 0 && validationResult.errors.some(e => e.severity === "error")) {
-          return reply.status(400).send({
-            error: "Validation failed",
-            validation: validationResult
-          });
-        }
+      const isPublish = Boolean(body.validate);
+
+      if (!isPublish) {
+        await writeDraft(params.tenant, params.project, params.documentSlug, normalizedContent);
+        req.log.debug({
+          tenant: params.tenant,
+          project: params.project,
+          documentSlug: params.documentSlug
+        }, "markdown.draft.saved");
+
+        return {
+          success: true,
+          draft: {
+            updatedAt: new Date().toISOString()
+          }
+        };
+      }
+
+      const validationResult = await validateMarkdownStructure(normalizedContent);
+      if (validationResult.errors.length > 0 && validationResult.errors.some(e => e.severity === "error")) {
+        return reply.status(400).send({
+          error: "Validation failed",
+          validation: validationResult
+        });
       }
 
       // Parse markdown to extract requirements and sections
@@ -235,173 +304,43 @@ export default async function markdownRoutes(app: FastifyInstance) {
         tenant: params.tenant,
         project: params.project,
         documentSlug: params.documentSlug,
-        validate: Boolean(body.validate),
+        validate: true,
         parsedSections: parsed.sections.length,
         parsedRequirements: parsed.requirements.length,
         parsedInfos: parsed.infos.length
       }, "markdown.save.parseComplete");
 
-      if (body.validate) {
-        const existingSections = await listDocumentSections(params.tenant, params.project, params.documentSlug);
-        const existingRequirements = await listDocumentRequirements(params.tenant, params.project, params.documentSlug);
-        const existingInfos = await listDocumentInfos(params.tenant, params.project, params.documentSlug);
-
-        req.log.info({
-          tenant: params.tenant,
-          project: params.project,
-          documentSlug: params.documentSlug,
-          existingSections: existingSections.length,
-          existingRequirements: existingRequirements.length,
-          existingInfos: existingInfos.length
-        }, "markdown.save.currentGraphState");
-
-        const sectionMap = new Map<string, string>();
-
-        for (let idx = 0; idx < parsed.sections.length; idx++) {
-          const section = parsed.sections[idx];
-          const existing = existingSections.find(s => s.name === section.name || (section.shortCode && s.shortCode === section.shortCode));
-
-          if (existing) {
-            const updates: { name?: string; shortCode?: string; order?: number } = {};
-
-            if (section.name !== existing.name) {
-              updates.name = section.name;
-            }
-
-            const normalizedSectionShortCode = section.shortCode || null;
-            const normalizedExistingShortCode = existing.shortCode || null;
-            if (normalizedSectionShortCode !== normalizedExistingShortCode) {
-              updates.shortCode = section.shortCode || undefined;
-            }
-
-            if (idx !== existing.order) {
-              updates.order = idx;
-            }
-
-            if (Object.keys(updates).length > 0) {
-              await updateDocumentSection(existing.id, updates);
-            }
-            sectionMap.set(section.name, existing.id);
-          } else {
-            const created = await createDocumentSection({
-              tenant: params.tenant,
-              projectKey: params.project,
-              documentSlug: params.documentSlug,
-              name: section.name,
-              shortCode: section.shortCode || undefined,
-              order: idx
-            });
-            sectionMap.set(section.name, created.id);
-          }
-        }
-
-        for (const req of parsed.requirements) {
-          const existing = existingRequirements.find(r => r.ref === req.ref);
-          const sectionId = req.sectionName ? sectionMap.get(req.sectionName) : undefined;
-
-          if (existing) {
-            await updateRequirement(params.tenant, params.project, existing.id, {
-              text: req.text,
-              pattern: req.pattern as RequirementPattern | undefined,
-              verification: req.verification as VerificationMethod | undefined,
-              sectionId
-            });
-          } else {
-            await createRequirement({
-              tenant: params.tenant,
-              projectKey: params.project,
-              documentSlug: params.documentSlug,
-              ref: req.ref,
-              text: req.text,
-              pattern: req.pattern as RequirementPattern | undefined,
-              verification: req.verification as VerificationMethod | undefined,
-              sectionId
-            });
-          }
-        }
-
-        const documentRecord = document;
-        const docPrefix = documentRecord?.shortCode || params.documentSlug.toUpperCase().replace(/-/g, "");
-        const parsedInfoRefs = new Set<string>();
-
-        for (let infoIdx = 0; infoIdx < parsed.infos.length; infoIdx++) {
-          const info = parsed.infos[infoIdx];
-          const sectionId = info.sectionName ? sectionMap.get(info.sectionName) : undefined;
-
-          let ref = info.ref || info.id;
-          if (!ref) {
-            const infoNumber = String(infoIdx + 1).padStart(3, "0");
-            ref = `${docPrefix}-INFO-${infoNumber}`;
-          }
-
-          parsedInfoRefs.add(ref);
-          const existing = existingInfos.find(i => i.ref === ref);
-
-          if (existing) {
-            await updateInfo(params.tenant, params.project, existing.ref, {
-              text: info.text,
-              title: info.title,
-              sectionId,
-              order: info.line
-            });
-          } else {
-            await createInfo({
-              tenant: params.tenant,
-              projectKey: params.project,
-              documentSlug: params.documentSlug,
-              ref,
-              text: info.text,
-              title: info.title,
-              sectionId,
-              order: info.line
-            });
-          }
-        }
-
-        const parsedRequirementRefs = new Set(
-          parsed.requirements.map(r => r.ref || r.id).filter((ref): ref is string => Boolean(ref))
-        );
-
-        for (const existing of existingRequirements) {
-          if (!parsedRequirementRefs.has(existing.ref)) {
-            await softDeleteRequirement(params.tenant, params.project, existing.ref);
-          }
-        }
-
-        for (const existing of existingInfos) {
-          if (!parsedInfoRefs.has(existing.ref)) {
-            await deleteInfo(params.tenant, params.project, existing.ref);
-          }
-        }
-
-        const parsedSectionNames = new Set(parsed.sections.map(s => s.name));
-        for (const existing of existingSections) {
-          if (!parsedSectionNames.has(existing.name)) {
-            await deleteDocumentSection(existing.id);
-          }
-        }
-
-        req.log.info({
-          tenant: params.tenant,
-          project: params.project,
-          documentSlug: params.documentSlug,
-          syncedSections: parsed.sections.length,
-          syncedRequirements: parsed.requirements.length,
-          syncedInfos: parsed.infos.length
-        }, "markdown.save.syncComplete");
+      const session = getSession();
+      try {
+        await session.executeWrite(async (tx) => {
+          await syncParsedDocument(tx, {
+            tenant: params.tenant,
+            projectKey: params.project,
+            document,
+            documentSlug: params.documentSlug,
+            parsed
+          });
+        });
+      } finally {
+        await session.close();
       }
 
-      // Save markdown file
-      const workspacePath = join(
-        config.workspaceRoot,
-        params.tenant,
-        params.project,
-        "documents"
-      );
-      await fs.mkdir(workspacePath, { recursive: true });
+      req.log.info({
+        tenant: params.tenant,
+        project: params.project,
+        documentSlug: params.documentSlug,
+        syncedSections: parsed.sections.length,
+        syncedRequirements: parsed.requirements.length,
+        syncedInfos: parsed.infos.length
+      }, "markdown.save.syncComplete");
+      await deleteDraftIfExists(params.tenant, params.project, params.documentSlug);
 
-      const filePath = join(workspacePath, `${params.documentSlug}.md`);
-      await fs.writeFile(filePath, normalizedContent, "utf-8");
+      const tenantSlug = slugify(params.tenant);
+      const projectSlug = slugify(params.project);
+      await Promise.all([
+        CacheInvalidation.invalidateRequirements(tenantSlug, projectSlug),
+        CacheInvalidation.invalidateDocuments(tenantSlug, projectSlug)
+      ]);
 
       return {
         success: true,

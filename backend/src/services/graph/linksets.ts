@@ -204,10 +204,13 @@ export async function getLinkset(params: {
   const session = getSession();
   try {
     const result = await session.executeRead(async (tx: ManagedTransaction) => {
+      // Check bidirectionally - linkset can exist in either direction
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_LINKSET]->(linkset:DocumentLinkset)
-        MATCH (linkset)-[:FROM_DOCUMENT]->(sourceDoc:Document {slug: $sourceDocumentSlug})
-        MATCH (linkset)-[:TO_DOCUMENT]->(targetDoc:Document {slug: $targetDocumentSlug})
+        MATCH (linkset)-[:FROM_DOCUMENT]->(sourceDoc:Document)
+        MATCH (linkset)-[:TO_DOCUMENT]->(targetDoc:Document)
+        WHERE (sourceDoc.slug = $sourceDocumentSlug AND targetDoc.slug = $targetDocumentSlug) OR
+              (sourceDoc.slug = $targetDocumentSlug AND targetDoc.slug = $sourceDocumentSlug)
         OPTIONAL MATCH (linkset)-[:CONTAINS_LINK]->(link:TraceLink)
         WITH linkset, sourceDoc, targetDoc, collect(link) AS links
         RETURN linkset, sourceDoc, targetDoc, links

@@ -8,11 +8,13 @@ import { EditSectionModal } from "./EditSectionModal";
 import { RequirementsTable } from "./DocumentView/RequirementsTable";
 import { ExportModal } from "./DocumentView/ExportModal";
 import { ImportModal } from "./DocumentView/ImportModal";
+import { MarkdownEditorView } from "./MarkdownEditor/MarkdownEditorView";
 import { useFloatingDocuments } from "../contexts/FloatingDocumentsContext";
-import type { DocumentRecord, RequirementRecord, RequirementPattern, VerificationMethod, DocumentSectionRecord } from "../types";
+import type { DocumentRecord, RequirementRecord, RequirementPattern, VerificationMethod, DocumentSectionRecord, InfoRecord } from "../types";
 
 interface DocumentSectionWithRequirements extends DocumentSectionRecord {
   requirements: RequirementRecord[];
+  infos: InfoRecord[];
 }
 
 interface DocumentViewProps {
@@ -45,6 +47,7 @@ export function DocumentView({
   const [draggedSection, setDraggedSection] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showMarkdownEditor, setShowMarkdownEditor] = useState(false);
 
   // Fetch document details
   const documentQuery = useQuery({
@@ -161,23 +164,28 @@ export function DocumentView({
     }
   });
 
-  // Populate sections with their requirements when sections data is available
+  // Populate sections with their requirements and infos when sections data is available
   useEffect(() => {
     if (sectionsQuery.data?.sections) {
       const loadSectionsWithRequirements = async () => {
         const sectionsWithRequirements = await Promise.all(
           sectionsQuery.data.sections.map(async (section) => {
             try {
-              const requirementsResponse = await api.listSectionRequirements(section.id);
+              const [requirementsResponse, infosResponse] = await Promise.all([
+                api.listSectionRequirements(section.id),
+                api.listSectionInfos(section.id)
+              ]);
               return {
                 ...section,
-                requirements: requirementsResponse.requirements
+                requirements: requirementsResponse.requirements,
+                infos: infosResponse.infos
               };
             } catch (error) {
-              console.error(`Failed to load requirements for section ${section.id}:`, error);
+              console.error(`Failed to load requirements/infos for section ${section.id}:`, error);
               return {
                 ...section,
-                requirements: []
+                requirements: [],
+                infos: []
               };
             }
           })
@@ -515,7 +523,7 @@ export function DocumentView({
                 </button>
               </div>
               <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
-                {section.requirements.length} requirements
+                {section.requirements.length} requirements, {section.infos.length} infos
               </div>
               {section.description && (
                 <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
@@ -595,7 +603,7 @@ export function DocumentView({
         {/* Requirements Table */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           {selectedSection && sections.find(s => s.id === selectedSection) ? (
-            <RequirementsTable 
+            <RequirementsTable
               section={sections.find(s => s.id === selectedSection)!}
               tenant={tenant}
               project={project}
@@ -603,6 +611,7 @@ export function DocumentView({
               onAddRequirement={() => setShowAddRequirementModal(true)}
               onEditRequirement={handleEditRequirement}
               onOpenFloatingDocument={handleOpenFloatingDocument}
+              onEditMarkdown={() => setShowMarkdownEditor(true)}
             />
           ) : selectedSection ? (
             <div style={{
@@ -689,6 +698,22 @@ export function DocumentView({
           setShowImportModal(false);
         }}
       />
+
+      {/* Markdown Editor */}
+      {showMarkdownEditor && document && (
+        <MarkdownEditorView
+          tenant={tenant}
+          project={project}
+          documentSlug={documentSlug}
+          documentName={document.name}
+          onClose={() => {
+            setShowMarkdownEditor(false);
+            // Refresh data after markdown editing
+            queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+            queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
+          }}
+        />
+      )}
     </div>
   );
 }

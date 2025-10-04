@@ -14,6 +14,7 @@ export type DocumentRecord = {
   description?: string | null;
   tenant: string;
   projectKey: string;
+  shortCode?: string | null;
   parentFolder?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -51,6 +52,7 @@ export function mapDocument(node: Neo4jNode, requirementCount?: number): Documen
     description: props.description ? String(props.description) : null,
     tenant: String(props.tenant),
     projectKey: String(props.projectKey),
+    shortCode: props.shortCode ? String(props.shortCode) : null,
     parentFolder: props.parentFolder ? String(props.parentFolder) : null,
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt),
@@ -218,9 +220,9 @@ export async function listDocuments(
           `
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document)
             WHERE document.deletedAt IS NULL
-            OPTIONAL MATCH (document)-[:CONTAINS]->(requirement:Requirement)
-            WHERE requirement IS NULL OR (requirement.deleted IS NULL OR requirement.deleted = false)
-            RETURN document, count(requirement) AS requirementCount
+            OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:HAS_REQUIREMENT]->(requirement:Requirement)
+            WHERE (requirement.deleted IS NULL OR requirement.deleted = false) AND (requirement.archived IS NULL OR requirement.archived = false)
+            RETURN document, count(DISTINCT requirement) AS requirementCount
             ORDER BY document.name
             SKIP $offset
             LIMIT $limit
@@ -258,9 +260,9 @@ export async function getDocument(
     const result = await session.run(
       `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
-        OPTIONAL MATCH (document)-[:CONTAINS]->(requirement:Requirement)
-        WHERE requirement IS NULL OR (requirement.deleted IS NULL OR requirement.deleted = false)
-        RETURN document, count(requirement) AS requirementCount
+        OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:HAS_REQUIREMENT]->(requirement:Requirement)
+        WHERE (requirement.deleted IS NULL OR requirement.deleted = false) AND (requirement.archived IS NULL OR requirement.archived = false)
+        RETURN document, count(DISTINCT requirement) AS requirementCount
       `,
       { tenantSlug, projectSlug, documentSlug }
     );
@@ -363,8 +365,9 @@ export async function updateDocumentFolder(
             MERGE (document)-[:IN_FOLDER]->(folder)
             SET document.parentFolder = $parentFolder, document.updatedAt = $now
             WITH document
-            OPTIONAL MATCH (document)-[:CONTAINS]->(requirement:Requirement)
-            RETURN document, count(requirement) AS requirementCount
+            OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:HAS_REQUIREMENT]->(requirement:Requirement)
+            WHERE (requirement.deleted IS NULL OR requirement.deleted = false) AND (requirement.archived IS NULL OR requirement.archived = false)
+            RETURN document, count(DISTINCT requirement) AS requirementCount
           `,
           {
             tenantSlug,
@@ -382,8 +385,9 @@ export async function updateDocumentFolder(
           MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
           SET document.parentFolder = null, document.updatedAt = $now
           WITH document
-          OPTIONAL MATCH (document)-[:CONTAINS]->(requirement:Requirement)
-          RETURN document, count(requirement) AS requirementCount
+          OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:HAS_REQUIREMENT]->(requirement:Requirement)
+          WHERE (requirement.deleted IS NULL OR requirement.deleted = false) AND (requirement.archived IS NULL OR requirement.archived = false)
+          RETURN document, count(DISTINCT requirement) AS requirementCount
         `,
         { tenantSlug, projectSlug, documentSlug, now: new Date().toISOString() }
       );

@@ -78,8 +78,8 @@ export function convertNeo4jTypes(value: unknown): unknown {
     return value.map(item => convertNeo4jTypes(item));
   }
 
-  // Handle plain objects
-  if (typeof value === "object" && value.constructor === Object) {
+  // Handle objects (including plain objects and objects with custom constructors)
+  if (typeof value === "object") {
     const converted: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value)) {
       converted[key] = convertNeo4jTypes(val);

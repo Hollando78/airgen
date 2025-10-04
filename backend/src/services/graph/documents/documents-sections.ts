@@ -7,6 +7,7 @@ export type DocumentSectionRecord = {
   id: string;
   name: string;
   description?: string | null;
+  shortCode?: string | null;
   documentSlug: string;
   tenant: string;
   projectKey: string;
@@ -21,6 +22,7 @@ export function mapDocumentSection(node: Neo4jNode): DocumentSectionRecord {
     id: String(props.id),
     name: String(props.name),
     description: props.description ? String(props.description) : null,
+    shortCode: props.shortCode ? String(props.shortCode) : null,
     documentSlug: String(props.documentSlug),
     tenant: String(props.tenant),
     projectKey: String(props.projectKey),

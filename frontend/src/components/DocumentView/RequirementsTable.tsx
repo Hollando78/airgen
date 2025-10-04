@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from "react";
-import type { RequirementRecord, DocumentSectionRecord, TraceLink, TraceLinkType } from "../../types";
+import type { RequirementRecord, DocumentSectionRecord, InfoRecord, TraceLink, TraceLinkType } from "../../types";
 import { RequirementContextMenu } from "../RequirementContextMenu";
 import { LinkTypeSelectionModal } from "../LinkTypeSelectionModal";
 import { useRequirementLinking } from "../../contexts/RequirementLinkingContext";
@@ -9,13 +9,14 @@ import { TableFilterBar, type FilterState } from "./RequirementsTable/TableFilte
 import { RequirementRow } from "./RequirementsTable/RequirementRow";
 
 export interface RequirementsTableProps {
-  section: DocumentSectionRecord & { requirements: RequirementRecord[] };
+  section: DocumentSectionRecord & { requirements: RequirementRecord[]; infos: InfoRecord[] };
   tenant: string;
   project: string;
   traceLinks?: TraceLink[];
   onAddRequirement: () => void;
   onEditRequirement: (requirement: RequirementRecord) => void;
   onOpenFloatingDocument?: () => void;
+  onEditMarkdown?: () => void;
 }
 
 const DEFAULT_COLUMN_WIDTHS = {
@@ -34,7 +35,8 @@ export function RequirementsTable({
   traceLinks = [],
   onAddRequirement,
   onEditRequirement,
-  onOpenFloatingDocument
+  onOpenFloatingDocument,
+  onEditMarkdown
 }: RequirementsTableProps): JSX.Element {
   const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
   const [isResizing, setIsResizing] = useState<string | null>(null);
@@ -103,6 +105,19 @@ export function RequirementsTable({
     }));
   }, []);
 
+  // Merge requirements and infos into a single sorted list by line/order
+  type ItemType = { type: 'requirement'; data: RequirementRecord } | { type: 'info'; data: InfoRecord };
+
+  const sortedItems = useMemo(() => {
+    const items: ItemType[] = [
+      ...section.requirements.map(req => ({ type: 'requirement' as const, data: req, order: 0 })),
+      ...(section.infos || []).map(info => ({ type: 'info' as const, data: info, order: info.order || 0 }))
+    ];
+
+    // Sort by order (line number from markdown)
+    return items.sort((a, b) => a.order - b.order);
+  }, [section.requirements, section.infos]);
+
   const filteredRequirements = useMemo(() => {
     return section.requirements.filter(req => {
       // Text filter
@@ -132,6 +147,16 @@ export function RequirementsTable({
       return true;
     });
   }, [section.requirements, filters]);
+
+  const filteredItems = useMemo(() => {
+    return sortedItems.filter(item => {
+      if (item.type === 'requirement') {
+        return filteredRequirements.some(r => r.id === item.data.id);
+      }
+      // Always show infos (they don't have filters yet)
+      return true;
+    });
+  }, [sortedItems, filteredRequirements]);
 
   const clearFilters = () => {
     setFilters({
@@ -165,6 +190,30 @@ export function RequirementsTable({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
           <h2 style={{ margin: 0, fontSize: "18px" }}>{section.name}</h2>
           <div style={{ display: "flex", gap: "8px" }}>
+            {onEditMarkdown && (
+              <button
+                onClick={onEditMarkdown}
+                style={{
+                  backgroundColor: "transparent",
+                  color: "#64748b",
+                  border: "1px solid #d1d5db",
+                  padding: "6px 12px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px"
+                }}
+                title="Edit in Markdown"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Edit Markdown
+              </button>
+            )}
             {onOpenFloatingDocument && (
               <button
                 onClick={onOpenFloatingDocument}
@@ -247,6 +296,7 @@ export function RequirementsTable({
         />
       )}
 
+
       <div style={{ flex: 1, overflow: "auto" }}>
         <table ref={tableRef} style={{ borderCollapse: "collapse", fontSize: "14px", minWidth: "100%" }}>
           <thead style={{ position: "sticky", top: 0, backgroundColor: "#f1f5f9" }}>
@@ -319,7 +369,7 @@ export function RequirementsTable({
             </tr>
           </thead>
           <tbody>
-            {filteredRequirements.length === 0 ? (
+            {filteredItems.length === 0 ? (
               <tr>
                 <td colSpan={visibleColumnCount} style={{
                   border: "1px solid #e2e8f0",
@@ -334,20 +384,75 @@ export function RequirementsTable({
                 </td>
               </tr>
             ) : (
-              filteredRequirements.map((req: RequirementRecord, index: number) => (
-                <RequirementRow
-                  key={req.id}
-                  requirement={req}
-                  index={index}
-                  columnWidths={columnWidths}
-                  visibleColumns={visibleColumns}
-                  tenant={tenant}
-                  project={project}
-                  traceLinks={traceLinks}
-                  onContextMenu={handleContextMenu}
-                  onEdit={onEditRequirement}
-                />
-              ))
+              filteredItems.map((item, index: number) => {
+                if (item.type === 'info') {
+                  const info = item.data as InfoRecord;
+                  return (
+                    <tr key={`info-${info.id}`}>
+                      <td colSpan={visibleColumnCount} style={{
+                        border: "1px solid #bae6fd",
+                        padding: "12px 16px",
+                        backgroundColor: "#f0f9ff"
+                      }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                          <div style={{
+                            fontSize: "20px",
+                            lineHeight: "1",
+                            marginTop: "2px"
+                          }}>
+                            ℹ️
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            {info.title && (
+                              <div style={{
+                                fontWeight: "600",
+                                fontSize: "13px",
+                                color: "#0369a1",
+                                marginBottom: "6px"
+                              }}>
+                                {info.title}
+                              </div>
+                            )}
+                            <div style={{
+                              fontSize: "13px",
+                              color: "#334155",
+                              lineHeight: "1.5"
+                            }}>
+                              {info.text}
+                            </div>
+                            {info.ref && (
+                              <div style={{
+                                fontSize: "11px",
+                                color: "#64748b",
+                                marginTop: "6px",
+                                fontFamily: "monospace"
+                              }}>
+                                {info.ref}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                } else {
+                  const req = item.data as RequirementRecord;
+                  return (
+                    <RequirementRow
+                      key={req.id}
+                      requirement={req}
+                      index={index}
+                      columnWidths={columnWidths}
+                      visibleColumns={visibleColumns}
+                      tenant={tenant}
+                      project={project}
+                      traceLinks={traceLinks}
+                      onContextMenu={handleContextMenu}
+                      onEdit={onEditRequirement}
+                    />
+                  );
+                }
+              })
             )}
           </tbody>
         </table>

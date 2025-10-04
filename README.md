@@ -62,6 +62,14 @@ airgen/
 
 See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 
+## Documentation map
+- [Development guide](./DEVELOPMENT_GUIDE.md) – Local setup, contributor workflow, and day-to-day tasks.
+- [Architecture](./docs/ARCHITECTURE.md) – Core services, data flow, and deployment topology.
+- [Testing overview](./TEST_SUMMARY.md) – Current automated coverage and outstanding gaps.
+- [Test infrastructure](./TEST_INFRASTRUCTURE.md) – How integration and E2E test harnesses are wired.
+- [Observability](./OBSERVABILITY.md) – Metrics, health checks, and optional Sentry wiring.
+- [Troubleshooting](./TROUBLESHOOTING.md) – Quick fixes for the most common developer issues.
+
 ## Getting started (Docker)
 ```bash
 cp env/development.env.example env/development.env   # Configure local secrets and ports

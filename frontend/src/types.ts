@@ -318,6 +318,20 @@ export type DocumentSectionRecord = {
   updatedAt: string;
 };
 
+export type InfoRecord = {
+  id: string;
+  ref: string;
+  tenant: string;
+  projectKey: string;
+  documentSlug: string;
+  text: string;
+  title?: string;
+  sectionId?: string;
+  order?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DocumentsResponse = {
   documents: DocumentRecord[];
 };
