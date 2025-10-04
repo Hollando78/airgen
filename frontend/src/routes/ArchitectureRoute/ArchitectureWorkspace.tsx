@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { BlockDetailsPanel } from "../../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../../components/architecture/ConnectorDetailsPanel";
 import { PortDetailsPanel } from "../../components/architecture/PortDetailsPanel";
@@ -118,6 +118,7 @@ export function ArchitectureWorkspace({
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [selectedPortId, setSelectedPortId] = useState<string | null>(null);
   const [selectedPortBlockId, setSelectedPortBlockId] = useState<string | null>(null);
+  const [diagramViewports, setDiagramViewports] = useState<Record<string, { x: number; y: number; zoom: number }>>({});
   const canvasRef = useRef<DiagramCanvasHandle>(null);
 
   const handleSelectPort = useCallback((blockId: string, portId: string | null) => {
@@ -167,6 +168,35 @@ export function ArchitectureWorkspace({
       diagramViewport: params.viewport
     });
   }, [tenant, project, openFloatingDocument]);
+
+  const viewportTimeoutRef = useRef<NodeJS.Timeout>();
+
+  const handleViewportChange = useCallback((viewport: { x: number; y: number; zoom: number }) => {
+    if (!activeDiagramId) return;
+
+    // Debounce viewport updates to avoid excessive re-renders
+    if (viewportTimeoutRef.current) {
+      clearTimeout(viewportTimeoutRef.current);
+    }
+
+    viewportTimeoutRef.current = setTimeout(() => {
+      setDiagramViewports(prev => ({
+        ...prev,
+        [activeDiagramId]: viewport
+      }));
+    }, 100);
+  }, [activeDiagramId]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (viewportTimeoutRef.current) {
+        clearTimeout(viewportTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const currentViewport = activeDiagramId ? diagramViewports[activeDiagramId] : undefined;
 
   const documents = useMemo(() => documentList, [documentList]);
   const blocksInDiagram = useMemo(() => new Set(architecture.blocks.map(block => block.id)), [architecture.blocks]);
@@ -304,6 +334,8 @@ export function ArchitectureWorkspace({
           removeConnector={removeConnector}
           onOpenDocument={openDocument}
           onOpenFloatingDiagram={openFloatingDiagram}
+          viewport={currentViewport}
+          onViewportChange={handleViewportChange}
           isLoading={isLoading}
           blockPresets={BLOCK_PRESETS}
           computePlacement={computeBlockPlacement}

@@ -115,6 +115,8 @@ interface DiagramCanvasProps {
   mapConnectorToEdge: (connector: SysmlConnector, blocks?: SysmlBlock[]) => Edge;
   hideDefaultHandles?: boolean;
   onDropDocument?: (documentId: string, position: XYPosition) => void;
+  viewport?: { x: number; y: number; zoom: number };
+  onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;
 }
 
 const DiagramCanvasComponent: ForwardRefRenderFunction<
@@ -148,6 +150,8 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       removeConnector,
       onOpenDocument,
       onOpenFloatingDiagram,
+      viewport,
+      onViewportChange,
       isLoading,
       blockPresets,
       computePlacement,
@@ -274,6 +278,7 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
           {activeDiagramId ? (
             <>
               <ReactFlow
+                key={activeDiagramId}
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
@@ -313,7 +318,9 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 onInit={(instance: ReactFlowInstance) => {
                   reactFlowInstanceRef.current = instance;
                 }}
-                fitView
+                onMove={onViewportChange ? (_, newViewport) => onViewportChange(newViewport) : undefined}
+                defaultViewport={viewport}
+                fitView={!viewport}
                 proOptions={{ hideAttribution: true }}
               >
                 <Background color="#e2e8f0" gap={20} size={1} />
