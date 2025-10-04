@@ -2,11 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../../lib/client";
 import { useAutoSave } from "../../hooks/useAutoSave";
-import MDEditor from "@uiw/react-md-editor";
-import rehypeSanitize from "rehype-sanitize";
-import remarkDirective from "remark-directive";
+import Editor from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
+import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { visit } from "unist-util-visit";
+import rehypeRaw from "rehype-raw";
 import { Modal } from "../Modal/Modal";
 import "./markdownEditor.css";
 
@@ -18,172 +18,83 @@ interface MarkdownEditorViewProps {
   onClose: () => void;
 }
 
-// Remark plugin to convert directive syntax to HTML
-function remarkDirectiveToHtml() {
-  return (tree: any) => {
-    visit(tree, (node) => {
-      if (
-        node.type === "containerDirective" ||
-        node.type === "leafDirective" ||
-        node.type === "textDirective"
-      ) {
-        const data = node.data || (node.data = {});
-        const attributes = node.attributes || {};
-        const tagName = node.name;
+// Convert custom directives to HTML for preview
+function preprocessMarkdown(markdown: string, tenant: string, project: string): string {
+  let processed = markdown;
 
-        if (tagName === "requirement") {
-          // Extract ID and title from attributes
-          const id = Object.keys(attributes).find(key => key.startsWith("#"))?.slice(1) || "";
-          const title = attributes.title || id;
+  // Convert :::requirement blocks
+  processed = processed.replace(
+    /:::requirement\{#([^\s}]+)(?:\s+title="([^"]*)")?\}\s*\n([\s\S]*?):::/g,
+    (match, id, title, content) => {
+      const titleText = title || id;
+      return `<div class="requirement-block" data-id="${id}">
+  <div class="requirement-header"><strong>${id}</strong>${title && title !== id ? ` - ${title}` : ''}</div>
+  <div class="requirement-content">${content.trim()}</div>
+</div>`;
+    }
+  );
 
-          // Convert to HTML
-          data.hName = "div";
-          data.hProperties = {
-            className: ["requirement-block"],
-            "data-id": id,
-            "data-title": title
-          };
+  // Convert :::info blocks
+  processed = processed.replace(
+    /:::info(?:\s+([^\n]*))?\s*\n([\s\S]*?):::/g,
+    (match, titleLine, content) => {
+      return `<div class="info-block">ℹ️ ${content.trim()}</div>`;
+    }
+  );
 
-          // Add requirement header
-          node.children = [
-            {
-              type: "paragraph",
-              data: {
-                hName: "div",
-                hProperties: { className: ["requirement-header"] }
-              },
-              children: [
-                {
-                  type: "html",
-                  value: `<strong>${id}</strong>${title && title !== id ? ` - ${title}` : ""}`
-                }
-              ]
-            },
-            {
-              type: "paragraph",
-              data: {
-                hName: "div",
-                hProperties: { className: ["requirement-content"] }
-              },
-              children: node.children || []
-            }
-          ];
-        } else if (tagName === "info") {
-          data.hName = "div";
-          data.hProperties = { className: ["info-block"] };
-        } else if (tagName === "warning") {
-          data.hName = "div";
-          data.hProperties = { className: ["warning-block"] };
-        } else if (tagName === "diagram") {
-          // Diagram reference - render as clickable image with screenshot
-          const id = attributes.id || attributes.name || "";
-          const caption = attributes.caption || "";
+  // Convert :::warning blocks
+  processed = processed.replace(
+    /:::warning(?:\s+([^\n]*))?\s*\n([\s\S]*?):::/g,
+    (match, titleLine, content) => {
+      return `<div class="warning-block">⚠️ ${content.trim()}</div>`;
+    }
+  );
 
-          // Map diagram IDs to routes and thumbnail URLs
-          const diagramRoutes: Record<string, string> = {
-            "requirements-schema": "/requirements-schema",
-            "architecture": "/architecture",
-            "system-architecture": "/architecture"
-          };
+  // Convert :::diagram blocks
+  processed = processed.replace(
+    /:::diagram\{(?:id|name)="([^"]+)"(?:\s+caption="([^"]*)")?\}\s*:::/g,
+    (match, diagramId, caption) => {
+      const thumbnailUrl = `/api/thumbnails/diagrams/${diagramId}?tenant=${tenant}&project=${project}`;
+      const diagramRoutes: Record<string, string> = {
+        "requirements-schema": "/requirements-schema",
+        "architecture": "/architecture",
+        "system-architecture": "/architecture"
+      };
+      const route = diagramRoutes[diagramId] || "#";
 
-          const route = diagramRoutes[id] || "#";
+      return `<div class="diagram-block">
+  <a href="${route}" target="_blank" class="diagram-link">
+    <div class="diagram-preview">
+      <img src="${thumbnailUrl}" alt="${diagramId} diagram preview" style="width: 100%; height: auto; border-radius: 4px; background: white;" />
+    </div>
+    <div class="diagram-info">
+      <strong>📊 ${diagramId}</strong>${caption ? `<br/><em>${caption}</em>` : ''}
+      <br/><span style="color: #3b82f6; font-size: 0.875rem;">Click to open in new window →</span>
+    </div>
+  </a>
+</div>`;
+    }
+  );
 
-          // Thumbnail URL will be served from thumbnail API
-          const thumbnailUrl = `/api/thumbnails/diagrams/${id}?tenant=hollando&project=main-battle-tank`;
+  // Convert :::surrogate blocks
+  processed = processed.replace(
+    /:::surrogate\{slug="([^"]+)"(?:\s+(?:name|caption)="([^"]*)")?\}\s*:::/g,
+    (match, slug, caption) => {
+      const captionText = caption || slug;
+      const thumbnailUrl = `/api/thumbnails/surrogates/${tenant}/${project}/${slug}`;
 
-          data.hName = "div";
-          data.hProperties = {
-            className: ["diagram-block"],
-            "data-diagram-id": id
-          };
+      return `<div class="surrogate-block">
+  <div class="surrogate-preview">
+    <img src="${thumbnailUrl}" alt="${captionText} preview" style="width: 100%; max-width: 400px; height: auto; border-radius: 4px;" />
+  </div>
+  <div class="surrogate-info" style="margin-top: 0.5rem; text-align: center;">
+    <span style="color: #9333ea; font-size: 0.875rem;">${captionText}</span>
+  </div>
+</div>`;
+    }
+  );
 
-          node.children = [
-            {
-              type: "paragraph",
-              data: {
-                hName: "div",
-                hProperties: { className: ["diagram-content"] }
-              },
-              children: [
-                {
-                  type: "html",
-                  value: `
-                    <a href="${route}" target="_blank" class="diagram-link" onclick="event.preventDefault(); window.open('${route}', '_blank', 'width=1200,height=800');">
-                      <div class="diagram-preview">
-                        <img
-                          src="${thumbnailUrl}"
-                          alt="${id} diagram preview"
-                          style="width: 100%; height: auto; border-radius: 4px; background: white;"
-                          onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
-                        />
-                        <svg width="100%" height="200" viewBox="0 0 400 200" style="background: white; border-radius: 4px; display: none;">
-                          <rect x="50" y="40" width="100" height="60" fill="#e0f2fe" stroke="#3b82f6" stroke-width="2" rx="4"/>
-                          <text x="100" y="75" text-anchor="middle" fill="#1e40af" font-size="12" font-weight="bold">Diagram</text>
-                          <rect x="250" y="40" width="100" height="60" fill="#f0f9ff" stroke="#60a5fa" stroke-width="2" rx="4"/>
-                          <text x="300" y="75" text-anchor="middle" fill="#1e40af" font-size="12">Component</text>
-                          <line x1="150" y1="70" x2="250" y2="70" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrowblue)"/>
-                          <defs>
-                            <marker id="arrowblue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-                              <path d="M0,0 L0,6 L9,3 z" fill="#3b82f6" />
-                            </marker>
-                          </defs>
-                        </svg>
-                      </div>
-                      <div class="diagram-info">
-                        <strong>📊 ${id}</strong>
-                        ${caption ? `<br/><em>${caption}</em>` : ""}
-                        <br/><span style="color: #3b82f6; font-size: 0.875rem;">Click to open in new window →</span>
-                      </div>
-                    </a>
-                  `
-                }
-              ]
-            }
-          ];
-        } else if (tagName === "surrogate") {
-          // Surrogate document reference with thumbnail
-          const slug = attributes.slug || "";
-          const name = attributes.name || slug;
-          const caption = attributes.caption || "Surrogate Document";
-          const thumbnailUrl = `/api/thumbnails/surrogates/hollando/main-battle-tank/${slug}`;
-
-          data.hName = "div";
-          data.hProperties = { className: ["surrogate-block"], "data-slug": slug };
-
-          node.children = [
-            {
-              type: "paragraph",
-              data: {
-                hName: "div",
-                hProperties: { className: ["surrogate-content"] }
-              },
-              children: [
-                {
-                  type: "html",
-                  value: `
-                    <div class="surrogate-preview">
-                      <img
-                        src="${thumbnailUrl}"
-                        alt="${name} preview"
-                        style="width: 100%; max-width: 400px; height: auto; border-radius: 4px;"
-                      />
-                    </div>
-                    <div class="surrogate-info" style="margin-top: 0.5rem; text-align: center;">
-                      <span style="color: #9333ea; font-size: 0.875rem;">${caption}</span>
-                    </div>
-                  `
-                }
-              ]
-            }
-          ];
-        } else {
-          // Default: render as div with class
-          data.hName = "div";
-          data.hProperties = { className: [`directive-${tagName}`] };
-        }
-      }
-    });
-  };
+  return processed;
 }
 
 export function MarkdownEditorView({
@@ -208,6 +119,7 @@ export function MarkdownEditorView({
 
   const scrollPositionRef = useRef<number | null>(null);
   const cursorPositionRef = useRef<number | null>(null);
+  const lastValidatedContentRef = useRef<string>("");
 
   const autosaveKey = `airgen:draft:${tenant}:${project}:${documentSlug}`;
 
@@ -241,6 +153,13 @@ export function MarkdownEditorView({
   useEffect(() => {
     if (documentData?.content) {
       setContent(documentData.content);
+      setIsDirty(false);
+      lastValidatedContentRef.current = documentData.content;
+      setValidationErrors([]);
+
+      if (documentData.draft) {
+        setNotification({ type: "success", message: "Loaded latest saved draft." });
+      }
     }
   }, [documentData]);
 
@@ -250,6 +169,15 @@ export function MarkdownEditorView({
     content,
     debounceMs: 1000
   });
+
+  useEffect(() => {
+    if (!notification) {
+      return;
+    }
+
+    const timer = setTimeout(() => setNotification(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notification]);
 
   // Check for draft on mount
   useEffect(() => {
@@ -264,16 +192,26 @@ export function MarkdownEditorView({
   const saveMutation = useMutation({
     mutationFn: (validate: boolean) =>
       api.saveMarkdownContent(tenant, project, documentSlug, content, validate),
-    onSuccess: (data) => {
+    onSuccess: (data, wasPublish) => {
       setIsDirty(false);
       clearDraft();
+      lastValidatedContentRef.current = content;
       queryClient.invalidateQueries({ queryKey: ["markdown-content", tenant, project, documentSlug] });
       queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
       queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
 
       if (data.validation) {
-        setValidationErrors(data.validation.errors || []);
+        const errors = [
+          ...(data.validation.errors || []),
+          ...(data.validation.warnings || [])
+        ];
+        setValidationErrors(errors);
       }
+
+      setNotification({
+        type: "success",
+        message: wasPublish ? "Document published successfully." : "Draft saved to server."
+      });
     },
     onError: (error: any) => {
       setNotification({ type: "error", message: `Save failed: ${error.message}` });
@@ -284,24 +222,40 @@ export function MarkdownEditorView({
   const validateMutation = useMutation({
     mutationFn: (contentToValidate: string) =>
       api.validateMarkdown(tenant, project, documentSlug, contentToValidate),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       const errors = [
         ...(data.validation.errors || []),
         ...(data.validation.warnings || [])
       ];
       setValidationErrors(errors);
+      lastValidatedContentRef.current = variables;
     }
   });
 
-  // Debounced validation
+  const { mutate: triggerValidation, isPending: isValidationPending } = validateMutation;
+
+  // Debounced validation (lightweight cadence)
   useEffect(() => {
+    if (!content.trim()) {
+      setValidationErrors([]);
+      lastValidatedContentRef.current = "";
+      return;
+    }
+
+    if (isValidationPending) {
+      return;
+    }
+
+    if (content === lastValidatedContentRef.current) {
+      return;
+    }
+
     const timeout = setTimeout(() => {
-      if (content && content.trim()) {
-        validateMutation.mutate(content);
-      }
-    }, 500);
+      triggerValidation(content);
+    }, 2000);
+
     return () => clearTimeout(timeout);
-  }, [content]);
+  }, [content, triggerValidation, isValidationPending]);
 
   const handleSave = () => {
     saveMutation.mutate(false);
@@ -433,7 +387,7 @@ Warning message
   }
 
   return (
-    <div className="markdown-editor-view">
+    <div className="markdown-editor-view" data-color-mode="light">
       <div className="markdown-editor-header">
         <div className="markdown-editor-title">
           <h2>Edit: {documentName}</h2>
@@ -597,36 +551,58 @@ Warning message
           </div>
         )}
 
-        <div className={`markdown-editor-container ${showAssetBrowser ? 'with-sidebar' : ''}`} data-color-mode="light">
-          <MDEditor
-            value={content}
-            onChange={handleContentChange}
-            height="calc(100vh - 200px)"
-            preview={showPreview ? "live" : "edit"}
-          previewOptions={{
-            remarkPlugins: [remarkGfm, remarkDirective, remarkDirectiveToHtml],
-            rehypePlugins: [[rehypeSanitize]]
-          }}
-          textareaProps={{
-            placeholder: `# Document Title
-
-## Section 1
-
-:::requirement{#REQ-001 title="Requirement Title"}
-When [trigger], the system shall [response] within [constraint].
-
-**Pattern:** event
-**Verification:** Test
-:::
-
-## Section 2
-
-:::info
-Information block for notes and guidance.
-:::
-`
-          }}
-        />
+        <div className={`markdown-editor-split-view ${showAssetBrowser ? 'with-sidebar' : ''}`}>
+          <div className="markdown-editor-pane">
+            <Editor
+              height="calc(100vh - 200px)"
+              defaultLanguage="markdown"
+              language="markdown"
+              value={content}
+              onChange={(value) => handleContentChange(value || "")}
+              theme="vs"
+              options={{
+                minimap: { enabled: true },
+                fontSize: 14,
+                lineNumbers: "on",
+                rulers: [80, 120],
+                wordWrap: "on",
+                wrappingIndent: "same",
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                renderWhitespace: "selection",
+                bracketPairColorization: { enabled: true },
+                suggest: {
+                  showWords: true,
+                  showSnippets: true
+                },
+                quickSuggestions: {
+                  other: true,
+                  comments: true,
+                  strings: true
+                },
+                parameterHints: { enabled: true },
+                folding: true,
+                foldingStrategy: "indentation",
+                showFoldingControls: "always",
+                links: true,
+                colorDecorators: true,
+                mouseWheelZoom: true,
+                smoothScrolling: true,
+                cursorBlinking: "smooth",
+                cursorSmoothCaretAnimation: "on"
+              }}
+            />
+          </div>
+          {showPreview && (
+            <div className="markdown-preview-pane">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw]}
+              >
+                {preprocessMarkdown(content, tenant, project)}
+              </ReactMarkdown>
+            </div>
+          )}
         </div>
       </div>
 
@@ -685,12 +661,10 @@ Information block for notes and guidance.
         <p>Would you like to restore your draft?</p>
       </Modal>
 
-      {/* Publish Confirmation Modal */}
       <Modal
         isOpen={showPublishConfirm}
         onClose={() => setShowPublishConfirm(false)}
         title="Publish Document"
-        size="small"
         footer={
           <>
             <button
@@ -702,15 +676,40 @@ Information block for notes and guidance.
             <button
               className="button button--primary"
               onClick={confirmPublish}
-              disabled={saveMutation.isPending}
+              disabled={saveMutation.isPending || validationErrors.some(error => error.severity === 'error')}
             >
               {saveMutation.isPending ? "Publishing..." : "Publish"}
             </button>
           </>
         }
       >
-        <p>This will validate and save the document to the database.</p>
-        <p>Are you sure you want to publish?</p>
+        <p>
+          Publishing validates your markdown and synchronizes updates with Neo4j.
+        </p>
+        {validationErrors.length > 0 ? (
+          <div style={{ marginTop: '12px' }}>
+            <p style={{ marginBottom: '8px' }}>
+              Current validation results:
+            </p>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem' }}>
+              {validationErrors.slice(0, 5).map((error, idx) => (
+                <li key={idx} style={{ color: error.severity === 'error' ? '#dc3545' : '#856404' }}>
+                  <strong>Line {error.line}:</strong> {error.message}
+                </li>
+              ))}
+              {validationErrors.length > 5 && (
+                <li style={{ color: '#6c757d' }}>…and {validationErrors.length - 5} more issue(s)</li>
+              )}
+            </ul>
+            {validationErrors.some(error => error.severity === 'error') && (
+              <p style={{ color: '#dc3545', marginTop: '12px' }}>
+                Resolve blocking errors before publishing.
+              </p>
+            )}
+          </div>
+        ) : (
+          <p style={{ marginTop: '12px', color: '#198754' }}>No validation issues detected in the latest check.</p>
+        )}
       </Modal>
 
       {/* Notification Toast */}

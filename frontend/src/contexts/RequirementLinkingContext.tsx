@@ -28,6 +28,7 @@ export function RequirementLinkingProvider({ children }: { children: ReactNode }
   const queryClient = useQueryClient();
 
   const startLinking = (requirement: RequirementRecord) => {
+    console.log('[RequirementLinkingContext] Starting link from:', requirement.ref, requirement);
     setLinkingState({
       sourceRequirement: requirement,
       isLinking: true
@@ -42,11 +43,12 @@ export function RequirementLinkingProvider({ children }: { children: ReactNode }
   };
 
   const completeLinking = async (
-    targetRequirement: RequirementRecord, 
-    linkType: TraceLinkType, 
+    targetRequirement: RequirementRecord,
+    linkType: TraceLinkType,
     description?: string
   ) => {
     if (!linkingState.sourceRequirement) {
+      console.error('[RequirementLinkingContext] No source requirement selected');
       throw new Error("No source requirement selected for linking");
     }
 
@@ -55,8 +57,7 @@ export function RequirementLinkingProvider({ children }: { children: ReactNode }
       const tenant = linkingState.sourceRequirement.tenant;
       const projectKey = linkingState.sourceRequirement.projectKey;
 
-      // Create the trace link via API
-      await apiClient.createTraceLink({
+      console.log('[RequirementLinkingContext] Creating trace link:', {
         tenant,
         projectKey,
         sourceRequirementId: linkingState.sourceRequirement.id,
@@ -64,6 +65,18 @@ export function RequirementLinkingProvider({ children }: { children: ReactNode }
         linkType,
         description
       });
+
+      // Create the trace link via API
+      const result = await apiClient.createTraceLink({
+        tenant,
+        projectKey,
+        sourceRequirementId: linkingState.sourceRequirement.id,
+        targetRequirementId: targetRequirement.id,
+        linkType,
+        description
+      });
+
+      console.log('[RequirementLinkingContext] Trace link created successfully:', result);
 
       // Invalidate relevant queries to refresh the UI
       await queryClient.invalidateQueries({ queryKey: ['traceLinks'] });
@@ -76,7 +89,7 @@ export function RequirementLinkingProvider({ children }: { children: ReactNode }
         isLinking: false
       });
     } catch (error) {
-      console.error("Failed to create trace link:", error);
+      console.error("[RequirementLinkingContext] Failed to create trace link:", error);
       throw error;
     }
   };

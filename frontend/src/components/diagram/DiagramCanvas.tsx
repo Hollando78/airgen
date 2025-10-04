@@ -104,6 +104,13 @@ interface DiagramCanvasProps {
   updateConnector: (connectorId: string, updates: Partial<SysmlConnector>) => void;
   removeConnector: (connectorId: string) => void;
   onOpenDocument: (documentSlug: string) => void;
+  onOpenFloatingDiagram: (params: {
+    diagramName: string;
+    diagramId: string;
+    nodes: Node[];
+    edges: Edge[];
+    viewport: { x: number; y: number; zoom: number };
+  }) => void;
   isLoading: boolean;
   mapConnectorToEdge: (connector: SysmlConnector, blocks?: SysmlBlock[]) => Edge;
   hideDefaultHandles?: boolean;
@@ -140,6 +147,7 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       updateConnector,
       removeConnector,
       onOpenDocument,
+      onOpenFloatingDiagram,
       isLoading,
       blockPresets,
       computePlacement,
@@ -215,6 +223,24 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       addBlockAtPosition: (preset: DiagramBlockPreset, position: XYPosition) => addBlockFromPreset(preset, position),
       reuseExistingBlock: (blockId: string) => reuseExistingBlock(blockId)
     }), [addBlockFromPreset, reuseExistingBlock]);
+
+    const handlePopout = useCallback(() => {
+      if (!reactFlowInstanceRef.current) {
+        return;
+      }
+
+      const nodes = reactFlowInstanceRef.current.getNodes();
+      const edges = reactFlowInstanceRef.current.getEdges();
+      const viewport = reactFlowInstanceRef.current.getViewport();
+
+      onOpenFloatingDiagram({
+        diagramName: activeDiagram?.name || 'Diagram',
+        diagramId: activeDiagramId || 'unknown',
+        nodes,
+        edges,
+        viewport
+      });
+    }, [activeDiagram, activeDiagramId, reactFlowInstanceRef, onOpenFloatingDiagram]);
 
     const handleDrop = useCallback((event: React.DragEvent) => {
       event.preventDefault();
@@ -328,6 +354,8 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
               <DiagramToolbar
                 isConnectMode={isConnectMode}
                 onToggleConnectMode={() => setIsConnectMode(prev => !prev)}
+                diagramName={activeDiagram?.name}
+                onPopout={handlePopout}
               />
 
               <div className="architecture-canvas-toolbar">

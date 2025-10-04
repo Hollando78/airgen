@@ -57,6 +57,16 @@ export async function createDatabaseIndexes(): Promise<void> {
       FOR (d:Document) ON (d.tenant, d.projectKey)
     `);
 
+    await session.run(`
+      CREATE INDEX content_block_document IF NOT EXISTS
+      FOR (cb:DocumentContentBlock) ON (cb.documentSlug)
+    `);
+
+    await session.run(`
+      CREATE INDEX content_block_tenant_project IF NOT EXISTS
+      FOR (cb:DocumentContentBlock) ON (cb.tenant, cb.projectKey)
+    `);
+
     // RequirementCandidate indexes
     await session.run(`
       CREATE INDEX candidate_tenant_project IF NOT EXISTS
@@ -125,6 +135,11 @@ export async function createDatabaseIndexes(): Promise<void> {
     await session.run(`
       CREATE CONSTRAINT document_id_unique IF NOT EXISTS
       FOR (d:Document) REQUIRE d.id IS UNIQUE
+    `);
+
+    await session.run(`
+      CREATE CONSTRAINT content_block_id_unique IF NOT EXISTS
+      FOR (cb:DocumentContentBlock) REQUIRE cb.id IS UNIQUE
     `);
 
     await session.run(`

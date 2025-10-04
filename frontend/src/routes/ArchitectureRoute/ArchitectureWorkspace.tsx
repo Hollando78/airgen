@@ -149,6 +149,25 @@ export function ArchitectureWorkspace({
     });
   }, [documentList, tenant, project, openFloatingDocument]);
 
+  const openFloatingDiagram = useCallback((params: {
+    diagramName: string;
+    diagramId: string;
+    nodes: any[];
+    edges: any[];
+    viewport: { x: number; y: number; zoom: number };
+  }) => {
+    openFloatingDocument({
+      documentSlug: params.diagramId,
+      documentName: params.diagramName,
+      tenant,
+      project,
+      kind: "diagram",
+      diagramNodes: params.nodes,
+      diagramEdges: params.edges,
+      diagramViewport: params.viewport
+    });
+  }, [tenant, project, openFloatingDocument]);
+
   const documents = useMemo(() => documentList, [documentList]);
   const blocksInDiagram = useMemo(() => new Set(architecture.blocks.map(block => block.id)), [architecture.blocks]);
 
@@ -284,6 +303,7 @@ export function ArchitectureWorkspace({
           updateConnector={updateConnector}
           removeConnector={removeConnector}
           onOpenDocument={openDocument}
+          onOpenFloatingDiagram={openFloatingDiagram}
           isLoading={isLoading}
           blockPresets={BLOCK_PRESETS}
           computePlacement={computeBlockPlacement}

@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint:fix": "eslint src --ext .ts --fix",
+    "backfill:content": "tsx src/scripts/backfill-content-blocks.ts"
   },
   "dependencies": {
     "@airgen/req-qa": "file:../packages/req-qa",

@@ -33,6 +33,14 @@ ENV NODE_ENV=production
 
 # Install LibreOffice, PDF tools, and fonts for document preview generation
 RUN apk add --no-cache \
+    build-base \
+    python3 \
+    pkgconfig \
+    cairo-dev \
+    pango-dev \
+    libjpeg-turbo-dev \
+    giflib-dev \
+    pixman-dev \
     libreoffice \
     poppler-utils \
     ttf-liberation \
@@ -54,6 +62,10 @@ ENV HUSKY=0
 
 RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
 RUN pnpm install --filter @airgen/backend... --prod --frozen-lockfile --ignore-scripts
+
+# Rebuild canvas manually after ignoring scripts
+RUN cd /app/node_modules/.pnpm/canvas@3.2.0/node_modules/canvas && \
+    npx node-gyp rebuild
 
 WORKDIR /app/backend
 EXPOSE 8787

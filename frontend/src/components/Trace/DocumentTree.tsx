@@ -17,6 +17,7 @@ export interface DocumentTreeProps {
   onDrop: (event: React.DragEvent, requirement: RequirementRecord) => void;
   traceLinks?: TraceLink[];
   documentSide?: "left" | "right";
+  filter?: string;
 }
 
 export function DocumentTree({
@@ -29,7 +30,8 @@ export function DocumentTree({
   onDragLeave,
   onDrop,
   traceLinks = [],
-  documentSide
+  documentSide,
+  filter = ""
 }: DocumentTreeProps): JSX.Element {
   const api = useApiClient();
   const { state } = useTenantProject();
@@ -104,22 +106,29 @@ export function DocumentTree({
 
   return (
     <div className="document-tree">
-      <div className="document-header">
-        <h3>{document.name}</h3>
-        <span className="document-slug">{document.slug}</span>
-      </div>
-
       {sections.length === 0 ? (
         <div className="no-sections">No sections in this document</div>
       ) : (
         <div className="sections-list">
           {sections.map(section => {
-            const requirements = sectionRequirements[section.id] || [];
+            const allRequirements = sectionRequirements[section.id] || [];
+            // Filter requirements based on filter text
+            const requirements = filter.trim()
+              ? allRequirements.filter(req =>
+                  req.ref.toLowerCase().includes(filter.toLowerCase()) ||
+                  req.title?.toLowerCase().includes(filter.toLowerCase()) ||
+                  req.text?.toLowerCase().includes(filter.toLowerCase())
+                )
+              : allRequirements;
+
+            // Don't show section if no requirements match filter
+            if (filter.trim() && requirements.length === 0) return null;
+
             return (
               <div key={section.id} className="section-node">
                 <div className="section-header">
                   <span className="section-name">{section.name}</span>
-                  <span className="section-count">({requirements.length})</span>
+                  <span className="section-count">({requirements.length}{filter.trim() ? ` of ${allRequirements.length}` : ''})</span>
                 </div>
 
                 {requirements.length > 0 && (
@@ -144,7 +153,6 @@ export function DocumentTree({
                         >
                           <div className="requirement-content">
                             <span className="requirement-ref">{requirement.ref}</span>
-                            <span className="requirement-title">{requirement.title}</span>
                             <span className="requirement-text">{requirement.text}</span>
                           </div>
                           

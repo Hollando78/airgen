@@ -30,13 +30,17 @@ export function DocumentsRoute(): JSX.Element {
   const documentsQuery = useQuery({
     queryKey: ["documents", tenant, project],
     queryFn: () => api.listDocuments(tenant!, project!),
-    enabled: Boolean(tenant && project)
+    enabled: Boolean(tenant && project),
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchOnWindowFocus: true // Refresh when tab gains focus
   });
 
   const foldersQuery = useQuery({
     queryKey: ["folders", tenant, project],
     queryFn: () => api.listFolders(tenant!, project!),
-    enabled: Boolean(tenant && project)
+    enabled: Boolean(tenant && project),
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchOnWindowFocus: true // Refresh when tab gains focus
   });
 
   if (!tenant || !project) {

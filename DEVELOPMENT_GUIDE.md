@@ -10,11 +10,21 @@
 7. [Code Style](#code-style)
 8. [Contributing](#contributing)
 
+## Quick Start
+
+1. Install the prerequisites below, then enable pnpm via `corepack enable` (if not already available).
+2. Install workspace dependencies once with `pnpm install`.
+3. Approve esbuild binaries if prompted by running `pnpm approve-builds`.
+4. Copy the environment templates under `env/`, `backend/`, and `frontend/`, then fill in secrets.
+5. Start backing services with Docker Compose (`docker compose --env-file env/development.env -f docker-compose.dev.yml up neo4j redis -d`).
+6. Launch `pnpm -C backend dev` and `pnpm -C frontend dev` in separate terminals.
+7. Run the Neo4j index helper the first time you stand up the stack (Initial Setup — step 5).
+
 ## Getting Started
 
 ### Prerequisites
 - Node.js 20+ (check with `node --version`)
-- pnpm 9+ (install with `corepack enable`)
+- pnpm 9+ (enable with `corepack enable` or install globally)
 - Docker & Docker Compose (for Neo4j/Redis)
 - Git
 
@@ -26,13 +36,18 @@
    cd airgen
    ```
 
-2. **Install dependencies**
+2. **Install pnpm dependencies & approve native builds**
    ```bash
+   corepack enable pnpm            # Skip if pnpm already available
    pnpm install
+   pnpm approve-builds             # Required for packages that rely on esbuild
    ```
 
 3. **Set up environment files**
    ```bash
+   # Shared docker-compose stack
+   cp env/development.env.example env/development.env
+
    # Backend
    cp backend/.env.development.example backend/.env.development
 
@@ -40,21 +55,39 @@
    cp frontend/.env.development.example frontend/.env.development
    ```
 
-4. **Start Neo4j** (required for backend)
+4. **Start Neo4j & Redis** (required for backend flows)
+   Choose the option that best matches your workflow:
+
+   - **Docker Compose (recommended)** – uses the same Stack defined in `docker-compose.dev.yml`.
+     ```bash
+     docker compose --env-file env/development.env \
+       -f docker-compose.dev.yml up neo4j redis -d
+     ```
+
+   - **Standalone containers** – if you only need the services temporarily.
+     ```bash
+     docker run -d \
+       --name neo4j-dev \
+       -p 7474:7474 -p 7687:7687 \
+       -e NEO4J_AUTH=neo4j/password123 \
+       neo4j:latest
+
+     docker run -d \
+       --name redis-dev \
+       -p 6379:6379 \
+       redis:7-alpine
+     ```
+
+5. **Create database indexes** (first run only)
    ```bash
-   docker run -d \
-     --name neo4j-dev \
-     -p 7474:7474 -p 7687:7687 \
-     -e NEO4J_AUTH=neo4j/password123 \
-     neo4j:latest
+   pnpm -C backend tsx <<'TS'
+   import { createDatabaseIndexes } from "./src/services/graph/schema.ts";
+
+   await createDatabaseIndexes();
+   TS
    ```
 
-5. **Create database indexes** (first time only)
-   ```typescript
-   // In a temporary script or dev tool
-   import { createDatabaseIndexes } from "./backend/src/services/graph/schema.js";
-   await createDatabaseIndexes();
-   ```
+6. **Start development servers** once backing services are healthy (see commands below).
 
 ### Running Development Servers
 
@@ -86,7 +119,7 @@ pnpm -C frontend dev
 - **ESLint** - JavaScript/TypeScript linting
 - **Prettier** - Code formatting
 - **TypeScript** - Language support
-- **Prisma** - For Neo4j schema editing
+- **Neo4j** - Querying and visualising the graph schema
 - **REST Client** - Testing API endpoints
 - **GitLens** - Git integration
 
@@ -556,3 +589,4 @@ error TS2304: Cannot find name 'MyType'
 - Review API documentation at `/api/docs`
 - Check Neo4j schema docs in `backend/docs/NEO4J_SCHEMA.md`
 - Ask in team chat or create new issue
+- Consult the [documentation map](./README.md#documentation-map) for topic-specific guides

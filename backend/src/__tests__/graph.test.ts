@@ -146,16 +146,26 @@ describe("graph service integrations", () => {
     };
 
     const mockTx: MockTx = {
-      run: vi.fn(async () => ({
-        records: [
-          {
-            get: (key: string) => {
-              if (key === "requirement") {return requirementNode;}
-              throw new Error(`Unexpected key ${key}`);
-            }
-          }
-        ]
-      }))
+      run: vi.fn(async (query: string) => {
+        if (query.includes('SET requirement.text = $text')) {
+          return { records: [] };
+        }
+
+        if (query.includes('RETURN requirement')) {
+          return {
+            records: [
+              {
+                get: (key: string) => {
+                  if (key === "requirement") {return requirementNode;}
+                  throw new Error(`Unexpected key ${key}`);
+                }
+              }
+            ]
+          };
+        }
+
+        throw new Error(`Unexpected query: ${query}`);
+      })
     };
 
     mockSession.executeWrite.mockImplementation(async (fn) => fn(mockTx));
@@ -168,7 +178,7 @@ describe("graph service integrations", () => {
       text: "Updated text"
     });
 
-    expect(result.text).toBe("Updated text");
+    expect(result?.text).toBe("Updated text");
     expect(markdownSpy).toHaveBeenCalledTimes(1);
     expect(markdownSpy).toHaveBeenCalledWith({
       id: "tenant:project:REQ-001",
@@ -189,6 +199,86 @@ describe("graph service integrations", () => {
       updatedAt: "2024-01-02T00:00:00.000Z",
       deleted: undefined
     });
+  });
+
+  it("updateRequirement reassigns section membership when sectionId provided", async () => {
+    const requirementNode = {
+      properties: {
+        id: "tenant:project:REQ-001",
+        hashId: "hash-req-001",
+        ref: "REQ-001",
+        tenant: "tenant",
+        projectKey: "project",
+        title: "Updated title",
+        text: "Updated text",
+        pattern: null,
+        verification: null,
+        qaScore: null,
+        qaVerdict: null,
+        suggestions: [],
+        tags: [],
+        path: "tenant/project/requirements/REQ-001.md",
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-02T00:00:00.000Z"
+      }
+    };
+
+    const runMock = vi.fn(async (query: string) => {
+      if (query.includes('SET requirement.updatedAt = $now') && !query.includes('SECTION')) {
+        return { records: [] };
+      }
+
+      if (query.includes('RETURN document.slug')) {
+        return {
+          records: [
+            { get: () => 'doc-123' }
+          ]
+        };
+      }
+
+      if (query.includes('collect(existingRel) AS rels')) {
+        return { records: [] };
+      }
+
+      if (query.includes('MERGE (newSection)-[:HAS_REQUIREMENT]->(requirement)')) {
+        return { records: [] };
+      }
+
+      if (query.includes('HAS_SECTION')) {
+        return { records: [] };
+      }
+
+      if (query.includes('RETURN requirement')) {
+        return {
+          records: [
+            {
+              get: (key: string) => {
+                if (key === "requirement") { return requirementNode; }
+                throw new Error(`Unexpected key ${key}`);
+              }
+            }
+          ]
+        };
+      }
+
+      throw new Error(`Unexpected query: ${query}`);
+    });
+
+    const mockTx: MockTx = { run: runMock };
+
+    mockSession.executeWrite.mockImplementation(async (fn) => fn(mockTx));
+
+    const markdownSpy = vi
+      .spyOn(workspace, "writeRequirementMarkdown")
+      .mockResolvedValue();
+
+    const result = await updateRequirement("tenant", "project", "tenant:project:REQ-001", {
+      sectionId: "section-123"
+    });
+
+    expect(result?.id).toBe("tenant:project:REQ-001");
+    expect(markdownSpy).toHaveBeenCalledTimes(1);
+    expect(runMock).toHaveBeenCalled();
   });
 
   it("updateDocument recalculates requirement references when short code changes", async () => {

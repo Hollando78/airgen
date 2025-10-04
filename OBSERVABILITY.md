@@ -28,10 +28,7 @@ All observability dependencies are **optional**. The system works normally witho
 
 ### Installation
 
-```bash
-cd backend
-npm install prom-client
-```
+`prom-client` is already listed in `backend/package.json`. Running `pnpm install` in the repo root pulls it in automatically—no extra install step required.
 
 ### Available Metrics
 
@@ -144,12 +141,7 @@ scrape_configs:
 
 ### Installation
 
-```bash
-cd backend
-npm install @sentry/node @sentry/profiling-node
-```
-
-Note: `@sentry/profiling-node` is optional for performance profiling.
+The backend already depends on `@sentry/node` and `@sentry/profiling-node`; a regular `pnpm install` is sufficient. The profiling package is optional but included so you can enable it without extra setup.
 
 ### Configuration
 

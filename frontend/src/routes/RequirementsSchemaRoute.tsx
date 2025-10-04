@@ -3,9 +3,12 @@ import { MarkerType, type Edge } from "@xyflow/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTenantProject } from "../hooks/useTenantProject";
 import { useApiClient } from "../lib/client";
+import { useAuth } from "../contexts/AuthContext";
+import { useFloatingDocuments } from "../contexts/FloatingDocumentsContext";
 import { DiagramCanvas } from "../components/diagram/DiagramCanvas";
 import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
+import { LinksetManagementPanel } from "../components/architecture/LinksetManagementPanel";
 import { isRequirementsSchemaDiagram } from "../lib/architectureDiagrams";
 import type {
   ArchitectureBlockRecord,
@@ -73,7 +76,9 @@ export function RequirementsSchemaRoute(): JSX.Element {
   const { state } = useTenantProject();
   const api = useApiClient();
   const queryClient = useQueryClient();
-  
+  const { user } = useAuth();
+  const { openFloatingDocument } = useFloatingDocuments();
+
   const tenant = state.tenant ?? "";
   const project = state.project ?? "";
   
@@ -93,7 +98,21 @@ export function RequirementsSchemaRoute(): JSX.Element {
     queryFn: () => api.listDocuments(tenant, project),
     enabled: Boolean(tenant && project)
   });
-  
+
+  // Fetch linksets for the project
+  const linksetsQuery = useQuery({
+    queryKey: ["linksets", tenant, project],
+    queryFn: () => api.listLinksets(tenant, project),
+    enabled: Boolean(tenant && project)
+  });
+
+  // Check if user is admin
+  const isAdmin = user?.roles?.includes("admin") ?? false;
+
+  // Debug: log user data and isAdmin
+  console.log("[RequirementsSchemaRoute] user:", user);
+  console.log("[RequirementsSchemaRoute] isAdmin:", isAdmin);
+
   // Fetch requirements schema diagrams
   const diagramsQuery = useQuery({
     queryKey: ["requirements-schema-diagrams", tenant, project],
@@ -305,7 +324,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
       }
     };
 
-    const ensureLinksetExists = async () => {
+    const checkLinksetExists = async (): Promise<boolean> => {
       const sourceSlug = resolveDocumentSlug(input.source);
       const targetSlug = resolveDocumentSlug(input.target);
 
@@ -314,39 +333,29 @@ export function RequirementsSchemaRoute(): JSX.Element {
           sourceBlockId: input.source,
           targetBlockId: input.target
         });
-        return;
+        return false;
       }
-
-       if (linksetApiUnavailableRef.current) {
-         seedSyntheticLinkset(sourceSlug, targetSlug);
-         return;
-       }
 
       try {
         await api.getLinkset(tenant, project, sourceSlug, targetSlug);
-        return;
+        return true;
       } catch (error) {
         const message = error instanceof Error ? error.message.toLowerCase() : "";
-        if (!message.includes("not found")) {
-          console.error("Failed to retrieve linkset", { sourceSlug, targetSlug, error });
-          return;
+        if (message.includes("not found")) {
+          return false;
         }
-
-        try {
-          const linkset = await attemptCreateLinkset(sourceSlug, targetSlug);
-          if (!linkset) {return;}
-          return;
-        } catch (createError) {
-          const createMessage = createError instanceof Error ? createError.message.toLowerCase() : "";
-          if (!createMessage.includes("not found")) {
-            console.error("Failed to create linkset", { sourceSlug, targetSlug, error: createError });
-            return;
-          }
-          linksetApiUnavailableRef.current = true;
-          seedSyntheticLinkset(sourceSlug, targetSlug);
-        }
+        console.error("Failed to check linkset", { sourceSlug, targetSlug, error });
+        return false;
       }
     };
+
+    // Check if linkset exists before allowing connector creation
+    const linksetExists = await checkLinksetExists();
+    if (!linksetExists) {
+      const sourceSlug = resolveDocumentSlug(input.source);
+      const targetSlug = resolveDocumentSlug(input.target);
+      throw new Error(`Cannot create connector: No linkset exists between ${sourceSlug} and ${targetSlug}. Please create a linkset first in the Link Sets panel.`);
+    }
 
     const result = await api.createArchitectureConnector({
       tenant,
@@ -368,10 +377,49 @@ export function RequirementsSchemaRoute(): JSX.Element {
 
     queryClient.invalidateQueries({ queryKey: ["requirements-schema-content"] });
 
-    await ensureLinksetExists();
-
     return result.connector.id;
   }, [tenant, project, activeDiagramId, api, queryClient, resolveDocumentSlug, documentsIndex, blockIndex]);
+
+  // Linkset management handlers
+  const handleCreateLinkset = useCallback(async (sourceDocSlug: string, targetDocSlug: string) => {
+    try {
+      await api.createLinkset(tenant, project, {
+        sourceDocumentSlug: sourceDocSlug,
+        targetDocumentSlug: targetDocSlug
+      });
+      queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
+    } catch (error) {
+      throw error;
+    }
+  }, [tenant, project, api, queryClient]);
+
+  const handleDeleteLinkset = useCallback(async (linksetId: string) => {
+    try {
+      await api.deleteLinkset(tenant, project, linksetId);
+      queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
+    } catch (error) {
+      throw error;
+    }
+  }, [tenant, project, api, queryClient]);
+
+  const openFloatingDiagram = useCallback((params: {
+    diagramName: string;
+    diagramId: string;
+    nodes: any[];
+    edges: any[];
+    viewport: { x: number; y: number; zoom: number };
+  }) => {
+    openFloatingDocument({
+      documentSlug: params.diagramId,
+      documentName: params.diagramName,
+      tenant,
+      project,
+      kind: "diagram",
+      diagramNodes: params.nodes,
+      diagramEdges: params.edges,
+      diagramViewport: params.viewport
+    });
+  }, [tenant, project, openFloatingDocument]);
 
   // Create architecture state for DiagramCanvas
   const architecture = useMemo(() => ({ blocks, connectors }), [blocks, connectors]);
@@ -583,6 +631,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
             updateConnector={handleUpdateConnector}
             removeConnector={handleRemoveConnector}
             onOpenDocument={() => {}}
+            onOpenFloatingDiagram={openFloatingDiagram}
             isLoading={diagramContentQuery.isLoading}
             mapConnectorToEdge={mapConnectorToEdge}
             onDropDocument={addDocumentBlock}
@@ -625,14 +674,23 @@ export function RequirementsSchemaRoute(): JSX.Element {
           )}
 
           {!selectedBlockId && !selectedConnectorId && (
-            <div className="architecture-hint">
-              <h3>Requirements Schema</h3>
-              <ul>
-                <li>Drag documents from the left panel to create document blocks.</li>
-                <li>Connect documents to show trace relationships.</li>
-                <li>Create transverse diagrams for detailed traces.</li>
-              </ul>
-            </div>
+            <>
+              <div className="architecture-hint">
+                <h3>Requirements Schema</h3>
+                <ul>
+                  <li>Drag documents from the left panel to create document blocks.</li>
+                  <li>Create linksets below to enable connector creation.</li>
+                  <li>Connect documents to show trace relationships.</li>
+                </ul>
+              </div>
+              <LinksetManagementPanel
+                linksets={linksetsQuery.data?.linksets ?? []}
+                documents={documentsQuery.data?.documents ?? []}
+                onCreateLinkset={handleCreateLinkset}
+                onDeleteLinkset={handleDeleteLinkset}
+                isAdmin={isAdmin}
+              />
+            </>
           )}
         </aside>
       </div>

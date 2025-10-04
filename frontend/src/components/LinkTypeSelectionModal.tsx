@@ -96,10 +96,11 @@ export function LinkTypeSelectionModal({
       };
     }
 
-    // This is an inter-document link - check if linkset exists
+    // This is an inter-document link - check if linkset exists (bidirectional)
     const linksets = linksetsData?.linksets || [];
     const matchingLinkset = linksets.find(
-      ls => ls.sourceDocumentSlug === sourceDocSlug && ls.targetDocumentSlug === targetDocSlug
+      ls => (ls.sourceDocumentSlug === sourceDocSlug && ls.targetDocumentSlug === targetDocSlug) ||
+            (ls.sourceDocumentSlug === targetDocSlug && ls.targetDocumentSlug === sourceDocSlug)
     );
 
     if (matchingLinkset) {

@@ -2,6 +2,7 @@ import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
 import { mapRequirement } from "./requirements/index.js";
+import { getLinkset, addLinkToLinkset } from "./linksets.js";
 
 export type TraceLinkRecord = {
   id: string;
@@ -60,64 +61,141 @@ export async function createTraceLink(params: {
   linkType: TraceLinkRecord["linkType"];
   description?: string;
 }): Promise<TraceLinkRecord> {
+  // First, look up the requirements to find their document slugs
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
-  const now = new Date().toISOString();
+
   const session = getSession();
+
+  // Get document slugs from requirements
+  const docResult = await session.executeRead(async (tx: ManagedTransaction) => {
+    const query = `
+      MATCH (source:Requirement {id: $sourceRequirementId})
+      MATCH (target:Requirement {id: $targetRequirementId})
+      OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(source)
+      OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(target)
+      RETURN sourceDoc.slug AS sourceDocSlug, targetDoc.slug AS targetDocSlug
+    `;
+
+    return tx.run(query, {
+      sourceRequirementId: params.sourceRequirementId,
+      targetRequirementId: params.targetRequirementId
+    });
+  });
+
+  if (docResult.records.length === 0) {
+    await session.close();
+    throw new Error("Requirements not found");
+  }
+
+  const sourceDocSlug = docResult.records[0].get("sourceDocSlug");
+  const targetDocSlug = docResult.records[0].get("targetDocSlug");
+
+  if (!sourceDocSlug || !targetDocSlug) {
+    await session.close();
+    throw new Error("Requirements must be contained in documents");
+  }
+
+  // Only require a linkset for inter-document links
+  let linksetId: string | null = null;
+  if (sourceDocSlug !== targetDocSlug) {
+    const linkset = await getLinkset({
+      tenant: params.tenant,
+      projectKey: params.projectKey,
+      sourceDocumentSlug: sourceDocSlug,
+      targetDocumentSlug: targetDocSlug
+    });
+
+    if (!linkset) {
+      await session.close();
+      throw new Error(`No linkset exists between ${sourceDocSlug} and ${targetDocSlug}. Please create a linkset first.`);
+    }
+    linksetId = linkset.id;
+  }
+
+  const now = new Date().toISOString();
+  const linkId = `link-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
-      const query = `
-        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
-        MATCH (source:Requirement {id: $sourceRequirementId, tenant: $tenantSlug, projectKey: $projectSlug})
-        MATCH (target:Requirement {id: $targetRequirementId, tenant: $tenantSlug, projectKey: $projectSlug})
-        CREATE (link:TraceLink {
-          id: $id,
-          sourceRequirementId: source.id,
-          targetRequirementId: target.id,
-          linkType: $linkType,
-          description: $description,
-          tenant: $tenantSlug,
-          projectKey: $projectSlug,
-          createdAt: $now,
-          updatedAt: $now
-        })
-        MERGE (project)-[:HAS_TRACE_LINK]->(link)
-        MERGE (link)-[:FROM_REQUIREMENT]->(source)
-        MERGE (link)-[:TO_REQUIREMENT]->(target)
-        MERGE (source)-[:LINKS_TO {type: $linkType}]->(target)
-        WITH link, source, target
-        OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(source)
-        OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(target)
-        RETURN link, source, target, sourceDoc, targetDoc
-      `;
+      // For inter-document links, link to the linkset. For intra-document links, skip linkset.
+      const query = linksetId
+        ? `
+          MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+          MATCH (linkset:DocumentLinkset {id: $linksetId})
+          MATCH (source:Requirement {id: $sourceRequirementId})
+          MATCH (target:Requirement {id: $targetRequirementId})
+          OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(source)
+          OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(target)
+          CREATE (link:TraceLink {
+            id: $linkId,
+            sourceRequirementId: $sourceRequirementId,
+            targetRequirementId: $targetRequirementId,
+            linkType: $linkType,
+            description: $description,
+            tenant: $tenantSlug,
+            projectKey: $projectSlug,
+            createdAt: $now,
+            updatedAt: $now
+          })
+          MERGE (project)-[:HAS_TRACE_LINK]->(link)
+          MERGE (linkset)-[:CONTAINS_LINK]->(link)
+          MERGE (link)-[:FROM_REQUIREMENT]->(source)
+          MERGE (link)-[:TO_REQUIREMENT]->(target)
+          MERGE (source)-[:LINKS_TO {linkId: link.id, linkType: $linkType}]->(target)
+          RETURN link, source, target, sourceDoc, targetDoc
+        `
+        : `
+          MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+          MATCH (source:Requirement {id: $sourceRequirementId})
+          MATCH (target:Requirement {id: $targetRequirementId})
+          OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(source)
+          OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(target)
+          CREATE (link:TraceLink {
+            id: $linkId,
+            sourceRequirementId: $sourceRequirementId,
+            targetRequirementId: $targetRequirementId,
+            linkType: $linkType,
+            description: $description,
+            tenant: $tenantSlug,
+            projectKey: $projectSlug,
+            createdAt: $now,
+            updatedAt: $now
+          })
+          MERGE (project)-[:HAS_TRACE_LINK]->(link)
+          MERGE (link)-[:FROM_REQUIREMENT]->(source)
+          MERGE (link)-[:TO_REQUIREMENT]->(target)
+          MERGE (source)-[:LINKS_TO {linkId: link.id, linkType: $linkType}]->(target)
+          RETURN link, source, target, sourceDoc, targetDoc
+        `;
 
-      const res = await tx.run(query, {
+      return tx.run(query, {
         tenantSlug,
         projectSlug,
-        id: `trace-${Date.now()}`,
+        linksetId,
         sourceRequirementId: params.sourceRequirementId,
         targetRequirementId: params.targetRequirementId,
+        linkId,
         linkType: params.linkType,
-        description: params.description ?? null,
+        description: params.description || null,
         now
       });
-
-      if (res.records.length === 0) {
-        throw new Error(`Failed to create trace link. Check that tenant '${params.tenant}', project '${params.projectKey}', source requirement '${params.sourceRequirementId}', and target requirement '${params.targetRequirementId}' all exist.`);
-      }
-
-      const record = res.records[0];
-      return mapTraceLink(
-        record.get("link") as Neo4jNode,
-        mapRequirement(record.get("source")),
-        mapRequirement(record.get("target")),
-        record.get("sourceDoc"),
-        record.get("targetDoc")
-      );
     });
 
-    return result;
+    if (result.records.length === 0) {
+      throw new Error("Failed to create trace link");
+    }
+
+    const record = result.records[0];
+    const link = record.get("link");
+
+    return mapTraceLink(
+      link,
+      mapRequirement(record.get("source")),
+      mapRequirement(record.get("target")),
+      record.get("sourceDoc"),
+      record.get("targetDoc")
+    );
   } finally {
     await session.close();
   }

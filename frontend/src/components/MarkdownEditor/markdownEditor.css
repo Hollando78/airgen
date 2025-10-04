@@ -113,13 +113,240 @@
   color: #2563eb;
 }
 
+.markdown-editor-split-view {
+  display: flex;
+  flex: 1;
+  margin: 1rem 1.5rem;
+  gap: 0;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.markdown-editor-pane {
+  flex: 1;
+  min-width: 0;
+  border-right: 1px solid #e5e7eb;
+}
+
+.markdown-preview-pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 2rem;
+  background-color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  color: #1f2937;
+  line-height: 1.75;
+}
+
+/* Markdown preview styles */
+.markdown-preview-pane h1 {
+  font-size: 2em;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+  color: #111827;
+}
+
+.markdown-preview-pane h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: #374151;
+}
+
+.markdown-preview-pane h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #4b5563;
+}
+
+.markdown-preview-pane p {
+  margin-bottom: 1rem;
+}
+
+.markdown-preview-pane code {
+  background-color: #f3f4f6;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  color: #dc2626;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+}
+
+.markdown-preview-pane pre {
+  background-color: #1f2937;
+  color: #f3f4f6;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.markdown-preview-pane pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.markdown-preview-pane ul,
+.markdown-preview-pane ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-preview-pane li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-preview-pane blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 1rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.markdown-preview-pane a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.markdown-preview-pane a:hover {
+  color: #1d4ed8;
+}
+
+.markdown-preview-pane table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.markdown-preview-pane th,
+.markdown-preview-pane td {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.markdown-preview-pane th {
+  background-color: #f9fafb;
+  font-weight: 600;
+}
+
+.markdown-preview-pane hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 2rem 0;
+}
+
+/* Custom directive blocks in preview */
+.markdown-preview-pane .requirement-block {
+  background-color: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+}
+
+.markdown-preview-pane .requirement-header {
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-preview-pane .requirement-content {
+  line-height: 1.6;
+}
+
+.markdown-preview-pane .info-block {
+  background-color: #f0f9ff;
+  border-left: 4px solid #0ea5e9;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+  color: #0c4a6e;
+}
+
+.markdown-preview-pane .warning-block {
+  background-color: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+  color: #92400e;
+}
+
+.markdown-preview-pane .diagram-block {
+  margin: 1.5rem 0;
+}
+
+.markdown-preview-pane .diagram-link {
+  display: block;
+  background-color: #f0f9ff;
+  border: 2px solid #3b82f6;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.markdown-preview-pane .diagram-link:hover {
+  background-color: #dbeafe;
+  border-color: #2563eb;
+  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
+  transform: translateY(-2px);
+}
+
+.markdown-preview-pane .diagram-preview {
+  margin-bottom: 0.75rem;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.markdown-preview-pane .diagram-info {
+  text-align: center;
+  color: #1e40af;
+}
+
+.markdown-preview-pane .surrogate-block {
+  background-color: #faf5ff;
+  border: 2px solid #a855f7;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.markdown-preview-pane .surrogate-block:hover {
+  background-color: #f3e8ff;
+  border-color: #9333ea;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.markdown-preview-pane .surrogate-preview {
+  display: flex;
+  justify-content: center;
+}
+
 .markdown-editor-container {
   flex: 1;
   margin: 1rem 1.5rem;
   background-color: white;
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  overflow: auto;
 }
 
 .markdown-editor-container .w-md-editor {
@@ -142,6 +369,92 @@
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
   font-size: 14px;
   line-height: 1.6;
+}
+
+/* Enhanced Syntax highlighting */
+.markdown-editor-container .w-md-editor-text-pre {
+  /* Headings */
+  & .token.title,
+  & .token.title .token.punctuation {
+    color: #1e40af;
+    font-weight: 700;
+  }
+
+  /* Bold and Italic */
+  & .token.bold {
+    color: #374151;
+    font-weight: 700;
+  }
+
+  & .token.italic {
+    color: #6b7280;
+    font-style: italic;
+  }
+
+  /* Links */
+  & .token.url {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
+  /* Code */
+  & .token.code {
+    color: #dc2626;
+    background-color: #fef2f2;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  }
+
+  /* Code blocks */
+  & .token.code-block {
+    color: #f3f4f6;
+    background-color: #1f2937;
+  }
+
+  /* Lists */
+  & .token.list.punctuation {
+    color: #7c3aed;
+    font-weight: 600;
+  }
+
+  /* Blockquotes */
+  & .token.blockquote.punctuation {
+    color: #9ca3af;
+  }
+
+  /* HR */
+  & .token.hr.punctuation {
+    color: #d1d5db;
+  }
+
+  /* Custom directives */
+  & .token.punctuation {
+    color: #6b7280;
+  }
+
+  & .token.keyword {
+    color: #7c3aed;
+    font-weight: 600;
+  }
+
+  & .token.attr-name {
+    color: #0ea5e9;
+  }
+
+  & .token.attr-value,
+  & .token.string {
+    color: #059669;
+  }
+
+  & .token.comment {
+    color: #9ca3af;
+    font-style: italic;
+  }
+
+  & .token.operator {
+    color: #dc2626;
+  }
 }
 
 .markdown-editor-container .w-md-editor-preview {
@@ -424,7 +737,7 @@
 .markdown-editor-main-content {
   display: flex;
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .markdown-asset-browser {

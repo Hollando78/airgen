@@ -18,6 +18,7 @@ export type RequirementInput = {
   projectKey: string;
   documentSlug?: string;
   sectionId?: string;
+  ref?: string;
   text: string;
   pattern?: RequirementPattern;
   verification?: VerificationMethod;
@@ -72,59 +73,81 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
   const session = getSession();
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // If ref is provided, check if it already exists
+      if (input.ref) {
+        const existingCheck = await tx.run(
+          `
+          MATCH (existing:Requirement {tenant: $tenantSlug, projectKey: $projectSlug, ref: $ref})
+          RETURN existing.id AS id
+          `,
+          { tenantSlug, projectSlug, ref: input.ref }
+        );
+
+        if (existingCheck.records.length > 0) {
+          throw new Error(`Requirement with ref '${input.ref}' already exists`);
+        }
+      }
+
       const query = `
         MERGE (tenant:Tenant {slug: $tenantSlug})
           ON CREATE SET tenant.name = $tenantName, tenant.createdAt = $now
         MERGE (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})
           ON CREATE SET project.key = $projectKey, project.createdAt = $now
 
-        WITH tenant, project, $documentSlug AS documentSlugParam, $sectionId AS sectionIdParam
+        WITH tenant, project, $documentSlug AS documentSlugParam, $sectionId AS sectionIdParam, $providedRef AS providedRef
+
+        // Determine finalRef based on whether one is provided
+        CALL {
+          WITH tenant, project, documentSlugParam, sectionIdParam, providedRef
+
+          OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(document:Document {slug: documentSlugParam})
+          OPTIONAL MATCH (section:DocumentSection {id: sectionIdParam})
+
+          // Only generate ref if not provided
+          FOREACH (ignoreMe IN CASE WHEN providedRef IS NULL AND document IS NOT NULL THEN [1] ELSE [] END |
+            SET document.requirementCounter = coalesce(document.requirementCounter, 0) + 1
+          )
+          FOREACH (ignoreMe IN CASE WHEN providedRef IS NULL AND document IS NULL THEN [1] ELSE [] END |
+            SET project.requirementCounter = coalesce(project.requirementCounter, 0) + 1
+          )
+
+          WITH tenant, project, document, section, documentSlugParam, sectionIdParam, providedRef,
+               CASE
+                 WHEN document IS NOT NULL THEN
+                   CASE WHEN section IS NOT NULL THEN
+                     coalesce(document.shortCode, toUpper(document.slug)) + '-' + coalesce(section.shortCode, toUpper(replace(section.name, ' ', '')))
+                   ELSE
+                     coalesce(document.shortCode, toUpper(document.slug))
+                   END
+                 ELSE
+                   'REQ-' + toUpper(replace($projectSlug, '-', ''))
+               END AS prefix,
+               CASE
+                 WHEN document IS NOT NULL THEN document.requirementCounter
+                 ELSE project.requirementCounter
+               END AS counter
+
+          OPTIONAL MATCH (existingReq:Requirement {tenant: $tenantSlug, projectKey: $projectSlug})
+          WHERE providedRef IS NULL AND existingReq.ref STARTS WITH prefix + '-' AND existingReq.ref =~ (prefix + '-[0-9]{3}')
+          WITH tenant, project, documentSlugParam, sectionIdParam, providedRef, prefix, counter,
+               max(toInteger(split(existingReq.ref, '-')[size(split(existingReq.ref, '-'))-1])) AS maxExisting
+
+          WITH tenant, project, documentSlugParam, sectionIdParam, providedRef, prefix,
+               CASE WHEN maxExisting IS NOT NULL AND maxExisting >= counter
+                 THEN maxExisting + 1
+                 ELSE counter
+               END AS safeCounter
+
+          WITH CASE
+                 WHEN providedRef IS NOT NULL THEN providedRef
+                 ELSE prefix + '-' + right('000' + toString(safeCounter), 3)
+               END AS finalRef
+
+          RETURN finalRef
+        }
+
         OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(document:Document {slug: documentSlugParam})
         OPTIONAL MATCH (section:DocumentSection {id: sectionIdParam})
-
-        WITH tenant, project, document, section,
-             CASE
-               WHEN document IS NOT NULL THEN
-                 CASE WHEN section IS NOT NULL THEN
-                   coalesce(document.shortCode, toUpper(document.slug)) + '-' + coalesce(section.shortCode, toUpper(replace(section.name, ' ', '')))
-                 ELSE
-                   coalesce(document.shortCode, toUpper(document.slug))
-                 END
-               ELSE
-                 'REQ-' + toUpper(replace($projectSlug, '-', ''))
-             END AS prefix
-
-        FOREACH (doc IN CASE WHEN document IS NOT NULL THEN [document] ELSE [] END |
-          SET doc.requirementCounter = coalesce(doc.requirementCounter, 0) + 1
-        )
-        FOREACH (proj IN CASE WHEN document IS NULL THEN [project] ELSE [] END |
-          SET proj.requirementCounter = coalesce(proj.requirementCounter, 0) + 1
-        )
-
-        WITH tenant, project, document, section, prefix,
-             CASE WHEN document IS NOT NULL
-               THEN document.requirementCounter
-               ELSE project.requirementCounter
-             END AS counter
-
-        WITH tenant, project, document, section, prefix, counter,
-             right('000' + toString(counter), 3) AS padded
-        WITH tenant, project, document, section, prefix, counter, padded,
-             prefix + '-' + padded AS ref
-
-        OPTIONAL MATCH (existingReq:Requirement {tenant: $tenantSlug, projectKey: $projectSlug})
-        WHERE existingReq.ref STARTS WITH prefix + '-' AND existingReq.ref =~ (prefix + '-[0-9]{3}')
-        WITH tenant, project, document, section, prefix, counter, padded, ref,
-             max(toInteger(split(existingReq.ref, '-')[size(split(existingReq.ref, '-'))-1])) AS maxExisting
-
-        WITH tenant, project, document, section, prefix, counter, padded, ref,
-             CASE WHEN maxExisting IS NOT NULL AND maxExisting >= counter
-               THEN maxExisting + 1
-               ELSE counter
-             END AS safeCounter
-
-        WITH tenant, project, document, section, prefix, safeCounter,
-             prefix + '-' + right('000' + toString(safeCounter), 3) AS finalRef
 
         CREATE (requirement:Requirement {
           id: $tenantSlug + ':' + $projectSlug + ':' + finalRef,
@@ -172,6 +195,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
         tags: input.tags ?? [],
         documentSlug: input.documentSlug ?? null,
         sectionId: input.sectionId ?? null,
+        providedRef: input.ref ?? null,
         now
       });
 
@@ -261,6 +285,7 @@ export async function updateRequirement(
     text?: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
+    sectionId?: string | null;
   }
 ): Promise<RequirementRecord | null> {
   const tenantSlug = slugify(tenant);
@@ -268,39 +293,121 @@ export async function updateRequirement(
   const session = getSession();
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
-      const setClause = Object.entries(updates)
+      const { sectionId, ...propertyUpdates } = updates;
+      const hasSectionUpdate = Object.prototype.hasOwnProperty.call(updates, "sectionId");
+
+      const setClause = Object.entries(propertyUpdates)
         .filter(([_, value]) => value !== undefined)
         .map(([key]) => `requirement.${key} = $${key}`)
         .join(', ');
 
-      if (!setClause) {
+      if (!setClause && !hasSectionUpdate) {
         throw new Error("No valid updates provided");
       }
 
-      const query = `
-        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
-        MATCH (requirement:Requirement {id: $requirementId})
-        WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
-        SET ${setClause}, requirement.updatedAt = $now
-        RETURN requirement
-      `;
-
-      return await tx.run(query, {
+      const now = new Date().toISOString();
+      const baseParams: Record<string, unknown> = {
         tenantSlug,
         projectSlug,
-        requirementId,
-        now: new Date().toISOString(),
-        ...updates
-      });
+        requirementId
+      };
+      const writeParams: Record<string, unknown> = {
+        ...baseParams,
+        now,
+        ...propertyUpdates
+      };
+
+      if (setClause) {
+        await tx.run(
+          `
+            MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+            MATCH (requirement:Requirement {id: $requirementId})
+            WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
+            SET ${setClause}, requirement.updatedAt = $now
+          `,
+          writeParams
+        );
+      } else {
+        await tx.run(
+          `
+            MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+            MATCH (requirement:Requirement {id: $requirementId})
+            WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
+            SET requirement.updatedAt = $now
+          `,
+          writeParams
+        );
+      }
+
+      let documentSlug: string | null = null;
+
+      if (hasSectionUpdate) {
+        const sectionParams: Record<string, unknown> = {
+          ...baseParams,
+          sectionId: sectionId ?? null
+        };
+
+        const docResult = await tx.run(
+          `
+            MATCH (requirement:Requirement {id: $requirementId})
+            WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
+            OPTIONAL MATCH (document:Document)-[:CONTAINS]->(requirement)
+            RETURN document.slug AS documentSlug
+          `,
+          baseParams
+        );
+
+        const docRecord = docResult.records[0];
+        if (docRecord) {
+          const slug = docRecord.get("documentSlug");
+          documentSlug = slug ? String(slug) : null;
+        }
+
+        await tx.run(
+          `
+            MATCH (requirement:Requirement {id: $requirementId})
+            WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
+            OPTIONAL MATCH (requirement)<-[existingRel:HAS_REQUIREMENT]-(:DocumentSection)
+            WITH requirement, collect(existingRel) AS rels
+            FOREACH (rel IN rels | DELETE rel)
+          `,
+          baseParams
+        );
+
+        if (sectionId) {
+          await tx.run(
+            `
+              MATCH (requirement:Requirement {id: $requirementId})
+              WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
+              MATCH (newSection:DocumentSection {id: $sectionId})
+              MERGE (newSection)-[:HAS_REQUIREMENT]->(requirement)
+            `,
+            sectionParams
+          );
+
+          await updateRequirementRefsForSection(tx, sectionId);
+        } else if (documentSlug) {
+          await updateRequirementRefsForDocument(tx, tenantSlug, projectSlug, documentSlug);
+        }
+      }
+
+      const finalResult = await tx.run(
+        `
+          MATCH (requirement:Requirement {id: $requirementId})
+          WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
+          RETURN requirement
+        `,
+        baseParams
+      );
+
+      return finalResult.records[0]?.get("requirement") as Neo4jNode | undefined;
     });
 
-    if (result.records.length === 0) {
+    if (!result) {
       return null;
     }
 
-    const record = result.records[0];
-    const node = record.get("requirement") as Neo4jNode;
-    const requirement = mapRequirement(node);
+    const requirement = mapRequirement(result);
 
     const { hashId, ...rest } = requirement;
     const normalizedRequirement = {

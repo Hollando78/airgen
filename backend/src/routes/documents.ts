@@ -22,6 +22,7 @@ import {
   deleteDocumentSection,
   listSectionRequirements
 } from "../services/graph.js";
+import { listSectionInfos } from "../services/graph/infos.js";
 import { config } from "../config.js";
 import { slugify } from "../services/workspace.js";
 
@@ -752,5 +753,14 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     const params = paramsSchema.parse(req.params);
     const requirements = await listSectionRequirements(params.sectionId);
     return { requirements };
+  });
+
+  app.get("/sections/:sectionId/infos", async (req) => {
+    const paramsSchema = z.object({
+      sectionId: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+    const infos = await listSectionInfos(params.sectionId);
+    return { infos };
   });
 }

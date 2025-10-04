@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useState } from "react";
+import type { Node, Edge, Viewport } from "@xyflow/react";
 
-export type FloatingDocumentKind = "structured" | "surrogate";
+export type FloatingDocumentKind = "structured" | "surrogate" | "diagram";
 
 export interface FloatingDocument {
   id: string;
@@ -17,6 +18,10 @@ export interface FloatingDocument {
   previewDownloadUrl?: string | null;
   previewMimeType?: string | null;
   focusRequirementId?: string;
+  // For diagram kind
+  diagramNodes?: Node[];
+  diagramEdges?: Edge[];
+  diagramViewport?: Viewport;
 }
 
 interface FloatingDocumentsContextType {
