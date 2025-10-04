@@ -27,6 +27,9 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Block library** – Reusable architecture blocks and components.
 - **Connectors** – Define relationships and data flows between blocks.
 - **Visual workspace** – Interactive diagram canvas with ReactFlow.
+- **Floating diagram windows** – Pop out diagrams into resizable, draggable floating windows for multi-diagram workflows.
+- **Independent viewports** – Each diagram tab maintains its own zoom and pan state for efficient navigation.
+- **Diagram snapshots** – Capture and upload diagram screenshots directly to the document manager from floating windows.
 
 ### AI-Assisted Generation (AIRGen)
 - **Conversational AI** – Chat-based interface for requirement generation.
@@ -113,6 +116,9 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 ## Frontend architecture
 - **Shared diagram canvas** – Both Architecture and Interface workspaces now reuse a common `DiagramCanvas` and `useDiagramCanvasInteractions`. Each workspace supplies its own block presets, connector mapping, and palette metadata, while the shared canvas drives ReactFlow rendering, selection state, context menus, debounced persistence, and mini-map/query overlays.
 - **Composable workspaces** – Route-level workspace components now just coordinate tenant/project context, floating document windows, palettes, and inspectors around the shared canvas, keeping each route lightweight.
+- **Floating windows system** – Documents and diagrams can be opened in floating windows via `FloatingDocumentsContext`. Windows are draggable, resizable, and support multiple simultaneous views for enhanced productivity.
+- **Toast notifications** – Non-blocking notifications using Sonner library for success, error, and loading states, replacing browser dialogs.
+- **Modal dialogs** – Radix UI Dialog components provide accessible, keyboard-friendly input dialogs for creating and renaming resources.
 
 ## Key API endpoints
 
@@ -187,6 +193,13 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 - The UI covers tenant/project selection, draft generation (heuristics + optional LLM), QA, requirement persistence, baseline management, link suggestions, and token management for upcoming authentication flows.
 - Development builds expose an admin workspace at `/admin/users` for seeding file-backed user accounts without touching production data. All UI routes now require authentication even in development, so create a dev account via the API or workspace file before logging in.
 - Production builds only publish the static landing experience; the interactive console and admin tools stay behind a dev-only bundle path to keep the public surface minimal.
+
+### UI Features
+- **Floating windows** – Open documents and diagrams in draggable, resizable floating windows. Right-click on document links or use the "Pop-out" action in diagrams to create floating views.
+- **Diagram snapshots** – Capture high-resolution PNG snapshots of diagrams from floating windows. Click the camera icon in the floating diagram controls to automatically upload snapshots to the document manager.
+- **Toast notifications** – Non-blocking success, error, and loading notifications appear in the top-right corner, providing feedback without interrupting workflow.
+- **Modal dialogs** – Creating and renaming resources uses accessible modal dialogs with keyboard support (Enter to submit, Escape to cancel).
+- **Per-diagram viewports** – Each diagram tab remembers its own zoom level and pan position, allowing quick navigation between different views.
 
 ## Sample workflow
 1. Draft requirement candidates (heuristic + LLM):

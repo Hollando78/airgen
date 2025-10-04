@@ -122,6 +122,7 @@ pnpm -C frontend dev
 - **Neo4j** - Querying and visualising the graph schema
 - **REST Client** - Testing API endpoints
 - **GitLens** - Git integration
+- **React Developer Tools** - Browser extension for debugging React components
 
 ### Environment Variables
 
@@ -198,6 +199,215 @@ airgen/
 - **backend/src/services/graph/schema.ts** - Database schema & indexes
 - **frontend/src/lib/client.ts** - API client
 - **frontend/src/types.ts** - Shared TypeScript types
+- **frontend/src/contexts/FloatingDocumentsContext.tsx** - Floating windows state management
+- **frontend/src/components/FloatingDiagramWindow.tsx** - Floating diagram viewer with snapshot
+- **frontend/src/components/diagram/DiagramCanvas.tsx** - Shared diagram rendering component
+
+## Common Tasks
+
+### Working with Floating Windows
+
+Floating windows allow users to view multiple documents or diagrams simultaneously. The system uses `FloatingDocumentsContext` to manage window state.
+
+**Opening a floating document**:
+```typescript
+import { useFloatingDocuments } from "../contexts/FloatingDocumentsContext";
+
+const { openFloatingDocument } = useFloatingDocuments();
+
+// Open a structured document
+openFloatingDocument({
+  documentSlug: "REQ-001",
+  documentName: "Braking Requirement",
+  tenant: "default",
+  project: "braking",
+  kind: "structured",
+  downloadUrl: "/api/documents/download/default/braking/REQ-001",
+  mimeType: "text/markdown"
+});
+
+// Open a diagram
+openFloatingDocument({
+  documentSlug: diagramId,
+  documentName: "System Architecture",
+  tenant: "default",
+  project: "braking",
+  kind: "diagram",
+  diagramNodes: nodes,
+  diagramEdges: edges,
+  diagramViewport: { x: 0, y: 0, zoom: 1 }
+});
+```
+
+**Diagram snapshot functionality**:
+The `FloatingDiagramWindow` component includes a snapshot button that:
+1. Captures the diagram as a high-resolution PNG using `html-to-image`
+2. Converts the image to a File object
+3. Uploads it as a surrogate document via the API
+4. Shows toast notifications for progress and completion
+
+```typescript
+import { toPng } from "html-to-image";
+import { toast } from "sonner";
+
+const handleSnapshot = async () => {
+  const toastId = toast.loading("Capturing diagram snapshot...");
+
+  try {
+    const dataUrl = await toPng(diagramRef.current, {
+      backgroundColor: "#ffffff",
+      pixelRatio: 2
+    });
+
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const file = new File([blob], `${diagramName}.png`, { type: "image/png" });
+
+    await api.uploadSurrogateDocument({
+      tenant,
+      projectKey: project,
+      file,
+      name: `${diagramName} Snapshot`
+    });
+
+    toast.success("Diagram snapshot uploaded successfully!", { id: toastId });
+  } catch (error) {
+    toast.error("Failed to upload snapshot.", { id: toastId });
+  }
+};
+```
+
+### Using Toast Notifications
+
+Replace browser `alert()` and `confirm()` with toast notifications for a better user experience.
+
+```typescript
+import { toast } from "sonner";
+
+// Success notification
+toast.success("Requirement created successfully!");
+
+// Error notification
+toast.error("Failed to save changes. Please try again.");
+
+// Loading notification with update
+const toastId = toast.loading("Processing...");
+try {
+  await someAsyncOperation();
+  toast.success("Operation completed!", { id: toastId });
+} catch (error) {
+  toast.error("Operation failed!", { id: toastId });
+}
+
+// Info notification
+toast.info("This feature is coming soon.");
+```
+
+The Toaster component is configured in `App.tsx` and appears in the top-right corner.
+
+### Using Modal Dialogs
+
+Use Radix UI Dialog components for input dialogs instead of `window.prompt()`.
+
+```typescript
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+
+const [showDialog, setShowDialog] = useState(false);
+const [inputValue, setInputValue] = useState("");
+
+const handleConfirm = async () => {
+  if (!inputValue.trim()) {
+    toast.error("Input cannot be empty");
+    return;
+  }
+
+  try {
+    await performAction(inputValue.trim());
+    setShowDialog(false);
+    setInputValue("");
+    toast.success("Action completed successfully");
+  } catch (error) {
+    toast.error((error as Error).message);
+  }
+};
+
+// JSX
+<Dialog open={showDialog} onOpenChange={setShowDialog}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Enter Name</DialogTitle>
+      <DialogDescription>Please provide a name for this item.</DialogDescription>
+    </DialogHeader>
+    <div className="py-4">
+      <input
+        type="text"
+        className="w-full px-3 py-2 border rounded-md"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+        autoFocus
+      />
+    </div>
+    <DialogFooter>
+      <button className="ghost-button" onClick={() => setShowDialog(false)}>
+        Cancel
+      </button>
+      <button className="primary-button" onClick={handleConfirm}>
+        Confirm
+      </button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+### Managing Diagram Viewports
+
+Each diagram tab can maintain independent viewport state (zoom and pan position).
+
+```typescript
+const [diagramViewports, setDiagramViewports] = useState<
+  Record<string, { x: number; y: number; zoom: number }>
+>({});
+
+const viewportTimeoutRef = useRef<NodeJS.Timeout>();
+
+const handleViewportChange = useCallback((viewport: { x: number; y: number; zoom: number }) => {
+  if (!activeDiagramId) return;
+
+  // Debounce to avoid excessive updates
+  if (viewportTimeoutRef.current) {
+    clearTimeout(viewportTimeoutRef.current);
+  }
+
+  viewportTimeoutRef.current = setTimeout(() => {
+    setDiagramViewports(prev => ({
+      ...prev,
+      [activeDiagramId]: viewport
+    }));
+  }, 100);
+}, [activeDiagramId]);
+
+const currentViewport = activeDiagramId ? diagramViewports[activeDiagramId] : undefined;
+
+// Pass to DiagramCanvas
+<DiagramCanvas
+  viewport={currentViewport}
+  onViewportChange={handleViewportChange}
+  // ... other props
+/>
+```
+
+In the DiagramCanvas component, use the viewport prop:
+
+```typescript
+<ReactFlow
+  key={activeDiagramId}  // Force re-mount on diagram change
+  defaultViewport={viewport}
+  fitView={!viewport}  // Only auto-fit if no saved viewport
+  onMove={onViewportChange ? (_, newViewport) => onViewportChange(newViewport) : undefined}
+  // ... other props
+/>
+```
 
 ## Common Tasks
 
@@ -582,6 +792,9 @@ error TS2304: Cannot find name 'MyType'
 - [React Documentation](https://react.dev/)
 - [Zod Documentation](https://zod.dev/)
 - [Vite Documentation](https://vitejs.dev/)
+- [ReactFlow Documentation](https://reactflow.dev/) - Diagram canvas library
+- [Radix UI Documentation](https://www.radix-ui.com/) - Accessible UI components
+- [Sonner Documentation](https://sonner.emilkowal.ski/) - Toast notifications
 
 ## Getting Help
 

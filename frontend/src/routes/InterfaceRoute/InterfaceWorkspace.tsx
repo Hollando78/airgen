@@ -1,8 +1,17 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { toast } from "sonner";
 import { BlockDetailsPanel } from "../../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../../components/architecture/ConnectorDetailsPanel";
 import { PortDetailsPanel } from "../../components/architecture/PortDetailsPanel";
 import { ArchitectureTreeBrowser } from "../../components/architecture/ArchitectureTreeBrowser";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
 import type {
   ArchitectureBlockLibraryRecord,
   ArchitectureDiagramRecord,
@@ -117,6 +126,11 @@ export function InterfaceWorkspace({
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [selectedPortId, setSelectedPortId] = useState<string | null>(null);
   const [selectedPortBlockId, setSelectedPortBlockId] = useState<string | null>(null);
+  const [diagramViewports, setDiagramViewports] = useState<Record<string, { x: number; y: number; zoom: number }>>({});
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [renameDiagramId, setRenameDiagramId] = useState<string | null>(null);
+  const [diagramName, setDiagramName] = useState("");
   const canvasRef = useRef<DiagramCanvasHandle>(null);
 
   const handleSelectPort = useCallback((blockId: string, portId: string | null) => {
@@ -167,32 +181,91 @@ export function InterfaceWorkspace({
     });
   }, [tenant, project, openFloatingDocument]);
 
+  const viewportTimeoutRef = useRef<NodeJS.Timeout>();
+
+  const handleViewportChange = useCallback((viewport: { x: number; y: number; zoom: number }) => {
+    if (!activeDiagramId) return;
+
+    // Debounce viewport updates to avoid excessive re-renders
+    if (viewportTimeoutRef.current) {
+      clearTimeout(viewportTimeoutRef.current);
+    }
+
+    viewportTimeoutRef.current = setTimeout(() => {
+      setDiagramViewports(prev => ({
+        ...prev,
+        [activeDiagramId]: viewport
+      }));
+    }, 100);
+  }, [activeDiagramId]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (viewportTimeoutRef.current) {
+        clearTimeout(viewportTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const currentViewport = activeDiagramId ? diagramViewports[activeDiagramId] : undefined;
+
   const documents = useMemo(() => documentList, [documentList]);
   const blocksInDiagram = useMemo(() => new Set(architecture.blocks.map(block => block.id)), [architecture.blocks]);
 
-  const handleCreateDiagram = useCallback(async () => {
+  const handleCreateDiagram = useCallback(() => {
     const baseName = `View ${diagrams.length + 1}`;
-    const name = window.prompt("Name for the new diagram", baseName);
-    if (!name || !name.trim()) {return;}
+    setDiagramName(baseName);
+    setShowCreateDialog(true);
+  }, [diagrams.length]);
+
+  const handleConfirmCreate = useCallback(async () => {
+    if (!diagramName.trim()) {
+      toast.error("Diagram name cannot be empty");
+      return;
+    }
 
     try {
-      await createDiagram({ name: name.trim() });
+      await createDiagram({ name: diagramName.trim() });
+      setShowCreateDialog(false);
+      setDiagramName("");
+      toast.success("Diagram created successfully");
     } catch (error) {
-      window.alert((error as Error).message);
+      toast.error((error as Error).message);
     }
-  }, [createDiagram, diagrams.length]);
+  }, [diagramName, createDiagram]);
 
   const handleRenameDiagram = useCallback((diagramId: string) => {
     const diagram = diagrams.find(item => item.id === diagramId);
-    if (!diagram) {return;}
+    if (!diagram) return;
 
-    const nextName = window.prompt("Rename diagram", diagram.name);
-    if (!nextName || !nextName.trim() || nextName.trim() === diagram.name) {return;}
+    setRenameDiagramId(diagramId);
+    setDiagramName(diagram.name);
+    setShowRenameDialog(true);
+  }, [diagrams]);
 
-    renameDiagram(diagramId, { name: nextName.trim() }).catch(error => {
-      window.alert((error as Error).message);
-    });
-  }, [diagrams, renameDiagram]);
+  const handleConfirmRename = useCallback(async () => {
+    if (!renameDiagramId || !diagramName.trim()) {
+      toast.error("Diagram name cannot be empty");
+      return;
+    }
+
+    const diagram = diagrams.find(item => item.id === renameDiagramId);
+    if (diagram && diagramName.trim() === diagram.name) {
+      setShowRenameDialog(false);
+      return;
+    }
+
+    try {
+      await renameDiagram(renameDiagramId, { name: diagramName.trim() });
+      setShowRenameDialog(false);
+      setRenameDiagramId(null);
+      setDiagramName("");
+      toast.success("Diagram renamed successfully");
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  }, [renameDiagramId, diagramName, diagrams, renameDiagram]);
 
   const handleDeleteDiagram = useCallback((diagramId: string) => {
     const diagram = diagrams.find(item => item.id === diagramId);
@@ -294,6 +367,8 @@ export function InterfaceWorkspace({
           removeConnector={removeConnector}
           onOpenDocument={openDocument}
           onOpenFloatingDiagram={openFloatingDiagram}
+          viewport={currentViewport}
+          onViewportChange={handleViewportChange}
           isLoading={isLoading}
           blockPresets={INTERFACE_PRESETS}
           computePlacement={computeBlockPlacement}
@@ -359,6 +434,83 @@ export function InterfaceWorkspace({
           )}
         </aside>
       </div>
+
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Diagram</DialogTitle>
+            <DialogDescription>Enter a name for the new interface diagram.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Diagram name"
+              value={diagramName}
+              onChange={(e) => setDiagramName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleConfirmCreate();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <button
+              className="ghost-button"
+              onClick={() => {
+                setShowCreateDialog(false);
+                setDiagramName("");
+              }}
+            >
+              Cancel
+            </button>
+            <button className="primary-button" onClick={handleConfirmCreate}>
+              Create
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Diagram</DialogTitle>
+            <DialogDescription>Enter a new name for the diagram.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Diagram name"
+              value={diagramName}
+              onChange={(e) => setDiagramName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleConfirmRename();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <button
+              className="ghost-button"
+              onClick={() => {
+                setShowRenameDialog(false);
+                setRenameDiagramId(null);
+                setDiagramName("");
+              }}
+            >
+              Cancel
+            </button>
+            <button className="primary-button" onClick={handleConfirmRename}>
+              Rename
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
