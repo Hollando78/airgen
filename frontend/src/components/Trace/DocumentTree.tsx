@@ -78,11 +78,30 @@ export function DocumentTree({
   const getRequirementLinkInfo = (requirementId: string) => {
     const outgoingLinks = traceLinks.filter(link => link.sourceRequirementId === requirementId);
     const incomingLinks = traceLinks.filter(link => link.targetRequirementId === requirementId);
+
+    // Check for broken links
+    const brokenOutgoingLinks = outgoingLinks.filter(link =>
+      !link.targetRequirement ||
+      !link.targetRequirement.ref ||
+      link.targetRequirement.archived ||
+      link.targetRequirement.deleted
+    );
+    const brokenIncomingLinks = incomingLinks.filter(link =>
+      !link.sourceRequirement ||
+      !link.sourceRequirement.ref ||
+      link.sourceRequirement.archived ||
+      link.sourceRequirement.deleted
+    );
+
     return {
       hasOutgoing: outgoingLinks.length > 0,
       hasIncoming: incomingLinks.length > 0,
       outgoingCount: outgoingLinks.length,
-      incomingCount: incomingLinks.length
+      incomingCount: incomingLinks.length,
+      hasBrokenOutgoing: brokenOutgoingLinks.length > 0,
+      hasBrokenIncoming: brokenIncomingLinks.length > 0,
+      brokenOutgoingCount: brokenOutgoingLinks.length,
+      brokenIncomingCount: brokenIncomingLinks.length
     };
   };
 
@@ -158,7 +177,13 @@ export function DocumentTree({
                           
                           <div className="requirement-indicators">
                             {linkInfo.hasIncoming && (
-                              <div className="link-indicator incoming" title={`${linkInfo.incomingCount} incoming link${linkInfo.incomingCount > 1 ? 's' : ''}`}>
+                              <div
+                                className={`link-indicator incoming ${linkInfo.hasBrokenIncoming ? 'broken' : ''}`}
+                                title={linkInfo.hasBrokenIncoming
+                                  ? `${linkInfo.incomingCount} incoming link${linkInfo.incomingCount > 1 ? 's' : ''} (${linkInfo.brokenIncomingCount} broken)`
+                                  : `${linkInfo.incomingCount} incoming link${linkInfo.incomingCount > 1 ? 's' : ''}`}
+                                style={linkInfo.hasBrokenIncoming ? { color: '#dc2626' } : {}}
+                              >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d="M19 12H5M12 19l-7-7 7-7"/>
                                 </svg>
@@ -166,7 +191,13 @@ export function DocumentTree({
                               </div>
                             )}
                             {linkInfo.hasOutgoing && (
-                              <div className="link-indicator outgoing" title={`${linkInfo.outgoingCount} outgoing link${linkInfo.outgoingCount > 1 ? 's' : ''}`}>
+                              <div
+                                className={`link-indicator outgoing ${linkInfo.hasBrokenOutgoing ? 'broken' : ''}`}
+                                title={linkInfo.hasBrokenOutgoing
+                                  ? `${linkInfo.outgoingCount} outgoing link${linkInfo.outgoingCount > 1 ? 's' : ''} (${linkInfo.brokenOutgoingCount} broken)`
+                                  : `${linkInfo.outgoingCount} outgoing link${linkInfo.outgoingCount > 1 ? 's' : ''}`}
+                                style={linkInfo.hasBrokenOutgoing ? { color: '#dc2626' } : {}}
+                              >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d="M5 12h14M12 5l7 7-7 7"/>
                                 </svg>

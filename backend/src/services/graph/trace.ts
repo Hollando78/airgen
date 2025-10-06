@@ -7,9 +7,9 @@ import { getLinkset, addLinkToLinkset } from "./linksets.js";
 export type TraceLinkRecord = {
   id: string;
   sourceRequirementId: string;
-  sourceRequirement: ReturnType<typeof mapRequirement>;
+  sourceRequirement: ReturnType<typeof mapRequirement> | null;
   targetRequirementId: string;
-  targetRequirement: ReturnType<typeof mapRequirement>;
+  targetRequirement: ReturnType<typeof mapRequirement> | null;
   linkType: "satisfies" | "derives" | "verifies" | "implements" | "refines" | "conflicts";
   description?: string | null;
   tenant: string;
@@ -20,24 +20,24 @@ export type TraceLinkRecord = {
 
 function mapTraceLink(
   node: Neo4jNode,
-  sourceRequirement: ReturnType<typeof mapRequirement>,
-  targetRequirement: ReturnType<typeof mapRequirement>,
+  sourceRequirement: ReturnType<typeof mapRequirement> | null,
+  targetRequirement: ReturnType<typeof mapRequirement> | null,
   sourceDocument?: Neo4jNode | null,
   targetDocument?: Neo4jNode | null
 ): TraceLinkRecord {
   const props = node.properties as Record<string, unknown>;
-  
+
   // Add document slug information to requirements if available
-  const enhancedSourceRequirement = sourceDocument ? {
+  const enhancedSourceRequirement = sourceRequirement && sourceDocument ? {
     ...sourceRequirement,
     documentSlug: String(sourceDocument.properties.slug)
   } : sourceRequirement;
-  
-  const enhancedTargetRequirement = targetDocument ? {
+
+  const enhancedTargetRequirement = targetRequirement && targetDocument ? {
     ...targetRequirement,
     documentSlug: String(targetDocument.properties.slug)
   } : targetRequirement;
-  
+
   return {
     id: String(props.id),
     sourceRequirementId: String(props.sourceRequirementId),
@@ -214,8 +214,8 @@ export async function listTraceLinks(params: {
       // QUERY PROFILE: expected <100ms - optimized to avoid cartesian products with OPTIONAL MATCH
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink)
-        MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement)
-        MATCH (link)-[:TO_REQUIREMENT]->(targetReq:Requirement)
+        OPTIONAL MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement WHERE sourceReq.archived IS NULL OR sourceReq.archived = false)
+        OPTIONAL MATCH (link)-[:TO_REQUIREMENT]->(targetReq:Requirement WHERE targetReq.archived IS NULL OR targetReq.archived = false)
         OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(sourceReq)
         OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(targetReq)
         RETURN link, sourceReq, targetReq, sourceDoc, targetDoc
@@ -225,15 +225,17 @@ export async function listTraceLinks(params: {
       return tx.run(query, { tenantSlug, projectSlug });
     });
 
-    return result.records.map(record =>
-      mapTraceLink(
+    return result.records.map(record => {
+      const sourceReq = record.get("sourceReq");
+      const targetReq = record.get("targetReq");
+      return mapTraceLink(
         record.get("link"),
-        mapRequirement(record.get("sourceReq")),
-        mapRequirement(record.get("targetReq")),
+        sourceReq ? mapRequirement(sourceReq) : null,
+        targetReq ? mapRequirement(targetReq) : null,
         record.get("sourceDoc"),
         record.get("targetDoc")
-      )
-    );
+      );
+    });
   } finally {
     await session.close();
   }
@@ -253,9 +255,9 @@ export async function listTraceLinksByRequirement(params: {
       // QUERY PROFILE: expected <50ms - optimized with OPTIONAL MATCH to avoid cartesian products
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink)
-        MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement)
-        MATCH (link)-[:TO_REQUIREMENT]->(targetReq:Requirement)
-        WHERE sourceReq.id = $requirementId OR targetReq.id = $requirementId
+        WHERE link.sourceRequirementId = $requirementId OR link.targetRequirementId = $requirementId
+        OPTIONAL MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement WHERE sourceReq.archived IS NULL OR sourceReq.archived = false)
+        OPTIONAL MATCH (link)-[:TO_REQUIREMENT]->(targetReq:Requirement WHERE targetReq.archived IS NULL OR targetReq.archived = false)
         OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(sourceReq)
         OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(targetReq)
         RETURN link, sourceReq, targetReq, sourceDoc, targetDoc
@@ -269,15 +271,17 @@ export async function listTraceLinksByRequirement(params: {
       });
     });
 
-    return result.records.map(record =>
-      mapTraceLink(
+    return result.records.map(record => {
+      const sourceReq = record.get("sourceReq");
+      const targetReq = record.get("targetReq");
+      return mapTraceLink(
         record.get("link"),
-        mapRequirement(record.get("sourceReq")),
-        mapRequirement(record.get("targetReq")),
+        sourceReq ? mapRequirement(sourceReq) : null,
+        targetReq ? mapRequirement(targetReq) : null,
         record.get("sourceDoc"),
         record.get("targetDoc")
-      )
-    );
+      );
+    });
   } finally {
     await session.close();
   }

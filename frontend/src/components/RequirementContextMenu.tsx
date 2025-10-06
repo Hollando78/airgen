@@ -42,20 +42,11 @@ export function RequirementContextMenu({
   const { openFloatingDocument } = useFloatingDocuments();
   const [showDetails, setShowDetails] = useState(false);
 
-  useEffect(() => {
-    console.log('[RequirementContextMenu] showDetails state changed to:', showDetails);
-  }, [showDetails]);
-
   const handleViewDetails = useCallback(() => {
-    console.log('[RequirementContextMenu] handleViewDetails called');
-    console.log('[RequirementContextMenu] Current showDetails state:', showDetails);
-    console.log('[RequirementContextMenu] Setting showDetails to true');
     setShowDetails(true);
-    console.log('[RequirementContextMenu] After setState call (may not be updated yet)');
-  }, [showDetails]);
+  }, []);
 
   const handleCloseDetails = useCallback(() => {
-    console.log('[RequirementContextMenu] handleCloseDetails called');
     setShowDetails(false);
     onClose();
   }, [onClose]);
@@ -64,11 +55,9 @@ export function RequirementContextMenu({
     const handleClickOutside = (event: MouseEvent) => {
       // Don't close if dialog is open
       if (showDetails) {
-        console.log('[RequirementContextMenu] Click outside ignored - dialog is open');
         return;
       }
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        console.log('[RequirementContextMenu] Click outside detected - closing context menu');
         onClose();
       }
     };
@@ -76,10 +65,8 @@ export function RequirementContextMenu({
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (showDetails) {
-          console.log('[RequirementContextMenu] Escape pressed - closing dialog');
           handleCloseDetails();
         } else {
-          console.log('[RequirementContextMenu] Escape pressed - closing context menu');
           onClose();
         }
       }
@@ -134,7 +121,6 @@ export function RequirementContextMenu({
       // Remove .md extension if present
       documentSlug = documentSlug.replace(/\.md$/, '');
 
-      console.log('[RequirementContextMenu] Opening floating document:', documentSlug);
       openFloatingDocument({
         documentSlug,
         documentName: documentSlug,
@@ -143,8 +129,6 @@ export function RequirementContextMenu({
         kind: "structured",
         focusRequirementId: requirement.id
       });
-    } else {
-      console.warn('[RequirementContextMenu] No document slug found for requirement:', requirement);
     }
 
     handleCloseDetails();
@@ -367,16 +351,12 @@ export function RequirementContextMenu({
       {showDetails && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, pointerEvents: 'none' }}>
           <Dialog open={true} modal={false} onOpenChange={(open) => {
-            console.log('[RequirementContextMenu] Dialog onOpenChange called with:', open);
             if (!open) handleCloseDetails();
           }}>
             <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', pointerEvents: 'auto' }} onClick={() => handleCloseDetails()} />
             <DialogContent
               className="max-w-2xl"
               style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 10000, pointerEvents: 'auto' }}
-              onOpenAutoFocus={(e) => {
-                console.log('[RequirementContextMenu] Dialog content mounted and focused');
-              }}
               onEscapeKeyDown={() => handleCloseDetails()}
               onPointerDownOutside={(e) => {
                 e.preventDefault();
@@ -467,21 +447,37 @@ export function RequirementContextMenu({
                   <div className="mb-3">
                     <div className="text-xs font-medium text-blue-900 mb-2">Outgoing Links ({outgoingLinks.length})</div>
                     <div className="space-y-2">
-                      {outgoingLinks.map(link => (
-                        <div key={link.id} className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                      {outgoingLinks.map(link => {
+                        const isBroken = !link.targetRequirement || !link.targetRequirement.ref || link.targetRequirement.archived || link.targetRequirement.deleted;
+                        return (
+                        <div key={link.id} className={`flex items-start gap-2 p-2 rounded text-xs ${isBroken ? 'bg-red-50 border border-red-300' : 'bg-blue-50 border border-blue-200'}`}>
                           <div className="flex-1 min-w-0">
-                            <div className="font-mono font-medium text-blue-900">{link.targetRequirement.ref}</div>
-                            <div className="text-gray-600 mt-0.5 truncate">{link.targetRequirement.text.substring(0, 60)}...</div>
-                            <div className="mt-1">
-                              <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium">
+                            <div className="flex items-center gap-2">
+                              {isBroken && (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600 flex-shrink-0">
+                                  <circle cx="12" cy="12" r="10"/>
+                                  <line x1="12" y1="8" x2="12" y2="12"/>
+                                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                </svg>
+                              )}
+                              <div className={`font-mono font-medium ${isBroken ? 'text-red-900' : 'text-blue-900'}`}>
+                                {link.targetRequirement?.ref || 'Unknown (Broken Link)'}
+                              </div>
+                            </div>
+                            <div className="text-gray-600 mt-0.5 truncate">{link.targetRequirement?.text?.substring(0, 60) || 'No description'}...</div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${isBroken ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                                 {link.linkType}
                               </span>
+                              {isBroken && (
+                                <span className="text-red-600 text-[10px]">⚠ Target not found</span>
+                              )}
                             </div>
                           </div>
                           {onDeleteLink && (
                             <button
                               onClick={() => {
-                                if (confirm(`Delete link to ${link.targetRequirement.ref}?`)) {
+                                if (confirm(`Delete link to ${link.targetRequirement?.ref || 'Unknown'}?`)) {
                                   onDeleteLink(link.id);
                                   handleCloseDetails();
                                 }
@@ -496,7 +492,8 @@ export function RequirementContextMenu({
                             </button>
                           )}
                         </div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </div>
                 )}
@@ -505,21 +502,37 @@ export function RequirementContextMenu({
                   <div>
                     <div className="text-xs font-medium text-green-900 mb-2">Incoming Links ({incomingLinks.length})</div>
                     <div className="space-y-2">
-                      {incomingLinks.map(link => (
-                        <div key={link.id} className="flex items-start gap-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                      {incomingLinks.map(link => {
+                        const isBroken = !link.sourceRequirement || !link.sourceRequirement.ref || link.sourceRequirement.archived || link.sourceRequirement.deleted;
+                        return (
+                        <div key={link.id} className={`flex items-start gap-2 p-2 rounded text-xs ${isBroken ? 'bg-red-50 border border-red-300' : 'bg-green-50 border border-green-200'}`}>
                           <div className="flex-1 min-w-0">
-                            <div className="font-mono font-medium text-green-900">{link.sourceRequirement.ref}</div>
-                            <div className="text-gray-600 mt-0.5 truncate">{link.sourceRequirement.text.substring(0, 60)}...</div>
-                            <div className="mt-1">
-                              <span className="inline-block px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium">
+                            <div className="flex items-center gap-2">
+                              {isBroken && (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600 flex-shrink-0">
+                                  <circle cx="12" cy="12" r="10"/>
+                                  <line x1="12" y1="8" x2="12" y2="12"/>
+                                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                </svg>
+                              )}
+                              <div className={`font-mono font-medium ${isBroken ? 'text-red-900' : 'text-green-900'}`}>
+                                {link.sourceRequirement?.ref || 'Unknown (Broken Link)'}
+                              </div>
+                            </div>
+                            <div className="text-gray-600 mt-0.5 truncate">{link.sourceRequirement?.text?.substring(0, 60) || 'No description'}...</div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${isBroken ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                 {link.linkType}
                               </span>
+                              {isBroken && (
+                                <span className="text-red-600 text-[10px]">⚠ Source not found</span>
+                              )}
                             </div>
                           </div>
                           {onDeleteLink && (
                             <button
                               onClick={() => {
-                                if (confirm(`Delete link from ${link.sourceRequirement.ref}?`)) {
+                                if (confirm(`Delete link from ${link.sourceRequirement?.ref || 'Unknown'}?`)) {
                                   onDeleteLink(link.id);
                                   handleCloseDetails();
                                 }
@@ -534,7 +547,8 @@ export function RequirementContextMenu({
                             </button>
                           )}
                         </div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </div>
                 )}

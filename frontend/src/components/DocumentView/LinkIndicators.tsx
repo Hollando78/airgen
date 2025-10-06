@@ -41,6 +41,44 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
   const outgoingLinks = traceLinks.filter(link => link.sourceRequirementId === requirementId);
   const incomingLinks = traceLinks.filter(link => link.targetRequirementId === requirementId);
 
+  // Count broken links - check for null, missing ref, or archived/deleted requirements
+  const brokenOutgoingLinks = outgoingLinks.filter(link =>
+    !link.targetRequirement ||
+    !link.targetRequirement.ref ||
+    link.targetRequirement.archived ||
+    link.targetRequirement.deleted
+  );
+  const brokenIncomingLinks = incomingLinks.filter(link =>
+    !link.sourceRequirement ||
+    !link.sourceRequirement.ref ||
+    link.sourceRequirement.archived ||
+    link.sourceRequirement.deleted
+  );
+  const hasBrokenLinks = brokenOutgoingLinks.length > 0 || brokenIncomingLinks.length > 0;
+
+  // Debug logging for URD-KEY-002
+  if (requirementId === "URD-KEY-002") {
+    console.log("[LinkIndicators] URD-KEY-002 debug:", {
+      requirementId,
+      outgoingLinks: outgoingLinks.map(l => ({
+        id: l.id,
+        targetRequirementId: l.targetRequirementId,
+        targetRequirement: l.targetRequirement,
+        hasTargetReq: !!l.targetRequirement,
+        hasTargetRef: !!(l.targetRequirement?.ref)
+      })),
+      brokenOutgoingLinks: brokenOutgoingLinks.length,
+      incomingLinks: incomingLinks.map(l => ({
+        id: l.id,
+        sourceRequirementId: l.sourceRequirementId,
+        sourceRequirement: l.sourceRequirement,
+        hasSourceReq: !!l.sourceRequirement,
+        hasSourceRef: !!(l.sourceRequirement?.ref)
+      })),
+      brokenIncomingLinks: brokenIncomingLinks.length
+    });
+  }
+
   // Don't render anything if no links
   if (outgoingLinks.length === 0 && incomingLinks.length === 0) {
     return null;
@@ -97,7 +135,7 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
     cursor: "pointer",
     fontSize: "14px",
     fontWeight: "bold" as const,
-    color: "#2563eb",
+    color: brokenOutgoingLinks.length > 0 ? "#dc2626" : "#2563eb",
     userSelect: "none" as const,
     lineHeight: "1",
     marginBottom: incomingLinks.length > 0 ? "2px" : "0"
@@ -108,7 +146,7 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
     cursor: "pointer",
     fontSize: "14px",
     fontWeight: "bold" as const,
-    color: "#059669",
+    color: brokenIncomingLinks.length > 0 ? "#dc2626" : "#059669",
     userSelect: "none" as const,
     lineHeight: "1"
   };
@@ -161,13 +199,16 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
           </div>
           {tooltip.links.slice(0, 5).map((link, index) => {
             const targetReq = tooltip.type === "outgoing" ? link.targetRequirement : link.sourceRequirement;
-            if (!targetReq) {return null;}
+            const isBroken = !targetReq || !targetReq.ref || targetReq.archived || targetReq.deleted;
             return (
-              <div key={link.id} style={{ marginBottom: index < Math.min(tooltip.links.length, 5) - 1 ? "2px" : "0" }}>
-                <span style={{ color: "#9ca3af" }}>{link.linkType}:</span> {targetReq.ref || 'Unknown'} - {(targetReq.text || 'No description').substring(0, 50)}...
+              <div key={link.id} style={{
+                marginBottom: index < Math.min(tooltip.links.length, 5) - 1 ? "2px" : "0",
+                color: isBroken ? "#fca5a5" : "white"
+              }}>
+                <span style={{ color: isBroken ? "#fca5a5" : "#9ca3af" }}>{link.linkType}:</span> {isBroken ? "⚠ Broken Link" : `${targetReq.ref || 'Unknown'} - ${(targetReq.text || 'No description').substring(0, 50)}...`}
               </div>
             );
-          }).filter(Boolean)}
+          })}
           {tooltip.links.length > 5 && (
             <div style={{ color: "#9ca3af", fontStyle: "italic" }}>
               +{tooltip.links.length - 5} more...
@@ -204,42 +245,49 @@ export function LinkIndicators({ requirementId, traceLinks, tenant, project }: L
           </div>
           {contextMenu.links.map((link) => {
             const targetReq = contextMenu.type === "outgoing" ? link.targetRequirement : link.sourceRequirement;
-            if (!targetReq) {return null;}
+            const isBroken = !targetReq || !targetReq.ref || targetReq.archived || targetReq.deleted;
+
             return (
               <button
                 key={link.id}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  console.log("[LinkIndicators] Context menu item clicked, opening document for:", targetReq);
-                  handleOpenDocument(targetReq);
+                  if (!isBroken) {
+                    console.log("[LinkIndicators] Context menu item clicked, opening document for:", targetReq);
+                    handleOpenDocument(targetReq);
+                  }
                 }}
+                disabled={isBroken}
                 style={{
                   width: "100%",
                   padding: "8px 12px",
                   border: "none",
-                  backgroundColor: "transparent",
+                  backgroundColor: isBroken ? "#fef2f2" : "transparent",
                   textAlign: "left",
-                  cursor: "pointer",
+                  cursor: isBroken ? "not-allowed" : "pointer",
                   fontSize: "12px",
-                  borderBottom: "1px solid #f3f4f6"
+                  borderBottom: "1px solid #f3f4f6",
+                  opacity: isBroken ? 0.7 : 1
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f9fafb";
+                  if (!isBroken) {
+                    e.currentTarget.style.backgroundColor = "#f9fafb";
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.backgroundColor = isBroken ? "#fef2f2" : "transparent";
                 }}
               >
-                <div style={{ fontWeight: "500", color: "#374151" }}>
-                  {targetReq.ref || 'Unknown'}
+                <div style={{ fontWeight: "500", color: isBroken ? "#dc2626" : "#374151" }}>
+                  {isBroken ? "⚠ Broken Link" : (targetReq.ref || 'Unknown')}
                 </div>
-                <div style={{ color: "#6b7280", fontSize: "11px" }}>
-                  {link.linkType} • {(targetReq.text || 'No description').substring(0, 60)}...
+                <div style={{ color: isBroken ? "#dc2626" : "#6b7280", fontSize: "11px" }}>
+                  {link.linkType} {isBroken ? "• Target not found" : `• ${(targetReq.text || 'No description').substring(0, 60)}...`}
                 </div>
               </button>
             );
-          }).filter(Boolean)}
+          })}
         </div>
       )}
     </span>
