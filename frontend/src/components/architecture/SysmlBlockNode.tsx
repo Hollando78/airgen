@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback, useEffect, useMemo, Fragment, type MouseEvent } from "react";
 import type { NodeProps } from "@xyflow/react";
 import { Handle, NodeResizer, Position, useUpdateNodeInternals } from "@xyflow/react";
-import type { SysmlBlock } from "../../hooks/useArchitectureApi";
+import type { SysmlBlock, BlockPort } from "../../hooks/useArchitectureApi";
 import type { DocumentRecord } from "../../types";
 import { DiagramContextMenu } from "../diagram/DiagramContextMenu";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 
 export type SysmlBlockNodeData = {
   block: SysmlBlock;
@@ -13,8 +14,11 @@ export type SysmlBlockNodeData = {
   isConnectMode?: boolean; // Whether ports should act as connection handles
   selectedPortId?: string | null; // Currently selected port ID
   onSelectPort?: (blockId: string, portId: string | null) => void;
-  updatePort?: (blockId: string, portId: string, updates: { edge?: "top" | "right" | "bottom" | "left"; offset?: number }) => void;
+  updatePort?: (blockId: string, portId: string, updates: Partial<BlockPort>) => void;
   removePort?: (blockId: string, portId: string) => void;
+  portContextMenu?: { blockId: string; portId: string; portName: string; hidden: boolean; direction: BlockPort["direction"]; x: number; y: number } | null;
+  onPortContextMenu?: (blockId: string, portId: string, portName: string, hidden: boolean, direction: BlockPort["direction"], x: number, y: number) => void;
+  onClosePortContextMenu?: () => void;
 };
 
 function formatStereotype(value?: string) {
@@ -90,7 +94,7 @@ function calculatePortPosition(
 }
 
 export function SysmlBlockNode({ id, data, selected }: NodeProps) {
-  const { block, documents = [], onOpenDocument, hideDefaultHandles = false, isConnectMode = false, selectedPortId, onSelectPort, updatePort, removePort } = data as SysmlBlockNodeData;
+  const { block, documents = [], onOpenDocument, hideDefaultHandles = false, isConnectMode = false, selectedPortId, onSelectPort, updatePort, removePort, portContextMenu, onPortContextMenu, onClosePortContextMenu } = data as SysmlBlockNodeData;
 
   // Port dragging state
   const [draggingPort, setDraggingPort] = useState<{
@@ -105,20 +109,18 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
   // Track a lightweight signature so ReactFlow handles refresh when port metadata changes
   const portsSignature = useMemo(() => {
     return block.ports
-      .map(port => `${port.id}:${port.edge ?? ""}:${port.offset ?? ""}`)
+      .map(port => `${port.id}:${port.edge ?? ""}:${port.offset ?? ""}:${port.hidden ? "hidden" : "visible"}`)
       .join("|");
   }, [block.ports]);
 
-  // Port context menu state
-  const [portContextMenu, setPortContextMenu] = useState<{
+  // Rename dialog state (local only)
+  const [renameDialog, setRenameDialog] = useState<{
     portId: string;
-    portName: string;
-    x: number;
-    y: number;
+    draft: string;
   } | null>(null);
 
-  const handlePortMouseDown = useCallback((e: MouseEvent<HTMLDivElement>, portId: string, edge: "top" | "right" | "bottom" | "left", currentOffset: number) => {
-    if (isConnectMode) return; // Don't drag in connect mode
+  const handlePortMouseDown = useCallback((e: MouseEvent<HTMLDivElement>, portId: string, edge: "top" | "right" | "bottom" | "left", currentOffset: number, hidden?: boolean) => {
+    if (isConnectMode || hidden) return; // Don't drag in connect mode or when hidden
     e.stopPropagation();
     e.preventDefault();
 
@@ -131,24 +133,23 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
     setDraggingPort({ portId, edge, offset: currentOffset });
   }, [isConnectMode, onSelectPort, block.id]);
 
-  const handlePortClick = useCallback((e: MouseEvent<HTMLDivElement>, portId: string) => {
+  const handlePortClick = useCallback((e: MouseEvent<HTMLDivElement>, portId: string, hidden?: boolean) => {
     e.stopPropagation();
     e.preventDefault();
+    if (hidden) {
+      return;
+    }
     if (onSelectPort && !isConnectMode) {
       onSelectPort(block.id, portId);
     }
   }, [onSelectPort, isConnectMode, block.id]);
 
-  const handlePortContextMenu = useCallback((e: MouseEvent<HTMLDivElement>, portId: string, portName: string) => {
+  const handlePortContextMenu = useCallback((e: MouseEvent<HTMLDivElement>, portId: string, portName: string, hidden: boolean, direction: BlockPort["direction"]) => {
     e.preventDefault();
     e.stopPropagation();
-    setPortContextMenu({
-      portId,
-      portName,
-      x: e.clientX,
-      y: e.clientY
-    });
-  }, []);
+    onSelectPort?.(block.id, portId);
+    onPortContextMenu?.(block.id, portId, portName, hidden, direction, e.clientX, e.clientY);
+  }, [block.id, onSelectPort, onPortContextMenu]);
 
   const handleMouseMove = useCallback((e: globalThis.MouseEvent) => {
     if (!draggingPort || !blockRef.current) return;
@@ -324,6 +325,8 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
     fontWeight: block.fontWeight || "normal"
   };
 
+  const hiddenPortCount = block.ports.filter(port => port.hidden).length;
+
   return (
     <div ref={blockRef} style={blockStyle}>
       <NodeResizer 
@@ -355,6 +358,27 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
         pointerEvents: "auto",
         overflow: "hidden"
       }}>
+        {hiddenPortCount > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: 10,
+              right: 12,
+              background: "rgba(15, 23, 42, 0.75)",
+              color: "#ffffff",
+              borderRadius: "999px",
+              padding: "2px 8px",
+              fontSize: "10px",
+              fontWeight: 600,
+              letterSpacing: "0.02em",
+              pointerEvents: "none",
+              zIndex: 5
+            }}
+            title={`${hiddenPortCount} hidden port${hiddenPortCount === 1 ? "" : "s"}`}
+          >
+            {hiddenPortCount} hidden
+          </div>
+        )}
         <div style={{ 
           fontSize: `${(block.fontSize || 14) * 0.85}px`, 
           textTransform: "uppercase", 
@@ -474,8 +498,10 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
           const actualEdge = isDragging ? draggingPort.edge : edge;
           const isHorizontalEdge = actualEdge === "left" || actualEdge === "right";
           const portSize = 24;
+          const offsetPercent = `${port.actualOffset}%`;
+          const isHidden = Boolean(port.hidden);
 
-          const arrowSvg = (
+          const arrowSvg = !isHidden && port.direction !== "none" ? (
             <svg
               width={portSize - 4}
               height={portSize - 4}
@@ -488,38 +514,66 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
               {isHorizontalEdge ? (
                 // Horizontal arrows (left/right edges)
                 <>
-                  {/* Left arrow */}
-                  <path d="M 7 10 L 2 10 M 2 10 L 4.5 7.5 M 2 10 L 4.5 12.5"
-                    stroke="#64748b"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    fill="none" />
-                  {/* Right arrow */}
-                  <path d="M 13 10 L 18 10 M 18 10 L 15.5 7.5 M 18 10 L 15.5 12.5"
-                    stroke="#64748b"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    fill="none" />
+                  {/* Left arrow (input) */}
+                  {(port.direction === "in" || port.direction === "inout") && (
+                    <path d="M 7 10 L 2 10 M 2 10 L 4.5 7.5 M 2 10 L 4.5 12.5"
+                      stroke="#64748b"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      fill="none" />
+                  )}
+                  {/* Right arrow (output) */}
+                  {(port.direction === "out" || port.direction === "inout") && (
+                    <path d="M 13 10 L 18 10 M 18 10 L 15.5 7.5 M 18 10 L 15.5 12.5"
+                      stroke="#64748b"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      fill="none" />
+                  )}
+                </>
+              ) : actualEdge === "top" ? (
+                // Top edge: arrows point down (in) or up (out)
+                <>
+                  {/* Down arrow (input - data coming into the block from top) */}
+                  {(port.direction === "in" || port.direction === "inout") && (
+                    <path d="M 10 13 L 10 18 M 10 18 L 7.5 15.5 M 10 18 L 12.5 15.5"
+                      stroke="#64748b"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      fill="none" />
+                  )}
+                  {/* Up arrow (output - data going out of the block to top) */}
+                  {(port.direction === "out" || port.direction === "inout") && (
+                    <path d="M 10 7 L 10 2 M 10 2 L 7.5 4.5 M 10 2 L 12.5 4.5"
+                      stroke="#64748b"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      fill="none" />
+                  )}
                 </>
               ) : (
-                // Vertical arrows (top/bottom edges)
+                // Bottom edge: arrows point up (in) or down (out)
                 <>
-                  {/* Up arrow */}
-                  <path d="M 10 7 L 10 2 M 10 2 L 7.5 4.5 M 10 2 L 12.5 4.5"
-                    stroke="#64748b"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    fill="none" />
-                  {/* Down arrow */}
-                  <path d="M 10 13 L 10 18 M 10 18 L 7.5 15.5 M 10 18 L 12.5 15.5"
-                    stroke="#64748b"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    fill="none" />
+                  {/* Up arrow (input - data coming into the block from bottom) */}
+                  {(port.direction === "in" || port.direction === "inout") && (
+                    <path d="M 10 7 L 10 2 M 10 2 L 7.5 4.5 M 10 2 L 12.5 4.5"
+                      stroke="#64748b"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      fill="none" />
+                  )}
+                  {/* Down arrow (output - data going out of the block to bottom) */}
+                  {(port.direction === "out" || port.direction === "inout") && (
+                    <path d="M 10 13 L 10 18 M 10 18 L 7.5 15.5 M 10 18 L 12.5 15.5"
+                      stroke="#64748b"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      fill="none" />
+                  )}
                 </>
               )}
             </svg>
-          );
+          ) : null;
 
           // Render single visible port using overlapping source/target Handles
           const isSelected = selectedPortId === port.id;
@@ -538,6 +592,126 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
             boxSizing: "border-box" as const
           };
 
+          const showPortLabel = !isHidden && (port.showLabel !== false || hideDefaultHandles);
+
+          const labelOffsetX = port.labelOffsetX || 0;
+          const labelOffsetY = port.labelOffsetY || 0;
+
+          const labelStyle: React.CSSProperties = {
+            position: "absolute",
+            fontSize: "11px",
+            fontWeight: 600,
+            background: "rgba(255,255,255,0.92)",
+            padding: "2px 6px",
+            borderRadius: "6px",
+            color: "#0f172a",
+            border: "1px solid #e2e8f0",
+            pointerEvents: "auto",
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.15)",
+            maxWidth: "160px",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            cursor: "move",
+            userSelect: "none"
+          };
+
+          switch (actualEdge) {
+            case "left":
+              Object.assign(labelStyle, {
+                top: `calc(${offsetPercent} + ${labelOffsetY}px)`,
+                left: `calc(12px + ${labelOffsetX}px)`,
+                transform: "translateY(-50%)",
+                textAlign: "left"
+              });
+              break;
+            case "right":
+              Object.assign(labelStyle, {
+                top: `calc(${offsetPercent} + ${labelOffsetY}px)`,
+                right: `calc(12px - ${labelOffsetX}px)`,
+                transform: "translateY(-50%)",
+                textAlign: "right"
+              });
+              break;
+            case "top":
+              Object.assign(labelStyle, {
+                top: `calc(-28px + ${labelOffsetY}px)`,
+                left: `calc(${offsetPercent} + ${labelOffsetX}px)`,
+                transform: "translateX(-50%)",
+                textAlign: "center"
+              });
+              break;
+            case "bottom":
+            default:
+              Object.assign(labelStyle, {
+                bottom: `calc(-28px - ${labelOffsetY}px)`,
+                left: `calc(${offsetPercent} + ${labelOffsetX}px)`,
+                transform: "translateX(-50%)",
+                textAlign: "center"
+              });
+              break;
+          }
+
+          const handleLabelDragStart = (e: React.MouseEvent) => {
+            if (!updatePort || isHidden) return;
+            e.stopPropagation();
+            e.preventDefault();
+
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const startOffsetX = labelOffsetX;
+            const startOffsetY = labelOffsetY;
+            const labelElement = e.currentTarget as HTMLElement;
+
+            // Get ReactFlow viewport zoom from the transform applied to the viewport
+            const reactFlowViewport = document.querySelector('.react-flow__viewport');
+            let zoom = 1;
+            if (reactFlowViewport) {
+              const transform = window.getComputedStyle(reactFlowViewport).transform;
+              const matrix = new DOMMatrix(transform);
+              zoom = matrix.a; // Scale X from the transform matrix
+            }
+
+            let currentOffsetX = startOffsetX;
+            let currentOffsetY = startOffsetY;
+
+            const handleDrag = (moveEvent: MouseEvent) => {
+              const deltaX = (moveEvent.clientX - startX) / zoom;
+              const deltaY = (moveEvent.clientY - startY) / zoom;
+              currentOffsetX = startOffsetX + deltaX;
+              currentOffsetY = startOffsetY + deltaY;
+
+              // Update DOM directly for smooth visual feedback
+              // Need to update the appropriate position property based on edge
+              if (actualEdge === "left") {
+                labelElement.style.top = `calc(${offsetPercent} + ${currentOffsetY}px)`;
+                labelElement.style.left = `calc(12px + ${currentOffsetX}px)`;
+              } else if (actualEdge === "right") {
+                labelElement.style.top = `calc(${offsetPercent} + ${currentOffsetY}px)`;
+                labelElement.style.right = `calc(12px - ${currentOffsetX}px)`;
+              } else if (actualEdge === "top") {
+                labelElement.style.top = `calc(-28px + ${currentOffsetY}px)`;
+                labelElement.style.left = `calc(${offsetPercent} + ${currentOffsetX}px)`;
+              } else {
+                labelElement.style.bottom = `calc(-28px - ${currentOffsetY}px)`;
+                labelElement.style.left = `calc(${offsetPercent} + ${currentOffsetX}px)`;
+              }
+            };
+
+            const handleDragEnd = () => {
+              document.removeEventListener("mousemove", handleDrag);
+              document.removeEventListener("mouseup", handleDragEnd);
+              // Only send the final position to the server
+              updatePort(block.id, port.id, {
+                labelOffsetX: currentOffsetX,
+                labelOffsetY: currentOffsetY
+              });
+            };
+
+            document.addEventListener("mousemove", handleDrag);
+            document.addEventListener("mouseup", handleDragEnd);
+          };
+
           return (
             <Fragment key={`${edge}-${port.id}`}>
               {/* Invisible target handle - for incoming connections */}
@@ -546,7 +720,7 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
                 type="target"
                 position={position}
                 isConnectableStart={false}
-                isConnectableEnd={hidePortsVisually ? false : isConnectMode}
+                isConnectableEnd={hidePortsVisually ? false : (isHidden ? false : isConnectMode)}
                 style={{
                   ...sharedHandleStyle,
                   background: "transparent",
@@ -562,31 +736,66 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
                 id={port.id}
                 type="source"
                 position={position}
-                isConnectableStart={hidePortsVisually ? false : isConnectMode}
+                isConnectableStart={hidePortsVisually ? false : (isHidden ? false : isConnectMode)}
                 isConnectableEnd={false}
                 className="nodrag nopan"
-                onMouseDown={(e) => !isConnectMode && !hidePortsVisually && handlePortMouseDown(e, port.id, edge as "top" | "right" | "bottom" | "left", port.actualOffset)}
-                onClick={(e) => !hidePortsVisually && handlePortClick(e, port.id)}
+                onMouseDown={(e) => {
+                  if (!hidePortsVisually && !isHidden && !isConnectMode) {
+                    handlePortMouseDown(e, port.id, edge as "top" | "right" | "bottom" | "left", port.actualOffset, isHidden);
+                  }
+                }}
+                onClick={(e) => {
+                  if (!hidePortsVisually && !isHidden) {
+                    handlePortClick(e, port.id, isHidden);
+                  }
+                }}
                 onPointerDown={(e) => e.stopPropagation()}
-                onContextMenu={(e) => !hidePortsVisually && handlePortContextMenu(e, port.id, port.name)}
+                onContextMenu={(e) => {
+                  if (!hidePortsVisually && !isHidden) {
+                    handlePortContextMenu(e, port.id, port.name, isHidden, port.direction);
+                  }
+                }}
                 style={{
                   ...sharedHandleStyle,
                   background: hidePortsVisually ? "transparent" : (port.backgroundColor ?? "#ffffff"),
                   border: hidePortsVisually ? "none" : (isSelected
                     ? "2px solid #2563eb"
                     : `${port.borderWidth ?? 2}px solid ${port.borderColor ?? "#64748b"}`),
-                  cursor: isConnectMode ? "crosshair" : "pointer",
+                  cursor: isHidden ? "default" : (isConnectMode ? "crosshair" : "pointer"),
                   zIndex: selectedPortId === port.id ? 50 : 30,
-                  pointerEvents: hidePortsVisually ? "none" : "auto",
+                  pointerEvents: hidePortsVisually || isHidden ? "none" : "auto",
                   boxShadow: hidePortsVisually ? "none" : (isSelected ? "0 4px 12px rgba(37, 99, 235, 0.4)" : "none"),
                   outline: hidePortsVisually ? "none" : (isSelected ? "2px solid rgba(59, 130, 246, 0.35)" : "none"),
                   outlineOffset: isSelected ? "2px" : "0",
-                  opacity: hidePortsVisually ? 0 : 1
+                  opacity: hidePortsVisually ? 0 : (isHidden ? 0 : 1)
                 }}
-                title={isConnectMode ? `${port.name} (${port.direction})` : `${port.name} - Click to select, drag to reposition`}
+                title={!isHidden
+                  ? (isConnectMode
+                    ? `${port.name} (${port.direction})`
+                    : `${port.name} - Click to select, drag to reposition`)
+                  : undefined}
               >
                 {!hidePortsVisually && arrowSvg}
               </Handle>
+
+              {showPortLabel && (
+                <div
+                  className="nodrag nopan"
+                  style={labelStyle}
+                  onMouseDown={handleLabelDragStart}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handlePortClick(event as unknown as MouseEvent<HTMLDivElement>, port.id, isHidden);
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handlePortContextMenu(event as unknown as MouseEvent<HTMLDivElement>, port.id, port.name, isHidden, port.direction);
+                  }}
+                >
+                  <span>{port.name}</span>
+                </div>
+              )}
             </Fragment>
           );
         })
@@ -655,23 +864,99 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
       )}
 
       {/* Port context menu */}
-      {portContextMenu && (
-        <DiagramContextMenu
-          x={portContextMenu.x}
-          y={portContextMenu.y}
-          items={[
-            {
-              label: `Delete "${portContextMenu.portName}"`,
-              onSelect: () => {
-                if (removePort) {
-                  removePort(block.id, portContextMenu.portId);
-                }
+      {portContextMenu && portContextMenu.blockId === block.id && (() => {
+
+        const items = [
+          {
+            label: portContextMenu.hidden ? "Show port" : "Hide port",
+            onSelect: () => {
+              if (updatePort) {
+                updatePort(block.id, portContextMenu.portId, { hidden: !portContextMenu.hidden });
               }
             }
-          ]}
-          onClose={() => setPortContextMenu(null)}
-        />
-      )}
+          },
+          {
+            label: "Set direction → Input",
+            disabled: portContextMenu.direction === "in",
+            onSelect: () => updatePort?.(block.id, portContextMenu.portId, { direction: "in" })
+          },
+          {
+            label: "Set direction → Output",
+            disabled: portContextMenu.direction === "out",
+            onSelect: () => updatePort?.(block.id, portContextMenu.portId, { direction: "out" })
+          },
+          {
+            label: "Set direction → Bidirectional",
+            disabled: portContextMenu.direction === "inout",
+            onSelect: () => updatePort?.(block.id, portContextMenu.portId, { direction: "inout" })
+          },
+          {
+            label: "Rename port",
+            onSelect: () => {
+              setRenameDialog({ portId: portContextMenu.portId, draft: portContextMenu.portName });
+              onClosePortContextMenu?.();
+            }
+          },
+          {
+            label: `Delete "${portContextMenu.portName}"`,
+            onSelect: () => {
+              if (removePort) {
+                removePort(block.id, portContextMenu.portId);
+              }
+            }
+          }
+        ];
+
+        return (
+          <DiagramContextMenu
+            x={portContextMenu.x}
+            y={portContextMenu.y}
+            items={items}
+            onClose={() => onClosePortContextMenu?.()}
+          />
+        );
+      })()}
+
+      <Dialog open={Boolean(renameDialog)} onOpenChange={(open) => {
+        if (!open) {
+          setRenameDialog(null);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Port</DialogTitle>
+            <DialogDescription>Update the label shown on this diagram.</DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!renameDialog) {return;}
+              const trimmed = renameDialog.draft.trim();
+              if (!trimmed) {
+                return;
+              }
+              updatePort?.(block.id, renameDialog.portId, { name: trimmed });
+              setRenameDialog(null);
+            }}
+          >
+            <input
+              className="text-input"
+              value={renameDialog?.draft ?? ""}
+              onChange={(event) => setRenameDialog(prev => prev ? { ...prev, draft: event.target.value } : prev)}
+              placeholder="Port name"
+              autoFocus
+            />
+            <DialogFooter style={{ marginTop: "1rem" }}>
+              <button type="button" className="ghost-button" onClick={() => setRenameDialog(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-button" disabled={!renameDialog?.draft.trim()}>
+                Save
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

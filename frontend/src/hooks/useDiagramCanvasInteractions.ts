@@ -44,6 +44,16 @@ export type ContextMenuState =
   | { type: "node"; nodeId: string; client: { x: number; y: number } }
   | { type: "edge"; edgeId: string; client: { x: number; y: number } };
 
+export type PortContextMenuState = {
+  blockId: string;
+  portId: string;
+  portName: string;
+  hidden: boolean;
+  direction: PortDirection;
+  x: number;
+  y: number;
+} | null;
+
 interface UseCanvasInteractionsParams {
   architecture: ArchitectureState;
   activeDiagram: ArchitectureDiagramRecord | null;
@@ -123,6 +133,9 @@ export interface UseCanvasInteractionsResult {
     position: { x: number; y: number };
   } | null;
   setConnectorStylingPopup: (popup: { connectorId: string; position: { x: number; y: number } } | null) => void;
+  portContextMenu: PortContextMenuState;
+  handlePortContextMenu: (blockId: string, portId: string, portName: string, hidden: boolean, direction: PortDirection, x: number, y: number) => void;
+  closePortContextMenu: () => void;
   canvasWrapperRef: React.MutableRefObject<HTMLDivElement | null>;
   reactFlowInstanceRef: React.MutableRefObject<ReactFlowInstance | null>;
   selectedConnector: SysmlConnector | null;
@@ -165,6 +178,7 @@ export function useDiagramCanvasInteractions({
   const [minimapOpen, setMinimapOpen] = useState(true);
   const [showCodeViewer, setShowCodeViewer] = useState(false);
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState>({ type: "closed" });
+  const [portContextMenu, setPortContextMenu] = useState<PortContextMenuState>(null);
   const [blockStylingPopup, setBlockStylingPopup] = useState<{
     blockId: string;
     position: { x: number; y: number };
@@ -196,9 +210,26 @@ export function useDiagramCanvasInteractions({
     setContextMenuState({ type: "closed" });
   }, []);
 
+  const handlePortContextMenu = useCallback((
+    blockId: string,
+    portId: string,
+    portName: string,
+    hidden: boolean,
+    direction: PortDirection,
+    x: number,
+    y: number
+  ) => {
+    setPortContextMenu({ blockId, portId, portName, hidden, direction, x, y });
+  }, []);
+
+  const closePortContextMenu = useCallback(() => {
+    setPortContextMenu(null);
+  }, []);
+
   useEffect(() => {
     closeContextMenu();
-  }, [activeDiagramId, closeContextMenu]);
+    closePortContextMenu();
+  }, [activeDiagramId, closeContextMenu, closePortContextMenu]);
 
   useEffect(() => {
     return () => {
@@ -318,6 +349,7 @@ export function useDiagramCanvasInteractions({
       const firstEdgeId = selectedEdges[0]?.id ?? null;
 
       closeContextMenu();
+      closePortContextMenu();
 
       if (DEBUG_ARCHITECTURE) {
         console.debug("[Architecture] selection change", {
@@ -337,7 +369,7 @@ export function useDiagramCanvasInteractions({
         onSelectConnector(null);
       }
     },
-    [closeContextMenu, onSelectBlock, onSelectConnector]
+    [closeContextMenu, closePortContextMenu, onSelectBlock, onSelectConnector]
   );
 
   const handleNodesChange = useCallback(
@@ -502,6 +534,7 @@ export function useDiagramCanvasInteractions({
 
       const sharedBaseName = block.name.replace(/\s+copy$/i, "");
       const existingPorts = block.ports.length;
+      const hasHiddenPorts = block.ports.some(port => port.hidden);
 
       return [
         {
@@ -517,6 +550,17 @@ export function useDiagramCanvasInteractions({
         {
           label: "Add Port",
           onSelect: () => addPort(block.id, { name: `port${existingPorts + 1}`, direction: "inout" })
+        },
+        {
+          label: "Show all ports",
+          onSelect: () => {
+            block.ports.forEach(port => {
+              if (port.hidden) {
+                updatePort(block.id, port.id, { hidden: false });
+              }
+            });
+          },
+          disabled: !hasHiddenPorts
         },
         {
           label: "Duplicate block",
@@ -581,6 +625,7 @@ export function useDiagramCanvasInteractions({
     blockPresets,
     handleAddBlock,
     addPort,
+    updatePort,
     removeBlock,
     removeConnector,
     setBlockStylingPopup,
@@ -602,8 +647,11 @@ export function useDiagramCanvasInteractions({
     selectedPortId,
     onSelectPort,
     updatePort,
-    removePort
-  }), [memoizedDocuments, onOpenDocument, hideDefaultHandles, isConnectMode, selectedPortId, onSelectPort, updatePort, removePort]);
+    removePort,
+    portContextMenu,
+    onPortContextMenu: handlePortContextMenu,
+    onClosePortContextMenu: closePortContextMenu
+  }), [memoizedDocuments, onOpenDocument, hideDefaultHandles, isConnectMode, selectedPortId, onSelectPort, updatePort, removePort, portContextMenu, handlePortContextMenu, closePortContextMenu]);
 
   /**
    * SMART NODE SYNCHRONIZATION:
@@ -707,7 +755,10 @@ export function useDiagramCanvasInteractions({
               data: {
                 ...mappedEdge.data,
                 documents,
-                onOpenDocument
+                onOpenDocument,
+                onUpdateLabelOffset: (offsetX: number, offsetY: number) => {
+                  updateConnector(connector.id, { labelOffsetX: offsetX, labelOffsetY: offsetY });
+                }
               }
             } satisfies Edge;
           }
@@ -715,7 +766,11 @@ export function useDiagramCanvasInteractions({
           // Check if anything meaningful changed
           const selectionChanged = prev.selected !== (connector.id === selectedConnectorId);
           const handleChanged = prev.sourceHandle !== mappedEdge.sourceHandle || prev.targetHandle !== mappedEdge.targetHandle;
-          const dataChanged = JSON.stringify(prev.data?.documentIds) !== JSON.stringify(mappedEdge.data?.documentIds);
+          const documentIdsChanged = JSON.stringify(prev.data?.documentIds) !== JSON.stringify(mappedEdge.data?.documentIds);
+          const labelOffsetChanged =
+            (prev.data?.labelOffsetX ?? 0) !== (mappedEdge.data?.labelOffsetX ?? 0) ||
+            (prev.data?.labelOffsetY ?? 0) !== (mappedEdge.data?.labelOffsetY ?? 0);
+          const dataChanged = documentIdsChanged || labelOffsetChanged;
           const visualChanged =
             prev.type !== mappedEdge.type ||
             prev.animated !== mappedEdge.animated ||
@@ -745,7 +800,10 @@ export function useDiagramCanvasInteractions({
             data: {
               ...mappedEdge.data,
               documents,
-              onOpenDocument
+              onOpenDocument,
+              onUpdateLabelOffset: (offsetX: number, offsetY: number) => {
+                updateConnector(connector.id, { labelOffsetX: offsetX, labelOffsetY: offsetY });
+              }
             }
           } satisfies Edge;
         });
@@ -762,12 +820,15 @@ export function useDiagramCanvasInteractions({
           data: {
             ...mappedEdge.data,
             documents,
-            onOpenDocument
+            onOpenDocument,
+            onUpdateLabelOffset: (offsetX: number, offsetY: number) => {
+              updateConnector(connector.id, { labelOffsetX: offsetX, labelOffsetY: offsetY });
+            }
           }
         } satisfies Edge;
       });
     });
-  }, [architecture.connectors, architecture.blocks, selectedConnectorId, mapConnectorToEdge, documents, onOpenDocument]);
+  }, [architecture.connectors, architecture.blocks, selectedConnectorId, mapConnectorToEdge, documents, onOpenDocument, updateConnector]);
 
   useLayoutEffect(() => {
     if (!architecture.blocks.length) {
@@ -780,6 +841,7 @@ export function useDiagramCanvasInteractions({
 
   const handlePaneClick = useCallback(() => {
     closeContextMenu();
+    closePortContextMenu();
     onSelectBlock(null);
     onSelectConnector(null);
     setBlockStylingPopup(null);
@@ -792,7 +854,7 @@ export function useDiagramCanvasInteractions({
       ...edge,
       selected: false
     })));
-  }, [closeContextMenu, onSelectBlock, onSelectConnector, setNodes, setEdges]);
+  }, [closeContextMenu, closePortContextMenu, onSelectBlock, onSelectConnector, setNodes, setEdges]);
 
   const selectedConnector = useMemo(
     () => architecture.connectors.find(connector => connector.id === selectedConnectorId) ?? null,
@@ -824,6 +886,9 @@ export function useDiagramCanvasInteractions({
     setBlockStylingPopup,
     connectorStylingPopup,
     setConnectorStylingPopup,
+    portContextMenu,
+    handlePortContextMenu,
+    closePortContextMenu,
     canvasWrapperRef,
     reactFlowInstanceRef,
     selectedConnector,

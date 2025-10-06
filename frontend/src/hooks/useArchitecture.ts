@@ -17,6 +17,7 @@ export interface BlockPort {
   borderWidth?: number;
   iconColor?: string;
   shape?: "circle" | "square" | "diamond";
+  hidden?: boolean;
 }
 
 export interface SysmlBlock {

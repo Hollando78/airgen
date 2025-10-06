@@ -1067,7 +1067,7 @@ button:hover:not(:disabled) {
 
 .architecture-context-menu {
   position: fixed;
-  z-index: 20;
+  z-index: 1200;
   background: #ffffff;
   border: 1px solid var(--border-legacy);
   border-radius: 0.75rem;

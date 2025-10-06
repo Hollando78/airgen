@@ -144,6 +144,37 @@ export function ConnectorDetailsPanel({ connector, onUpdate, onRemove, documents
             />
           </div>
         </div>
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+          <div className="field" style={{ flex: 1 }}>
+            <label>X</label>
+            <input
+              type="number"
+              value={connector.labelOffsetX ?? 0}
+              onChange={event => onUpdate({ labelOffsetX: Number(event.target.value) })}
+              placeholder="0"
+              style={{ width: "100%" }}
+            />
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label>Y</label>
+            <input
+              type="number"
+              value={connector.labelOffsetY ?? 0}
+              onChange={event => onUpdate({ labelOffsetY: Number(event.target.value) })}
+              placeholder="0"
+              style={{ width: "100%" }}
+            />
+          </div>
+          <button
+            className="ghost-button"
+            onClick={() => onUpdate({ labelOffsetX: 0, labelOffsetY: 0 })}
+            style={{ padding: "6px 12px", whiteSpace: "nowrap" }}
+            title="Reset label position"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       <div className="panel" style={{ background: "#f1f5f9", border: "1px solid #cbd5e1" }}>

@@ -37,6 +37,12 @@ Requirements support soft-delete (`deleted: true`) and archive (`archived: true`
 
 This structure allows future expansion for needs, risks, or test cases as additional node labels with contextual relationships.
 
+## Diagram-Specific Persistence
+- Architecture blocks continue to be defined once, but their placement inside a given diagram now carries `rel.portOverrides` JSON on the `HAS_BLOCK` relationship. Each override maps a port ID to diagram-local properties (edge, offset, hidden, visibility of labels, and label offsets). This keeps shared blocks reusable while allowing each diagram to expose only the ports it needs.
+- Hidden ports remain part of the ReactFlow graph and the backend metadata so existing connectors stay valid. The canvas suppresses their handles entirely and surfaces a badge within the block summarising how many ports are hidden in the current diagram.
+- Connector labels can be dragged to new positions; the resulting `labelOffsetX/Y` persist per diagram on the connector node so documentation callouts do not collide when reused elsewhere.
+- The ReactFlow integration reads both the definition ports and any overrides, feeding the merged result through `useArchitecture`/`useInterface` hooks. PATCHing `/architecture/blocks/:blockId` with a `portOverrides` payload or `/architecture/connectors/:connectorId` with `labelOffsetX/Y` updates the stored overrides.
+
 ## LLM Gateway
 - `LLM_PROVIDER=openai` enables the OpenAI SDK.
 - `LLM_API_KEY`/`OPENAI_API_KEY`, `LLM_MODEL`, and `LLM_BASE_URL` tune the provider.

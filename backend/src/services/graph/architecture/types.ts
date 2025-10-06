@@ -3,7 +3,7 @@ export type BlockKind = "system" | "subsystem" | "component" | "actor" | "extern
 export type BlockPortRecord = {
   id: string;
   name: string;
-  direction: "in" | "out" | "inout";
+  direction: "in" | "out" | "inout" | "none";
   edge?: "top" | "right" | "bottom" | "left";
   offset?: number; // 0-100% position along edge
   // Styling properties
@@ -13,6 +13,19 @@ export type BlockPortRecord = {
   size?: number | null;
   shape?: "circle" | "square" | "diamond" | null;
   iconColor?: string | null;
+  hidden?: boolean | null;
+  showLabel?: boolean | null;
+  labelOffsetX?: number | null;
+  labelOffsetY?: number | null;
+};
+
+export type BlockPortOverrideRecord = {
+  edge?: "top" | "right" | "bottom" | "left";
+  offset?: number | null;
+  hidden?: boolean | null;
+  showLabel?: boolean | null;
+  labelOffsetX?: number | null;
+  labelOffsetY?: number | null;
 };
 
 export type ArchitectureBlockDefinitionRecord = {
@@ -50,6 +63,8 @@ export type ArchitectureBlockRecord = ArchitectureBlockDefinitionRecord & {
   fontSize?: number | null;
   fontWeight?: string | null;
   borderRadius?: number | null;
+  definitionPorts?: BlockPortRecord[];
+  portOverrides?: Record<string, BlockPortOverrideRecord>;
 };
 
 export type ConnectorKind = "association" | "flow" | "dependency" | "composition";
@@ -75,6 +90,8 @@ export type ArchitectureConnectorRecord = {
   linePattern?: string | null;
   color?: string | null;
   strokeWidth?: number | null;
+  labelOffsetX?: number | null;
+  labelOffsetY?: number | null;
 };
 
 export type ArchitectureDiagramRecord = {

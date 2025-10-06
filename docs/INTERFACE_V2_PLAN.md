@@ -16,6 +16,7 @@
 3. **Canvas Behaviour**
    - Layer new memoised selection + viewport helpers over the existing `DiagramCanvas` so ReactFlow instance churn is minimised.
    - Provide selection syncing hooks that only notify when IDs change.
+   - Persist connector label drags and port hide/offset overrides per diagram so reused blocks and connectors can adapt to their context without mutating the library definitions; surface hidden-port counts inside the block shell to keep reviewers aware of suppressed handles.
 4. **Sidepanes**
    - Block/Connector/Port detail panels become controlled components receiving `selectedEntity` props to avoid redundant lookups.
    - Palette emphasises reuse vs preset creation with quick actions bar.

@@ -10,6 +10,7 @@ import type {
   BlockKind,
   PortDirection,
   BlockPortRecord,
+  BlockPortOverride,
   ConnectorKind,
   UpdateArchitectureBlockRequest,
   CreateArchitectureConnectorRequest
@@ -25,6 +26,8 @@ export interface SysmlBlock {
   position: { x: number; y: number };
   size: { width: number; height: number };
   ports: BlockPort[];
+  definitionPorts?: BlockPort[];
+  portOverrides?: Record<string, BlockPortOverride>;
   documentIds?: string[];
   // Styling properties
   backgroundColor?: string;
@@ -49,6 +52,10 @@ export interface BlockPort {
   borderWidth?: number;
   iconColor?: string;
   shape?: "circle" | "square" | "diamond";
+  hidden?: boolean;
+  showLabel?: boolean;
+  labelOffsetX?: number;
+  labelOffsetY?: number;
 }
 
 export interface SysmlConnector {
@@ -67,6 +74,9 @@ export interface SysmlConnector {
   linePattern?: string;
   color?: string;
   strokeWidth?: number;
+  // Label positioning
+  labelOffsetX?: number;
+  labelOffsetY?: number;
 }
 
 export { BlockKind, ConnectorKind, PortDirection };
@@ -77,7 +87,54 @@ export interface ArchitectureState {
   lastModified: string;
 }
 
+const DIAGRAM_PORT_OVERRIDE_KEYS: Array<keyof BlockPortOverride> = [
+  "edge",
+  "offset",
+  "hidden",
+  "showLabel",
+  "labelOffsetX",
+  "labelOffsetY"
+];
+
+function resolvePortsWithOverrides(
+  definitionPorts: BlockPortRecord[],
+  overrides: Record<string, BlockPortOverride> = {}
+): BlockPort[] {
+  return definitionPorts.map(port => {
+    const override = overrides[port.id];
+    if (!override) {
+      return { ...port };
+    }
+
+    const merged: BlockPort = { ...port };
+
+    if (override.edge !== undefined) {
+      merged.edge = override.edge ?? undefined;
+    }
+    if (override.offset !== undefined) {
+      merged.offset = override.offset ?? undefined;
+    }
+    if (override.hidden !== undefined) {
+      merged.hidden = override.hidden ?? undefined;
+    }
+    if (override.showLabel !== undefined) {
+      merged.showLabel = override.showLabel ?? undefined;
+    }
+    if (override.labelOffsetX !== undefined) {
+      merged.labelOffsetX = override.labelOffsetX ?? undefined;
+    }
+    if (override.labelOffsetY !== undefined) {
+      merged.labelOffsetY = override.labelOffsetY ?? undefined;
+    }
+
+    return merged;
+  });
+}
+
 function mapBlockFromApi(block: ArchitectureBlockRecord): SysmlBlock {
+  const definitionPorts = (block.definitionPorts ?? block.ports ?? []).map(port => ({ ...port }));
+  const overrides = block.portOverrides ?? {};
+
   return {
     id: block.id,
     name: block.name,
@@ -86,7 +143,12 @@ function mapBlockFromApi(block: ArchitectureBlockRecord): SysmlBlock {
     description: block.description || undefined,
     position: { x: block.positionX, y: block.positionY },
     size: { width: block.sizeWidth, height: block.sizeHeight },
-    ports: block.ports,
+    ports: resolvePortsWithOverrides(definitionPorts, overrides),
+    definitionPorts: definitionPorts as BlockPort[],
+    portOverrides: Object.entries(overrides).reduce<Record<string, BlockPortOverride>>((acc, [key, value]) => {
+      acc[key] = { ...value };
+      return acc;
+    }, {}),
     documentIds: block.documentIds,
     // Styling properties
     backgroundColor: block.backgroundColor || undefined,
@@ -116,7 +178,10 @@ function mapConnectorFromApi(connector: ArchitectureConnectorRecord): SysmlConne
     markerEnd: connector.markerEnd,
     linePattern: connector.linePattern,
     color: connector.color,
-    strokeWidth: connector.strokeWidth
+    strokeWidth: connector.strokeWidth,
+    // Label positioning
+    labelOffsetX: connector.labelOffsetX ?? undefined,
+    labelOffsetY: connector.labelOffsetY ?? undefined
   };
 }
 
@@ -283,13 +348,31 @@ export function useArchitecture(tenant: string | null, project: string | null) {
             ...old,
             blocks: old.blocks.map(block =>
               block.id === blockId
-                ? {
-                    ...block,
-                    ...updates,
-                    positionX: updates.positionX ?? block.positionX,
-                    positionY: updates.positionY ?? block.positionY,
-                    updatedAt: new Date().toISOString()
-                  }
+                ? (() => {
+                    const nextDefinitionPorts = ((updates.ports ?? block.definitionPorts ?? block.ports) as BlockPortRecord[])
+                      .map(port => ({ ...port }));
+                    const nextPortOverrides = updates.portOverrides
+                      ? Object.entries(updates.portOverrides).reduce<Record<string, BlockPortOverride>>((acc, [key, value]) => {
+                          acc[key] = { ...value };
+                          return acc;
+                        }, {})
+                      : (block.portOverrides ? Object.entries(block.portOverrides).reduce<Record<string, BlockPortOverride>>((acc, [key, value]) => {
+                          acc[key] = { ...value };
+                          return acc;
+                        }, {}) : {});
+                    const resolvedPorts = resolvePortsWithOverrides(nextDefinitionPorts, nextPortOverrides);
+
+                    return {
+                      ...block,
+                      ...updates,
+                      definitionPorts: nextDefinitionPorts,
+                      portOverrides: nextPortOverrides,
+                      ports: resolvedPorts,
+                      positionX: updates.positionX ?? block.positionX,
+                      positionY: updates.positionY ?? block.positionY,
+                      updatedAt: new Date().toISOString()
+                    };
+                  })()
                 : block
             )
           };
@@ -385,7 +468,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
       connectorId: string;
       updates: Partial<Pick<
         CreateArchitectureConnectorRequest,
-        "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
+        "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth" | "labelOffsetX" | "labelOffsetY"
       >>
     }) => {
       if (!activeDiagramId) {
@@ -536,41 +619,139 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     const newPort = {
       id: `port-${Date.now()}`,
       name: port.name,
-      direction: port.direction
+      direction: port.direction,
+      hidden: false
     };
 
-    const updatedPorts = [...block.ports, newPort];
+    const definitionPorts = (block.definitionPorts ?? block.ports) as BlockPortRecord[];
+    const updatedDefinitionPorts = [...definitionPorts, newPort];
     if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
-      updates: { diagramId: activeDiagramId, ports: updatedPorts }
+      updates: { diagramId: activeDiagramId, ports: updatedDefinitionPorts }
     });
   }, [activeDiagramId, blocks, updateBlockMutation]);
 
-  const updatePort = useCallback((blockId: string, portId: string, updates: { name?: string; direction?: PortDirection; edge?: "top" | "right" | "bottom" | "left"; offset?: number }) => {
+  const updatePort = useCallback((
+    blockId: string,
+    portId: string,
+    updates: {
+      name?: string;
+      direction?: PortDirection;
+      edge?: "top" | "right" | "bottom" | "left";
+      offset?: number;
+      hidden?: boolean;
+      showLabel?: boolean;
+      labelOffsetX?: number;
+      labelOffsetY?: number;
+    }
+  ) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) {return;}
 
-    const updatedPorts = block.ports.map(port =>
-      port.id === portId ? { ...port, ...updates } : port
-    );
-
     if (!activeDiagramId) {return;}
-    updateBlockMutation.mutate({
-      blockId,
-      updates: { diagramId: activeDiagramId, ports: updatedPorts }
+
+    const definitionPorts = (block.definitionPorts ?? block.ports) as BlockPortRecord[];
+    const currentOverrides = block.portOverrides ?? {};
+
+    const baseUpdates: Partial<BlockPortRecord> = {};
+    const overrideUpdates: Partial<BlockPortOverride> = {};
+
+    (Object.entries(updates) as Array<[string, unknown]>).forEach(([key, value]) => {
+      if (DIAGRAM_PORT_OVERRIDE_KEYS.includes(key as keyof BlockPortOverride)) {
+        overrideUpdates[key as keyof BlockPortOverride] = value as never;
+      } else {
+        baseUpdates[key as keyof BlockPortRecord] = value as never;
+      }
     });
+
+    let nextDefinitionPorts = definitionPorts.map(port => ({ ...port }));
+    let nextPortOverrides = { ...currentOverrides } as Record<string, BlockPortOverride>;
+
+    if (Object.keys(baseUpdates).length > 0) {
+      nextDefinitionPorts = nextDefinitionPorts.map(port =>
+        port.id === portId ? { ...port, ...baseUpdates } : port
+      );
+    }
+
+    if (Object.keys(overrideUpdates).length > 0) {
+      const basePort = nextDefinitionPorts.find(port => port.id === portId);
+      const existingOverride = { ...(currentOverrides[portId] ?? {}) } as BlockPortOverride;
+      const mergedOverride = { ...existingOverride, ...overrideUpdates };
+
+      const cleanedOverride: BlockPortOverride = {};
+      DIAGRAM_PORT_OVERRIDE_KEYS.forEach(key => {
+        const value = mergedOverride[key];
+        if (value === undefined) {
+          return;
+        }
+        const baseValue = basePort ? (basePort as Record<string, unknown>)[key] : undefined;
+
+        const normalizeForComparison = (targetKey: keyof BlockPortOverride, raw: unknown) => {
+          switch (targetKey) {
+            case "hidden":
+              return raw === undefined || raw === null ? false : Boolean(raw);
+            case "showLabel":
+              if (raw === undefined || raw === null) {
+                return true;
+              }
+              return Boolean(raw);
+            default:
+              return raw ?? null;
+          }
+        };
+
+        const normalizedValue = normalizeForComparison(key, value);
+        const normalizedBase = normalizeForComparison(key, baseValue);
+        if (normalizedValue === normalizedBase) {
+          return;
+        }
+        cleanedOverride[key] = value as never;
+      });
+
+      if (Object.keys(cleanedOverride).length > 0) {
+        nextPortOverrides = { ...nextPortOverrides, [portId]: cleanedOverride };
+      } else {
+        const overridesCopy = { ...nextPortOverrides };
+        delete overridesCopy[portId];
+        nextPortOverrides = overridesCopy;
+      }
+    }
+
+    const shouldUpdatePorts = Object.keys(baseUpdates).length > 0;
+    const shouldUpdateOverrides = Object.keys(overrideUpdates).length > 0;
+
+    if (shouldUpdatePorts || shouldUpdateOverrides) {
+      updateBlockMutation.mutate({
+        blockId,
+        updates: {
+          diagramId: activeDiagramId,
+          ...(shouldUpdatePorts ? { ports: nextDefinitionPorts } : {}),
+          ...(shouldUpdateOverrides ? { portOverrides: nextPortOverrides } : {})
+        }
+      });
+    }
   }, [activeDiagramId, blocks, updateBlockMutation]);
 
   const removePort = useCallback((blockId: string, portId: string) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) {return;}
 
-    const updatedPorts = block.ports.filter(port => port.id !== portId);
+    const definitionPorts = (block.definitionPorts ?? block.ports) as BlockPortRecord[];
+    const updatedDefinitionPorts = definitionPorts.filter(port => port.id !== portId);
+    const overrides = { ...(block.portOverrides ?? {}) } as Record<string, BlockPortOverride>;
+    const hadOverride = Boolean(overrides[portId]);
+    if (hadOverride) {
+      delete overrides[portId];
+    }
     if (!activeDiagramId) {return;}
     updateBlockMutation.mutate({
       blockId,
-      updates: { diagramId: activeDiagramId, ports: updatedPorts }
+      updates: {
+        diagramId: activeDiagramId,
+        ports: updatedDefinitionPorts,
+        ...(hadOverride ? { portOverrides: overrides } : {})
+      }
     });
   }, [activeDiagramId, blocks, updateBlockMutation]);
 
@@ -598,10 +779,10 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     return `temp-connector-${Date.now()}`;
   }, [activeDiagramId, createConnectorMutation]);
 
-  const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth">>) => {
+  const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth" | "labelOffsetX" | "labelOffsetY">>) => {
     const sanitizedUpdates: Partial<Pick<
       CreateArchitectureConnectorRequest,
-      "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth"
+      "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth" | "labelOffsetX" | "labelOffsetY"
     >> = {};
 
     if (updates.kind !== undefined) {sanitizedUpdates.kind = updates.kind;}
@@ -615,6 +796,8 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     if (updates.strokeWidth !== undefined) {sanitizedUpdates.strokeWidth = updates.strokeWidth;}
     if (updates.sourcePortId !== undefined) {sanitizedUpdates.sourcePortId = updates.sourcePortId ?? undefined;}
     if (updates.targetPortId !== undefined) {sanitizedUpdates.targetPortId = updates.targetPortId ?? undefined;}
+    if (updates.labelOffsetX !== undefined) {sanitizedUpdates.labelOffsetX = updates.labelOffsetX;}
+    if (updates.labelOffsetY !== undefined) {sanitizedUpdates.labelOffsetY = updates.labelOffsetY;}
 
     updateConnectorMutation.mutate({ connectorId, updates: sanitizedUpdates });
   }, [updateConnectorMutation]);

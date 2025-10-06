@@ -29,6 +29,8 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Visual workspace** – Interactive diagram canvas with ReactFlow.
 - **Floating diagram windows** – Pop out diagrams into resizable, draggable floating windows for multi-diagram workflows.
 - **Independent viewports** – Each diagram tab maintains its own zoom and pan state for efficient navigation.
+- **Per-diagram port layouts** – Hide or reposition ports on a per-diagram basis; hidden ports stay connected while a badge inside the block shows how many are hidden.
+- **Repositionable connector labels** – Drag connector labels to stash per-diagram offsets so documentation callouts stay readable without affecting other views.
 - **Diagram snapshots** – Capture and upload diagram screenshots directly to the document manager from floating windows.
 
 ### AI-Assisted Generation (AIRGen)
@@ -114,7 +116,7 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 - Leave the production “coming soon” stack running until launch; only run `deploy-production.sh` when you’re ready to replace Traefik/nginx with the full application.
 
 ## Frontend architecture
-- **Shared diagram canvas** – Both Architecture and Interface workspaces now reuse a common `DiagramCanvas` and `useDiagramCanvasInteractions`. Each workspace supplies its own block presets, connector mapping, and palette metadata, while the shared canvas drives ReactFlow rendering, selection state, context menus, debounced persistence, and mini-map/query overlays.
+- **Shared diagram canvas** – Both Architecture and Interface workspaces reuse a common `DiagramCanvas` and `useDiagramCanvasInteractions`. Each workspace supplies its own block presets, connector mapping, and palette metadata, while the shared canvas now drives ReactFlow rendering, selection state, context menus, debounced persistence, per-diagram port overrides, connector label offsets, and mini-map/query overlays.
 - **Composable workspaces** – Route-level workspace components now just coordinate tenant/project context, floating document windows, palettes, and inspectors around the shared canvas, keeping each route lightweight.
 - **Floating windows system** – Documents and diagrams can be opened in floating windows via `FloatingDocumentsContext`. Windows are draggable, resizable, and support multiple simultaneous views for enhanced productivity.
 - **Toast notifications** – Non-blocking notifications using Sonner library for success, error, and loading states, replacing browser dialogs.
@@ -178,6 +180,10 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 | GET    | `/architecture/diagrams/:tenant/:project` | List diagrams |
 | POST   | `/architecture/blocks`                    | Create diagram block |
 | POST   | `/architecture/connectors`                | Create diagram connector |
+| PATCH  | `/architecture/blocks/:tenant/:project/:blockId` | Update block placement, styling, and per-diagram port overrides |
+| PATCH  | `/architecture/connectors/:tenant/:project/:connectorId` | Update connector styling, documents, and label offsets |
+
+`portOverrides` accepts a map of `{ [portId]: { edge?, offset?, hidden?, showLabel?, labelOffsetX?, labelOffsetY? } }` so individual diagrams can customise how a reused block exposes its ports without mutating the definition. Connector PATCH requests persist label offset drags per diagram alongside styling metadata.
 
 ### AIRGen
 | Method | Path                                      | Purpose |
@@ -200,6 +206,7 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 - **Toast notifications** – Non-blocking success, error, and loading notifications appear in the top-right corner, providing feedback without interrupting workflow.
 - **Modal dialogs** – Creating and renaming resources uses accessible modal dialogs with keyboard support (Enter to submit, Escape to cancel).
 - **Per-diagram viewports** – Each diagram tab remembers its own zoom level and pan position, allowing quick navigation between different views.
+- **Hidden port indicator** – When ports are hidden on a diagram, the parent block shows a counter badge so reviewers know connections still exist even if individual handles are suppressed.
 
 ## Sample workflow
 1. Draft requirement candidates (heuristic + LLM):
