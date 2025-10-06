@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, Fragment, type MouseEvent } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, Fragment, type MouseEvent } from "react";
 import type { NodeProps } from "@xyflow/react";
 import { Handle, NodeResizer, Position, useUpdateNodeInternals } from "@xyflow/react";
 import type { SysmlBlock } from "../../hooks/useArchitectureApi";
@@ -101,6 +101,13 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
   const blockRef = useRef<HTMLDivElement>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
+
+  // Track a lightweight signature so ReactFlow handles refresh when port metadata changes
+  const portsSignature = useMemo(() => {
+    return block.ports
+      .map(port => `${port.id}:${port.edge ?? ""}:${port.offset ?? ""}`)
+      .join("|");
+  }, [block.ports]);
 
   // Port context menu state
   const [portContextMenu, setPortContextMenu] = useState<{
@@ -263,6 +270,11 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
     };
   }, []);
 
+  // Ensure ReactFlow recalculates handle geometry when ports or block dimensions change
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, portsSignature, block.size.width, block.size.height, updateNodeInternals]);
+
   // Group ports by edge for positioning (use dragging state if available)
   const portsByEdge: Record<string, Array<typeof block.ports[0] & { actualEdge: string; actualOffset: number }>> = {
     top: [],
@@ -315,10 +327,8 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
   return (
     <div ref={blockRef} style={blockStyle}>
       <NodeResizer 
-        minHeight={140} 
-        minWidth={220} 
-        maxWidth={500}
-        maxHeight={400}
+        minHeight={100} 
+        minWidth={150} 
         isVisible={selected}
         shouldResize={() => true}
         lineStyle={{ 

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTenantProjectDocument } from "../../components/TenantProjectDocumentSelector";
 import { useApiClient } from "../../lib/client";
 import { useInterface } from "../../hooks/useInterfaceApi";
-import { InterfaceWorkspace } from "./InterfaceWorkspace";
+import { InterfaceWorkspaceV2 } from "./InterfaceWorkspaceV2";
 
 export function InterfaceRoute(): JSX.Element {
   const { tenant, project } = useTenantProjectDocument();
@@ -31,7 +31,7 @@ export function InterfaceRoute(): JSX.Element {
   }
 
   return (
-    <InterfaceWorkspace
+    <InterfaceWorkspaceV2
       tenant={tenant}
       project={project}
       architecture={interfaceState.architecture}

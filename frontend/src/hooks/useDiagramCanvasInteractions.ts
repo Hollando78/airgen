@@ -179,6 +179,7 @@ export function useDiagramCanvasInteractions({
 
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map());
   const sizeUpdateTimeouts = useRef<Map<string, number>>(new Map());
+  const pendingResizeSizesRef = useRef<Map<string, { width: number; height: number }>>(new Map());
   const draggingNodes = useRef<Set<string>>(new Set());
 
   const [nodes, setNodes, onNodesStateChange] = useNodesState<Node>([]);
@@ -231,10 +232,44 @@ export function useDiagramCanvasInteractions({
     const timeout = window.setTimeout(() => {
       updateBlockSize(blockId, size);
       timeouts.delete(blockId);
-    }, 300);
+    }, 180);
 
     timeouts.set(blockId, timeout);
   }, [updateBlockSize]);
+
+  const applyPendingResizeOverrides = useCallback(() => {
+    if (pendingResizeSizesRef.current.size === 0) {
+      return;
+    }
+
+    setNodes(prevNodes => prevNodes.map(node => {
+      const override = pendingResizeSizesRef.current.get(node.id);
+      if (!override) {
+        return node;
+      }
+
+      const existingBlock = (node.data as { block?: SysmlBlock }).block;
+      if (!existingBlock) {
+        return node;
+      }
+
+      return {
+        ...node,
+        style: {
+          ...node.style,
+          width: override.width,
+          height: override.height
+        },
+        data: {
+          ...node.data,
+          block: {
+            ...existingBlock,
+            size: override
+          }
+        }
+      };
+    }));
+  }, [setNodes]);
 
   const handlePaneContextMenu = useCallback((event: ReactMouseEvent | MouseEvent) => {
     event.preventDefault();
@@ -324,14 +359,31 @@ export function useDiagramCanvasInteractions({
           }
         }
         if (change.type === "dimensions" && change.dimensions) {
-          debouncedUpdateBlockSize(change.id, {
+          const baseBlock = architecture.blocks.find((candidate: SysmlBlock) => candidate.id === change.id);
+          if (!baseBlock) {
+            return;
+          }
+
+          const nextSize = {
             width: change.dimensions.width,
             height: change.dimensions.height
-          });
+          };
+
+          const widthDelta = Math.abs((baseBlock.size?.width ?? 0) - nextSize.width);
+          const heightDelta = Math.abs((baseBlock.size?.height ?? 0) - nextSize.height);
+          const hasPendingOverride = pendingResizeSizesRef.current.has(change.id);
+
+          if (!hasPendingOverride && widthDelta < 0.5 && heightDelta < 0.5) {
+            return;
+          }
+
+          pendingResizeSizesRef.current.set(change.id, nextSize);
+          applyPendingResizeOverrides();
+          debouncedUpdateBlockSize(change.id, nextSize);
         }
       });
     },
-    [debouncedUpdateBlockPosition, debouncedUpdateBlockSize, onNodesStateChange]
+    [architecture.blocks, applyPendingResizeOverrides, debouncedUpdateBlockPosition, debouncedUpdateBlockSize, onNodesStateChange]
   );
 
   const handleEdgesChange = useCallback(
@@ -577,9 +629,23 @@ export function useDiagramCanvasInteractions({
         const shouldPreservePosition = draggingNodes.current.has(block.id);
         const position = shouldPreservePosition && prev ? prev.position : block.position;
 
+        const resizeOverride = pendingResizeSizesRef.current.get(block.id);
+        const isOverrideSatisfied = resizeOverride
+          ? Math.abs(resizeOverride.width - block.size.width) < 0.5 &&
+            Math.abs(resizeOverride.height - block.size.height) < 0.5
+          : false;
+
+        if (isOverrideSatisfied) {
+          pendingResizeSizesRef.current.delete(block.id);
+        }
+
+        const effectiveBlock = resizeOverride && !isOverrideSatisfied
+          ? { ...block, size: resizeOverride }
+          : block;
+
         // Only update node if block data changed or it's a new node
         const needsUpdate = !prev || hasStructuralChanges ||
-          prev.data.block !== block ||
+          prev.data.block !== effectiveBlock ||
           prev.selected !== (block.id === selectedBlockId);
 
         if (prev && !needsUpdate && shouldPreservePosition) {
@@ -594,7 +660,7 @@ export function useDiagramCanvasInteractions({
           position,
           data: {
             ...nodeDataTemplate,
-            block
+            block: effectiveBlock
           },
           style: {
             width: block.size.width,

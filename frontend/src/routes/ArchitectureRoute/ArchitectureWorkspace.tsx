@@ -184,6 +184,16 @@ export function ArchitectureWorkspace({
         ...prev,
         [activeDiagramId]: viewport
       }));
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            `airgen:diagramViewport:${activeDiagramId}`,
+            JSON.stringify(viewport)
+          );
+        } catch (error) {
+          console.warn("Failed to persist architecture viewport", error);
+        }
+      }
     }, 100);
   }, [activeDiagramId]);
 
@@ -196,7 +206,74 @@ export function ArchitectureWorkspace({
     };
   }, []);
 
-  const currentViewport = activeDiagramId ? diagramViewports[activeDiagramId] : undefined;
+  useEffect(() => {
+    if (typeof window === "undefined" || !diagrams.length) {
+      return;
+    }
+
+    setDiagramViewports(prev => {
+      let hasChanges = false;
+      const next = { ...prev };
+
+      diagrams.forEach(diagram => {
+        if (next[diagram.id]) {
+          return;
+        }
+        try {
+          const raw = window.localStorage.getItem(`airgen:diagramViewport:${diagram.id}`);
+          if (!raw) {
+            return;
+          }
+          const parsed = JSON.parse(raw) as { x: number; y: number; zoom: number };
+          if (
+            typeof parsed === "object" &&
+            typeof parsed.x === "number" &&
+            typeof parsed.y === "number" &&
+            typeof parsed.zoom === "number"
+          ) {
+            next[diagram.id] = parsed;
+            hasChanges = true;
+          }
+        } catch (error) {
+          console.warn("Failed to hydrate architecture viewport", error);
+        }
+      });
+
+      return hasChanges ? next : prev;
+    });
+  }, [diagrams]);
+
+  const currentViewport = useMemo(() => {
+    if (!activeDiagramId) {
+      return undefined;
+    }
+
+    const cached = diagramViewports[activeDiagramId];
+    if (cached) {
+      return cached;
+    }
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(`airgen:diagramViewport:${activeDiagramId}`);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { x: number; y: number; zoom: number };
+          if (
+            typeof parsed === "object" &&
+            typeof parsed.x === "number" &&
+            typeof parsed.y === "number" &&
+            typeof parsed.zoom === "number"
+          ) {
+            return parsed;
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to read architecture viewport from storage", error);
+      }
+    }
+
+    return undefined;
+  }, [activeDiagramId, diagramViewports]);
 
   const documents = useMemo(() => documentList, [documentList]);
   const blocksInDiagram = useMemo(() => new Set(architecture.blocks.map(block => block.id)), [architecture.blocks]);
