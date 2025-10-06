@@ -101,6 +101,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps): JSX.Element | 
               placeholder="Enter your email"
               disabled={isLoading}
               required
+              autoComplete="email"
             />
           </label>
 
@@ -113,6 +114,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps): JSX.Element | 
               placeholder="Enter your password"
               disabled={isLoading}
               required
+              autoComplete="current-password"
             />
           </label>
 
