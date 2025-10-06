@@ -6,9 +6,10 @@ import type {
   ArchitectureBlockRecord,
   ArchitectureBlockLibraryRecord,
   BlockKind,
-  BlockPortRecord
+  BlockPortRecord,
+  BlockPortOverrideRecord
 } from "./types.js";
-import { mapBlockWithPlacement, mapBlockLibraryEntry } from "./mappers.js";
+import { mapBlockWithPlacement, mapBlockLibraryEntry, sanitizePortOverrides } from "./mappers.js";
 import { getCached, CacheKeys, CacheInvalidation } from "../../../lib/cache.js";
 import { toNumber } from "../../../lib/neo4j-utils.js";
 
@@ -50,6 +51,7 @@ export async function createArchitectureBlock(params: {
                 rel.positionY = $positionY,
                 rel.sizeWidth = $sizeWidth,
                 rel.sizeHeight = $sizeHeight,
+                rel.portOverrides = coalesce(rel.portOverrides, '{}'),
                 rel.updatedAt = $now,
                 rel.createdAt = coalesce(rel.createdAt, $now)
             WITH block, rel
@@ -109,6 +111,7 @@ export async function createArchitectureBlock(params: {
               rel.positionY = $positionY,
               rel.sizeWidth = $sizeWidth,
               rel.sizeHeight = $sizeHeight,
+              rel.portOverrides = '{}',
               rel.createdAt = $now,
               rel.updatedAt = $now
           WITH block, rel, $documentIds AS documentIds
@@ -287,6 +290,7 @@ export async function updateArchitectureBlock(params: {
   fontSize?: number;
   fontWeight?: string;
   borderRadius?: number;
+  portOverrides?: Record<string, BlockPortOverrideRecord>;
 }): Promise<ArchitectureBlockRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -393,6 +397,11 @@ export async function updateArchitectureBlock(params: {
       if (params.borderRadius !== undefined) {
         relUpdates.push("rel.borderRadius = $borderRadius");
         relParams.borderRadius = params.borderRadius;
+      }
+      if (params.portOverrides !== undefined) {
+        const sanitizedOverrides = sanitizePortOverrides(params.portOverrides);
+        relUpdates.push("rel.portOverrides = $portOverrides");
+        relParams.portOverrides = JSON.stringify(sanitizedOverrides);
       }
 
       if (relUpdates.length > 0) {

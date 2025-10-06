@@ -7,7 +7,8 @@ import type {
   ArchitectureConnectorRecord,
   BlockKind,
   ConnectorKind,
-  BlockPortRecord
+  BlockPortRecord,
+  BlockPortOverrideRecord
 } from "./types.js";
 import { toNumber as toNumberUtil } from "../../../lib/neo4j-utils.js";
 
@@ -22,6 +23,50 @@ export function parseJsonArray<T>(value: unknown): T[] {
   } catch {
     return [];
   }
+}
+
+function parseJsonObject<T extends Record<string, unknown>>(value: unknown): T {
+  if (!value) {return {} as T;}
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return value as T;
+  }
+  try {
+    return JSON.parse(String(value)) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
+const PORT_OVERRIDE_KEYS = new Set<keyof BlockPortOverrideRecord>([
+  "edge",
+  "offset",
+  "hidden",
+  "showLabel",
+  "labelOffsetX",
+  "labelOffsetY"
+]);
+
+export function sanitizePortOverrides(overrides: Record<string, BlockPortOverrideRecord> | undefined | null) {
+  if (!overrides) {return {} as Record<string, BlockPortOverrideRecord>;
+  }
+
+  const sanitized: Record<string, BlockPortOverrideRecord> = {};
+
+  Object.entries(overrides).forEach(([portId, override]) => {
+    if (!override) {return;}
+    const cleaned: BlockPortOverrideRecord = {};
+    (Object.keys(override) as Array<keyof BlockPortOverrideRecord>).forEach(key => {
+      if (!PORT_OVERRIDE_KEYS.has(key)) {return;}
+      const value = override[key];
+      if (value === undefined) {return;}
+      cleaned[key] = value;
+    });
+    if (Object.keys(cleaned).length > 0) {
+      sanitized[portId] = cleaned;
+    }
+  });
+
+  return sanitized;
 }
 
 export function mapBlockDefinition(node: Neo4jNode, documentIds: string[] = []): ArchitectureBlockDefinitionRecord {
@@ -70,8 +115,42 @@ export function mapBlockWithPlacement(
     ? String(relProps.updatedAt)
     : String((node.properties as Record<string, unknown>).updatedAt ?? new Date().toISOString());
 
+  const rawOverrides = parseJsonObject<Record<string, BlockPortOverrideRecord>>(relProps?.portOverrides);
+  const portOverrides = sanitizePortOverrides(rawOverrides);
+
+  const resolvedPorts = definition.ports.map(port => {
+    const override = portOverrides[port.id];
+    if (!override) {return port;}
+
+    const merged: BlockPortRecord = { ...port };
+    (Object.keys(override) as Array<keyof BlockPortOverrideRecord>).forEach(key => {
+      const value = override[key];
+      if (value === undefined) {return;}
+      if (key === "offset" && value === null) {
+        merged.offset = undefined;
+        return;
+      }
+      if (key === "edge" || key === "hidden" || key === "showLabel") {
+        merged[key] = value as never;
+        return;
+      }
+      if (key === "labelOffsetX" || key === "labelOffsetY") {
+        merged[key] = value as number | null | undefined;
+        return;
+      }
+      if (key === "offset") {
+        merged.offset = value ?? undefined;
+      }
+    });
+
+    return merged;
+  });
+
   return {
     ...definition,
+    ports: resolvedPorts,
+    definitionPorts: definition.ports,
+    portOverrides,
     diagramId,
     positionX,
     positionY,
@@ -148,6 +227,8 @@ export function mapArchitectureConnector(node: Neo4jNode): ArchitectureConnector
     markerEnd: props.markerEnd !== undefined && props.markerEnd !== null ? String(props.markerEnd) : null,
     linePattern: props.linePattern !== undefined && props.linePattern !== null ? String(props.linePattern) : null,
     color: props.color !== undefined && props.color !== null ? String(props.color) : null,
-    strokeWidth: props.strokeWidth !== undefined && props.strokeWidth !== null ? toNumberUtil(props.strokeWidth) : null
+    strokeWidth: props.strokeWidth !== undefined && props.strokeWidth !== null ? toNumberUtil(props.strokeWidth) : null,
+    labelOffsetX: props.labelOffsetX !== undefined && props.labelOffsetX !== null ? toNumberUtil(props.labelOffsetX) : null,
+    labelOffsetY: props.labelOffsetY !== undefined && props.labelOffsetY !== null ? toNumberUtil(props.labelOffsetY) : null
   };
 }

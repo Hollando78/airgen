@@ -87,7 +87,9 @@ export function mapConnectorToEdge(connector: SysmlConnector, blocks?: SysmlBloc
     animated: isFlow,
     data: {
       documentIds: connector.documentIds || [],
-      originalLabel: connector.label
+      originalLabel: connector.label,
+      labelOffsetX: connector.labelOffsetX,
+      labelOffsetY: connector.labelOffsetY
     },
     style: {
       strokeWidth,

@@ -14,6 +14,9 @@ interface CustomEdgeData extends Record<string, unknown> {
   originalLabel?: string | null;
   documents?: DocumentRecord[];
   onOpenDocument?: (slug: string) => void;
+  labelOffsetX?: number;
+  labelOffsetY?: number;
+  onUpdateLabelOffset?: (offsetX: number, offsetY: number) => void;
 }
 
 function EdgeLabelContent({
@@ -22,7 +25,10 @@ function EdgeLabelContent({
   documents,
   onOpenDocument,
   labelX,
-  labelY
+  labelY,
+  labelOffsetX = 0,
+  labelOffsetY = 0,
+  onUpdateLabelOffset
 }: {
   label?: string;
   documentIds: string[];
@@ -30,6 +36,9 @@ function EdgeLabelContent({
   onOpenDocument?: (slug: string) => void;
   labelX: number;
   labelY: number;
+  labelOffsetX?: number;
+  labelOffsetY?: number;
+  onUpdateLabelOffset?: (offsetX: number, offsetY: number) => void;
 }) {
   const linkedDocuments = documents.filter(doc => documentIds.includes(doc.id));
 
@@ -37,17 +46,68 @@ function EdgeLabelContent({
     return null;
   }
 
+    const handleDragStart = (e: React.MouseEvent) => {
+      if (!onUpdateLabelOffset) return;
+      e.stopPropagation();
+      e.preventDefault();
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startOffsetX = labelOffsetX ?? 0;
+      const startOffsetY = labelOffsetY ?? 0;
+      const labelElement = e.currentTarget as HTMLElement;
+
+    // Get ReactFlow viewport zoom from the transform applied to the viewport
+    const reactFlowViewport = document.querySelector('.react-flow__viewport');
+    let zoom = 1;
+    if (reactFlowViewport) {
+      const transform = window.getComputedStyle(reactFlowViewport).transform;
+      const matrix = new DOMMatrix(transform);
+      zoom = matrix.a; // Scale X from the transform matrix
+    }
+
+    let currentOffsetX = startOffsetX;
+    let currentOffsetY = startOffsetY;
+
+      const handleDrag = (moveEvent: MouseEvent) => {
+        const deltaX = (moveEvent.clientX - startX) / zoom;
+        const deltaY = (moveEvent.clientY - startY) / zoom;
+        currentOffsetX = startOffsetX + deltaX;
+        currentOffsetY = startOffsetY + deltaY;
+
+        // Update DOM directly for smooth visual feedback during drag
+        // Include the base labelX/labelY so the drag preview matches final position
+        labelElement.style.transform = `translate(-50%, -50%) translate(${labelX + currentOffsetX}px,${labelY + currentOffsetY}px)`;
+      };
+
+    const handleDragEnd = () => {
+      document.removeEventListener("mousemove", handleDrag);
+      document.removeEventListener("mouseup", handleDragEnd);
+
+      // Snap to the final position immediately so there is no visual jump while we persist
+      labelElement.style.transform = `translate(-50%, -50%) translate(${labelX + currentOffsetX}px,${labelY + currentOffsetY}px)`;
+
+      // Send final position to the server
+      onUpdateLabelOffset(currentOffsetX, currentOffsetY);
+    };
+
+    document.addEventListener("mousemove", handleDrag);
+    document.addEventListener("mouseup", handleDragEnd);
+  };
+
   return (
     <div
       style={{
         position: "absolute",
-        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+        transform: `translate(-50%, -50%) translate(${labelX + labelOffsetX}px,${labelY + labelOffsetY}px)`,
         pointerEvents: "all",
         display: "flex",
         flexDirection: "column",
         gap: "4px",
-        alignItems: "center"
+        alignItems: "center",
+        cursor: onUpdateLabelOffset ? "move" : "default"
       }}
+      onMouseDown={onUpdateLabelOffset ? handleDragStart : undefined}
     >
       {label && (
         <div
@@ -161,6 +221,9 @@ export function StraightEdge({
           onOpenDocument={edgeData.onOpenDocument}
           labelX={labelX}
           labelY={labelY}
+          labelOffsetX={edgeData.labelOffsetX}
+          labelOffsetY={edgeData.labelOffsetY}
+          onUpdateLabelOffset={edgeData.onUpdateLabelOffset}
         />
       </EdgeLabelRenderer>
     </>
@@ -206,6 +269,9 @@ export function SmoothStepEdge({
           onOpenDocument={edgeData.onOpenDocument}
           labelX={labelX}
           labelY={labelY}
+          labelOffsetX={edgeData.labelOffsetX}
+          labelOffsetY={edgeData.labelOffsetY}
+          onUpdateLabelOffset={edgeData.onUpdateLabelOffset}
         />
       </EdgeLabelRenderer>
     </>
@@ -252,6 +318,9 @@ export function StepEdge({
           onOpenDocument={edgeData.onOpenDocument}
           labelX={labelX}
           labelY={labelY}
+          labelOffsetX={edgeData.labelOffsetX}
+          labelOffsetY={edgeData.labelOffsetY}
+          onUpdateLabelOffset={edgeData.onUpdateLabelOffset}
         />
       </EdgeLabelRenderer>
     </>
@@ -297,6 +366,9 @@ export function BezierEdge({
           onOpenDocument={edgeData.onOpenDocument}
           labelX={labelX}
           labelY={labelY}
+          labelOffsetX={edgeData.labelOffsetX}
+          labelOffsetY={edgeData.labelOffsetY}
+          onUpdateLabelOffset={edgeData.onUpdateLabelOffset}
         />
       </EdgeLabelRenderer>
     </>

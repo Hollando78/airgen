@@ -23,6 +23,8 @@ export async function createArchitectureConnector(params: {
   linePattern?: string;
   color?: string;
   strokeWidth?: number;
+  labelOffsetX?: number;
+  labelOffsetY?: number;
 }): Promise<ArchitectureConnectorRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -54,6 +56,8 @@ export async function createArchitectureConnector(params: {
           linePattern: $linePattern,
           color: $color,
           strokeWidth: $strokeWidth,
+          labelOffsetX: $labelOffsetX,
+          labelOffsetY: $labelOffsetY,
           createdAt: $now,
           updatedAt: $now
         })
@@ -84,6 +88,8 @@ export async function createArchitectureConnector(params: {
         linePattern: params.linePattern ?? null,
         color: params.color ?? null,
         strokeWidth: params.strokeWidth ?? null,
+        labelOffsetX: params.labelOffsetX ?? null,
+        labelOffsetY: params.labelOffsetY ?? null,
         now
       });
 
@@ -147,6 +153,8 @@ export async function updateArchitectureConnector(params: {
   linePattern?: string;
   color?: string;
   strokeWidth?: number;
+  labelOffsetX?: number;
+  labelOffsetY?: number;
 }): Promise<ArchitectureConnectorRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -208,6 +216,14 @@ export async function updateArchitectureConnector(params: {
       if (params.strokeWidth !== undefined) {
         setFields.push("connector.strokeWidth = $strokeWidth");
         setParams.strokeWidth = params.strokeWidth;
+      }
+      if (params.labelOffsetX !== undefined) {
+        setFields.push("connector.labelOffsetX = $labelOffsetX");
+        setParams.labelOffsetX = params.labelOffsetX;
+      }
+      if (params.labelOffsetY !== undefined) {
+        setFields.push("connector.labelOffsetY = $labelOffsetY");
+        setParams.labelOffsetY = params.labelOffsetY;
       }
 
       // Always update the updatedAt timestamp

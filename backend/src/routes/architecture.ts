@@ -16,6 +16,15 @@ import {
   deleteArchitectureDiagram
 } from "../services/graph.js";
 
+const portOverrideSchema = z.object({
+  edge: z.enum(["top", "right", "bottom", "left"]).optional(),
+  offset: z.number().min(0).max(100).nullable().optional(),
+  hidden: z.boolean().nullable().optional(),
+  showLabel: z.boolean().nullable().optional(),
+  labelOffsetX: z.number().nullable().optional(),
+  labelOffsetY: z.number().nullable().optional()
+});
+
 const architectureBlockSchema = z
   .object({
     tenant: z.string().min(1),
@@ -34,7 +43,7 @@ const architectureBlockSchema = z
         z.object({
           id: z.string(),
           name: z.string(),
-          direction: z.enum(["in", "out", "inout"])
+          direction: z.enum(["in", "out", "inout", "none"])
         })
       )
       .optional(),
@@ -63,7 +72,9 @@ const architectureConnectorSchema = z.object({
   markerEnd: z.enum(["arrow", "arrowclosed", "none"]).optional(),
   linePattern: z.enum(["solid", "dashed", "dotted"]).optional(),
   color: z.string().optional(),
-  strokeWidth: z.number().min(1).max(10).optional()
+  strokeWidth: z.number().min(1).max(10).optional(),
+  labelOffsetX: z.number().optional(),
+  labelOffsetY: z.number().optional()
 });
 
 const architectureDiagramSchema = z.object({
@@ -212,9 +223,20 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
           z.object({
             id: z.string(),
             name: z.string(),
-            direction: z.enum(["in", "out", "inout"]),
+            direction: z.enum(["in", "out", "inout", "none"]),
             edge: z.enum(["top", "right", "bottom", "left"]).optional(),
-            offset: z.number().min(0).max(100).optional()
+            offset: z.number().min(0).max(100).optional(),
+            // Styling properties
+            backgroundColor: z.string().optional(),
+            borderColor: z.string().optional(),
+            borderWidth: z.number().optional(),
+            size: z.number().optional(),
+            shape: z.enum(["circle", "square", "diamond"]).optional(),
+            iconColor: z.string().optional(),
+            hidden: z.boolean().optional(),
+            showLabel: z.boolean().optional(),
+            labelOffsetX: z.number().optional(),
+            labelOffsetY: z.number().optional()
           })
         )
         .optional(),
@@ -227,7 +249,8 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
       textColor: z.string().optional(),
       fontSize: z.number().min(8).max(24).optional(),
       fontWeight: z.enum(["normal", "bold"]).optional(),
-      borderRadius: z.number().min(0).max(20).optional()
+      borderRadius: z.number().min(0).max(20).optional(),
+      portOverrides: z.record(z.string(), portOverrideSchema).optional()
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
@@ -292,7 +315,9 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
         markerEnd: payload.markerEnd,
         linePattern: payload.linePattern,
         color: payload.color,
-        strokeWidth: payload.strokeWidth
+        strokeWidth: payload.strokeWidth,
+        labelOffsetX: payload.labelOffsetX,
+        labelOffsetY: payload.labelOffsetY
       });
       return { connector };
     } catch (error) {
@@ -329,7 +354,9 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
       markerEnd: z.enum(["arrow", "arrowclosed", "diamond", "circle", "none"]).optional(),
       linePattern: z.enum(["solid", "dashed", "dotted"]).optional(),
       color: z.string().optional(),
-      strokeWidth: z.number().min(1).max(10).optional()
+      strokeWidth: z.number().min(1).max(10).optional(),
+      labelOffsetX: z.number().optional(),
+      labelOffsetY: z.number().optional()
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);

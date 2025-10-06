@@ -455,7 +455,7 @@ export type DocumentTreeNode = {
 // Architecture Types
 export type BlockKind = "system" | "subsystem" | "component" | "actor" | "external" | "interface";
 export type ConnectorKind = "association" | "flow" | "dependency" | "composition";
-export type PortDirection = "in" | "out" | "inout";
+export type PortDirection = "in" | "out" | "inout" | "none";
 export type PortEdge = "top" | "right" | "bottom" | "left";
 export type ConnectorLineStyle = "straight" | "smoothstep" | "step" | "bezier";
 export type ConnectorMarkerType = "arrow" | "arrowclosed" | "none";
@@ -473,6 +473,19 @@ export type BlockPortRecord = {
   borderWidth?: number;
   iconColor?: string;
   shape?: "circle" | "square" | "diamond";
+  hidden?: boolean;
+  showLabel?: boolean;  // Whether to show the label
+  labelOffsetX?: number; // Label offset in pixels from port center
+  labelOffsetY?: number; // Label offset in pixels from port center
+};
+
+export type BlockPortOverride = {
+  edge?: PortEdge;
+  offset?: number | null;
+  hidden?: boolean | null;
+  showLabel?: boolean | null;
+  labelOffsetX?: number | null;
+  labelOffsetY?: number | null;
 };
 
 export type ArchitectureBlockDefinitionRecord = {
@@ -506,6 +519,8 @@ export type ArchitectureBlockRecord = ArchitectureBlockDefinitionRecord & {
   fontSize?: number | null;
   fontWeight?: string | null;
   borderRadius?: number | null;
+  definitionPorts?: BlockPortRecord[];
+  portOverrides?: Record<string, BlockPortOverride>;
 };
 
 export type ArchitectureBlockLibraryRecord = ArchitectureBlockDefinitionRecord & {
@@ -533,6 +548,9 @@ export type ArchitectureConnectorRecord = {
   linePattern?: ConnectorLinePattern;
   color?: string;
   strokeWidth?: number;
+  // Label positioning
+  labelOffsetX?: number | null;
+  labelOffsetY?: number | null;
 };
 
 export type CreateArchitectureBlockRequest = {
@@ -573,6 +591,7 @@ export type UpdateArchitectureBlockRequest = {
   fontSize?: number;
   fontWeight?: string;
   borderRadius?: number;
+  portOverrides?: Record<string, BlockPortOverride>;
 };
 
 export type CreateArchitectureConnectorRequest = {
@@ -593,6 +612,8 @@ export type CreateArchitectureConnectorRequest = {
   linePattern?: ConnectorLinePattern;
   color?: string;
   strokeWidth?: number;
+  labelOffsetX?: number;
+  labelOffsetY?: number;
 };
 
 export type ArchitectureBlocksResponse = {

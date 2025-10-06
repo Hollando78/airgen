@@ -12,7 +12,8 @@ interface PortDetailsPanelProps {
 const directionOptions = [
   { value: "in", label: "Input" },
   { value: "out", label: "Output" },
-  { value: "inout", label: "Bidirectional" }
+  { value: "inout", label: "Bidirectional" },
+  { value: "none", label: "None" }
 ] as const;
 
 const shapeOptions = [
@@ -89,40 +90,32 @@ export function PortDetailsPanel({
   };
 
   return (
-    <aside className="panel" style={{ minWidth: "280px" }}>
+    <aside className="panel" style={{ minWidth: "260px" }}>
       <div className="panel-header">
         <div>
-          <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600 }}>Port Details</h3>
-          <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#64748b" }}>
-            {blockName}
-          </p>
+          <h2>Port</h2>
+          <p style={{ fontSize: "12px", color: "#64748b" }}>{blockName}</p>
         </div>
-        <button
-          className="ghost-button"
-          onClick={onRemove}
-          style={{ color: "#ef4444", padding: "6px 12px" }}
-        >
-          Delete
+        <button className="ghost-button" onClick={onRemove}>
+          Remove
         </button>
       </div>
 
-      <div className="panel-section">
-        <label className="field-label">Name</label>
+      <div className="field">
+        <label>Name</label>
         <input
           type="text"
           value={localName}
           onChange={(e) => handleNameChange(e.target.value)}
-          className="text-input"
           placeholder="Port name"
         />
       </div>
 
-      <div className="panel-section">
-        <label className="field-label">Direction</label>
+      <div className="field">
+        <label>Direction</label>
         <select
           value={port.direction}
-          onChange={(e) => onUpdate({ direction: e.target.value as "in" | "out" | "inout" })}
-          className="select-input"
+          onChange={(e) => onUpdate({ direction: e.target.value as "in" | "out" | "inout" | "none" })}
         >
           {directionOptions.map(opt => (
             <option key={opt.value} value={opt.value}>
@@ -132,106 +125,164 @@ export function PortDetailsPanel({
         </select>
       </div>
 
-      <div className="panel-section">
-        <label className="field-label">Shape</label>
-        <select
-          value={port.shape ?? "circle"}
-          onChange={(e) => onUpdate({ shape: e.target.value as "circle" | "square" | "diamond" })}
-          className="select-input"
+      <div className="field">
+        <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <input
+            type="checkbox"
+            checked={!port.hidden}
+            onChange={(e) => onUpdate({ hidden: !e.target.checked })}
+          />
+          <span>Show on diagram</span>
+        </label>
+      </div>
+
+      <div className="field-group" style={{ marginTop: "16px" }}>
+        <label style={{ fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "8px", display: "block" }}>
+          Styling
+        </label>
+
+        <div className="field">
+          <label>Shape</label>
+          <select
+            value={port.shape ?? "circle"}
+            onChange={(e) => onUpdate({ shape: e.target.value as "circle" | "square" | "diamond" })}
+          >
+            {shapeOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label>Size (px)</label>
+          <input
+            type="number"
+            value={localSize}
+            onChange={(e) => handleSizeChange(e.target.value)}
+            min="12"
+            max="100"
+            step="2"
+          />
+        </div>
+
+        <div className="field">
+          <label>Background</label>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              type="color"
+              value={localBackgroundColor}
+              onChange={(e) => handleBackgroundColorChange(e.target.value)}
+              style={{ width: "48px", height: "32px", cursor: "pointer" }}
+            />
+            <input
+              type="text"
+              value={localBackgroundColor}
+              onChange={(e) => handleBackgroundColorChange(e.target.value)}
+              placeholder="#ffffff"
+            />
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Border Color</label>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              type="color"
+              value={localBorderColor}
+              onChange={(e) => handleBorderColorChange(e.target.value)}
+              style={{ width: "48px", height: "32px", cursor: "pointer" }}
+            />
+            <input
+              type="text"
+              value={localBorderColor}
+              onChange={(e) => handleBorderColorChange(e.target.value)}
+              placeholder="#64748b"
+            />
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Border Width (px)</label>
+          <input
+            type="number"
+            value={localBorderWidth}
+            onChange={(e) => handleBorderWidthChange(e.target.value)}
+            min="0"
+            max="10"
+            step="1"
+          />
+        </div>
+
+        <div className="field">
+          <label>Icon Color</label>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              type="color"
+              value={localIconColor}
+              onChange={(e) => handleIconColorChange(e.target.value)}
+              style={{ width: "48px", height: "32px", cursor: "pointer" }}
+            />
+            <input
+              type="text"
+              value={localIconColor}
+              onChange={(e) => handleIconColorChange(e.target.value)}
+              placeholder="#64748b"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="field-group" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e2e8f0" }}>
+        <label style={{ fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "8px", display: "block" }}>
+          Label
+        </label>
+
+        <div className="field">
+          <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <input
+              type="checkbox"
+              checked={port.showLabel !== false}
+              onChange={(e) => onUpdate({ showLabel: e.target.checked })}
+            />
+            <span>Show label on diagram</span>
+          </label>
+        </div>
+
+        <div className="field" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+          <div>
+            <label>Offset X (px)</label>
+            <input
+              type="number"
+              value={port.labelOffsetX ?? 0}
+              onChange={(e) => onUpdate({ labelOffsetX: Number(e.target.value) })}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label>Offset Y (px)</label>
+            <input
+              type="number"
+              value={port.labelOffsetY ?? 0}
+              onChange={(e) => onUpdate({ labelOffsetY: Number(e.target.value) })}
+              placeholder="0"
+            />
+          </div>
+        </div>
+        <button
+          className="ghost-button"
+          style={{ width: "100%", marginTop: "4px" }}
+          onClick={() => onUpdate({ labelOffsetX: 0, labelOffsetY: 0 })}
         >
-          {shapeOptions.map(opt => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          Reset Label Position
+        </button>
       </div>
 
-      <div className="panel-section">
-        <label className="field-label">Size (px)</label>
-        <input
-          type="number"
-          value={localSize}
-          onChange={(e) => handleSizeChange(e.target.value)}
-          className="text-input"
-          min="12"
-          max="100"
-          step="2"
-        />
-      </div>
-
-      <div className="panel-section">
-        <label className="field-label">Background Color</label>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <input
-            type="color"
-            value={localBackgroundColor}
-            onChange={(e) => handleBackgroundColorChange(e.target.value)}
-            style={{ width: "48px", height: "32px", cursor: "pointer" }}
-          />
-          <input
-            type="text"
-            value={localBackgroundColor}
-            onChange={(e) => handleBackgroundColorChange(e.target.value)}
-            className="text-input"
-            placeholder="#ffffff"
-          />
-        </div>
-      </div>
-
-      <div className="panel-section">
-        <label className="field-label">Border Color</label>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <input
-            type="color"
-            value={localBorderColor}
-            onChange={(e) => handleBorderColorChange(e.target.value)}
-            style={{ width: "48px", height: "32px", cursor: "pointer" }}
-          />
-          <input
-            type="text"
-            value={localBorderColor}
-            onChange={(e) => handleBorderColorChange(e.target.value)}
-            className="text-input"
-            placeholder="#64748b"
-          />
-        </div>
-      </div>
-
-      <div className="panel-section">
-        <label className="field-label">Border Width (px)</label>
-        <input
-          type="number"
-          value={localBorderWidth}
-          onChange={(e) => handleBorderWidthChange(e.target.value)}
-          className="text-input"
-          min="0"
-          max="10"
-          step="1"
-        />
-      </div>
-
-      <div className="panel-section">
-        <label className="field-label">Icon Color</label>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <input
-            type="color"
-            value={localIconColor}
-            onChange={(e) => handleIconColorChange(e.target.value)}
-            style={{ width: "48px", height: "32px", cursor: "pointer" }}
-          />
-          <input
-            type="text"
-            value={localIconColor}
-            onChange={(e) => handleIconColorChange(e.target.value)}
-            className="text-input"
-            placeholder="#64748b"
-          />
-        </div>
-      </div>
-
-      <div className="panel-section" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e2e8f0" }}>
-        <h4 style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: 600 }}>Port Info</h4>
+      <div className="field-group" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e2e8f0" }}>
+        <label style={{ fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "8px", display: "block" }}>
+          Port Info
+        </label>
         <div style={{ fontSize: "12px", color: "#64748b", display: "flex", flexDirection: "column", gap: "4px" }}>
           <div><strong>ID:</strong> {port.id}</div>
           <div><strong>Edge:</strong> {port.edge ?? "auto"}</div>
