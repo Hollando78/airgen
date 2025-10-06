@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { RequirementRecord, DocumentSectionRecord, InfoRecord, TraceLink, TraceLinkType } from "../../types";
 import { RequirementContextMenu } from "../RequirementContextMenu";
 import { LinkTypeSelectionModal } from "../LinkTypeSelectionModal";
@@ -7,6 +8,7 @@ import { ColumnResizer } from "./RequirementsTable/ColumnResizer";
 import { ColumnSelector, type ColumnVisibility } from "./RequirementsTable/ColumnSelector";
 import { TableFilterBar, type FilterState } from "./RequirementsTable/TableFilterBar";
 import { RequirementRow } from "./RequirementsTable/RequirementRow";
+import { useApiClient } from "../../lib/client";
 
 export interface RequirementsTableProps {
   section: DocumentSectionRecord & { requirements: RequirementRecord[]; infos: InfoRecord[] };
@@ -68,6 +70,19 @@ export function RequirementsTable({
     maxQaScore: ""
   });
   const tableRef = useRef<HTMLTableElement>(null);
+  const api = useApiClient();
+  const queryClient = useQueryClient();
+
+  const deleteLinkMutation = useMutation({
+    mutationFn: (linkId: string) => api.deleteTraceLink(tenant, project, linkId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["traceLinks", tenant, project] });
+    }
+  });
+
+  const handleDeleteLink = useCallback((linkId: string) => {
+    deleteLinkMutation.mutate(linkId);
+  }, [deleteLinkMutation]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, requirement: RequirementRecord) => {
     e.preventDefault();
@@ -507,6 +522,7 @@ export function RequirementsTable({
           onClose={() => setContextMenu(null)}
           onStartLink={handleStartLink}
           onEndLink={handleEndLink}
+          onDeleteLink={handleDeleteLink}
           linkingRequirement={linkingState.sourceRequirement}
           traceLinks={traceLinks}
         />

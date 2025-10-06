@@ -710,17 +710,7 @@ function TraceLinksView(): JSX.Element {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                traceLinks={selectedLinkset.links.map(link => ({
-                  id: link.id,
-                  sourceRequirementId: link.sourceRequirementId,
-                  targetRequirementId: link.targetRequirementId,
-                  linkType: link.linkType,
-                  description: link.description,
-                  createdAt: link.createdAt,
-                  updatedAt: link.updatedAt,
-                  sourceRequirement: {} as any,
-                  targetRequirement: {} as any
-                }))}
+                traceLinks={traceLinksQuery.data?.traceLinks || []}
                 documentSide="left"
                 filter={sourceFilter}
               />
@@ -783,17 +773,7 @@ function TraceLinksView(): JSX.Element {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                traceLinks={selectedLinkset.links.map(link => ({
-                  id: link.id,
-                  sourceRequirementId: link.sourceRequirementId,
-                  targetRequirementId: link.targetRequirementId,
-                  linkType: link.linkType,
-                  description: link.description,
-                  createdAt: link.createdAt,
-                  updatedAt: link.updatedAt,
-                  sourceRequirement: {} as any,
-                  targetRequirement: {} as any
-                }))}
+                traceLinks={traceLinksQuery.data?.traceLinks || []}
                 documentSide="right"
                 filter={targetFilter}
               />
@@ -817,7 +797,7 @@ function TraceLinksView(): JSX.Element {
           onArchive={handleArchive}
           onUnarchive={handleUnarchive}
           linkingRequirement={linkingState.sourceRequirement}
-          traceLinks={selectedLinkset?.links || []}
+          traceLinks={traceLinksQuery.data?.traceLinks || []}
         />
       )}
 
