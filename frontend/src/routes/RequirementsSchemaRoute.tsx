@@ -87,11 +87,51 @@ export function RequirementsSchemaRoute(): JSX.Element {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [activeDiagramId, setActiveDiagramId] = useState<string | null>(null);
   const linksetApiUnavailableRef = useRef(false);
-  
+
   // New diagram form state
   const [newDiagramName, setNewDiagramName] = useState("");
   const [newDiagramDescription, setNewDiagramDescription] = useState("");
-  
+
+  // Viewport persistence state
+  const [diagramViewports, setDiagramViewports] = useState<Record<string, { x: number; y: number; zoom: number }>>({});
+  const viewportTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Handle viewport changes with debouncing
+  const handleViewportChange = useCallback((viewport: { x: number; y: number; zoom: number }) => {
+    if (!activeDiagramId) return;
+
+    // Debounce viewport updates to avoid excessive writes
+    if (viewportTimeoutRef.current) {
+      clearTimeout(viewportTimeoutRef.current);
+    }
+
+    viewportTimeoutRef.current = setTimeout(() => {
+      setDiagramViewports(prev => ({
+        ...prev,
+        [activeDiagramId]: viewport
+      }));
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            `airgen:schemaViewport:${activeDiagramId}`,
+            JSON.stringify(viewport)
+          );
+        } catch (error) {
+          console.warn("Failed to persist schema viewport", error);
+        }
+      }
+    }, 100);
+  }, [activeDiagramId]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (viewportTimeoutRef.current) {
+        clearTimeout(viewportTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Fetch documents for the project
   const documentsQuery = useQuery({
     queryKey: ["documents", tenant, project],
@@ -108,10 +148,6 @@ export function RequirementsSchemaRoute(): JSX.Element {
 
   // Check if user is admin
   const isAdmin = user?.roles?.includes("admin") ?? false;
-
-  // Debug: log user data and isAdmin
-  console.log("[RequirementsSchemaRoute] user:", user);
-  console.log("[RequirementsSchemaRoute] isAdmin:", isAdmin);
 
   // Fetch requirements schema diagrams
   const diagramsQuery = useQuery({
@@ -137,6 +173,44 @@ export function RequirementsSchemaRoute(): JSX.Element {
       setActiveDiagramId(diagrams[0].id);
     }
   }, [diagrams, activeDiagramId, setActiveDiagramId]);
+
+  // Load viewports from localStorage when diagrams are loaded
+  useEffect(() => {
+    if (typeof window === "undefined" || !diagrams.length) {
+      return;
+    }
+
+    setDiagramViewports(prev => {
+      let hasChanges = false;
+      const next = { ...prev };
+
+      diagrams.forEach(diagram => {
+        if (next[diagram.id]) {
+          return;
+        }
+        try {
+          const raw = window.localStorage.getItem(`airgen:schemaViewport:${diagram.id}`);
+          if (!raw) {
+            return;
+          }
+          const parsed = JSON.parse(raw) as { x: number; y: number; zoom: number };
+          if (
+            typeof parsed === "object" &&
+            typeof parsed.x === "number" &&
+            typeof parsed.y === "number" &&
+            typeof parsed.zoom === "number"
+          ) {
+            next[diagram.id] = parsed;
+            hasChanges = true;
+          }
+        } catch (error) {
+          console.warn("Failed to hydrate schema viewport", error);
+        }
+      });
+
+      return hasChanges ? next : prev;
+    });
+  }, [diagrams]);
 
   // Fetch active diagram content
   const diagramContentQuery = useQuery({
@@ -248,6 +322,13 @@ export function RequirementsSchemaRoute(): JSX.Element {
     blocks.forEach(block => index.set(block.id, block));
     return index;
   }, [blocks]);
+
+  const currentViewport = useMemo(() => {
+    if (!activeDiagramId) {
+      return undefined;
+    }
+    return diagramViewports[activeDiagramId];
+  }, [activeDiagramId, diagramViewports]);
 
   const resolveDocumentSlug = useCallback((blockId: string) => {
     const block = blockIndex.get(blockId);
@@ -581,7 +662,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
           </div>
           <div className="flex-1 overflow-auto p-4">
             <div className="space-y-2">
-              {documentsQuery.data?.documents.map(doc => (
+              {documentsQuery.data?.documents.filter(doc => doc.kind === "structured").map(doc => (
                 <div
                   key={doc.id}
                   draggable
@@ -592,7 +673,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
                   className="p-3 bg-amber-50 border border-amber-200 rounded-lg cursor-move hover:bg-amber-100 transition-colors"
                 >
                   <div className="font-medium text-sm text-amber-900">{doc.name}</div>
-                  <div className="text-xs text-amber-700 mt-1">{doc.type}</div>
+                  <div className="text-xs text-amber-700 mt-1">{doc.kind}</div>
                   {doc.requirementCount !== undefined && (
                     <div className="text-xs text-amber-600 mt-1">
                       {doc.requirementCount} requirements
@@ -635,6 +716,8 @@ export function RequirementsSchemaRoute(): JSX.Element {
             isLoading={diagramContentQuery.isLoading}
             mapConnectorToEdge={mapConnectorToEdge}
             onDropDocument={addDocumentBlock}
+            viewport={currentViewport}
+            onViewportChange={handleViewportChange}
           />
         ) : (
           <div className="architecture-canvas-placeholder">
