@@ -3,6 +3,8 @@ import {
   useImperativeHandle,
   useState,
   useCallback,
+  useRef,
+  useEffect,
   type ForwardRefRenderFunction,
   type MouseEvent as ReactMouseEvent
 } from "react";
@@ -162,6 +164,8 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
   ref
 ) => {
     const [isConnectMode, setIsConnectMode] = useState(false);
+    const viewedDiagramsRef = useRef<Set<string>>(new Set());
+    const [shouldFitView, setShouldFitView] = useState(false);
 
     const {
       minimapOpen,
@@ -227,6 +231,17 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       addBlockAtPosition: (preset: DiagramBlockPreset, position: XYPosition) => addBlockFromPreset(preset, position),
       reuseExistingBlock: (blockId: string) => reuseExistingBlock(blockId)
     }), [addBlockFromPreset, reuseExistingBlock]);
+
+    // Track first-time diagram views and trigger fitView only if no saved viewport exists
+    useEffect(() => {
+      if (activeDiagramId && !viewedDiagramsRef.current.has(activeDiagramId)) {
+        viewedDiagramsRef.current.add(activeDiagramId);
+        // Only fit view if there's no saved viewport
+        setShouldFitView(!viewport);
+      } else {
+        setShouldFitView(false);
+      }
+    }, [activeDiagramId, viewport]);
 
     const handlePopout = useCallback(() => {
       if (!reactFlowInstanceRef.current) {
@@ -320,7 +335,7 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 }}
                 onMove={onViewportChange ? (_, newViewport) => onViewportChange(newViewport) : undefined}
                 defaultViewport={viewport}
-                fitView={!viewport}
+                fitView={shouldFitView}
                 proOptions={{ hideAttribution: true }}
               >
                 <Background color="#e2e8f0" gap={20} size={1} />
