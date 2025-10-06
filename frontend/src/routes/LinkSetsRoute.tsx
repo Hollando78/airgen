@@ -145,14 +145,6 @@ export function LinkSetsRoute(): JSX.Element {
   const [connectionMode, setConnectionMode] = useState(false);
   const [selectedNodeForConnection, setSelectedNodeForConnection] = useState<string | null>(null);
 
-  // Debug connectionMode changes
-  useEffect(() => {
-    console.log('Connection mode changed to:', connectionMode);
-  }, [connectionMode]);
-
-  useEffect(() => {
-    console.log('Selected node for connection changed to:', selectedNodeForConnection);
-  }, [selectedNodeForConnection]);
   
   const [showLinksetDialog, setShowLinksetDialog] = useState(false);
   const [newLinkset, setNewLinkset] = useState<{
@@ -259,46 +251,39 @@ export function LinkSetsRoute(): JSX.Element {
 
   const handleMouseDown = useCallback((event: React.MouseEvent, nodeId: string) => {
     if (connectionMode) {
-      console.log('🔗 Connection mode - mouseDown:', { nodeId, selectedNodeForConnection });
     }
     event.preventDefault();
     event.stopPropagation();
-    
+
     // Handle connection mode clicking
     if (connectionMode) {
       if (selectedNodeForConnection === null) {
         // First node selection
-        console.log('🟢 First node selected:', nodeId);
         setSelectedNodeForConnection(nodeId);
         return;
       } else if (selectedNodeForConnection === nodeId) {
         // Clicking the same node - deselect
-        console.log('❌ Deselecting node:', nodeId);
         setSelectedNodeForConnection(null);
         return;
       } else {
         // Second node selection - create linkset
-        console.log('🟢🟢 Second node selected:', { from: selectedNodeForConnection, to: nodeId });
         const sourceNode = nodes.find(n => n.id === selectedNodeForConnection);
         const targetNode = nodes.find(n => n.id === nodeId);
-        
+
         if (sourceNode && targetNode) {
           // Check if connection already exists
-          const existingConnection = connections.find(conn => 
+          const existingConnection = connections.find(conn =>
             (conn.from === selectedNodeForConnection && conn.to === nodeId) ||
             (conn.from === nodeId && conn.to === selectedNodeForConnection)
           );
-          
+
           if (!existingConnection) {
-            console.log('🎯 Opening linkset dialog');
             setNewLinkset({
               sourceDocId: sourceNode.document.id,
               targetDocId: targetNode.document.id,
               description: ''
             });
             setShowLinksetDialog(true);
-          } else {
-            console.log('⚠️ Connection already exists');
           }
         }
         setSelectedNodeForConnection(null);
@@ -340,39 +325,31 @@ export function LinkSetsRoute(): JSX.Element {
   }, [nodes, getMousePosition, connectionMode, selectedNodeForConnection, connections]);
 
   const handleClick = useCallback((event: React.MouseEvent, nodeId: string) => {
-    if (connectionMode) {
-      console.log('🖱️ Connection mode - click:', { nodeId, selectedNodeForConnection });
-    }
-    
     // Only handle clicks in connection mode
     if (!connectionMode) {return;}
-    
+
     event.preventDefault();
     event.stopPropagation();
-    
+
     if (selectedNodeForConnection === null) {
       // First node selection
-      console.log('🔵 Click: First node selected:', nodeId);
       setSelectedNodeForConnection(nodeId);
     } else if (selectedNodeForConnection === nodeId) {
       // Clicking the same node - deselect
-      console.log('🔴 Click: Deselecting node:', nodeId);
       setSelectedNodeForConnection(null);
     } else {
       // Second node selection - create linkset
-      console.log('🔵🔵 Click: Second node selected:', { from: selectedNodeForConnection, to: nodeId });
       const sourceNode = nodes.find(n => n.id === selectedNodeForConnection);
       const targetNode = nodes.find(n => n.id === nodeId);
-      
+
       if (sourceNode && targetNode) {
         // Check if connection already exists
-        const existingConnection = connections.find(conn => 
+        const existingConnection = connections.find(conn =>
           (conn.from === selectedNodeForConnection && conn.to === nodeId) ||
           (conn.from === nodeId && conn.to === selectedNodeForConnection)
         );
-        
+
         if (!existingConnection) {
-          console.log('🎯 Click: Opening linkset dialog');
           setNewLinkset({
             sourceDocId: sourceNode.document.id,
             targetDocId: targetNode.document.id,
@@ -551,10 +528,8 @@ export function LinkSetsRoute(): JSX.Element {
                   variant={connectionMode ? "default" : "outline"}
                   size="sm"
                   onClick={() => {
-                    console.log('Connection mode button clicked, current state:', connectionMode);
                     const newMode = !connectionMode;
                     setConnectionMode(newMode);
-                    console.log('Setting connection mode to:', newMode);
                     if (connectionMode) {
                       setSelectedNodeForConnection(null); // Reset selection when deactivating
                     }

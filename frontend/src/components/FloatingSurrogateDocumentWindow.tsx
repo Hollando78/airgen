@@ -100,7 +100,9 @@ export function FloatingSurrogateDocumentWindow({
   const [previewMime, setPreviewMime] = useState<string | undefined>(previewMimeType ?? mimeType ?? undefined);
   const [size, setSize] = useState<{ width: number; height: number }>({ width: 640, height: 520 });
   const [isResizing, setIsResizing] = useState(false);
+  const [zoom, setZoom] = useState<number>(1);
   const resizeStartRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let abort = false;
@@ -206,6 +208,24 @@ export function FloatingSurrogateDocumentWindow({
   };
 
   const previewSupported = useMemo(() => canPreviewInline(previewMime), [previewMime]);
+
+  // Calculate zoom based on window size
+  useEffect(() => {
+    if (!contentRef.current || loading || error || !objectUrl) {
+      return;
+    }
+
+    // Calculate zoom to fit content within window
+    const baseWidth = 640; // Initial width
+    const baseHeight = 520; // Initial height (accounting for header/padding)
+
+    const widthRatio = size.width / baseWidth;
+    const heightRatio = (size.height - 100) / (baseHeight - 100); // Account for header/padding
+
+    // Use the smaller ratio to ensure content fits
+    const newZoom = Math.min(widthRatio, heightRatio, 2); // Cap at 2x zoom
+    setZoom(Math.max(newZoom, 0.5)); // Minimum 0.5x zoom
+  }, [size, loading, error, objectUrl]);
 
   const handleResizeMouseDown = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -385,7 +405,7 @@ export function FloatingSurrogateDocumentWindow({
       </div>
 
       {!isMinimized && (
-        <div style={{ padding: "16px", overflow: "auto", flex: 1, background: "#f8fafc", position: "relative" }}>
+        <div ref={contentRef} style={{ padding: "16px", overflow: "auto", flex: 1, background: "#f8fafc", position: "relative" }}>
           {isConvertedPreview(mimeType, previewMimeType) && !loading && !error && (
             <div style={{
               marginBottom: "12px",
@@ -458,7 +478,16 @@ export function FloatingSurrogateDocumentWindow({
           )}
 
           {!loading && !error && previewSupported && objectUrl && (
-            <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              transform: `scale(${zoom})`,
+              transformOrigin: "top left",
+              width: `${100 / zoom}%`,
+              transition: "transform 0.2s ease-out"
+            }}>
               {previewMime?.startsWith("image/") ? (
                 <img
                   src={objectUrl}
@@ -469,7 +498,13 @@ export function FloatingSurrogateDocumentWindow({
                 <iframe
                   src={objectUrl}
                   title={documentName}
-                  style={{ flex: 1, border: "1px solid #cbd5e1", borderRadius: "8px", backgroundColor: "#fff" }}
+                  style={{
+                    width: "100%",
+                    height: `${(size.height - 150) / zoom}px`,
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "8px",
+                    backgroundColor: "#fff"
+                  }}
                 />
               )}
             </div>

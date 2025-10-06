@@ -5,7 +5,7 @@ import { CreateDocumentModal } from "../components/CreateDocumentModal";
 import { CreateFolderModal } from "../components/CreateFolderModal";
 import { DocumentManager } from "../components/FileManager/DocumentManager";
 import { DocumentView } from "../components/DocumentView";
-import { MarkdownEditorView } from "../components/MarkdownEditor/MarkdownEditorView";
+import { FloatingMarkdownEditor } from "../components/FloatingMarkdownEditor";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
@@ -173,7 +173,7 @@ export function DocumentsRoute(): JSX.Element {
       )}
 
       {markdownEditor && tenant && project && (
-        <MarkdownEditorView
+        <FloatingMarkdownEditor
           tenant={tenant}
           project={project}
           documentSlug={markdownEditor.slug}
