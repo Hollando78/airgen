@@ -120,9 +120,6 @@ export function ArchitectureRoute(): JSX.Element {
       updateBlockPosition={updateBlockPosition}
       updateBlockSize={updateBlockSize}
       removeBlock={removeBlock}
-      addPort={addPort}
-      updatePort={updatePort}
-      removePort={removePort}
       addConnector={addConnector}
       updateConnector={updateConnector}
       removeConnector={removeConnector}

@@ -16,6 +16,7 @@ export type SysmlBlockNodeData = {
   onSelectPort?: (blockId: string, portId: string | null) => void;
   updatePort?: (blockId: string, portId: string, updates: Partial<BlockPort>) => void;
   removePort?: (blockId: string, portId: string) => void;
+  updateBlock?: (blockId: string, updates: Partial<SysmlBlock>) => void;
   portContextMenu?: { blockId: string; portId: string; portName: string; hidden: boolean; direction: BlockPort["direction"]; x: number; y: number } | null;
   onPortContextMenu?: (blockId: string, portId: string, portName: string, hidden: boolean, direction: BlockPort["direction"], x: number, y: number) => void;
   onClosePortContextMenu?: () => void;
@@ -94,7 +95,7 @@ function calculatePortPosition(
 }
 
 export function SysmlBlockNode({ id, data, selected }: NodeProps) {
-  const { block, documents = [], onOpenDocument, hideDefaultHandles = false, isConnectMode = false, selectedPortId, onSelectPort, updatePort, removePort, portContextMenu, onPortContextMenu, onClosePortContextMenu } = data as SysmlBlockNodeData;
+  const { block, documents = [], onOpenDocument, hideDefaultHandles = false, isConnectMode = false, selectedPortId, onSelectPort, updatePort, removePort, updateBlock, portContextMenu, onPortContextMenu, onClosePortContextMenu } = data as SysmlBlockNodeData;
 
   // Port dragging state
   const [draggingPort, setDraggingPort] = useState<{
@@ -118,6 +119,16 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
     portId: string;
     draft: string;
   } | null>(null);
+
+  // Block name editing state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(block.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Port label editing state
+  const [editingPortId, setEditingPortId] = useState<string | null>(null);
+  const [editedPortName, setEditedPortName] = useState("");
+  const portLabelInputRef = useRef<HTMLInputElement>(null);
 
   const handlePortMouseDown = useCallback((e: MouseEvent<HTMLDivElement>, portId: string, edge: "top" | "right" | "bottom" | "left", currentOffset: number, hidden?: boolean) => {
     if (isConnectMode || hidden) return; // Don't drag in connect mode or when hidden
@@ -276,6 +287,108 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
     updateNodeInternals(id);
   }, [id, portsSignature, block.size.width, block.size.height, updateNodeInternals]);
 
+  // Handle F2 key for renaming
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (selected && e.key === "F2" && !isEditingName) {
+        e.preventDefault();
+        setIsEditingName(true);
+        setEditedName(block.name);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selected, block.name, isEditingName]);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  // Handle name edit submission
+  const handleNameSubmit = useCallback(() => {
+    const trimmed = editedName.trim();
+    if (trimmed && trimmed !== block.name && updateBlock) {
+      updateBlock(block.id, { name: trimmed });
+    }
+    setIsEditingName(false);
+  }, [editedName, block.name, block.id, updateBlock]);
+
+  const handleNameKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleNameSubmit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setIsEditingName(false);
+      setEditedName(block.name);
+    }
+  }, [handleNameSubmit, block.name]);
+
+  const handleNameDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingName(true);
+    setEditedName(block.name);
+  }, [block.name]);
+
+  // Handle F2 key for port label editing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (selectedPortId && e.key === "F2" && !editingPortId && !isEditingName) {
+        e.preventDefault();
+        const port = block.ports.find(p => p.id === selectedPortId);
+        if (port) {
+          setEditingPortId(selectedPortId);
+          setEditedPortName(port.name);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedPortId, block.ports, editingPortId, isEditingName]);
+
+  // Focus port label input when editing starts
+  useEffect(() => {
+    if (editingPortId && portLabelInputRef.current) {
+      portLabelInputRef.current.focus();
+      portLabelInputRef.current.select();
+    }
+  }, [editingPortId]);
+
+  const handlePortLabelSubmit = useCallback(() => {
+    if (!editingPortId || !updatePort) return;
+    const trimmed = editedPortName.trim();
+    if (trimmed) {
+      updatePort(block.id, editingPortId, { name: trimmed });
+    }
+    setEditingPortId(null);
+    setEditedPortName("");
+  }, [editingPortId, editedPortName, block.id, updatePort]);
+
+  const handlePortLabelKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handlePortLabelSubmit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setEditingPortId(null);
+      setEditedPortName("");
+    }
+  }, [handlePortLabelSubmit]);
+
+  const handlePortLabelDoubleClick = useCallback((e: React.MouseEvent, portId: string, portName: string) => {
+    if (!updatePort) return;
+    e.stopPropagation();
+    e.preventDefault();
+    setEditingPortId(portId);
+    setEditedPortName(portName);
+  }, [updatePort]);
+
   // Group ports by edge for positioning (use dragging state if available)
   const portsByEdge: Record<string, Array<typeof block.ports[0] & { actualEdge: string; actualOffset: number }>> = {
     top: [],
@@ -326,24 +439,25 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
   };
 
   const hiddenPortCount = block.ports.filter(port => port.hidden).length;
+  const hidePortsVisually = !hideDefaultHandles; // Hide ports visually in Architecture view
 
   return (
     <div ref={blockRef} style={blockStyle}>
-      <NodeResizer 
-        minHeight={100} 
-        minWidth={150} 
+      <NodeResizer
+        minHeight={100}
+        minWidth={150}
         isVisible={selected}
         shouldResize={() => true}
-        lineStyle={{ 
-          stroke: "#2563eb", 
+        lineStyle={{
+          stroke: "#2563eb",
           strokeWidth: 2,
           strokeDasharray: "4 4"
-        }} 
-        handleStyle={{ 
-          fill: "#2563eb", 
+        }}
+        handleStyle={{
+          fill: "#2563eb",
           stroke: "#ffffff",
           strokeWidth: 2,
-          width: 16, 
+          width: 16,
           height: 16,
           borderRadius: 3,
           cursor: "nwse-resize"
@@ -351,14 +465,14 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
         lineClassName="node-resizer-line"
         handleClassName="node-resizer-handle"
       />
-      <div style={{ 
-        padding: "12px 16px", 
-        position: "relative", 
+      <div style={{
+        padding: "12px 16px",
+        position: "relative",
         height: "100%",
         pointerEvents: "auto",
         overflow: "hidden"
       }}>
-        {hiddenPortCount > 0 && (
+        {!hidePortsVisually && hiddenPortCount > 0 && (
           <div
             style={{
               position: "absolute",
@@ -379,23 +493,52 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
             {hiddenPortCount} hidden
           </div>
         )}
-        <div style={{ 
-          fontSize: `${(block.fontSize || 14) * 0.85}px`, 
-          textTransform: "uppercase", 
-          color: block.textColor ? `${block.textColor}99` : "#475569", 
+        <div style={{
+          fontSize: `${(block.fontSize || 14) * 0.85}px`,
+          textTransform: "uppercase",
+          color: block.textColor ? `${block.textColor}99` : "#475569",
           letterSpacing: "0.08em",
           fontWeight: block.fontWeight || "normal"
         }}>
           {formatStereotype(block.stereotype)}
         </div>
-        <div style={{ 
-          fontWeight: block.fontWeight === "bold" ? 700 : 600, 
-          fontSize: `${(block.fontSize || 14) * 1.15}px`, 
-          marginTop: "4px",
-          color: block.textColor || "#1f2937"
-        }}>
-          {block.name}
-        </div>
+        {isEditingName ? (
+          <input
+            ref={nameInputRef}
+            type="text"
+            value={editedName}
+            onChange={(e) => setEditedName(e.target.value)}
+            onKeyDown={handleNameKeyDown}
+            onBlur={handleNameSubmit}
+            className="nodrag nopan"
+            style={{
+              fontWeight: block.fontWeight === "bold" ? 700 : 600,
+              fontSize: `${(block.fontSize || 14) * 1.15}px`,
+              marginTop: "4px",
+              color: block.textColor || "#1f2937",
+              background: "#ffffff",
+              border: "2px solid #2563eb",
+              borderRadius: "4px",
+              padding: "2px 4px",
+              width: "100%",
+              outline: "none"
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              fontWeight: block.fontWeight === "bold" ? 700 : 600,
+              fontSize: `${(block.fontSize || 14) * 1.15}px`,
+              marginTop: "4px",
+              color: block.textColor || "#1f2937",
+              cursor: "text"
+            }}
+            onDoubleClick={handleNameDoubleClick}
+            title="Double-click or press F2 to rename"
+          >
+            {block.name}
+          </div>
+        )}
         {block.description && (
           <div style={{ 
             marginTop: "8px", 
@@ -653,7 +796,7 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
           }
 
           const handleLabelDragStart = (e: React.MouseEvent) => {
-            if (!updatePort || isHidden) return;
+            if (!updatePort || isHidden || editingPortId === port.id) return;
             e.stopPropagation();
             e.preventDefault();
 
@@ -778,23 +921,51 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
                 {!hidePortsVisually && arrowSvg}
               </Handle>
 
-              {showPortLabel && (
-                <div
-                  className="nodrag nopan"
-                  style={labelStyle}
-                  onMouseDown={handleLabelDragStart}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handlePortClick(event as unknown as MouseEvent<HTMLDivElement>, port.id, isHidden);
-                  }}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    handlePortContextMenu(event as unknown as MouseEvent<HTMLDivElement>, port.id, port.name, isHidden, port.direction);
-                  }}
-                >
-                  <span>{port.name}</span>
-                </div>
+              {!hidePortsVisually && showPortLabel && (
+                editingPortId === port.id ? (
+                  <input
+                    ref={portLabelInputRef}
+                    type="text"
+                    value={editedPortName}
+                    onChange={(e) => setEditedPortName(e.target.value)}
+                    onKeyDown={handlePortLabelKeyDown}
+                    onBlur={handlePortLabelSubmit}
+                    className="nodrag nopan"
+                    style={{
+                      ...labelStyle,
+                      border: "2px solid #2563eb",
+                      outline: "none",
+                      minWidth: "80px"
+                    }}
+                  />
+                ) : (
+                  <div
+                    className="nodrag nopan"
+                    style={{
+                      ...labelStyle,
+                      cursor: updatePort ? "text" : "move"
+                    }}
+                    onMouseDown={handleLabelDragStart}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handlePortClick(event as unknown as MouseEvent<HTMLDivElement>, port.id, isHidden);
+                    }}
+                    onDoubleClick={(event) => handlePortLabelDoubleClick(event, port.id, port.name)}
+                    onContextMenu={(event) => {
+                      if (hidePortsVisually) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                      }
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handlePortContextMenu(event as unknown as MouseEvent<HTMLDivElement>, port.id, port.name, isHidden, port.direction);
+                    }}
+                    title={updatePort ? "Double-click or press F2 to rename" : undefined}
+                  >
+                    <span>{port.name}</span>
+                  </div>
+                )
               )}
             </Fragment>
           );

@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import type { EdgeProps } from "@xyflow/react";
 import {
   BaseEdge,
@@ -17,6 +18,8 @@ interface CustomEdgeData extends Record<string, unknown> {
   labelOffsetX?: number;
   labelOffsetY?: number;
   onUpdateLabelOffset?: (offsetX: number, offsetY: number) => void;
+  onUpdateLabel?: (label: string) => void;
+  selected?: boolean;
 }
 
 function EdgeLabelContent({
@@ -28,7 +31,9 @@ function EdgeLabelContent({
   labelY,
   labelOffsetX = 0,
   labelOffsetY = 0,
-  onUpdateLabelOffset
+  onUpdateLabelOffset,
+  onUpdateLabel,
+  selected = false
 }: {
   label?: string;
   documentIds: string[];
@@ -39,15 +44,68 @@ function EdgeLabelContent({
   labelOffsetX?: number;
   labelOffsetY?: number;
   onUpdateLabelOffset?: (offsetX: number, offsetY: number) => void;
+  onUpdateLabel?: (label: string) => void;
+  selected?: boolean;
 }) {
   const linkedDocuments = documents.filter(doc => documentIds.includes(doc.id));
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [editedLabel, setEditedLabel] = useState(label || "");
+  const labelInputRef = useRef<HTMLInputElement>(null);
 
-  if (!label && linkedDocuments.length === 0) {
+  // Handle F2 key for renaming
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (selected && e.key === "F2" && !isEditingLabel) {
+        e.preventDefault();
+        setIsEditingLabel(true);
+        setEditedLabel(label || "");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selected, label, isEditingLabel]);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditingLabel && labelInputRef.current) {
+      labelInputRef.current.focus();
+      labelInputRef.current.select();
+    }
+  }, [isEditingLabel]);
+
+  const handleLabelSubmit = () => {
+    const trimmed = editedLabel.trim();
+    if (trimmed !== label && onUpdateLabel) {
+      onUpdateLabel(trimmed);
+    }
+    setIsEditingLabel(false);
+  };
+
+  const handleLabelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleLabelSubmit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setIsEditingLabel(false);
+      setEditedLabel(label || "");
+    }
+  };
+
+  const handleLabelDoubleClick = (e: React.MouseEvent) => {
+    if (!onUpdateLabel) return;
+    e.stopPropagation();
+    setIsEditingLabel(true);
+    setEditedLabel(label || "");
+  };
+
+  if (!label && linkedDocuments.length === 0 && !isEditingLabel) {
     return null;
   }
 
     const handleDragStart = (e: React.MouseEvent) => {
-      if (!onUpdateLabelOffset) return;
+      if (!onUpdateLabelOffset || isEditingLabel) return;
       e.stopPropagation();
       e.preventDefault();
 
@@ -105,26 +163,50 @@ function EdgeLabelContent({
         flexDirection: "column",
         gap: "4px",
         alignItems: "center",
-        cursor: onUpdateLabelOffset ? "move" : "default"
+        cursor: isEditingLabel ? "text" : (onUpdateLabelOffset ? "move" : "default")
       }}
-      onMouseDown={onUpdateLabelOffset ? handleDragStart : undefined}
+      onMouseDown={!isEditingLabel && onUpdateLabelOffset ? handleDragStart : undefined}
     >
-      {label && (
-        <div
+      {isEditingLabel ? (
+        <input
+          ref={labelInputRef}
+          type="text"
+          value={editedLabel}
+          onChange={(e) => setEditedLabel(e.target.value)}
+          onKeyDown={handleLabelKeyDown}
+          onBlur={handleLabelSubmit}
+          className="nodrag nopan"
           style={{
             background: "#ffffff",
-            border: "1px solid #e2e8f0",
+            border: "2px solid #2563eb",
             borderRadius: "4px",
-            padding: "6px 4px",
+            padding: "6px 8px",
             fontSize: "12px",
             fontWeight: 500,
             color: "#0f172a",
-            whiteSpace: "nowrap"
+            outline: "none",
+            minWidth: "100px"
           }}
+        />
+      ) : label ? (
+        <div
+          style={{
+            background: "#ffffff",
+            border: selected ? "2px solid #2563eb" : "1px solid #e2e8f0",
+            borderRadius: "4px",
+            padding: "6px 8px",
+            fontSize: "12px",
+            fontWeight: 500,
+            color: "#0f172a",
+            whiteSpace: "nowrap",
+            cursor: onUpdateLabel ? "text" : "default"
+          }}
+          onDoubleClick={handleLabelDoubleClick}
+          title={onUpdateLabel ? "Double-click or press F2 to rename" : undefined}
         >
           {label}
         </div>
-      )}
+      ) : null}
       {linkedDocuments.length > 0 && (
         <div
           style={{
@@ -196,7 +278,8 @@ export function StraightEdge({
   markerEnd,
   markerStart,
   data,
-  label
+  label,
+  selected
 }: EdgeProps<Edge<CustomEdgeData>>) {
   const [edgePath, labelX, labelY] = getStraightPath({
     sourceX,
@@ -224,6 +307,8 @@ export function StraightEdge({
           labelOffsetX={edgeData.labelOffsetX}
           labelOffsetY={edgeData.labelOffsetY}
           onUpdateLabelOffset={edgeData.onUpdateLabelOffset}
+          onUpdateLabel={edgeData.onUpdateLabel}
+          selected={selected}
         />
       </EdgeLabelRenderer>
     </>
@@ -242,7 +327,8 @@ export function SmoothStepEdge({
   markerEnd,
   markerStart,
   data,
-  label
+  label,
+  selected
 }: EdgeProps<Edge<CustomEdgeData>>) {
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -272,6 +358,8 @@ export function SmoothStepEdge({
           labelOffsetX={edgeData.labelOffsetX}
           labelOffsetY={edgeData.labelOffsetY}
           onUpdateLabelOffset={edgeData.onUpdateLabelOffset}
+          onUpdateLabel={edgeData.onUpdateLabel}
+          selected={selected}
         />
       </EdgeLabelRenderer>
     </>
@@ -290,7 +378,8 @@ export function StepEdge({
   markerEnd,
   markerStart,
   data,
-  label
+  label,
+  selected
 }: EdgeProps<Edge<CustomEdgeData>>) {
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -321,6 +410,8 @@ export function StepEdge({
           labelOffsetX={edgeData.labelOffsetX}
           labelOffsetY={edgeData.labelOffsetY}
           onUpdateLabelOffset={edgeData.onUpdateLabelOffset}
+          onUpdateLabel={edgeData.onUpdateLabel}
+          selected={selected}
         />
       </EdgeLabelRenderer>
     </>
@@ -339,7 +430,8 @@ export function BezierEdge({
   markerEnd,
   markerStart,
   data,
-  label
+  label,
+  selected
 }: EdgeProps<Edge<CustomEdgeData>>) {
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -369,6 +461,8 @@ export function BezierEdge({
           labelOffsetX={edgeData.labelOffsetX}
           labelOffsetY={edgeData.labelOffsetY}
           onUpdateLabelOffset={edgeData.onUpdateLabelOffset}
+          onUpdateLabel={edgeData.onUpdateLabel}
+          selected={selected}
         />
       </EdgeLabelRenderer>
     </>

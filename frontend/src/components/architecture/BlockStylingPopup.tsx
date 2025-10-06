@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import type { SysmlBlock } from "../../hooks/useArchitectureApi";
 
 interface BlockStylingPopupProps {
@@ -8,17 +8,47 @@ interface BlockStylingPopupProps {
   onClose: () => void;
 }
 
+type BlockStyleUpdates = Partial<Pick<SysmlBlock, "backgroundColor" | "borderColor" | "borderWidth" | "borderStyle" | "textColor" | "fontSize" | "fontWeight" | "borderRadius">>;
+
 export function BlockStylingPopup({ block, position: initialPosition, onUpdate, onClose }: BlockStylingPopupProps) {
-  console.log('[DEBUG] BlockStylingPopup rendering with position:', initialPosition, 'block:', block.name);
-  
   const [position, setPosition] = useState(initialPosition);
   const [isDragging, setIsDragging] = useState(false);
+  const [localUpdates, setLocalUpdates] = useState<BlockStyleUpdates>({});
+  const updateTimeoutRef = useRef<NodeJS.Timeout>();
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number }>({
     startX: 0,
     startY: 0,
     startPosX: 0,
     startPosY: 0
   });
+
+  // Debounced update handler
+  const handleStyleChange = useCallback((updates: BlockStyleUpdates) => {
+    setLocalUpdates(prev => {
+      const merged = { ...prev, ...updates };
+
+      // Clear any existing timeout
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+
+      // Schedule the update to be sent after 300ms of no changes
+      updateTimeoutRef.current = setTimeout(() => {
+        onUpdate(merged);
+      }, 300);
+
+      return merged;
+    });
+  }, [onUpdate]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -118,20 +148,20 @@ export function BlockStylingPopup({ block, position: initialPosition, onUpdate, 
             </label>
             <input
               type="color"
-              value={block.backgroundColor ?? "#ffffff"}
-              onChange={event => onUpdate({ backgroundColor: event.target.value })}
+              value={localUpdates.backgroundColor ?? block.backgroundColor ?? "#ffffff"}
+              onChange={event => handleStyleChange({ backgroundColor: event.target.value })}
               style={{ width: "100%", height: "32px", padding: "1px", border: "1px solid #d1d5db", borderRadius: "4px" }}
             />
           </div>
-          
+
           <div>
             <label style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: "4px" }}>
               Border Color
             </label>
             <input
               type="color"
-              value={block.borderColor ?? "#e2e8f0"}
-              onChange={event => onUpdate({ borderColor: event.target.value })}
+              value={localUpdates.borderColor ?? block.borderColor ?? "#e2e8f0"}
+              onChange={event => handleStyleChange({ borderColor: event.target.value })}
               style={{ width: "100%", height: "32px", padding: "1px", border: "1px solid #d1d5db", borderRadius: "4px" }}
             />
           </div>
@@ -143,8 +173,8 @@ export function BlockStylingPopup({ block, position: initialPosition, onUpdate, 
               Border Style
             </label>
             <select
-              value={block.borderStyle ?? "solid"}
-              onChange={event => onUpdate({ borderStyle: event.target.value })}
+              value={localUpdates.borderStyle ?? block.borderStyle ?? "solid"}
+              onChange={event => handleStyleChange({ borderStyle: event.target.value })}
               style={{ width: "100%", fontSize: "12px", padding: "4px", border: "1px solid #d1d5db", borderRadius: "4px" }}
             >
               <option value="solid">Solid</option>
@@ -155,14 +185,14 @@ export function BlockStylingPopup({ block, position: initialPosition, onUpdate, 
           
           <div>
             <label style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: "4px" }}>
-              Border Width ({block.borderWidth ?? 2}px)
+              Border Width ({localUpdates.borderWidth ?? block.borderWidth ?? 2}px)
             </label>
             <input
               type="range"
               min="1"
               max="6"
-              value={block.borderWidth ?? 2}
-              onChange={event => onUpdate({ borderWidth: Number(event.target.value) })}
+              value={localUpdates.borderWidth ?? block.borderWidth ?? 2}
+              onChange={event => handleStyleChange({ borderWidth: Number(event.target.value) })}
               style={{ width: "100%" }}
             />
           </div>
@@ -175,19 +205,19 @@ export function BlockStylingPopup({ block, position: initialPosition, onUpdate, 
             </label>
             <input
               type="color"
-              value={block.textColor ?? "#1e293b"}
-              onChange={event => onUpdate({ textColor: event.target.value })}
+              value={localUpdates.textColor ?? block.textColor ?? "#1e293b"}
+              onChange={event => handleStyleChange({ textColor: event.target.value })}
               style={{ width: "100%", height: "32px", padding: "1px", border: "1px solid #d1d5db", borderRadius: "4px" }}
             />
           </div>
-          
+
           <div>
             <label style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: "4px" }}>
               Font Weight
             </label>
             <select
-              value={block.fontWeight ?? "normal"}
-              onChange={event => onUpdate({ fontWeight: event.target.value })}
+              value={localUpdates.fontWeight ?? block.fontWeight ?? "normal"}
+              onChange={event => handleStyleChange({ fontWeight: event.target.value })}
               style={{ width: "100%", fontSize: "12px", padding: "4px", border: "1px solid #d1d5db", borderRadius: "4px" }}
             >
               <option value="normal">Normal</option>
@@ -199,28 +229,28 @@ export function BlockStylingPopup({ block, position: initialPosition, onUpdate, 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
           <div>
             <label style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: "4px" }}>
-              Font Size ({block.fontSize ?? 14}px)
+              Font Size ({localUpdates.fontSize ?? block.fontSize ?? 14}px)
             </label>
             <input
               type="range"
               min="10"
               max="20"
-              value={block.fontSize ?? 14}
-              onChange={event => onUpdate({ fontSize: Number(event.target.value) })}
+              value={localUpdates.fontSize ?? block.fontSize ?? 14}
+              onChange={event => handleStyleChange({ fontSize: Number(event.target.value) })}
               style={{ width: "100%" }}
             />
           </div>
-          
+
           <div>
             <label style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: "4px" }}>
-              Corner Radius ({block.borderRadius ?? 6}px)
+              Corner Radius ({localUpdates.borderRadius ?? block.borderRadius ?? 6}px)
             </label>
             <input
               type="range"
               min="0"
               max="16"
-              value={block.borderRadius ?? 6}
-              onChange={event => onUpdate({ borderRadius: Number(event.target.value) })}
+              value={localUpdates.borderRadius ?? block.borderRadius ?? 6}
+              onChange={event => handleStyleChange({ borderRadius: Number(event.target.value) })}
               style={{ width: "100%" }}
             />
           </div>

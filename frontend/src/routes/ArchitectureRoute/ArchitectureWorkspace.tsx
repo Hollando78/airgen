@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { BlockDetailsPanel } from "../../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../../components/architecture/ConnectorDetailsPanel";
-import { PortDetailsPanel } from "../../components/architecture/PortDetailsPanel";
 import { ArchitectureTreeBrowser } from "../../components/architecture/ArchitectureTreeBrowser";
 import type {
   ArchitectureBlockLibraryRecord,
@@ -53,9 +52,6 @@ interface ArchitectureWorkspaceProps {
   updateBlockPosition: (blockId: string, position: { x: number; y: number }) => void;
   updateBlockSize: (blockId: string, size: { width: number; height: number }) => void;
   removeBlock: (blockId: string) => void;
-  addPort: (blockId: string, port: { name: string; direction: PortDirection }) => void;
-  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection }) => void;
-  removePort: (blockId: string, portId: string) => void;
   addConnector: (input: {
     source: string;
     target: string;
@@ -96,9 +92,6 @@ export function ArchitectureWorkspace({
   updateBlockPosition,
   updateBlockSize,
   removeBlock,
-  addPort,
-  updatePort,
-  removePort,
   addConnector,
   updateConnector,
   removeConnector,
@@ -116,17 +109,8 @@ export function ArchitectureWorkspace({
 }: ArchitectureWorkspaceProps): JSX.Element {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
-  const [selectedPortId, setSelectedPortId] = useState<string | null>(null);
-  const [selectedPortBlockId, setSelectedPortBlockId] = useState<string | null>(null);
   const [diagramViewports, setDiagramViewports] = useState<Record<string, { x: number; y: number; zoom: number }>>({});
   const canvasRef = useRef<DiagramCanvasHandle>(null);
-
-  const handleSelectPort = useCallback((blockId: string, portId: string | null) => {
-    setSelectedPortBlockId(blockId);
-    setSelectedPortId(portId);
-    setSelectedBlockId(null);
-    setSelectedConnectorId(null);
-  }, []);
 
   const { openFloatingDocument } = useFloatingDocuments();
 
@@ -393,19 +377,14 @@ export function ArchitectureWorkspace({
           documents={documents}
           selectedBlockId={selectedBlockId}
           selectedConnectorId={selectedConnectorId}
-          selectedPortId={selectedPortId}
           onSelectBlock={setSelectedBlockId}
           onSelectConnector={setSelectedConnectorId}
-          onSelectPort={handleSelectPort}
           addBlock={addBlock}
           reuseBlock={reuseBlock}
           updateBlock={updateBlock}
           updateBlockPosition={updateBlockPosition}
           updateBlockSize={updateBlockSize}
           removeBlock={removeBlock}
-          addPort={addPort}
-          updatePort={updatePort}
-          removePort={removePort}
           addConnector={addConnector}
           updateConnector={updateConnector}
           removeConnector={removeConnector}
@@ -427,9 +406,6 @@ export function ArchitectureWorkspace({
               onUpdatePosition={position => updateBlockPosition(selectedBlock.id, position)}
               onUpdateSize={size => updateBlockSize(selectedBlock.id, size)}
               onRemove={() => removeBlock(selectedBlock.id)}
-              onAddPort={port => addPort(selectedBlock.id, port)}
-              onUpdatePort={(portId, updates) => updatePort(selectedBlock.id, portId, updates)}
-              onRemovePort={portId => removePort(selectedBlock.id, portId)}
               documents={documents}
               onAddDocument={documentId => addDocumentToBlock(selectedBlock.id, documentId)}
               onRemoveDocument={documentId => removeDocumentFromBlock(selectedBlock.id, documentId)}
@@ -447,30 +423,13 @@ export function ArchitectureWorkspace({
             />
           )}
 
-          {selectedPortId && selectedPortBlockId && (() => {
-            const block = architecture.blocks.find(b => b.id === selectedPortBlockId);
-            const port = block?.ports.find(p => p.id === selectedPortId);
-            return port && block ? (
-              <PortDetailsPanel
-                port={port}
-                blockName={block.name}
-                onUpdate={(updates) => updatePort(selectedPortBlockId, selectedPortId, updates)}
-                onRemove={() => {
-                  removePort(selectedPortBlockId, selectedPortId);
-                  setSelectedPortId(null);
-                  setSelectedPortBlockId(null);
-                }}
-              />
-            ) : null;
-          })()}
-
-          {!selectedBlock && !selectedConnector && !selectedPortId && (
+          {!selectedBlock && !selectedConnector && (
             <div className="architecture-hint">
               <h3>Workspace tips</h3>
               <ul>
                 <li>Use the palette to drop new blocks into the canvas.</li>
                 <li>Right-click the canvas or blocks for quick actions.</li>
-                <li>Drag handles between ports to author connectors.</li>
+                <li>Drag handles between blocks to author connectors.</li>
                 <li>Open blocks to link supporting documents.</li>
               </ul>
             </div>

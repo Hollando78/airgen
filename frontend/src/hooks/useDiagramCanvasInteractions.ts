@@ -333,14 +333,12 @@ export function useDiagramCanvasInteractions({
   }, []);
 
   const handleEdgeContextMenu = useCallback((event: ReactMouseEvent, edge: Edge) => {
-    console.log("[DiagramCanvas] handleEdgeContextMenu called for edge:", edge.id);
     event.preventDefault();
     setContextMenuState({
       type: "edge",
       edgeId: edge.id,
       client: { x: event.clientX, y: event.clientY }
     });
-    console.log("[DiagramCanvas] Context menu state set for edge:", edge.id);
   }, []);
 
   const handleSelectionChange = useCallback(
@@ -350,13 +348,6 @@ export function useDiagramCanvasInteractions({
 
       closeContextMenu();
       closePortContextMenu();
-
-      if (DEBUG_ARCHITECTURE) {
-        console.debug("[Architecture] selection change", {
-          nodeIds: selectedNodes.map(node => node.id),
-          edgeIds: selectedEdges.map(edge => edge.id)
-        });
-      }
 
       if (firstNodeId) {
         onSelectBlock(firstNodeId);
@@ -374,9 +365,6 @@ export function useDiagramCanvasInteractions({
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      if (DEBUG_ARCHITECTURE) {
-        console.debug("[Architecture] nodes change", changes);
-      }
       onNodesStateChange(changes);
 
       changes.forEach(change => {
@@ -587,8 +575,6 @@ export function useDiagramCanvasInteractions({
     if (contextMenuState.type === "edge") {
       const connector = architecture.connectors.find((item: SysmlConnector) => item.id === contextMenuState.edgeId);
       if (!connector) {
-        console.error("[DiagramCanvas] Connector not found for edge:", contextMenuState.edgeId);
-        console.log("[DiagramCanvas] Available connectors:", architecture.connectors.map(c => c.id));
         return [];
       }
       return [
@@ -605,12 +591,7 @@ export function useDiagramCanvasInteractions({
         {
           label: "Delete connector",
           onSelect: () => {
-            console.log("[DiagramCanvas] Delete connector clicked");
-            console.log("[DiagramCanvas] Connector to delete:", connector);
-            console.log("[DiagramCanvas] Edge ID:", contextMenuState.edgeId);
-            console.log("[DiagramCanvas] About to call removeConnector with ID:", connector.id);
             removeConnector(connector.id);
-            console.log("[DiagramCanvas] removeConnector call completed");
           }
         }
       ];
@@ -648,10 +629,11 @@ export function useDiagramCanvasInteractions({
     onSelectPort,
     updatePort,
     removePort,
+    updateBlock,
     portContextMenu,
     onPortContextMenu: handlePortContextMenu,
     onClosePortContextMenu: closePortContextMenu
-  }), [memoizedDocuments, onOpenDocument, hideDefaultHandles, isConnectMode, selectedPortId, onSelectPort, updatePort, removePort, portContextMenu, handlePortContextMenu, closePortContextMenu]);
+  }), [memoizedDocuments, onOpenDocument, hideDefaultHandles, isConnectMode, selectedPortId, onSelectPort, updatePort, removePort, updateBlock, portContextMenu, handlePortContextMenu, closePortContextMenu]);
 
   /**
    * SMART NODE SYNCHRONIZATION:
@@ -758,6 +740,9 @@ export function useDiagramCanvasInteractions({
                 onOpenDocument,
                 onUpdateLabelOffset: (offsetX: number, offsetY: number) => {
                   updateConnector(connector.id, { labelOffsetX: offsetX, labelOffsetY: offsetY });
+                },
+                onUpdateLabel: (label: string) => {
+                  updateConnector(connector.id, { label });
                 }
               }
             } satisfies Edge;
@@ -803,6 +788,9 @@ export function useDiagramCanvasInteractions({
               onOpenDocument,
               onUpdateLabelOffset: (offsetX: number, offsetY: number) => {
                 updateConnector(connector.id, { labelOffsetX: offsetX, labelOffsetY: offsetY });
+              },
+              onUpdateLabel: (label: string) => {
+                updateConnector(connector.id, { label });
               }
             }
           } satisfies Edge;
@@ -823,6 +811,9 @@ export function useDiagramCanvasInteractions({
             onOpenDocument,
             onUpdateLabelOffset: (offsetX: number, offsetY: number) => {
               updateConnector(connector.id, { labelOffsetX: offsetX, labelOffsetY: offsetY });
+            },
+            onUpdateLabel: (label: string) => {
+              updateConnector(connector.id, { label });
             }
           }
         } satisfies Edge;

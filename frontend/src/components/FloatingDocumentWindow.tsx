@@ -55,10 +55,6 @@ export function FloatingDocumentWindow({
     targetRequirement: RequirementRecord;
   } | null>(null);
 
-  // Debug: log linkModal changes
-  useEffect(() => {
-    console.log('[FloatingDocumentWindow] linkModal state changed:', linkModal);
-  }, [linkModal]);
 
   // Fetch document sections
   const sectionsQuery = useQuery({
@@ -217,40 +213,24 @@ export function FloatingDocumentWindow({
   }, [startLinking]);
 
   const handleEndLink = useCallback((targetRequirement: RequirementRecord) => {
-    console.log('[FloatingDocumentWindow] handleEndLink called:', {
-      hasSourceRequirement: !!linkingState.sourceRequirement,
-      sourceRef: linkingState.sourceRequirement?.ref,
-      targetRef: targetRequirement.ref
-    });
     if (linkingState.sourceRequirement) {
       setLinkModal({
         sourceRequirement: linkingState.sourceRequirement,
         targetRequirement
       });
-      console.log('[FloatingDocumentWindow] Link modal set - should open now');
-    } else {
-      console.warn('[FloatingDocumentWindow] No source requirement - cannot end link');
     }
   }, [linkingState.sourceRequirement]);
 
   const handleCreateLink = useCallback(async (linkType: TraceLinkType, description?: string) => {
     if (linkModal) {
       try {
-        console.log('[FloatingDocumentWindow] Creating link:', {
-          source: linkingState.sourceRequirement?.ref,
-          target: linkModal.targetRequirement.ref,
-          linkType,
-          description
-        });
         await completeLinking(linkModal.targetRequirement, linkType, description);
-        console.log('[FloatingDocumentWindow] Link created successfully');
         setLinkModal(null);
       } catch (error) {
-        console.error('[FloatingDocumentWindow] Failed to create link:', error);
         alert(`Failed to create link: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-  }, [linkModal, completeLinking, linkingState.sourceRequirement]);
+  }, [linkModal, completeLinking]);
 
   const handleCancelLink = useCallback(() => {
     cancelLinking();
