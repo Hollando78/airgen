@@ -30,6 +30,7 @@ export type RequirementInput = {
   qaVerdict?: string;
   suggestions?: string[];
   tags?: string[];
+  attributes?: Record<string, string | number | boolean | null>;
 };
 
 export function mapRequirement(node: Neo4jNode, documentSlug?: string): RequirementRecord {
@@ -65,6 +66,9 @@ export function mapRequirement(node: Neo4jNode, documentSlug?: string): Requirem
     updatedAt: String(props.updatedAt),
     deleted: props.deleted ? Boolean(props.deleted) : undefined,
     archived: props.archived ? Boolean(props.archived) : undefined,
+    attributes: props.attributes && typeof props.attributes === 'object'
+      ? (props.attributes as Record<string, string | number | boolean | null>)
+      : undefined,
     // Data integrity fields
     contentHash: props.contentHash ? String(props.contentHash) : undefined,
     deletedAt: props.deletedAt ? String(props.deletedAt) : undefined,

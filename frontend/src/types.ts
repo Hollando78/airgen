@@ -75,6 +75,7 @@ export type RequirementRecord = {
   updatedAt: string;
   deleted?: boolean;
   archived?: boolean;
+  attributes?: Record<string, string | number | boolean | null>;
 };
 
 export type RequirementDetail = {
@@ -94,6 +95,7 @@ export type CreateRequirementRequest = {
   qaVerdict?: string;
   suggestions?: string[];
   tags?: string[];
+  attributes?: Record<string, string | number | boolean | null>;
 };
 
 export type RequirementCandidateStatus = "pending" | "accepted" | "rejected";
