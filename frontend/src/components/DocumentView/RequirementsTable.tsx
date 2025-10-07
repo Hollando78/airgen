@@ -432,22 +432,54 @@ function SortableRow({
           </td>
         )}
         {visibleColumns.verification && (
-          <td style={{
-            border: "1px solid #e2e8f0",
-            padding: "12px",
-            width: `${columnWidths.verification}px`
-          }}>
-            {req.verification && (
-              <span style={{
-                backgroundColor: "#e0e7ff",
-                color: "#4f46e5",
-                padding: "4px 8px",
-                borderRadius: "4px",
-                fontSize: "11px",
-                fontWeight: "600"
-              }}>
-                {req.verification}
-              </span>
+          <td
+            style={{
+              border: "1px solid #e2e8f0",
+              padding: "12px",
+              width: `${columnWidths.verification}px`,
+              cursor: "pointer"
+            }}
+            onDoubleClick={() => handleDoubleClick('verification', req.verification || "")}
+          >
+            {editingField === 'verification' ? (
+              <select
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                autoFocus
+                style={{
+                  width: "100%",
+                  padding: "4px 8px",
+                  border: "2px solid #3b82f6",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  backgroundColor: "#e0e7ff",
+                  color: "#4f46e5"
+                }}
+              >
+                <option value="">None</option>
+                <option value="Test">Test</option>
+                <option value="Analysis">Analysis</option>
+                <option value="Inspection">Inspection</option>
+                <option value="Demonstration">Demonstration</option>
+              </select>
+            ) : (
+              req.verification ? (
+                <span style={{
+                  backgroundColor: "#e0e7ff",
+                  color: "#4f46e5",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: "600"
+                }}>
+                  {req.verification}
+                </span>
+              ) : (
+                <span style={{ color: "#94a3b8", fontSize: "11px" }}>Double-click to set</span>
+              )
             )}
           </td>
         )}
