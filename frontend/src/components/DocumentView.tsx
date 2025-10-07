@@ -59,10 +59,11 @@ export function DocumentView({
     queryFn: () => api.getDocument(tenant, project, documentSlug)
   });
 
-  // Fetch sections for this document
+  // Fetch sections for this document with all related data in one optimized query
+  // This replaces the N+1 query pattern (1 + 3*N API calls) with a single batched query
   const sectionsQuery = useQuery({
     queryKey: ["sections", tenant, project, documentSlug],
-    queryFn: () => api.listDocumentSections(tenant, project, documentSlug),
+    queryFn: () => api.listDocumentSectionsWithRelations(tenant, project, documentSlug),
     enabled: Boolean(tenant && project && documentSlug)
   });
 
@@ -73,8 +74,8 @@ export function DocumentView({
     enabled: Boolean(tenant && project)
   });
 
-  // Combine sections with their requirements
-  const [sections, setSections] = useState<DocumentSectionWithRequirements[]>([]);
+  // Sections now come directly from the optimized query with all relations included
+  const sections = sectionsQuery.data?.sections || [];
 
   // Track sections with unsaved reorder changes
   const [sectionsWithUnsavedChanges, setSectionsWithUnsavedChanges] = useState<Set<string>>(new Set());
@@ -131,18 +132,9 @@ export function DocumentView({
         pattern: requirement.pattern,
         verification: requirement.verification
       }),
-    onSuccess: async (response, variables) => {
-      // Invalidate sections query to get fresh data
+    onSuccess: async () => {
+      // Invalidate sections query to get fresh data with the new requirement
       await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
-
-      // Immediately update local state to show the new requirement
-      setSections(prevSections =>
-        prevSections.map(section =>
-          section.id === variables.sectionId
-            ? { ...section, requirements: [...section.requirements, response.requirement] }
-            : section
-        )
-      );
     }
   });
 
@@ -156,16 +148,9 @@ export function DocumentView({
         text: info.text,
         title: info.title
       }),
-    onSuccess: async (response, variables) => {
+    onSuccess: async () => {
+      // Invalidate sections query to get fresh data with the new info
       await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
-
-      setSections(prevSections =>
-        prevSections.map(section =>
-          section.id === variables.sectionId
-            ? { ...section, infos: [...section.infos, response.info] }
-            : section
-        )
-      );
     }
   });
 
@@ -179,16 +164,9 @@ export function DocumentView({
         slug: surrogate.slug,
         caption: surrogate.caption
       }),
-    onSuccess: async (response, variables) => {
+    onSuccess: async () => {
+      // Invalidate sections query to get fresh data with the new surrogate
       await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
-
-      setSections(prevSections =>
-        prevSections.map(section =>
-          section.id === variables.sectionId
-            ? { ...section, surrogates: [...(section.surrogates || []), response.surrogate] }
-            : section
-        )
-      );
     }
   });
 
@@ -443,54 +421,8 @@ export function DocumentView({
     }
   });
 
-  // Populate sections with their requirements, infos, and surrogates when sections data is available
-  useEffect(() => {
-    if (sectionsQuery.data?.sections) {
-      console.log('[LOAD SECTIONS] useEffect triggered');
-      const loadSectionsWithRequirements = async () => {
-        const sectionsWithRequirements = await Promise.all(
-          sectionsQuery.data.sections.map(async (section) => {
-            // If this section has unsaved changes or was just manually updated, preserve existing data from state
-            console.log(`[LOAD SECTIONS] Checking section ${section.id}, unsaved changes:`, sectionsWithUnsavedChangesRef.current.has(section.id), 'manually updated:', manuallyUpdatedSectionsRef.current.has(section.id));
-            if (sectionsWithUnsavedChangesRef.current.has(section.id) || manuallyUpdatedSectionsRef.current.has(section.id)) {
-              console.log(`[LOAD SECTIONS] Section ${section.id} has unsaved changes or was manually updated, preserving existing data`);
-              const existingSection = sectionsRef.current.find(s => s.id === section.id);
-              if (existingSection) {
-                return existingSection;
-              }
-            }
-
-            console.log(`[LOAD SECTIONS] Loading section ${section.id} from API`);
-            try {
-              const [requirementsResponse, infosResponse, surrogatesResponse] = await Promise.all([
-                api.listSectionRequirements(section.id),
-                api.listSectionInfos(section.id),
-                api.listSectionSurrogates(section.id)
-              ]);
-              return {
-                ...section,
-                requirements: requirementsResponse.requirements,
-                infos: infosResponse.infos,
-                surrogates: surrogatesResponse.surrogates
-              };
-            } catch (error) {
-              console.error(`Failed to load requirements/infos/surrogates for section ${section.id}:`, error);
-              return {
-                ...section,
-                requirements: [],
-                infos: [],
-                surrogates: []
-              };
-            }
-          })
-        );
-        console.log('[LOAD SECTIONS] Setting sections with loaded data');
-        setSections(sectionsWithRequirements);
-      };
-
-      loadSectionsWithRequirements();
-    }
-  }, [sectionsQuery.data, sectionsQuery.dataUpdatedAt, api]);
+  // No longer needed: sections now come with all relations pre-loaded from the optimized endpoint
+  // This eliminates the N+1 query problem (30 API calls → 1 API call for 10 sections)
 
   // Reset selected section when document changes
   useEffect(() => {
@@ -854,7 +786,7 @@ export function DocumentView({
                 </button>
               </div>
               <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
-                {section.requirements.length} requirements, {section.infos.length} infos
+                {(section.requirements || []).length} requirements, {(section.infos || []).length} infos
               </div>
               {section.description && (
                 <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>

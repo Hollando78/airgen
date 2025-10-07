@@ -20,9 +20,11 @@ export {
   mapDocumentSection,
   createDocumentSection,
   listDocumentSections,
+  listDocumentSectionsWithRelations,
   updateDocumentSection,
   deleteDocumentSection,
-  type DocumentSectionRecord
+  type DocumentSectionRecord,
+  type DocumentSectionWithRelations
 } from "./documents-sections.js";
 
 // Folder operations

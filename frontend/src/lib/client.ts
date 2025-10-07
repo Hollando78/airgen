@@ -303,6 +303,10 @@ export function useApiClient() {
         request<FolderResponse>(`/folders/${tenant}/${project}/${folderSlug}`, { method: "DELETE" }),
       listDocumentSections: (tenant: string, project: string, documentSlug: string) =>
         request<DocumentSectionsResponse>(`/sections/${tenant}/${project}/${documentSlug}`),
+      // Optimized endpoint that fetches sections with all related data in a single query
+      // Reduces N+1 queries: 30 API calls → 1 API call for 10 sections (~97% reduction)
+      listDocumentSectionsWithRelations: (tenant: string, project: string, documentSlug: string) =>
+        request<DocumentSectionsResponse>(`/sections/${tenant}/${project}/${documentSlug}/full`),
       createDocumentSection: (body: CreateSectionRequest) =>
         request<DocumentSectionResponse>(`/sections`, { method: "POST", body: JSON.stringify(body) }),
       updateDocumentSection: (sectionId: string, body: { name?: string; description?: string; order?: number; shortCode?: string }) =>
