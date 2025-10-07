@@ -27,11 +27,20 @@ export type ParsedInfo = {
   sectionName?: string;
 };
 
+export type ParsedSurrogate = {
+  id?: string;
+  slug: string;
+  caption?: string;
+  line: number;
+  sectionName?: string;
+};
+
 export type ParsedContentBlockType =
   | "frontmatter"
   | "heading"
   | "requirement"
   | "info"
+  | "surrogate"
   | "raw";
 
 export type ParsedContentBlock = {
@@ -59,6 +68,7 @@ export type ParsedDocument = {
   requirements: ParsedRequirement[];
   sections: ParsedSection[];
   infos: ParsedInfo[];
+  surrogates: ParsedSurrogate[];
   metadata: Record<string, unknown>;
   blocks: ParsedContentBlock[];
 };
@@ -78,6 +88,7 @@ export async function parseMarkdownDocument(
   const requirements: ParsedRequirement[] = [];
   const sections: ParsedSection[] = [];
   const infos: ParsedInfo[] = [];
+  const surrogates: ParsedSurrogate[] = [];
   const blocks: ParsedContentBlock[] = [];
   let metadata: Record<string, unknown> = {};
   let currentSection: string | undefined;
@@ -234,6 +245,44 @@ export async function parseMarkdownDocument(
       continue;
     }
 
+    // Parse surrogate blocks (:::surrogate{slug="..." caption="..."})
+    if (!inRequirementBlock && !inInfoBlock && line.trim().startsWith(":::surrogate")) {
+      flushRawBuffer();
+
+      const attrMatch = line.match(/:::surrogate\{([^}]+)\}/);
+      if (attrMatch) {
+        const attrs = attrMatch[1];
+        const slugMatch = attrs.match(/slug="([^"]+)"/);
+        const captionMatch = attrs.match(/caption="([^"]+)"/);
+
+        if (slugMatch) {
+          const surrogate: ParsedSurrogate = {
+            slug: slugMatch[1],
+            line: lineNum,
+            sectionName: currentSection
+          };
+
+          if (captionMatch) {
+            surrogate.caption = captionMatch[1];
+          }
+
+          surrogates.push(surrogate);
+
+          blocks.push({
+            type: "surrogate",
+            raw: line,
+            line: lineNum,
+            metadata: {
+              slug: surrogate.slug,
+              caption: surrogate.caption ?? null,
+              sectionName: currentSection ?? null
+            }
+          });
+        }
+      }
+      continue;
+    }
+
     if (inRequirementBlock) {
       requirementLines.push(rawLine);
 
@@ -322,6 +371,7 @@ export async function parseMarkdownDocument(
     requirements,
     sections,
     infos,
+    surrogates,
     metadata,
     blocks
   };

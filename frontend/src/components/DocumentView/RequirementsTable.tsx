@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { RequirementRecord, DocumentSectionRecord, InfoRecord, TraceLink, TraceLinkType } from "../../types";
+import type { RequirementRecord, DocumentSectionRecord, InfoRecord, SurrogateReferenceRecord, TraceLink, TraceLinkType } from "../../types";
 import { RequirementContextMenu } from "../RequirementContextMenu";
 import { LinkTypeSelectionModal } from "../LinkTypeSelectionModal";
 import { useRequirementLinking } from "../../contexts/RequirementLinkingContext";
@@ -11,7 +11,7 @@ import { RequirementRow } from "./RequirementsTable/RequirementRow";
 import { useApiClient } from "../../lib/client";
 
 export interface RequirementsTableProps {
-  section: DocumentSectionRecord & { requirements: RequirementRecord[]; infos: InfoRecord[] };
+  sections: (DocumentSectionRecord & { requirements: RequirementRecord[]; infos: InfoRecord[]; surrogates?: SurrogateReferenceRecord[] })[];
   tenant: string;
   project: string;
   traceLinks?: TraceLink[];
@@ -31,7 +31,7 @@ const DEFAULT_COLUMN_WIDTHS = {
 };
 
 export function RequirementsTable({
-  section,
+  sections,
   tenant,
   project,
   traceLinks = [],
@@ -67,7 +67,8 @@ export function RequirementsTable({
     pattern: "",
     verification: "",
     minQaScore: "",
-    maxQaScore: ""
+    maxQaScore: "",
+    objectTypes: ['requirement', 'info', 'surrogate'] // Default: show all types
   });
   const tableRef = useRef<HTMLTableElement>(null);
   const api = useApiClient();
@@ -120,21 +121,44 @@ export function RequirementsTable({
     }));
   }, []);
 
-  // Merge requirements and infos into a single sorted list by line/order
-  type ItemType = { type: 'requirement'; data: RequirementRecord } | { type: 'info'; data: InfoRecord };
+  // Merge requirements, infos, and surrogates from all sections into a single sorted list
+  type ItemType =
+    | { type: 'requirement'; data: RequirementRecord; sectionName: string; sectionOrder: number }
+    | { type: 'info'; data: InfoRecord; sectionName: string; sectionOrder: number }
+    | { type: 'surrogate'; data: SurrogateReferenceRecord; sectionName: string; sectionOrder: number }
+    | { type: 'section-header'; sectionName: string; sectionOrder: number; sectionId: string };
 
   const sortedItems = useMemo(() => {
-    const items: ItemType[] = [
-      ...section.requirements.map(req => ({ type: 'requirement' as const, data: req, order: 0 })),
-      ...(section.infos || []).map(info => ({ type: 'info' as const, data: info, order: info.order || 0 }))
-    ];
+    const items: ItemType[] = [];
 
-    // Sort by order (line number from markdown)
-    return items.sort((a, b) => a.order - b.order);
-  }, [section.requirements, section.infos]);
+    // Add items from all sections in order
+    sections.forEach((section, sectionIndex) => {
+      // Add section header
+      items.push({
+        type: 'section-header' as const,
+        sectionName: section.name,
+        sectionOrder: sectionIndex,
+        sectionId: section.id
+      });
+
+      // Add requirements, infos, and surrogates for this section
+      const sectionItems = [
+        ...section.requirements.map(req => ({ type: 'requirement' as const, data: req, order: 0, sectionName: section.name, sectionOrder: sectionIndex })),
+        ...(section.infos || []).map(info => ({ type: 'info' as const, data: info, order: info.order || 0, sectionName: section.name, sectionOrder: sectionIndex })),
+        ...(section.surrogates || []).map(surrogate => ({ type: 'surrogate' as const, data: surrogate, order: surrogate.order || 0, sectionName: section.name, sectionOrder: sectionIndex }))
+      ];
+
+      // Sort items within this section by order (line number from markdown)
+      sectionItems.sort((a, b) => a.order - b.order);
+      items.push(...sectionItems);
+    });
+
+    return items;
+  }, [sections]);
 
   const filteredRequirements = useMemo(() => {
-    return section.requirements.filter(req => {
+    const allRequirements = sections.flatMap(section => section.requirements);
+    return allRequirements.filter(req => {
       // Text filter
       if (filters.text && !req.text.toLowerCase().includes(filters.text.toLowerCase()) && !req.ref.toLowerCase().includes(filters.text.toLowerCase())) {
         return false;
@@ -161,17 +185,30 @@ export function RequirementsTable({
 
       return true;
     });
-  }, [section.requirements, filters]);
+  }, [sections, filters]);
 
   const filteredItems = useMemo(() => {
+    const allowedTypes = filters.objectTypes || ['requirement', 'info'];
+
     return sortedItems.filter(item => {
+      // Always show section headers
+      if (item.type === 'section-header') {
+        return true;
+      }
+
+      // Check if object type is enabled
+      if (!allowedTypes.includes(item.type)) {
+        return false;
+      }
+
       if (item.type === 'requirement') {
         return filteredRequirements.some(r => r.id === item.data.id);
       }
-      // Always show infos (they don't have filters yet)
+
+      // Info and surrogate items pass through if their type is enabled
       return true;
     });
-  }, [sortedItems, filteredRequirements]);
+  }, [sortedItems, filteredRequirements, filters.objectTypes]);
 
   const clearFilters = () => {
     setFilters({
@@ -179,11 +216,18 @@ export function RequirementsTable({
       pattern: "",
       verification: "",
       minQaScore: "",
-      maxQaScore: ""
+      maxQaScore: "",
+      objectTypes: ['requirement', 'info', 'surrogate']
     });
   };
 
-  const hasActiveFilters = Object.values(filters).some(value => value !== "");
+  const hasActiveFilters =
+    filters.text !== "" ||
+    filters.pattern !== "" ||
+    filters.verification !== "" ||
+    filters.minQaScore !== "" ||
+    filters.maxQaScore !== "" ||
+    (filters.objectTypes || []).length !== 3; // Active if not showing all three types
   const visibleColumnCount = Object.values(visibleColumns).filter(Boolean).length;
 
   const headerStyle = (width: number) => ({
@@ -196,14 +240,14 @@ export function RequirementsTable({
   });
 
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div style={{
         padding: "16px 24px",
         borderBottom: "1px solid #e2e8f0",
         backgroundColor: "#f8f9fa"
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-          <h2 style={{ margin: 0, fontSize: "18px" }}>{section.name}</h2>
+          <h2 style={{ margin: 0, fontSize: "18px" }}>Requirements</h2>
           <div style={{ display: "flex", gap: "8px" }}>
             {onEditMarkdown && (
               <button
@@ -286,12 +330,12 @@ export function RequirementsTable({
                 gap: "4px"
               }}
             >
-              🔍 Filter {hasActiveFilters && `(${filteredRequirements.length}/${section.requirements.length})`}
+              🔍 Filter {hasActiveFilters && `(${filteredRequirements.length}/${sections.flatMap(s => s.requirements).length})`}
             </button>
           </div>
         </div>
         <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "14px" }}>
-          {section.description}
+          All requirements across all sections
         </p>
       </div>
 
@@ -312,7 +356,7 @@ export function RequirementsTable({
       )}
 
 
-      <div style={{ flex: 1, overflow: "auto" }}>
+      <div style={{ flex: 1, overflow: "auto", scrollBehavior: "smooth", minHeight: 0 }}>
         <table ref={tableRef} style={{ borderCollapse: "collapse", fontSize: "14px", minWidth: "100%" }}>
           <thead style={{ position: "sticky", top: 0, backgroundColor: "#f1f5f9" }}>
             <tr>
@@ -392,15 +436,34 @@ export function RequirementsTable({
                   textAlign: "center",
                   color: "#64748b"
                 }}>
-                  {section.requirements.length === 0
-                    ? "No requirements in this section yet"
+                  {sections.flatMap(s => s.requirements).length === 0
+                    ? "No requirements yet"
                     : "No requirements match the current filters"
                   }
                 </td>
               </tr>
             ) : (
               filteredItems.map((item, index: number) => {
-                if (item.type === 'info') {
+                if (item.type === 'section-header') {
+                  return (
+                    <tr key={`section-${item.sectionId}`}>
+                      <td colSpan={visibleColumnCount} style={{
+                        padding: "16px 24px",
+                        backgroundColor: "#f8fafc",
+                        borderTop: "2px solid #e2e8f0",
+                        borderBottom: "1px solid #e2e8f0"
+                      }}>
+                        <div style={{
+                          fontWeight: "600",
+                          fontSize: "15px",
+                          color: "#1e293b"
+                        }}>
+                          {item.sectionName}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                } else if (item.type === 'info') {
                   const info = item.data as InfoRecord;
                   return (
                     <tr key={`info-${info.id}`}>
@@ -450,6 +513,140 @@ export function RequirementsTable({
                       </td>
                     </tr>
                   );
+                } else if (item.type === 'surrogate') {
+                  const surrogate = item.data as SurrogateReferenceRecord;
+                  const surrogateKey = `surrogate-${surrogate.id}`;
+                  const storedWidth = localStorage.getItem(surrogateKey);
+                  const defaultWidth = 400;
+                  const currentWidth = storedWidth ? parseInt(storedWidth, 10) : defaultWidth;
+
+                  return (
+                    <tr key={surrogateKey}>
+                      <td colSpan={visibleColumnCount} style={{
+                        border: "1px solid #d8b4fe",
+                        padding: "12px 16px",
+                        backgroundColor: "#faf5ff"
+                      }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                            <div style={{
+                              fontSize: "20px",
+                              lineHeight: "1",
+                              marginTop: "2px"
+                            }}>
+                              🔗
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{
+                                fontWeight: "600",
+                                fontSize: "13px",
+                                color: "#7c3aed",
+                                marginBottom: "6px",
+                                fontFamily: "monospace"
+                              }}>
+                                {surrogate.slug}
+                              </div>
+                              {surrogate.caption && (
+                                <div style={{
+                                  fontSize: "13px",
+                                  color: "#334155",
+                                  lineHeight: "1.5",
+                                  marginBottom: "8px"
+                                }}>
+                                  {surrogate.caption}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{
+                            position: "relative",
+                            width: "fit-content",
+                            maxWidth: "100%"
+                          }}>
+                            {/* Use iframe/embed for documents, img for images */}
+                            {surrogate.slug.match(/\.(pdf|docx?|pptx?|xlsx?)$/i) ? (
+                              <embed
+                                src={`/api/documents/${tenant}/${project}/${surrogate.slug}/view`}
+                                type="application/pdf"
+                                style={{
+                                  width: `${currentWidth}px`,
+                                  height: `${Math.floor(currentWidth * 1.414)}px`, // A4 aspect ratio
+                                  maxWidth: "100%",
+                                  borderRadius: "4px",
+                                  border: "1px solid #e9d5ff",
+                                  display: "block",
+                                  backgroundColor: "white"
+                                }}
+                              />
+                            ) : (
+                              <img
+                                src={`/api/documents/${tenant}/${project}/${surrogate.slug}/view`}
+                                alt={surrogate.caption || surrogate.slug}
+                                style={{
+                                  width: `${currentWidth}px`,
+                                  maxWidth: "100%",
+                                  height: "auto",
+                                  borderRadius: "4px",
+                                  border: "1px solid #e9d5ff",
+                                  display: "block"
+                                }}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect fill="%23faf5ff" width="200" height="150"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23a855f7" font-size="16">📄 Surrogate</text></svg>';
+                                }}
+                              />
+                            )}
+                            <div
+                              style={{
+                                position: "absolute",
+                                right: 0,
+                                bottom: 0,
+                                width: "20px",
+                                height: "20px",
+                                cursor: "nwse-resize",
+                                backgroundColor: "#7c3aed",
+                                borderRadius: "0 0 4px 0",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "white",
+                                fontSize: "10px",
+                                userSelect: "none"
+                              }}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                const startX = e.clientX;
+                                const startWidth = currentWidth;
+
+                                const handleMouseMove = (moveEvent: MouseEvent) => {
+                                  const newWidth = Math.max(200, Math.min(1200, startWidth + (moveEvent.clientX - startX)));
+                                  const content = (e.target as HTMLElement).previousElementSibling as HTMLElement;
+                                  if (content) {
+                                    content.style.width = `${newWidth}px`;
+                                    // Also update height for embed elements to maintain aspect ratio
+                                    if (content.tagName === 'EMBED') {
+                                      content.style.height = `${Math.floor(newWidth * 1.414)}px`;
+                                    }
+                                  }
+                                };
+
+                                const handleMouseUp = (upEvent: MouseEvent) => {
+                                  const finalWidth = Math.max(200, Math.min(1200, startWidth + (upEvent.clientX - startX)));
+                                  localStorage.setItem(surrogateKey, finalWidth.toString());
+                                  document.removeEventListener("mousemove", handleMouseMove);
+                                  document.removeEventListener("mouseup", handleMouseUp);
+                                };
+
+                                document.addEventListener("mousemove", handleMouseMove);
+                                document.addEventListener("mouseup", handleMouseUp);
+                              }}
+                            >
+                              ⇲
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
                 } else {
                   const req = item.data as RequirementRecord;
                   return (
@@ -482,7 +679,7 @@ export function RequirementsTable({
         alignItems: "center"
       }}>
         <div>
-          <strong>{filteredRequirements.length}</strong> of <strong>{section.requirements.length}</strong> requirement{section.requirements.length !== 1 ? 's' : ''} {hasActiveFilters ? '(filtered)' : ''}
+          <strong>{filteredRequirements.length}</strong> of <strong>{sections.flatMap(s => s.requirements).length}</strong> requirement{sections.flatMap(s => s.requirements).length !== 1 ? 's' : ''} {hasActiveFilters ? '(filtered)' : ''}
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
           <button
@@ -498,16 +695,6 @@ export function RequirementsTable({
           >
             ＋ Add Requirement
           </button>
-          <a
-            href={`#/documents/${tenant}/${project}/${section.documentSlug}/sections/${section.id}`}
-            style={{
-              color: "#2563eb",
-              textDecoration: "none",
-              padding: "8px 12px"
-            }}
-          >
-            Open in detail
-          </a>
         </div>
       </div>
 

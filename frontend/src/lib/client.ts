@@ -28,6 +28,7 @@ import type {
   DocumentSectionResponse,
   CreateSectionRequest,
   InfoRecord,
+  SurrogateReferenceRecord,
   LinkSuggestRequest,
   LinkSuggestResponse,
   ArchitectureBlocksResponse,
@@ -302,6 +303,8 @@ export function useApiClient() {
         request<{ requirements: RequirementRecord[] }>(`/sections/${sectionId}/requirements`),
       listSectionInfos: (sectionId: string) =>
         request<{ infos: InfoRecord[] }>(`/sections/${sectionId}/infos`),
+      listSectionSurrogates: (sectionId: string) =>
+        request<{ surrogates: SurrogateReferenceRecord[] }>(`/sections/${sectionId}/surrogates`),
       suggestLinks: (body: LinkSuggestRequest) =>
         request<LinkSuggestResponse>(`/link/suggest`, { method: "POST", body: JSON.stringify(body) }),
       // Architecture API methods
@@ -378,7 +381,40 @@ export function useApiClient() {
         body: { email?: string; name?: string | null; password?: string; roles?: string[]; tenantSlugs?: string[] }
       ) => request<DevUserResponse>(`/dev/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteDevUser: (id: string) =>
-        request<{ success: boolean }>(`/dev/admin/users/${id}`, { method: "DELETE" })
+        request<{ success: boolean }>(`/dev/admin/users/${id}`, { method: "DELETE" }),
+
+      // Admin requirements management (development only)
+      listDeletedRequirements: (tenant: string, project: string, limit?: number, offset?: number) => {
+        const params = new URLSearchParams({ tenant, project });
+        if (limit !== undefined) params.append("limit", limit.toString());
+        if (offset !== undefined) params.append("offset", offset.toString());
+        return request<{ requirements: RequirementRecord[]; count: number }>(`/admin/requirements/deleted?${params}`);
+      },
+      listArchivedRequirements: (tenant: string, project: string, limit?: number, offset?: number) => {
+        const params = new URLSearchParams({ tenant, project });
+        if (limit !== undefined) params.append("limit", limit.toString());
+        if (offset !== undefined) params.append("offset", offset.toString());
+        return request<{ requirements: RequirementRecord[]; count: number }>(`/admin/requirements/archived?${params}`);
+      },
+      detectRequirementsDrift: (tenant: string, project: string) => {
+        const params = new URLSearchParams({ tenant, project });
+        return request<{ drifted: RequirementRecord[]; count: number; total: number }>(`/admin/requirements/drift?${params}`);
+      },
+      restoreRequirement: (tenant: string, project: string, requirementId: string) =>
+        request<{ message: string; requirement: RequirementRecord }>(`/admin/requirements/${tenant}/${project}/${requirementId}/restore`, { method: "POST" }),
+      syncRequirementToMarkdown: (tenant: string, project: string, requirementId: string) =>
+        request<{ message: string; requirement: RequirementRecord }>(`/admin/requirements/${tenant}/${project}/${requirementId}/sync-to-markdown`, { method: "POST" }),
+      bulkRestoreRequirements: (tenant: string, project: string, requirementIds: string[]) =>
+        request<{ message: string; results: { restored: string[]; failed: { id: string; error: string }[] } }>(`/admin/requirements/bulk-restore`, {
+          method: "POST",
+          body: JSON.stringify({ tenant, project, requirementIds })
+        }),
+      listBadLinksRequirements: (tenant: string, project: string, limit?: number, offset?: number) => {
+        const params = new URLSearchParams({ tenant, project });
+        if (limit !== undefined) params.append("limit", limit.toString());
+        if (offset !== undefined) params.append("offset", offset.toString());
+        return request<{ requirements: (RequirementRecord & { brokenLinkCount?: number })[]; count: number }>(`/admin/requirements/bad-links?${params}`);
+      }
     }),
     [request]
   );

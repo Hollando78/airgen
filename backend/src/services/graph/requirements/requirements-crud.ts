@@ -1,14 +1,18 @@
 import { randomBytes } from "node:crypto";
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { config } from "../../../config.js";
+import { computeRequirementHash } from "../../../lib/requirement-hash.js";
 import { toNumber } from "../../../lib/neo4j-utils.js";
+import { AtomicDualStorageTransaction } from "../../atomic-dual-storage.js";
 import type {
   RequirementRecord,
   RequirementPattern,
   VerificationMethod} from "../../workspace.js";
 import {
   slugify,
-  writeRequirementMarkdown
+  writeRequirementMarkdown,
+  requirementMarkdown,
+  requirementFile
 } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { CacheInvalidation } from "../../../lib/cache.js";
@@ -59,7 +63,12 @@ export function mapRequirement(node: Neo4jNode, documentSlug?: string): Requirem
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt),
     deleted: props.deleted ? Boolean(props.deleted) : undefined,
-    archived: props.archived ? Boolean(props.archived) : undefined
+    archived: props.archived ? Boolean(props.archived) : undefined,
+    // Data integrity fields
+    contentHash: props.contentHash ? String(props.contentHash) : undefined,
+    deletedAt: props.deletedAt ? String(props.deletedAt) : undefined,
+    deletedBy: props.deletedBy ? String(props.deletedBy) : undefined,
+    restoredAt: props.restoredAt ? String(props.restoredAt) : undefined
   };
 }
 
@@ -69,6 +78,11 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
   const now = new Date().toISOString();
 
   const hashId = randomBytes(8).toString("hex");
+  const contentHash = computeRequirementHash({
+    text: input.text,
+    pattern: input.pattern ?? null,
+    verification: input.verification ?? null
+  });
 
   const session = getSession();
   try {
@@ -158,6 +172,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
           text: $text,
           pattern: $pattern,
           verification: $verification,
+          contentHash: $contentHash,
           qaScore: $qaScore,
           qaVerdict: $qaVerdict,
           suggestions: $suggestions,
@@ -189,6 +204,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
         text: input.text,
         pattern: input.pattern ?? null,
         verification: input.verification ?? null,
+        contentHash,
         qaScore: input.qaScore ?? null,
         qaVerdict: input.qaVerdict ?? null,
         suggestions: input.suggestions ?? [],
@@ -296,7 +312,46 @@ export async function updateRequirement(
       const { sectionId, ...propertyUpdates } = updates;
       const hasSectionUpdate = Object.prototype.hasOwnProperty.call(updates, "sectionId");
 
-      const setClause = Object.entries(propertyUpdates)
+      // If content fields are being updated, we need to fetch current values to compute hash
+      const needsHashUpdate = updates.text !== undefined ||
+                               updates.pattern !== undefined ||
+                               updates.verification !== undefined;
+
+      let contentHash: string | undefined;
+      if (needsHashUpdate) {
+        // Fetch current requirement to get missing fields for hash computation
+        const currentReq = await tx.run(
+          `
+            MATCH (requirement:Requirement {id: $requirementId})
+            WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
+            RETURN requirement.text AS text,
+                   requirement.pattern AS pattern,
+                   requirement.verification AS verification
+          `,
+          { tenantSlug, projectSlug, requirementId }
+        );
+
+        if (currentReq.records.length > 0) {
+          const current = currentReq.records[0];
+          const finalText = updates.text ?? String(current.get("text"));
+          const finalPattern = updates.pattern !== undefined
+            ? updates.pattern
+            : (current.get("pattern") ? String(current.get("pattern")) : null);
+          const finalVerification = updates.verification !== undefined
+            ? updates.verification
+            : (current.get("verification") ? String(current.get("verification")) : null);
+
+          contentHash = computeRequirementHash({
+            text: finalText,
+            pattern: finalPattern,
+            verification: finalVerification
+          });
+        }
+      }
+
+      const allUpdates = contentHash ? { ...propertyUpdates, contentHash } : propertyUpdates;
+
+      const setClause = Object.entries(allUpdates)
         .filter(([_, value]) => value !== undefined)
         .map(([key]) => `requirement.${key} = $${key}`)
         .join(', ');
@@ -314,7 +369,7 @@ export async function updateRequirement(
       const writeParams: Record<string, unknown> = {
         ...baseParams,
         now,
-        ...propertyUpdates
+        ...allUpdates
       };
 
       if (setClause) {
@@ -432,10 +487,12 @@ export async function updateRequirement(
 export async function softDeleteRequirement(
   tenant: string,
   projectKey: string,
-  requirementId: string
+  requirementId: string,
+  deletedBy?: string
 ): Promise<RequirementRecord | null> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(projectKey);
+  const now = new Date().toISOString();
   const session = getSession();
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
@@ -443,7 +500,10 @@ export async function softDeleteRequirement(
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
         MATCH (requirement:Requirement {id: $requirementId})
         WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
-        SET requirement.deleted = true, requirement.updatedAt = $now
+        SET requirement.deleted = true,
+            requirement.deletedAt = $now,
+            requirement.deletedBy = $deletedBy,
+            requirement.updatedAt = $now
         RETURN requirement
       `;
 
@@ -451,7 +511,8 @@ export async function softDeleteRequirement(
         tenantSlug,
         projectSlug,
         requirementId,
-        now: new Date().toISOString()
+        now,
+        deletedBy: deletedBy || null
       });
     });
 
@@ -469,6 +530,58 @@ export async function softDeleteRequirement(
     await CacheInvalidation.invalidateDocuments(tenantSlug, projectSlug);
 
     return mapRequirement(node);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function restoreRequirement(
+  tenant: string,
+  projectKey: string,
+  requirementId: string
+): Promise<RequirementRecord | null> {
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(projectKey);
+  const now = new Date().toISOString();
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        MATCH (requirement:Requirement {id: $requirementId})
+        WHERE requirement.tenant = $tenantSlug
+          AND requirement.projectKey = $projectSlug
+          AND requirement.deleted = true
+        SET requirement.deleted = false,
+            requirement.restoredAt = $now,
+            requirement.updatedAt = $now
+        RETURN requirement
+      `;
+
+      return await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        requirementId,
+        now
+      });
+    });
+
+    if (result.records.length === 0) {
+      return null;
+    }
+
+    const record = result.records[0];
+    const node = record.get("requirement") as Neo4jNode;
+    const requirement = mapRequirement(node);
+
+    // Write restored requirement back to markdown
+    await writeRequirementMarkdown(requirement);
+
+    // Invalidate caches
+    await CacheInvalidation.invalidateRequirements(tenantSlug, projectSlug);
+    await CacheInvalidation.invalidateDocuments(tenantSlug, projectSlug);
+
+    return requirement;
   } finally {
     await session.close();
   }
