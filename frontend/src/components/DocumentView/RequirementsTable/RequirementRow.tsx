@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import type { RequirementRecord, TraceLink } from "../../../types";
 import { LinkIndicators } from "../LinkIndicators";
 import type { ColumnVisibility } from "./ColumnSelector";
@@ -24,11 +25,13 @@ export interface RequirementRowProps {
   onContextMenu: (e: React.MouseEvent, requirement: RequirementRecord) => void;
   /** Handler for edit button click */
   onEdit: (requirement: RequirementRecord) => void;
+  /** Handler for inline field updates */
+  onFieldUpdate?: (requirement: RequirementRecord, field: string, value: string) => void;
 }
 
 /**
  * Individual requirement row component displaying all requirement data
- * with conditional column visibility
+ * with conditional column visibility and inline editing
  */
 export function RequirementRow({
   requirement,
@@ -39,8 +42,44 @@ export function RequirementRow({
   project,
   traceLinks,
   onContextMenu,
-  onEdit
+  onEdit,
+  onFieldUpdate
 }: RequirementRowProps): JSX.Element {
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editingField && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingField]);
+
+  const handleDoubleClick = (field: string, currentValue: string) => {
+    // Only allow editing text fields, not IDs
+    if (field === 'id') return;
+
+    setEditingField(field);
+    setEditValue(currentValue || "");
+  };
+
+  const handleSave = () => {
+    if (editingField && onFieldUpdate && editValue !== requirement[editingField as keyof RequirementRecord]) {
+      onFieldUpdate(requirement, editingField, editValue);
+    }
+    setEditingField(null);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setEditingField(null);
+    }
+  };
+
   const cellStyle = (width: number) => ({
     border: "1px solid #e2e8f0",
     padding: "12px",
@@ -63,16 +102,43 @@ export function RequirementRow({
         <td style={cellStyle(columnWidths.id)} title={requirement.ref}>{requirement.ref}</td>
       )}
       {visibleColumns.description && (
-        <td style={cellStyle(columnWidths.description)} title={requirement.text}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <span style={{ flex: 1, marginRight: "8px" }}>{requirement.text}</span>
-            <LinkIndicators
-              requirementId={requirement.id}
-              traceLinks={traceLinks}
-              tenant={tenant}
-              project={project}
+        <td
+          style={{
+            ...cellStyle(columnWidths.description),
+            whiteSpace: editingField === 'text' ? 'normal' : 'nowrap'
+          }}
+          onDoubleClick={() => handleDoubleClick('text', requirement.text)}
+          title={editingField === 'text' ? undefined : requirement.text}
+        >
+          {editingField === 'text' ? (
+            <textarea
+              ref={inputRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              style={{
+                width: "100%",
+                minHeight: "60px",
+                padding: "4px",
+                border: "2px solid #3b82f6",
+                borderRadius: "4px",
+                fontSize: "13px",
+                fontFamily: "inherit",
+                resize: "vertical"
+              }}
             />
-          </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <span style={{ flex: 1, marginRight: "8px" }}>{requirement.text}</span>
+              <LinkIndicators
+                requirementId={requirement.id}
+                traceLinks={traceLinks}
+                tenant={tenant}
+                project={project}
+              />
+            </div>
+          )}
         </td>
       )}
       {visibleColumns.pattern && (

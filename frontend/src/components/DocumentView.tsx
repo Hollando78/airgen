@@ -82,6 +82,7 @@ export function DocumentView({
   // Refs to access current values without triggering re-renders
   const sectionsRef = useRef<DocumentSectionWithRequirements[]>([]);
   const sectionsWithUnsavedChangesRef = useRef<Set<string>>(new Set());
+  const manuallyUpdatedSectionsRef = useRef<Set<string>>(new Set());
 
   // Keep refs in sync
   useEffect(() => {
@@ -192,28 +193,113 @@ export function DocumentView({
   });
 
   const updateRequirementMutation = useMutation({
-    mutationFn: (params: { requirementId: string; updates: { text?: string; pattern?: RequirementPattern; verification?: VerificationMethod; sectionId?: string; } }) =>
-      api.updateRequirement(tenant, project, params.requirementId, params.updates),
+    mutationFn: (params: { requirementId: string; originalSectionId?: string; updates: { text?: string; pattern?: RequirementPattern; verification?: VerificationMethod; sectionId?: string; } }) => {
+      console.log('[UPDATE MUTATION] Called with requirementId:', params.requirementId);
+      console.log('[UPDATE MUTATION] Updates:', JSON.stringify(params.updates, null, 2));
+      console.log('[UPDATE MUTATION] Original section:', params.originalSectionId);
+      return api.updateRequirement(tenant, project, params.requirementId, params.updates);
+    },
     onSuccess: async (response, variables) => {
-      // Invalidate sections query to get fresh data
-      await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+      console.log('[UPDATE MUTATION] Success, response:', response);
+      // Check if section actually changed
+      const sectionChanged = variables.updates.sectionId !== undefined &&
+                            variables.updates.sectionId !== variables.originalSectionId;
 
-      // If section was changed, we need to move the requirement
-      if (variables.updates.sectionId) {
-        // Remove from old section and add to new section
-        setSections(prevSections =>
-          prevSections.map(section => ({
-            ...section,
-            // Remove from any section that has it
-            requirements: section.requirements.filter(req => req.id !== variables.requirementId),
-          })).map(section => ({
-            ...section,
-            // Add to the new section
-            requirements: section.id === variables.updates.sectionId
-              ? [...section.requirements, response.requirement]
-              : section.requirements
-          }))
-        );
+      if (sectionChanged) {
+        // When moving between sections, clear any unsaved changes flags for affected sections
+        // to ensure they reload properly
+        console.log('[UPDATE REQUIREMENT] Section changed from', variables.originalSectionId, 'to', variables.updates.sectionId);
+        console.log('[UPDATE REQUIREMENT] Clearing unsaved flags and refetching');
+
+        // Clear the unsaved changes flags from both state and ref immediately
+        setSectionsWithUnsavedChanges(prev => {
+          const next = new Set(prev);
+          console.log('[UPDATE REQUIREMENT] Current unsaved sections:', Array.from(prev));
+          if (variables.originalSectionId) {
+            console.log('[UPDATE REQUIREMENT] Deleting from unsaved:', variables.originalSectionId);
+            next.delete(variables.originalSectionId);
+          }
+          if (variables.updates.sectionId) {
+            console.log('[UPDATE REQUIREMENT] Deleting from unsaved:', variables.updates.sectionId);
+            next.delete(variables.updates.sectionId);
+          }
+          console.log('[UPDATE REQUIREMENT] New unsaved sections:', Array.from(next));
+          // Update ref immediately to avoid timing issues
+          sectionsWithUnsavedChangesRef.current = next;
+          return next;
+        });
+
+        // Invalidate and manually trigger refetch to ensure data reloads
+        await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+        const refetchResult = await queryClient.refetchQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+        console.log('[UPDATE REQUIREMENT] Refetch result:', refetchResult);
+
+        // Force reload of the specific sections that changed
+        if (variables.originalSectionId || variables.updates.sectionId) {
+          console.log('[UPDATE REQUIREMENT] Manually reloading affected sections');
+          const sectionsToReload = [variables.originalSectionId, variables.updates.sectionId].filter(Boolean) as string[];
+
+          // Fetch all sections in parallel
+          const sectionDataMap = new Map();
+          await Promise.all(
+            sectionsToReload.map(async (sectionId) => {
+              try {
+                console.log('[UPDATE REQUIREMENT] Fetching section:', sectionId);
+                const [requirementsResponse, infosResponse, surrogatesResponse] = await Promise.all([
+                  api.listSectionRequirements(sectionId),
+                  api.listSectionInfos(sectionId),
+                  api.listSectionSurrogates(sectionId)
+                ]);
+                console.log('[UPDATE REQUIREMENT] Fetched section', sectionId, 'requirements:', requirementsResponse.requirements.length);
+                sectionDataMap.set(sectionId, {
+                  requirements: requirementsResponse.requirements,
+                  infos: infosResponse.infos,
+                  surrogates: surrogatesResponse.surrogates
+                });
+              } catch (error) {
+                console.error(`Failed to reload section ${sectionId}:`, error);
+              }
+            })
+          );
+
+          // Mark sections as manually updated to prevent useEffect from overwriting
+          sectionsToReload.forEach(id => manuallyUpdatedSectionsRef.current.add(id));
+
+          // Update all sections at once
+          console.log('[UPDATE REQUIREMENT] Updating sections state with fresh data');
+          setSections(prevSections =>
+            prevSections.map(section => {
+              const freshData = sectionDataMap.get(section.id);
+              if (freshData) {
+                console.log('[UPDATE REQUIREMENT] Updating section', section.id, 'with', freshData.requirements.length, 'requirements');
+                return {
+                  ...section,
+                  requirements: freshData.requirements,
+                  infos: freshData.infos,
+                  surrogates: freshData.surrogates
+                };
+              }
+              return section;
+            })
+          );
+          console.log('[UPDATE REQUIREMENT] Section update complete');
+
+          // Verify the state was updated by checking current sections
+          setTimeout(() => {
+            const updatedSections = sectionsRef.current;
+            sectionsToReload.forEach(sectionId => {
+              const section = updatedSections.find(s => s.id === sectionId);
+              if (section) {
+                console.log(`[UPDATE REQUIREMENT VERIFY] Section ${sectionId} now has ${section.requirements.length} requirements`);
+              }
+            });
+          }, 100);
+
+          // Clear the manual update flag after a short delay
+          setTimeout(() => {
+            sectionsToReload.forEach(id => manuallyUpdatedSectionsRef.current.delete(id));
+          }, 1000);
+        }
       } else {
         // Just update in place
         setSections(prevSections =>
@@ -224,6 +310,9 @@ export function DocumentView({
             )
           }))
         );
+
+        // Invalidate sections query to get fresh data
+        await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
       }
 
       setEditRequirementModal({ isOpen: false, requirement: null });
@@ -315,11 +404,30 @@ export function DocumentView({
       console.log('[SAVE REORDER] Surrogates:', section.surrogates?.map(s => ({ id: s.id, order: s.order })));
 
       // Prepare payload with explicit order values
-      const payload = {
-        requirements: section.requirements.map(r => ({ id: r.id, order: r.order ?? 0 })),
-        infos: section.infos.map(i => ({ id: i.id, order: i.order ?? 0 })),
-        surrogates: section.surrogates?.map(s => ({ id: s.id, order: s.order ?? 0 })) || []
-      };
+      const payload: {
+        requirements?: Array<{ id: string; order: number }>;
+        infos?: Array<{ id: string; order: number }>;
+        surrogates?: Array<{ id: string; order: number }>;
+      } = {};
+
+      // Only include arrays that have items, and filter out any items without valid IDs
+      if (section.requirements && section.requirements.length > 0) {
+        payload.requirements = section.requirements
+          .filter(r => r.id) // Only include items with valid IDs
+          .map(r => ({ id: r.id, order: typeof r.order === 'number' ? r.order : 0 }));
+      }
+      if (section.infos && section.infos.length > 0) {
+        payload.infos = section.infos
+          .filter(i => i.id) // Only include items with valid IDs
+          .map(i => ({ id: i.id, order: typeof i.order === 'number' ? i.order : 0 }));
+      }
+      if (section.surrogates && section.surrogates.length > 0) {
+        payload.surrogates = section.surrogates
+          .filter(s => s.id) // Only include items with valid IDs
+          .map(s => ({ id: s.id, order: typeof s.order === 'number' ? s.order : 0 }));
+      }
+
+      console.log('[SAVE REORDER] Final payload:', JSON.stringify(payload, null, 2));
 
       await api.reorderWithOrder(sectionId, payload);
 
@@ -342,9 +450,10 @@ export function DocumentView({
       const loadSectionsWithRequirements = async () => {
         const sectionsWithRequirements = await Promise.all(
           sectionsQuery.data.sections.map(async (section) => {
-            // If this section has unsaved changes, preserve existing data from state
-            if (sectionsWithUnsavedChangesRef.current.has(section.id)) {
-              console.log(`[LOAD SECTIONS] Section ${section.id} has unsaved changes, preserving existing data`);
+            // If this section has unsaved changes or was just manually updated, preserve existing data from state
+            console.log(`[LOAD SECTIONS] Checking section ${section.id}, unsaved changes:`, sectionsWithUnsavedChangesRef.current.has(section.id), 'manually updated:', manuallyUpdatedSectionsRef.current.has(section.id));
+            if (sectionsWithUnsavedChangesRef.current.has(section.id) || manuallyUpdatedSectionsRef.current.has(section.id)) {
+              console.log(`[LOAD SECTIONS] Section ${section.id} has unsaved changes or was manually updated, preserving existing data`);
               const existingSection = sectionsRef.current.find(s => s.id === section.id);
               if (existingSection) {
                 return existingSection;
@@ -381,7 +490,7 @@ export function DocumentView({
 
       loadSectionsWithRequirements();
     }
-  }, [sectionsQuery.data, api]);
+  }, [sectionsQuery.data, sectionsQuery.dataUpdatedAt, api]);
 
   // Reset selected section when document changes
   useEffect(() => {
@@ -445,6 +554,18 @@ export function DocumentView({
     setEditRequirementModal({ isOpen: true, requirement });
   };
 
+  const handleInlineEditRequirement = (updatedRequirement: RequirementRecord) => {
+    console.log('[INLINE EDIT HANDLER] Updating requirement in local state:', updatedRequirement.id);
+    setSections(prevSections =>
+      prevSections.map(section => ({
+        ...section,
+        requirements: section.requirements.map(req =>
+          req.id === updatedRequirement.id ? updatedRequirement : req
+        )
+      }))
+    );
+  };
+
   const handleUpdateRequirement = (updates: {
     text?: string;
     pattern?: RequirementPattern;
@@ -453,8 +574,14 @@ export function DocumentView({
   }) => {
     if (!editRequirementModal.requirement) {return;}
 
+    // Find the current section ID for this requirement
+    const currentSection = sections.find(s =>
+      s.requirements?.some((r: any) => r.id === editRequirementModal.requirement?.id)
+    );
+
     updateRequirementMutation.mutate({
       requirementId: editRequirementModal.requirement.id,
+      originalSectionId: currentSection?.id,
       updates
     });
   };
@@ -811,6 +938,7 @@ export function DocumentView({
               sections={sections}
               tenant={tenant}
               project={project}
+              documentSlug={documentSlug}
               traceLinks={traceLinksQuery.data?.traceLinks || []}
               onAddRequirement={() => setShowAddRequirementModal(true)}
               onAddInfo={() => setShowAddInfoModal(true)}

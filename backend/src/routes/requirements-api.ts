@@ -216,7 +216,8 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
             type: "string",
             enum: ["Test", "Analysis", "Inspection", "Demonstration"],
             description: "Verification method"
-          }
+          },
+          sectionId: { type: "string", description: "Section ID to move the requirement to" }
         }
       },
       response: {
@@ -243,7 +244,8 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const bodySchema = z.object({
       text: z.string().min(10).optional(),
       pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional(),
-      verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional()
+      verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional(),
+      sectionId: z.string().optional()
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);

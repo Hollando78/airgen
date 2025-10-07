@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
@@ -17,6 +17,7 @@ export interface RequirementsTableProps {
   sections: (DocumentSectionRecord & { requirements: RequirementRecord[]; infos: InfoRecord[]; surrogates?: SurrogateReferenceRecord[] })[];
   tenant: string;
   project: string;
+  documentSlug: string;
   traceLinks?: TraceLink[];
   onAddRequirement: () => void;
   onAddInfo: () => void;
@@ -57,6 +58,7 @@ interface SortableRowProps {
   traceLinks: TraceLink[];
   onContextMenu: (e: React.MouseEvent, requirement: RequirementRecord) => void;
   onEdit: (requirement: RequirementRecord) => void;
+  onFieldUpdate?: (requirement: RequirementRecord, field: string, value: string) => void;
   visibleColumnCount: number;
 }
 
@@ -69,6 +71,7 @@ function SortableRow({
   traceLinks,
   onContextMenu,
   onEdit,
+  onFieldUpdate,
   visibleColumnCount
 }: SortableRowProps): JSX.Element {
   const {
@@ -79,6 +82,42 @@ function SortableRow({
     transition,
     isDragging
   } = useSortable({ id: item.id });
+
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editingField && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingField]);
+
+  const handleDoubleClick = (field: string, currentValue: string) => {
+    if (field === 'id') return;
+    setEditingField(field);
+    setEditValue(currentValue || "");
+  };
+
+  const handleSave = () => {
+    if (editingField && onFieldUpdate && item.type === 'requirement') {
+      const req = item.data as RequirementRecord;
+      if (editValue !== req[editingField as keyof RequirementRecord]) {
+        onFieldUpdate(req, editingField, editValue);
+      }
+    }
+    setEditingField(null);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setEditingField(null);
+    }
+  };
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -339,12 +378,37 @@ function SortableRow({
           </td>
         )}
         {visibleColumns.description && (
-          <td style={{
-            border: "1px solid #e2e8f0",
-            padding: "12px",
-            width: `${columnWidths.description}px`
-          }}>
-            {req.text}
+          <td
+            style={{
+              border: "1px solid #e2e8f0",
+              padding: "12px",
+              width: `${columnWidths.description}px`,
+              whiteSpace: editingField === 'text' ? 'normal' : 'normal',
+              cursor: editingField === 'text' ? 'text' : 'default'
+            }}
+            onDoubleClick={() => handleDoubleClick('text', req.text)}
+          >
+            {editingField === 'text' ? (
+              <textarea
+                ref={inputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                style={{
+                  width: "100%",
+                  minHeight: "60px",
+                  padding: "4px",
+                  border: "2px solid #3b82f6",
+                  borderRadius: "4px",
+                  fontSize: "13px",
+                  fontFamily: "inherit",
+                  resize: "vertical"
+                }}
+              />
+            ) : (
+              req.text
+            )}
           </td>
         )}
         {visibleColumns.pattern && (
@@ -439,6 +503,7 @@ export function RequirementsTable({
   sections,
   tenant,
   project,
+  documentSlug,
   traceLinks = [],
   onAddRequirement,
   onAddInfo,
@@ -484,6 +549,56 @@ export function RequirementsTable({
   const tableRef = useRef<HTMLTableElement>(null);
   const api = useApiClient();
   const queryClient = useQueryClient();
+
+  // Mutation for inline field updates with optimistic updates
+  const updateRequirementMutation = useMutation({
+    mutationFn: async ({ requirement, field, value }: { requirement: RequirementRecord; field: string; value: string }) => {
+      const updates: Partial<RequirementRecord> = { [field]: value };
+      return api.updateRequirement(tenant, project, requirement.id, updates);
+    },
+    onMutate: async ({ requirement, field, value }) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+
+      // Snapshot the previous value
+      const previousSections = queryClient.getQueryData(["sections", tenant, project, documentSlug]);
+
+      // Optimistically update the requirement in sections
+      queryClient.setQueryData(["sections", tenant, project, documentSlug], (old: any) => {
+        if (!old?.sections) return old;
+
+        return {
+          ...old,
+          sections: old.sections.map((section: any) => ({
+            ...section,
+            requirements: section.requirements?.map((req: RequirementRecord) =>
+              req.id === requirement.id ? { ...req, [field]: value } : req
+            )
+          }))
+        };
+      });
+
+      // Return context with the previous value
+      return { previousSections };
+    },
+    onError: (err, variables, context) => {
+      // If mutation fails, rollback to previous value and refetch
+      if (context?.previousSections) {
+        queryClient.setQueryData(
+          ["sections", tenant, project, documentSlug],
+          context.previousSections
+        );
+      }
+      // Only refetch on error to show user the correct server state
+      queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+    }
+    // Note: We don't refetch on success - the optimistic update is trusted
+    // The next time the user navigates away and back, they'll get fresh data
+  });
+
+  const handleFieldUpdate = useCallback((requirement: RequirementRecord, field: string, value: string) => {
+    updateRequirementMutation.mutate({ requirement, field, value });
+  }, [updateRequirementMutation]);
 
   // Setup DnD sensors
   const sensors = useSensors(
@@ -1051,6 +1166,7 @@ export function RequirementsTable({
                                 traceLinks={traceLinks}
                                 onContextMenu={handleContextMenu}
                                 onEdit={onEditRequirement}
+                                onFieldUpdate={handleFieldUpdate}
                                 visibleColumnCount={visibleColumnCount}
                               />
                             ))}
