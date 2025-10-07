@@ -534,8 +534,11 @@ In the DiagramCanvas component, use the viewport prop:
 ### Running Tests
 
 ```bash
-# Backend tests
+# Backend tests - all
 pnpm -C backend test
+
+# Backend tests - specific file (e.g., markdown roundtrip integrity)
+pnpm -C backend test markdown-roundtrip.test.ts
 
 # Frontend tests (if configured)
 pnpm -C frontend test
@@ -546,6 +549,24 @@ pnpm -C backend test --watch
 # Coverage
 pnpm -C backend test --coverage
 ```
+
+### Test Categories
+
+**Data Integrity Tests** (`backend/src/__tests__/markdown-roundtrip.test.ts`)
+- Validates markdown serialization/parsing roundtrip
+- Ensures no data loss in dual storage model (markdown + Neo4j)
+- Tests YAML frontmatter parsing edge cases
+- Verifies hash stability for drift detection
+
+**API Tests** (`backend/src/routes/__tests__/*.test.ts`)
+- Authentication and authorization
+- Requirements CRUD operations
+- AIRGen chat and candidate management
+
+**Component Tests** (`frontend/src/__tests__/**/*.test.tsx`)
+- React component rendering
+- User interaction flows
+- State management hooks
 
 ### Writing Tests
 
@@ -562,6 +583,34 @@ describe("Pagination", () => {
     expect(result.totalPages).toBe(5);
     expect(result.hasNextPage).toBe(true);
     expect(result.hasPrevPage).toBe(true);
+  });
+});
+```
+
+**Data Integrity Test Example** (Markdown Roundtrip):
+```typescript
+import { describe, it, expect } from "vitest";
+import { requirementMarkdown, type RequirementRecord } from "../services/workspace.js";
+
+describe("markdown roundtrip integrity", () => {
+  it("should preserve all fields through write → parse cycle", () => {
+    const original: RequirementRecord = {
+      id: "tenant:project:REQ-001",
+      ref: "REQ-001",
+      title: "System shall respond within 100ms",
+      text: "The system shall respond to user input within 100ms.",
+      pattern: "ubiquitous",
+      verification: "Test",
+      tags: ["performance"],
+      // ... other fields
+    };
+
+    const markdown = requirementMarkdown(original);
+    const parsed = parseRequirementMarkdown(markdown);
+
+    expect(parsed.text).toBe(original.text);
+    expect(parsed.pattern).toBe(original.pattern);
+    // Ensures no data loss in dual storage model
   });
 });
 ```

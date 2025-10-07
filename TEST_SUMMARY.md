@@ -4,14 +4,15 @@
 
 Successfully implemented comprehensive test infrastructure for the AIRGen project, including:
 - Backend API route tests (50 test cases)
+- Backend data integrity tests (15 test cases for markdown roundtrip)
 - Frontend component and hook tests (28 test cases)
 - Test utilities and helper functions
 - Mock services for external dependencies
 - Complete documentation
 
-**Total Test Files Created**: 12
-**Total Test Cases**: 78+
-**Test Coverage Areas**: Authentication, Requirements CRUD, AI Generation, UI Components, State Management
+**Total Test Files Created**: 13
+**Total Test Cases**: 93+
+**Test Coverage Areas**: Authentication, Requirements CRUD, AI Generation, Data Integrity, Markdown Roundtrip, UI Components, State Management
 
 ## Files Created
 
@@ -30,6 +31,7 @@ Successfully implemented comprehensive test infrastructure for the AIRGen projec
 6. `/root/airgen/backend/src/routes/__tests__/auth.test.ts` - Authentication route tests (11 tests)
 7. `/root/airgen/backend/src/routes/__tests__/requirements-api.test.ts` - Requirements API tests (22 tests)
 8. `/root/airgen/backend/src/routes/__tests__/airgen.test.ts` - AIRGen route tests (17 tests)
+9. `/root/airgen/backend/src/__tests__/markdown-roundtrip.test.ts` - Markdown roundtrip integrity tests (15 tests)
 
 ### Frontend Test Infrastructure
 
@@ -47,8 +49,8 @@ Successfully implemented comprehensive test infrastructure for the AIRGen projec
 15. `/root/airgen/frontend/src/__tests__/hooks/useTenantProject.test.ts` - useTenantProject hook tests (14 tests)
 
 ### Documentation
-16. `/root/airgen/TEST_INFRASTRUCTURE.md` - Comprehensive testing documentation
-17. `/root/airgen/TEST_SUMMARY.md` - This summary document
+17. `/root/airgen/TEST_INFRASTRUCTURE.md` - Comprehensive testing documentation
+18. `/root/airgen/TEST_SUMMARY.md` - This summary document
 
 ## Test Coverage Added
 
@@ -120,6 +122,34 @@ Successfully implemented comprehensive test infrastructure for the AIRGen projec
 - Input validation
 - Tenant/project ownership validation
 - Status transition rules
+
+#### Markdown Roundtrip Integrity (`markdown-roundtrip.test.ts`) - 15 Tests
+✅ **Basic Requirement Roundtrip (2 tests):**
+- All fields preserved through write → parse cycle
+- Null/undefined optional fields handled correctly
+
+✅ **Metadata Preservation (3 tests):**
+- QA metadata with zero score preserved
+- QA metadata with perfect score preserved
+- Missing QA metadata handled correctly
+
+✅ **Edge Cases (6 tests):**
+- Special characters in text (@#$%^&*(), quotes, apostrophes)
+- Unicode characters (日本語, 한글, العربية, emojis)
+- Multiline text content with newlines
+- Empty tags array
+- Many tags (8+ tags)
+
+✅ **Hash Stability (2 tests):**
+- Identical markdown on multiple serializations (no spurious drift)
+- Identical markdown after roundtrip (parse → write → parse)
+
+✅ **YAML Frontmatter Edge Cases (3 tests):**
+- Colons in title handled correctly
+- All requirement patterns tested (ubiquitous, event, state, unwanted, optional)
+- All verification methods tested (Test, Analysis, Inspection, Demonstration)
+
+**Critical Feature**: These tests ensure data integrity in the dual storage model (markdown files + Neo4j). They validate that no data is lost or corrupted during synchronization cycles, preventing false positives in drift detection and ensuring requirements can be safely persisted and retrieved.
 
 ### Frontend Components & Hooks
 
@@ -319,11 +349,15 @@ pnpm test:ui
 
 ### Running Specific Test Files
 ```bash
-# Backend
+# Backend - Authentication tests
 cd /root/airgen/backend
 pnpm test auth.test.ts
 
-# Frontend
+# Backend - Markdown roundtrip integrity tests
+cd /root/airgen/backend
+pnpm test markdown-roundtrip.test.ts
+
+# Frontend - Component tests
 cd /root/airgen/frontend
 pnpm test LoginModal.test.tsx
 ```
@@ -337,11 +371,12 @@ Complete documentation is available in:
 
 ## Conclusion
 
-The test infrastructure provides a solid foundation for ensuring code quality in the AIRGen project. With 78+ test cases covering critical functionality, the project now has:
+The test infrastructure provides a solid foundation for ensuring code quality in the AIRGen project. With 93+ test cases covering critical functionality, the project now has:
 
 ✅ Automated testing framework
 ✅ Reusable test utilities
 ✅ Mock services for isolation
+✅ Data integrity validation (markdown roundtrip)
 ✅ Clear documentation
 ✅ Room for expansion
 
@@ -349,14 +384,16 @@ The infrastructure supports both TDD and regression testing workflows, making it
 
 ### Impact
 - **Reduced Bugs**: Catch issues before they reach production
+- **Data Integrity**: Ensure no data loss in dual storage model (markdown + Neo4j)
 - **Faster Development**: Confidence to refactor and add features
 - **Better Code Quality**: Tests document expected behavior
 - **Team Collaboration**: Clear contracts between components
 - **Maintenance**: Easier to maintain and update code
 
 ### Success Metrics
-- 12 new test files created
-- 78+ test cases implemented
+- 13 new test files created
+- 93+ test cases implemented
 - 100% of critical routes have test coverage
+- Critical data integrity tests for markdown roundtrip
 - Comprehensive documentation delivered
 - Reusable test infrastructure in place
