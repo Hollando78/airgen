@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { AddSectionModal } from "./AddSectionModal";
 import { AddRequirementModal } from "./AddRequirementModal";
+import { AddInfoModal } from "./AddInfoModal";
+import { AddSurrogateModal } from "./AddSurrogateModal";
 import { EditRequirementModal } from "./EditRequirementModal";
 import { EditSectionModal } from "./EditSectionModal";
 import { RequirementsTable } from "./DocumentView/RequirementsTable";
@@ -36,6 +38,8 @@ export function DocumentView({
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [showAddSectionModal, setShowAddSectionModal] = useState(false);
   const [showAddRequirementModal, setShowAddRequirementModal] = useState(false);
+  const [showAddInfoModal, setShowAddInfoModal] = useState(false);
+  const [showAddSurrogateModal, setShowAddSurrogateModal] = useState(false);
   const [editRequirementModal, setEditRequirementModal] = useState<{
     isOpen: boolean;
     requirement: RequirementRecord | null;
@@ -71,6 +75,22 @@ export function DocumentView({
 
   // Combine sections with their requirements
   const [sections, setSections] = useState<DocumentSectionWithRequirements[]>([]);
+
+  // Track sections with unsaved reorder changes
+  const [sectionsWithUnsavedChanges, setSectionsWithUnsavedChanges] = useState<Set<string>>(new Set());
+
+  // Refs to access current values without triggering re-renders
+  const sectionsRef = useRef<DocumentSectionWithRequirements[]>([]);
+  const sectionsWithUnsavedChangesRef = useRef<Set<string>>(new Set());
+
+  // Keep refs in sync
+  useEffect(() => {
+    sectionsRef.current = sections;
+  }, [sections]);
+
+  useEffect(() => {
+    sectionsWithUnsavedChangesRef.current = sectionsWithUnsavedChanges;
+  }, [sectionsWithUnsavedChanges]);
 
   // Mutations for section operations
   const createSectionMutation = useMutation({
@@ -113,11 +133,11 @@ export function DocumentView({
     onSuccess: async (response, variables) => {
       // Invalidate sections query to get fresh data
       await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
-      
+
       // Immediately update local state to show the new requirement
-      setSections(prevSections => 
-        prevSections.map(section => 
-          section.id === variables.sectionId 
+      setSections(prevSections =>
+        prevSections.map(section =>
+          section.id === variables.sectionId
             ? { ...section, requirements: [...section.requirements, response.requirement] }
             : section
         )
@@ -125,23 +145,87 @@ export function DocumentView({
     }
   });
 
+  const createInfoMutation = useMutation({
+    mutationFn: (info: { text: string; title?: string; sectionId: string }) =>
+      api.createInfo({
+        tenant,
+        projectKey: project,
+        documentSlug,
+        sectionId: info.sectionId,
+        text: info.text,
+        title: info.title
+      }),
+    onSuccess: async (response, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+
+      setSections(prevSections =>
+        prevSections.map(section =>
+          section.id === variables.sectionId
+            ? { ...section, infos: [...section.infos, response.info] }
+            : section
+        )
+      );
+    }
+  });
+
+  const createSurrogateMutation = useMutation({
+    mutationFn: (surrogate: { slug: string; caption?: string; sectionId: string }) =>
+      api.createSurrogate({
+        tenant,
+        projectKey: project,
+        documentSlug,
+        sectionId: surrogate.sectionId,
+        slug: surrogate.slug,
+        caption: surrogate.caption
+      }),
+    onSuccess: async (response, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+
+      setSections(prevSections =>
+        prevSections.map(section =>
+          section.id === variables.sectionId
+            ? { ...section, surrogates: [...(section.surrogates || []), response.surrogate] }
+            : section
+        )
+      );
+    }
+  });
+
   const updateRequirementMutation = useMutation({
-    mutationFn: (params: { requirementId: string; updates: { text?: string; pattern?: RequirementPattern; verification?: VerificationMethod; } }) =>
+    mutationFn: (params: { requirementId: string; updates: { text?: string; pattern?: RequirementPattern; verification?: VerificationMethod; sectionId?: string; } }) =>
       api.updateRequirement(tenant, project, params.requirementId, params.updates),
     onSuccess: async (response, variables) => {
       // Invalidate sections query to get fresh data
       await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
-      
-      // Immediately update local state to show the updated requirement
-      setSections(prevSections => 
-        prevSections.map(section => ({
-          ...section,
-          requirements: section.requirements.map(req => 
-            req.id === variables.requirementId ? response.requirement : req
-          )
-        }))
-      );
-      
+
+      // If section was changed, we need to move the requirement
+      if (variables.updates.sectionId) {
+        // Remove from old section and add to new section
+        setSections(prevSections =>
+          prevSections.map(section => ({
+            ...section,
+            // Remove from any section that has it
+            requirements: section.requirements.filter(req => req.id !== variables.requirementId),
+          })).map(section => ({
+            ...section,
+            // Add to the new section
+            requirements: section.id === variables.updates.sectionId
+              ? [...section.requirements, response.requirement]
+              : section.requirements
+          }))
+        );
+      } else {
+        // Just update in place
+        setSections(prevSections =>
+          prevSections.map(section => ({
+            ...section,
+            requirements: section.requirements.map(req =>
+              req.id === variables.requirementId ? response.requirement : req
+            )
+          }))
+        );
+      }
+
       setEditRequirementModal({ isOpen: false, requirement: null });
     }
   });
@@ -151,25 +235,123 @@ export function DocumentView({
     onSuccess: async (_, requirementId) => {
       // Invalidate sections query to get fresh data
       await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
-      
+
       // Remove the requirement from local state
-      setSections(prevSections => 
+      setSections(prevSections =>
         prevSections.map(section => ({
           ...section,
           requirements: section.requirements.filter(req => req.id !== requirementId)
         }))
       );
-      
+
       setEditRequirementModal({ isOpen: false, requirement: null });
+    }
+  });
+
+  // Local reorder handler - handles reordering of all item types in a unified list
+  const handleReorderItems = (sectionId: string, items: Array<{type: 'requirement' | 'info' | 'surrogate', id: string}>) => {
+    console.log('[REORDER ITEMS] Called with:', { sectionId, items });
+    setSections(prevSections =>
+      prevSections.map(section => {
+        if (section.id === sectionId) {
+          console.log('[REORDER ITEMS] Found section');
+
+          // Assign order based on position in the reordered list
+          const itemsWithOrder = items.map((item, index) => ({ ...item, order: index }));
+
+          // Separate items by type and assign the new order values
+          const requirements = itemsWithOrder
+            .filter(item => item.type === 'requirement')
+            .map(item => {
+              const req = section.requirements.find(r => r.id === item.id);
+              return req ? { ...req, order: item.order } : null;
+            })
+            .filter((r): r is NonNullable<typeof r> => r !== null);
+
+          const infos = itemsWithOrder
+            .filter(item => item.type === 'info')
+            .map(item => {
+              const info = section.infos.find(i => i.id === item.id);
+              return info ? { ...info, order: item.order } : null;
+            })
+            .filter((i): i is NonNullable<typeof i> => i !== null);
+
+          const surrogates = itemsWithOrder
+            .filter(item => item.type === 'surrogate')
+            .map(item => {
+              const surrogate = section.surrogates?.find(s => s.id === item.id);
+              return surrogate ? { ...surrogate, order: item.order } : null;
+            })
+            .filter((s): s is NonNullable<typeof s> => s !== null);
+
+          console.log('[REORDER ITEMS] Reordered:', {
+            requirements: requirements.map(r => ({ id: r.id, order: r.order })),
+            infos: infos.map(i => ({ id: i.id, order: i.order })),
+            surrogates: surrogates.map(s => ({ id: s.id, order: s.order }))
+          });
+
+          return {
+            ...section,
+            requirements,
+            infos,
+            surrogates
+          };
+        }
+        return section;
+      })
+    );
+    setSectionsWithUnsavedChanges(prev => new Set(prev).add(sectionId));
+  };
+
+  // Save reorder changes to backend
+  const saveReorderMutation = useMutation({
+    mutationFn: async (sectionId: string) => {
+      const section = sections.find(s => s.id === sectionId);
+      if (!section) return;
+
+      console.log('[SAVE REORDER] Saving section:', sectionId);
+      console.log('[SAVE REORDER] Requirements:', section.requirements.map(r => ({ id: r.id, order: r.order })));
+      console.log('[SAVE REORDER] Infos:', section.infos.map(i => ({ id: i.id, order: i.order })));
+      console.log('[SAVE REORDER] Surrogates:', section.surrogates?.map(s => ({ id: s.id, order: s.order })));
+
+      // Prepare payload with explicit order values
+      const payload = {
+        requirements: section.requirements.map(r => ({ id: r.id, order: r.order ?? 0 })),
+        infos: section.infos.map(i => ({ id: i.id, order: i.order ?? 0 })),
+        surrogates: section.surrogates?.map(s => ({ id: s.id, order: s.order ?? 0 })) || []
+      };
+
+      await api.reorderWithOrder(sectionId, payload);
+
+      console.log('[SAVE REORDER] Save complete');
+    },
+    onSuccess: (_, sectionId) => {
+      console.log('[SAVE REORDER] Clearing unsaved changes flag');
+      setSectionsWithUnsavedChanges(prev => {
+        const next = new Set(prev);
+        next.delete(sectionId);
+        return next;
+      });
     }
   });
 
   // Populate sections with their requirements, infos, and surrogates when sections data is available
   useEffect(() => {
     if (sectionsQuery.data?.sections) {
+      console.log('[LOAD SECTIONS] useEffect triggered');
       const loadSectionsWithRequirements = async () => {
         const sectionsWithRequirements = await Promise.all(
           sectionsQuery.data.sections.map(async (section) => {
+            // If this section has unsaved changes, preserve existing data from state
+            if (sectionsWithUnsavedChangesRef.current.has(section.id)) {
+              console.log(`[LOAD SECTIONS] Section ${section.id} has unsaved changes, preserving existing data`);
+              const existingSection = sectionsRef.current.find(s => s.id === section.id);
+              if (existingSection) {
+                return existingSection;
+              }
+            }
+
+            console.log(`[LOAD SECTIONS] Loading section ${section.id} from API`);
             try {
               const [requirementsResponse, infosResponse, surrogatesResponse] = await Promise.all([
                 api.listSectionRequirements(section.id),
@@ -193,6 +375,7 @@ export function DocumentView({
             }
           })
         );
+        console.log('[LOAD SECTIONS] Setting sections with loaded data');
         setSections(sectionsWithRequirements);
       };
 
@@ -242,6 +425,22 @@ export function DocumentView({
     });
   };
 
+  const handleAddInfo = (newInfo: { text: string; title?: string; sectionId: string }) => {
+    createInfoMutation.mutate({
+      text: newInfo.text,
+      title: newInfo.title,
+      sectionId: newInfo.sectionId
+    });
+  };
+
+  const handleAddSurrogate = (newSurrogate: { slug: string; caption?: string; sectionId: string }) => {
+    createSurrogateMutation.mutate({
+      slug: newSurrogate.slug,
+      caption: newSurrogate.caption,
+      sectionId: newSurrogate.sectionId
+    });
+  };
+
   const handleEditRequirement = (requirement: RequirementRecord) => {
     setEditRequirementModal({ isOpen: true, requirement });
   };
@@ -250,6 +449,7 @@ export function DocumentView({
     text?: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
+    sectionId?: string;
   }) => {
     if (!editRequirementModal.requirement) {return;}
 
@@ -613,9 +813,15 @@ export function DocumentView({
               project={project}
               traceLinks={traceLinksQuery.data?.traceLinks || []}
               onAddRequirement={() => setShowAddRequirementModal(true)}
+              onAddInfo={() => setShowAddInfoModal(true)}
+              onAddSurrogate={() => setShowAddSurrogateModal(true)}
               onEditRequirement={handleEditRequirement}
               onOpenFloatingDocument={handleOpenFloatingDocument}
               onEditMarkdown={() => setShowMarkdownEditor(true)}
+              onReorderItems={handleReorderItems}
+              sectionsWithUnsavedChanges={sectionsWithUnsavedChanges}
+              onSaveReorder={(sectionId) => saveReorderMutation.mutate(sectionId)}
+              isSaving={saveReorderMutation.isPending}
             />
           ) : (
             <div style={{
@@ -642,13 +848,37 @@ export function DocumentView({
       <AddRequirementModal
         isOpen={showAddRequirementModal}
         sectionName={sections.find(s => s.id === selectedSection)?.name || ""}
+        sectionId={selectedSection || ""}
+        sections={sectionsQuery.data?.sections || []}
         onClose={() => setShowAddRequirementModal(false)}
         onAdd={handleAddRequirement}
+      />
+
+      <AddInfoModal
+        isOpen={showAddInfoModal}
+        sectionName={sections.find(s => s.id === selectedSection)?.name || ""}
+        sectionId={selectedSection || ""}
+        sections={sectionsQuery.data?.sections || []}
+        onClose={() => setShowAddInfoModal(false)}
+        onAdd={handleAddInfo}
+      />
+
+      <AddSurrogateModal
+        isOpen={showAddSurrogateModal}
+        sectionName={sections.find(s => s.id === selectedSection)?.name || ""}
+        sectionId={selectedSection || ""}
+        sections={sectionsQuery.data?.sections || []}
+        onClose={() => setShowAddSurrogateModal(false)}
+        onAdd={handleAddSurrogate}
       />
 
       <EditRequirementModal
         isOpen={editRequirementModal.isOpen}
         requirement={editRequirementModal.requirement}
+        sections={sectionsQuery.data?.sections.map(s => ({
+          ...s,
+          requirements: sections.find(sec => sec.id === s.id)?.requirements || []
+        })) || []}
         onClose={() => setEditRequirementModal({ isOpen: false, requirement: null })}
         onUpdate={handleUpdateRequirement}
         onDelete={handleDeleteRequirement}

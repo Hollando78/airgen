@@ -21,6 +21,7 @@ export type RequirementRecord = {
   tags?: string[];
   path: string;
   documentSlug?: string;
+  order?: number;
   createdAt: string;
   updatedAt: string;
   deleted?: boolean;
@@ -133,4 +134,91 @@ export async function readRequirementMarkdown(record: { tenant: string; projectK
 
 export async function ensureWorkspace(): Promise<void> {
   await fs.mkdir(config.workspaceRoot, { recursive: true });
+}
+
+// Info markdown handling
+export type InfoRecord = {
+  id: string;
+  ref: string;
+  tenant: string;
+  projectKey: string;
+  documentSlug: string;
+  text: string;
+  title?: string;
+  sectionId?: string;
+  order?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function infoMarkdown(record: InfoRecord): string {
+  const metadata = {
+    id: record.id,
+    ref: record.ref,
+    title: record.title ?? null,
+    tenant: record.tenant,
+    project: record.projectKey,
+    document: record.documentSlug,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
+  };
+
+  const yaml = Object.entries(metadata)
+    .map(([key, value]) => `${key}: ${value === null ? 'null' : value}`)
+    .join("\n");
+
+  return `---\n${yaml}\n---\n\n${record.text}\n`;
+}
+
+export function infoFile(record: { tenant: string; projectKey: string; ref: string }): string {
+  return join(config.workspaceRoot, record.tenant, record.projectKey, "infos", `${record.ref}.md`);
+}
+
+export async function writeInfoMarkdown(record: InfoRecord): Promise<void> {
+  const file = infoFile(record);
+  await fs.mkdir(dirname(file), { recursive: true });
+  await fs.writeFile(file, infoMarkdown(record), "utf8");
+}
+
+// Surrogate markdown handling
+export type SurrogateReferenceRecord = {
+  id: string;
+  tenant: string;
+  projectKey: string;
+  documentSlug: string;
+  slug: string;
+  caption?: string;
+  sectionId?: string;
+  order?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function surrogateMarkdown(record: SurrogateReferenceRecord): string {
+  const metadata = {
+    id: record.id,
+    slug: record.slug,
+    caption: record.caption ?? null,
+    tenant: record.tenant,
+    project: record.projectKey,
+    document: record.documentSlug,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
+  };
+
+  const yaml = Object.entries(metadata)
+    .map(([key, value]) => `${key}: ${value === null ? 'null' : value}`)
+    .join("\n");
+
+  return `---\n${yaml}\n---\n\nSurrogate reference: ${record.slug}\n${record.caption ? `Caption: ${record.caption}` : ''}\n`;
+}
+
+export function surrogateFile(record: { tenant: string; projectKey: string; slug: string }): string {
+  return join(config.workspaceRoot, record.tenant, record.projectKey, "surrogates", `${record.slug}.md`);
+}
+
+export async function writeSurrogateMarkdown(record: SurrogateReferenceRecord): Promise<void> {
+  const file = surrogateFile(record);
+  await fs.mkdir(dirname(file), { recursive: true });
+  await fs.writeFile(file, surrogateMarkdown(record), "utf8");
 }

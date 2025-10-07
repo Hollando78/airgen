@@ -13,6 +13,8 @@ export {
   unarchiveRequirements,
   updateRequirementRefsForDocument,
   updateRequirementRefsForSection,
+  reorderRequirements,
+  reorderRequirementsWithOrder,
   type RequirementInput
 } from "./requirements-crud.js";
 

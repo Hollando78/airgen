@@ -1,5 +1,8 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { RequirementRecord, DocumentSectionRecord, InfoRecord, SurrogateReferenceRecord, TraceLink, TraceLinkType } from "../../types";
 import { RequirementContextMenu } from "../RequirementContextMenu";
 import { LinkTypeSelectionModal } from "../LinkTypeSelectionModal";
@@ -16,9 +19,15 @@ export interface RequirementsTableProps {
   project: string;
   traceLinks?: TraceLink[];
   onAddRequirement: () => void;
+  onAddInfo: () => void;
+  onAddSurrogate: () => void;
   onEditRequirement: (requirement: RequirementRecord) => void;
   onOpenFloatingDocument?: () => void;
   onEditMarkdown?: () => void;
+  onReorderItems: (sectionId: string, items: Array<{type: 'requirement' | 'info' | 'surrogate', id: string}>) => void;
+  sectionsWithUnsavedChanges: Set<string>;
+  onSaveReorder: (sectionId: string) => void;
+  isSaving: boolean;
 }
 
 const DEFAULT_COLUMN_WIDTHS = {
@@ -30,15 +39,417 @@ const DEFAULT_COLUMN_WIDTHS = {
   actions: 60
 };
 
+// Define types for sortable items
+type SortableItemData = {
+  id: string;
+  type: 'requirement' | 'info' | 'surrogate';
+  sectionId: string;
+  data: RequirementRecord | InfoRecord | SurrogateReferenceRecord;
+};
+
+// SortableRow component for drag-and-drop
+interface SortableRowProps {
+  item: SortableItemData;
+  columnWidths: Record<string, number>;
+  visibleColumns: ColumnVisibility;
+  tenant: string;
+  project: string;
+  traceLinks: TraceLink[];
+  onContextMenu: (e: React.MouseEvent, requirement: RequirementRecord) => void;
+  onEdit: (requirement: RequirementRecord) => void;
+  visibleColumnCount: number;
+}
+
+function SortableRow({
+  item,
+  columnWidths,
+  visibleColumns,
+  tenant,
+  project,
+  traceLinks,
+  onContextMenu,
+  onEdit,
+  visibleColumnCount
+}: SortableRowProps): JSX.Element {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: item.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    backgroundColor: isDragging ? "#f0f9ff" : undefined
+  };
+
+  if (item.type === 'info') {
+    const info = item.data as InfoRecord;
+    return (
+      <tr ref={setNodeRef} style={style}>
+        <td colSpan={visibleColumnCount} style={{
+          border: "1px solid #bae6fd",
+          padding: "12px 16px",
+          backgroundColor: "#f0f9ff"
+        }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+            <div
+              {...attributes}
+              {...listeners}
+              style={{
+                cursor: isDragging ? "grabbing" : "grab",
+                fontSize: "16px",
+                lineHeight: "1",
+                marginTop: "2px",
+                color: "#64748b",
+                userSelect: "none",
+                touchAction: "none"
+              }}
+            >
+              ⋮⋮
+            </div>
+            <div style={{
+              fontSize: "20px",
+              lineHeight: "1",
+              marginTop: "2px"
+            }}>
+              ℹ️
+            </div>
+            <div style={{ flex: 1 }}>
+              {info.title && (
+                <div style={{
+                  fontWeight: "600",
+                  fontSize: "13px",
+                  color: "#0369a1",
+                  marginBottom: "6px"
+                }}>
+                  {info.title}
+                </div>
+              )}
+              <div style={{
+                fontSize: "13px",
+                color: "#334155",
+                lineHeight: "1.5"
+              }}>
+                {info.text}
+              </div>
+              {info.ref && (
+                <div style={{
+                  fontSize: "11px",
+                  color: "#64748b",
+                  marginTop: "6px",
+                  fontFamily: "monospace"
+                }}>
+                  {info.ref}
+                </div>
+              )}
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  } else if (item.type === 'surrogate') {
+    const surrogate = item.data as SurrogateReferenceRecord;
+    const surrogateKey = `surrogate-${surrogate.id}`;
+    const storedWidth = localStorage.getItem(surrogateKey);
+    const defaultWidth = 400;
+    const currentWidth = storedWidth ? parseInt(storedWidth, 10) : defaultWidth;
+
+    return (
+      <tr ref={setNodeRef} style={style}>
+        <td colSpan={visibleColumnCount} style={{
+          border: "1px solid #d8b4fe",
+          padding: "12px 16px",
+          backgroundColor: "#faf5ff"
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+              <div
+                {...attributes}
+                {...listeners}
+                style={{
+                  cursor: isDragging ? "grabbing" : "grab",
+                  fontSize: "16px",
+                  lineHeight: "1",
+                  marginTop: "2px",
+                  color: "#64748b",
+                  userSelect: "none",
+                  touchAction: "none"
+                }}
+              >
+                ⋮⋮
+              </div>
+              <div style={{
+                fontSize: "20px",
+                lineHeight: "1",
+                marginTop: "2px"
+              }}>
+                🔗
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontWeight: "600",
+                  fontSize: "13px",
+                  color: "#7c3aed",
+                  marginBottom: "6px",
+                  fontFamily: "monospace"
+                }}>
+                  {surrogate.slug}
+                </div>
+                {surrogate.caption && (
+                  <div style={{
+                    fontSize: "13px",
+                    color: "#334155",
+                    lineHeight: "1.5",
+                    marginBottom: "8px"
+                  }}>
+                    {surrogate.caption}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{
+              position: "relative",
+              width: "fit-content",
+              maxWidth: "100%"
+            }}>
+              {surrogate.slug.match(/\.(pdf|docx?|pptx?|xlsx?)$/i) ? (
+                <embed
+                  src={`/api/documents/${tenant}/${project}/${surrogate.slug}/view`}
+                  type="application/pdf"
+                  style={{
+                    width: `${currentWidth}px`,
+                    height: `${Math.floor(currentWidth * 1.414)}px`,
+                    maxWidth: "100%",
+                    borderRadius: "4px",
+                    border: "1px solid #e9d5ff",
+                    display: "block",
+                    backgroundColor: "white"
+                  }}
+                />
+              ) : (
+                <img
+                  src={`/api/documents/${tenant}/${project}/${surrogate.slug}/view`}
+                  alt={surrogate.caption || surrogate.slug}
+                  style={{
+                    width: `${currentWidth}px`,
+                    maxWidth: "100%",
+                    height: "auto",
+                    borderRadius: "4px",
+                    border: "1px solid #e9d5ff",
+                    display: "block"
+                  }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect fill="%23faf5ff" width="200" height="150"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23a855f7" font-size="16">📄 Surrogate</text></svg>';
+                  }}
+                />
+              )}
+              <div
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  bottom: 0,
+                  width: "20px",
+                  height: "20px",
+                  cursor: "nwse-resize",
+                  backgroundColor: "#7c3aed",
+                  borderRadius: "0 0 4px 0",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontSize: "10px",
+                  userSelect: "none"
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const startX = e.clientX;
+                  const startWidth = currentWidth;
+
+                  const handleMouseMove = (moveEvent: MouseEvent) => {
+                    const newWidth = Math.max(200, Math.min(1200, startWidth + (moveEvent.clientX - startX)));
+                    const content = (e.target as HTMLElement).previousElementSibling as HTMLElement;
+                    if (content) {
+                      content.style.width = `${newWidth}px`;
+                      if (content.tagName === 'EMBED') {
+                        content.style.height = `${Math.floor(newWidth * 1.414)}px`;
+                      }
+                    }
+                  };
+
+                  const handleMouseUp = (upEvent: MouseEvent) => {
+                    const finalWidth = Math.max(200, Math.min(1200, startWidth + (upEvent.clientX - startX)));
+                    localStorage.setItem(surrogateKey, finalWidth.toString());
+                    document.removeEventListener("mousemove", handleMouseMove);
+                    document.removeEventListener("mouseup", handleMouseUp);
+                  };
+
+                  document.addEventListener("mousemove", handleMouseMove);
+                  document.addEventListener("mouseup", handleMouseUp);
+                }}
+              >
+                ⇲
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  } else {
+    // Requirement row
+    const req = item.data as RequirementRecord;
+    return (
+      <tr ref={setNodeRef} style={style}>
+        {visibleColumns.id && (
+          <td style={{
+            border: "1px solid #e2e8f0",
+            padding: "12px",
+            width: `${columnWidths.id}px`,
+            position: "relative"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div
+                {...attributes}
+                {...listeners}
+                style={{
+                  cursor: isDragging ? "grabbing" : "grab",
+                  fontSize: "16px",
+                  lineHeight: "1",
+                  color: "#64748b",
+                  userSelect: "none",
+                  touchAction: "none"
+                }}
+              >
+                ⋮⋮
+              </div>
+              <span style={{
+                fontFamily: "monospace",
+                fontSize: "12px",
+                backgroundColor: "#f1f5f9",
+                padding: "2px 6px",
+                borderRadius: "4px"
+              }}>
+                {req.ref}
+              </span>
+            </div>
+          </td>
+        )}
+        {visibleColumns.description && (
+          <td style={{
+            border: "1px solid #e2e8f0",
+            padding: "12px",
+            width: `${columnWidths.description}px`
+          }}>
+            {req.text}
+          </td>
+        )}
+        {visibleColumns.pattern && (
+          <td style={{
+            border: "1px solid #e2e8f0",
+            padding: "12px",
+            width: `${columnWidths.pattern}px`
+          }}>
+            {req.pattern && (
+              <span style={{
+                backgroundColor: "#e0f2fe",
+                color: "#0369a1",
+                padding: "4px 8px",
+                borderRadius: "4px",
+                fontSize: "11px",
+                fontWeight: "600"
+              }}>
+                {req.pattern}
+              </span>
+            )}
+          </td>
+        )}
+        {visibleColumns.verification && (
+          <td style={{
+            border: "1px solid #e2e8f0",
+            padding: "12px",
+            width: `${columnWidths.verification}px`
+          }}>
+            {req.verification && (
+              <span style={{
+                backgroundColor: "#e0e7ff",
+                color: "#4f46e5",
+                padding: "4px 8px",
+                borderRadius: "4px",
+                fontSize: "11px",
+                fontWeight: "600"
+              }}>
+                {req.verification}
+              </span>
+            )}
+          </td>
+        )}
+        {visibleColumns.qaScore && (
+          <td style={{
+            border: "1px solid #e2e8f0",
+            padding: "12px",
+            width: `${columnWidths.qaScore}px`,
+            textAlign: "center"
+          }}>
+            {req.qaScore !== null && req.qaScore !== undefined ? (
+              <span style={{
+                fontWeight: "bold",
+                color: req.qaScore >= 80 ? "#059669" : req.qaScore >= 60 ? "#f59e0b" : "#dc2626"
+              }}>
+                {req.qaScore}
+              </span>
+            ) : (
+              <span style={{ color: "#94a3b8" }}>-</span>
+            )}
+          </td>
+        )}
+        {visibleColumns.actions && (
+          <td style={{
+            border: "1px solid #e2e8f0",
+            padding: "12px",
+            width: `${columnWidths.actions}px`,
+            textAlign: "center"
+          }}>
+            <button
+              onClick={() => onEdit(req)}
+              onContextMenu={(e) => onContextMenu(e, req)}
+              style={{
+                background: "none",
+                border: "1px solid #d1d5db",
+                borderRadius: "4px",
+                padding: "4px 8px",
+                cursor: "pointer",
+                fontSize: "11px",
+                color: "#6b7280"
+              }}
+            >
+              Edit
+            </button>
+          </td>
+        )}
+      </tr>
+    );
+  }
+}
+
 export function RequirementsTable({
   sections,
   tenant,
   project,
   traceLinks = [],
   onAddRequirement,
+  onAddInfo,
+  onAddSurrogate,
   onEditRequirement,
   onOpenFloatingDocument,
-  onEditMarkdown
+  onEditMarkdown,
+  onReorderItems,
+  sectionsWithUnsavedChanges,
+  onSaveReorder,
+  isSaving
 }: RequirementsTableProps): JSX.Element {
   const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
   const [isResizing, setIsResizing] = useState<string | null>(null);
@@ -73,6 +484,15 @@ export function RequirementsTable({
   const tableRef = useRef<HTMLTableElement>(null);
   const api = useApiClient();
   const queryClient = useQueryClient();
+
+  // Setup DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px of movement before drag starts
+      },
+    })
+  );
 
   const deleteLinkMutation = useMutation({
     mutationFn: (linkId: string) => api.deleteTraceLink(tenant, project, linkId),
@@ -142,13 +562,32 @@ export function RequirementsTable({
       });
 
       // Add requirements, infos, and surrogates for this section
+      // Use stored order field if available, otherwise use index
       const sectionItems = [
-        ...section.requirements.map(req => ({ type: 'requirement' as const, data: req, order: 0, sectionName: section.name, sectionOrder: sectionIndex })),
-        ...(section.infos || []).map(info => ({ type: 'info' as const, data: info, order: info.order || 0, sectionName: section.name, sectionOrder: sectionIndex })),
-        ...(section.surrogates || []).map(surrogate => ({ type: 'surrogate' as const, data: surrogate, order: surrogate.order || 0, sectionName: section.name, sectionOrder: sectionIndex }))
+        ...section.requirements.map((req, idx) => ({
+          type: 'requirement' as const,
+          data: req,
+          order: req.order ?? idx,
+          sectionName: section.name,
+          sectionOrder: sectionIndex
+        })),
+        ...(section.infos || []).map((info, idx) => ({
+          type: 'info' as const,
+          data: info,
+          order: info.order ?? (section.requirements.length + idx),
+          sectionName: section.name,
+          sectionOrder: sectionIndex
+        })),
+        ...(section.surrogates || []).map((surrogate, idx) => ({
+          type: 'surrogate' as const,
+          data: surrogate,
+          order: surrogate.order ?? (section.requirements.length + (section.infos?.length || 0) + idx),
+          sectionName: section.name,
+          sectionOrder: sectionIndex
+        }))
       ];
 
-      // Sort items within this section by order (line number from markdown)
+      // Sort items within this section by order
       sectionItems.sort((a, b) => a.order - b.order);
       items.push(...sectionItems);
     });
@@ -210,6 +649,41 @@ export function RequirementsTable({
     });
   }, [sortedItems, filteredRequirements, filters.objectTypes]);
 
+  // Create sortable items grouped by section for drag-and-drop
+  const sortableItemsBySection = useMemo(() => {
+    const itemsBySectionMap = new Map<string, SortableItemData[]>();
+    let currentSectionId: string | null = null;
+
+    filteredItems.forEach(item => {
+      if (item.type === 'section-header') {
+        // Initialize the section in the map and track it as current
+        currentSectionId = item.sectionId;
+        if (!itemsBySectionMap.has(item.sectionId)) {
+          itemsBySectionMap.set(item.sectionId, []);
+        }
+      } else {
+        // Use the current section ID from the most recent section header
+        if (currentSectionId) {
+          if (!itemsBySectionMap.has(currentSectionId)) {
+            itemsBySectionMap.set(currentSectionId, []);
+          }
+
+          // Create a unique ID for the sortable item: type-sectionId-itemId
+          const sortableId = `${item.type}-${currentSectionId}-${item.data.id}`;
+
+          itemsBySectionMap.get(currentSectionId)!.push({
+            id: sortableId,
+            type: item.type,
+            sectionId: currentSectionId,
+            data: item.data
+          });
+        }
+      }
+    });
+
+    return itemsBySectionMap;
+  }, [filteredItems, sections]);
+
   const clearFilters = () => {
     setFilters({
       text: "",
@@ -220,6 +694,62 @@ export function RequirementsTable({
       objectTypes: ['requirement', 'info', 'surrogate']
     });
   };
+
+  // Handle drag end for reordering items
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    // Parse the IDs to get sectionId
+    // ID format: type-section-SECTIONID-itemId (where itemId may contain hyphens and colons)
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Extract section ID: find "section-" prefix and take the next segment
+    const activeSectionMatch = activeId.match(/-(section-[^-]+)-/);
+    const overSectionMatch = overId.match(/-(section-[^-]+)-/);
+
+    if (!activeSectionMatch || !overSectionMatch) {
+      return;
+    }
+
+    const activeSectionId = activeSectionMatch[1];
+    const overSectionId = overSectionMatch[1];
+
+    // Only allow reordering within the same section
+    if (activeSectionId !== overSectionId) {
+      return;
+    }
+
+    // Get the sortable items for this section
+    const sectionItems = sortableItemsBySection.get(activeSectionId);
+
+    if (!sectionItems || sectionItems.length === 0) {
+      return;
+    }
+
+    // Find the indices in the sortable items list
+    const activeIndex = sectionItems.findIndex(item => item.id === activeId);
+    const overIndex = sectionItems.findIndex(item => item.id === overId);
+
+    if (activeIndex === -1 || overIndex === -1) {
+      return;
+    }
+
+    // Reorder using arrayMove
+    const reorderedItems = arrayMove(sectionItems, activeIndex, overIndex);
+
+    // Map back to the simplified format for the handler
+    const items = reorderedItems.map(item => ({
+      type: item.type,
+      id: item.data.id
+    }));
+
+    onReorderItems(activeSectionId, items);
+  }, [sortableItemsBySection, onReorderItems]);
 
   const hasActiveFilters =
     filters.text !== "" ||
@@ -357,317 +887,184 @@ export function RequirementsTable({
 
 
       <div style={{ flex: 1, overflow: "auto", scrollBehavior: "smooth", minHeight: 0 }}>
-        <table ref={tableRef} style={{ borderCollapse: "collapse", fontSize: "14px", minWidth: "100%" }}>
-          <thead style={{ position: "sticky", top: 0, backgroundColor: "#f1f5f9" }}>
-            <tr>
-              {visibleColumns.id && (
-                <th style={headerStyle(columnWidths.id)}>
-                  ID
-                  <ColumnResizer
-                    columnKey="id"
-                    columnWidths={columnWidths}
-                    isResizing={isResizing === "id"}
-                    onColumnWidthChange={handleColumnWidthChange}
-                    onResizingChange={setIsResizing}
-                  />
-                </th>
-              )}
-              {visibleColumns.description && (
-                <th style={headerStyle(columnWidths.description)}>
-                  Description
-                  <ColumnResizer
-                    columnKey="description"
-                    columnWidths={columnWidths}
-                    isResizing={isResizing === "description"}
-                    onColumnWidthChange={handleColumnWidthChange}
-                    onResizingChange={setIsResizing}
-                  />
-                </th>
-              )}
-              {visibleColumns.pattern && (
-                <th style={headerStyle(columnWidths.pattern)}>
-                  Pattern
-                  <ColumnResizer
-                    columnKey="pattern"
-                    columnWidths={columnWidths}
-                    isResizing={isResizing === "pattern"}
-                    onColumnWidthChange={handleColumnWidthChange}
-                    onResizingChange={setIsResizing}
-                  />
-                </th>
-              )}
-              {visibleColumns.verification && (
-                <th style={headerStyle(columnWidths.verification)}>
-                  Verification
-                  <ColumnResizer
-                    columnKey="verification"
-                    columnWidths={columnWidths}
-                    isResizing={isResizing === "verification"}
-                    onColumnWidthChange={handleColumnWidthChange}
-                    onResizingChange={setIsResizing}
-                  />
-                </th>
-              )}
-              {visibleColumns.qaScore && (
-                <th style={headerStyle(columnWidths.qaScore)}>
-                  QA Score
-                  <ColumnResizer
-                    columnKey="qaScore"
-                    columnWidths={columnWidths}
-                    isResizing={isResizing === "qaScore"}
-                    onColumnWidthChange={handleColumnWidthChange}
-                    onResizingChange={setIsResizing}
-                  />
-                </th>
-              )}
-              {visibleColumns.actions && (
-                <th style={headerStyle(columnWidths.actions)}>
-                  Actions
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredItems.length === 0 ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <table ref={tableRef} style={{ borderCollapse: "collapse", fontSize: "14px", minWidth: "100%" }}>
+            <thead style={{ position: "sticky", top: 0, backgroundColor: "#f1f5f9" }}>
               <tr>
-                <td colSpan={visibleColumnCount} style={{
-                  border: "1px solid #e2e8f0",
-                  padding: "40px",
-                  textAlign: "center",
-                  color: "#64748b"
-                }}>
-                  {sections.flatMap(s => s.requirements).length === 0
-                    ? "No requirements yet"
-                    : "No requirements match the current filters"
-                  }
-                </td>
+                {visibleColumns.id && (
+                  <th style={headerStyle(columnWidths.id)}>
+                    ID
+                    <ColumnResizer
+                      columnKey="id"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "id"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
+                  </th>
+                )}
+                {visibleColumns.description && (
+                  <th style={headerStyle(columnWidths.description)}>
+                    Description
+                    <ColumnResizer
+                      columnKey="description"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "description"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
+                  </th>
+                )}
+                {visibleColumns.pattern && (
+                  <th style={headerStyle(columnWidths.pattern)}>
+                    Pattern
+                    <ColumnResizer
+                      columnKey="pattern"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "pattern"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
+                  </th>
+                )}
+                {visibleColumns.verification && (
+                  <th style={headerStyle(columnWidths.verification)}>
+                    Verification
+                    <ColumnResizer
+                      columnKey="verification"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "verification"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
+                  </th>
+                )}
+                {visibleColumns.qaScore && (
+                  <th style={headerStyle(columnWidths.qaScore)}>
+                    QA Score
+                    <ColumnResizer
+                      columnKey="qaScore"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "qaScore"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
+                  </th>
+                )}
+                {visibleColumns.actions && (
+                  <th style={headerStyle(columnWidths.actions)}>
+                    Actions
+                  </th>
+                )}
               </tr>
-            ) : (
-              filteredItems.map((item, index: number) => {
-                if (item.type === 'section-header') {
-                  return (
-                    <tr key={`section-${item.sectionId}`}>
-                      <td colSpan={visibleColumnCount} style={{
-                        padding: "16px 24px",
-                        backgroundColor: "#f8fafc",
-                        borderTop: "2px solid #e2e8f0",
-                        borderBottom: "1px solid #e2e8f0"
-                      }}>
-                        <div style={{
-                          fontWeight: "600",
-                          fontSize: "15px",
-                          color: "#1e293b"
-                        }}>
-                          {item.sectionName}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                } else if (item.type === 'info') {
-                  const info = item.data as InfoRecord;
-                  return (
-                    <tr key={`info-${info.id}`}>
-                      <td colSpan={visibleColumnCount} style={{
-                        border: "1px solid #bae6fd",
-                        padding: "12px 16px",
-                        backgroundColor: "#f0f9ff"
-                      }}>
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-                          <div style={{
-                            fontSize: "20px",
-                            lineHeight: "1",
-                            marginTop: "2px"
+            </thead>
+            <tbody>
+              {filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={visibleColumnCount} style={{
+                    border: "1px solid #e2e8f0",
+                    padding: "40px",
+                    textAlign: "center",
+                    color: "#64748b"
+                  }}>
+                    {sections.flatMap(s => s.requirements).length === 0
+                      ? "No requirements yet"
+                      : "No requirements match the current filters"
+                    }
+                  </td>
+                </tr>
+              ) : (
+                filteredItems.map((item) => {
+                  if (item.type === 'section-header') {
+                    const sectionItems = sortableItemsBySection.get(item.sectionId) || [];
+                    const hasUnsavedChanges = sectionsWithUnsavedChanges.has(item.sectionId);
+                    return (
+                      <React.Fragment key={`section-${item.sectionId}`}>
+                        <tr>
+                          <td colSpan={visibleColumnCount} style={{
+                            padding: "16px 24px",
+                            backgroundColor: "#f8fafc",
+                            borderTop: "2px solid #e2e8f0",
+                            borderBottom: "1px solid #e2e8f0"
                           }}>
-                            ℹ️
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            {info.title && (
+                            <div style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between"
+                            }}>
                               <div style={{
                                 fontWeight: "600",
-                                fontSize: "13px",
-                                color: "#0369a1",
-                                marginBottom: "6px"
+                                fontSize: "15px",
+                                color: "#1e293b"
                               }}>
-                                {info.title}
+                                {item.sectionName}
+                                {hasUnsavedChanges && (
+                                  <span style={{
+                                    marginLeft: "8px",
+                                    fontSize: "12px",
+                                    color: "#f59e0b",
+                                    fontWeight: "normal"
+                                  }}>
+                                    (unsaved changes)
+                                  </span>
+                                )}
                               </div>
-                            )}
-                            <div style={{
-                              fontSize: "13px",
-                              color: "#334155",
-                              lineHeight: "1.5"
-                            }}>
-                              {info.text}
-                            </div>
-                            {info.ref && (
-                              <div style={{
-                                fontSize: "11px",
-                                color: "#64748b",
-                                marginTop: "6px",
-                                fontFamily: "monospace"
-                              }}>
-                                {info.ref}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                } else if (item.type === 'surrogate') {
-                  const surrogate = item.data as SurrogateReferenceRecord;
-                  const surrogateKey = `surrogate-${surrogate.id}`;
-                  const storedWidth = localStorage.getItem(surrogateKey);
-                  const defaultWidth = 400;
-                  const currentWidth = storedWidth ? parseInt(storedWidth, 10) : defaultWidth;
-
-                  return (
-                    <tr key={surrogateKey}>
-                      <td colSpan={visibleColumnCount} style={{
-                        border: "1px solid #d8b4fe",
-                        padding: "12px 16px",
-                        backgroundColor: "#faf5ff"
-                      }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-                            <div style={{
-                              fontSize: "20px",
-                              lineHeight: "1",
-                              marginTop: "2px"
-                            }}>
-                              🔗
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{
-                                fontWeight: "600",
-                                fontSize: "13px",
-                                color: "#7c3aed",
-                                marginBottom: "6px",
-                                fontFamily: "monospace"
-                              }}>
-                                {surrogate.slug}
-                              </div>
-                              {surrogate.caption && (
-                                <div style={{
-                                  fontSize: "13px",
-                                  color: "#334155",
-                                  lineHeight: "1.5",
-                                  marginBottom: "8px"
-                                }}>
-                                  {surrogate.caption}
-                                </div>
+                              {hasUnsavedChanges && (
+                                <button
+                                  onClick={() => onSaveReorder(item.sectionId)}
+                                  disabled={isSaving}
+                                  style={{
+                                    padding: "6px 12px",
+                                    backgroundColor: "#3b82f6",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "4px",
+                                    fontSize: "13px",
+                                    fontWeight: "500",
+                                    cursor: isSaving ? "not-allowed" : "pointer",
+                                    opacity: isSaving ? 0.6 : 1
+                                  }}
+                                >
+                                  {isSaving ? "Saving..." : "Save Order"}
+                                </button>
                               )}
                             </div>
-                          </div>
-                          <div style={{
-                            position: "relative",
-                            width: "fit-content",
-                            maxWidth: "100%"
-                          }}>
-                            {/* Use iframe/embed for documents, img for images */}
-                            {surrogate.slug.match(/\.(pdf|docx?|pptx?|xlsx?)$/i) ? (
-                              <embed
-                                src={`/api/documents/${tenant}/${project}/${surrogate.slug}/view`}
-                                type="application/pdf"
-                                style={{
-                                  width: `${currentWidth}px`,
-                                  height: `${Math.floor(currentWidth * 1.414)}px`, // A4 aspect ratio
-                                  maxWidth: "100%",
-                                  borderRadius: "4px",
-                                  border: "1px solid #e9d5ff",
-                                  display: "block",
-                                  backgroundColor: "white"
-                                }}
+                          </td>
+                        </tr>
+                        {sectionItems.length > 0 && (
+                          <SortableContext
+                            items={sectionItems.map(si => si.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {sectionItems.map((sortableItem) => (
+                              <SortableRow
+                                key={sortableItem.id}
+                                item={sortableItem}
+                                columnWidths={columnWidths}
+                                visibleColumns={visibleColumns}
+                                tenant={tenant}
+                                project={project}
+                                traceLinks={traceLinks}
+                                onContextMenu={handleContextMenu}
+                                onEdit={onEditRequirement}
+                                visibleColumnCount={visibleColumnCount}
                               />
-                            ) : (
-                              <img
-                                src={`/api/documents/${tenant}/${project}/${surrogate.slug}/view`}
-                                alt={surrogate.caption || surrogate.slug}
-                                style={{
-                                  width: `${currentWidth}px`,
-                                  maxWidth: "100%",
-                                  height: "auto",
-                                  borderRadius: "4px",
-                                  border: "1px solid #e9d5ff",
-                                  display: "block"
-                                }}
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect fill="%23faf5ff" width="200" height="150"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23a855f7" font-size="16">📄 Surrogate</text></svg>';
-                                }}
-                              />
-                            )}
-                            <div
-                              style={{
-                                position: "absolute",
-                                right: 0,
-                                bottom: 0,
-                                width: "20px",
-                                height: "20px",
-                                cursor: "nwse-resize",
-                                backgroundColor: "#7c3aed",
-                                borderRadius: "0 0 4px 0",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "white",
-                                fontSize: "10px",
-                                userSelect: "none"
-                              }}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                const startX = e.clientX;
-                                const startWidth = currentWidth;
-
-                                const handleMouseMove = (moveEvent: MouseEvent) => {
-                                  const newWidth = Math.max(200, Math.min(1200, startWidth + (moveEvent.clientX - startX)));
-                                  const content = (e.target as HTMLElement).previousElementSibling as HTMLElement;
-                                  if (content) {
-                                    content.style.width = `${newWidth}px`;
-                                    // Also update height for embed elements to maintain aspect ratio
-                                    if (content.tagName === 'EMBED') {
-                                      content.style.height = `${Math.floor(newWidth * 1.414)}px`;
-                                    }
-                                  }
-                                };
-
-                                const handleMouseUp = (upEvent: MouseEvent) => {
-                                  const finalWidth = Math.max(200, Math.min(1200, startWidth + (upEvent.clientX - startX)));
-                                  localStorage.setItem(surrogateKey, finalWidth.toString());
-                                  document.removeEventListener("mousemove", handleMouseMove);
-                                  document.removeEventListener("mouseup", handleMouseUp);
-                                };
-
-                                document.addEventListener("mousemove", handleMouseMove);
-                                document.addEventListener("mouseup", handleMouseUp);
-                              }}
-                            >
-                              ⇲
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                } else {
-                  const req = item.data as RequirementRecord;
-                  return (
-                    <RequirementRow
-                      key={req.id}
-                      requirement={req}
-                      index={index}
-                      columnWidths={columnWidths}
-                      visibleColumns={visibleColumns}
-                      tenant={tenant}
-                      project={project}
-                      traceLinks={traceLinks}
-                      onContextMenu={handleContextMenu}
-                      onEdit={onEditRequirement}
-                    />
-                  );
-                }
-              })
-            )}
-          </tbody>
-        </table>
+                            ))}
+                          </SortableContext>
+                        )}
+                      </React.Fragment>
+                    );
+                  }
+                  return null;
+                })
+              )}
+            </tbody>
+          </table>
+        </DndContext>
       </div>
 
       <div style={{
@@ -694,6 +1091,32 @@ export function RequirementsTable({
             }}
           >
             ＋ Add Requirement
+          </button>
+          <button
+            onClick={onAddInfo}
+            style={{
+              backgroundColor: "#059669",
+              color: "white",
+              border: "none",
+              padding: "8px 12px",
+              borderRadius: "4px",
+              cursor: "pointer"
+            }}
+          >
+            ＋ Add Info
+          </button>
+          <button
+            onClick={onAddSurrogate}
+            style={{
+              backgroundColor: "#7c3aed",
+              color: "white",
+              border: "none",
+              padding: "8px 12px",
+              borderRadius: "4px",
+              cursor: "pointer"
+            }}
+          >
+            ＋ Add Surrogate
           </button>
         </div>
       </div>

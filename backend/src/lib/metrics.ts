@@ -220,6 +220,22 @@ export async function trackNeo4jQuery<T>(
 }
 
 /**
+ * Record Neo4j query duration (for use with neo4j-monitor)
+ *
+ * @param queryType - Type of query being executed
+ * @param durationMs - Query duration in milliseconds
+ */
+export function recordQueryDuration(queryType: string, durationMs: number): void {
+  if (!isMetricsAvailable || !neo4jQueryDuration || !neo4jQueriesTotal) {
+    return;
+  }
+
+  const durationSeconds = durationMs / 1000;
+  neo4jQueryDuration.observe({ query_type: queryType }, durationSeconds);
+  neo4jQueriesTotal.inc({ query_type: queryType, status: 'success' });
+}
+
+/**
  * Track active database connections
  *
  * @param type - Connection type (e.g., 'neo4j', 'redis')

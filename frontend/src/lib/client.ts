@@ -179,6 +179,16 @@ export function useApiClient() {
         request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "PATCH", body: JSON.stringify(updates) }),
       deleteRequirement: (tenant: string, project: string, requirementId: string) =>
         request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "DELETE" }),
+      createInfo: (body: { tenant: string; projectKey: string; documentSlug: string; text: string; title?: string; sectionId?: string }) =>
+        request<{ info: InfoRecord }>(`/infos`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      createSurrogate: (body: { tenant: string; projectKey: string; documentSlug: string; slug: string; caption?: string; sectionId?: string }) =>
+        request<{ surrogate: SurrogateReferenceRecord }>(`/surrogates`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
       archiveRequirements: (tenant: string, project: string, requirementIds: string[]) =>
         request<{ requirements: RequirementRecord[]; count: number }>(`/requirements/${tenant}/${project}/archive`, { method: "POST", body: JSON.stringify({ requirementIds }) }),
       unarchiveRequirements: (tenant: string, project: string, requirementIds: string[]) =>
@@ -305,6 +315,21 @@ export function useApiClient() {
         request<{ infos: InfoRecord[] }>(`/sections/${sectionId}/infos`),
       listSectionSurrogates: (sectionId: string) =>
         request<{ surrogates: SurrogateReferenceRecord[] }>(`/sections/${sectionId}/surrogates`),
+      reorderRequirements: (sectionId: string, requirementIds: string[]) =>
+        request<{ success: boolean }>(`/sections/${sectionId}/reorder-requirements`, { method: "POST", body: JSON.stringify({ requirementIds }) }),
+      reorderInfos: (sectionId: string, infoIds: string[]) =>
+        request<{ success: boolean }>(`/sections/${sectionId}/reorder-infos`, { method: "POST", body: JSON.stringify({ infoIds }) }),
+      reorderSurrogates: (sectionId: string, surrogateIds: string[]) =>
+        request<{ success: boolean }>(`/sections/${sectionId}/reorder-surrogates`, { method: "POST", body: JSON.stringify({ surrogateIds }) }),
+      reorderWithOrder: (
+        sectionId: string,
+        payload: {
+          requirements?: Array<{ id: string; order: number }>;
+          infos?: Array<{ id: string; order: number }>;
+          surrogates?: Array<{ id: string; order: number }>;
+        }
+      ) =>
+        request<{ success: boolean }>(`/sections/${sectionId}/reorder-with-order`, { method: "POST", body: JSON.stringify(payload) }),
       suggestLinks: (body: LinkSuggestRequest) =>
         request<LinkSuggestResponse>(`/link/suggest`, { method: "POST", body: JSON.stringify(body) }),
       // Architecture API methods

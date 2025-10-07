@@ -125,7 +125,7 @@ await app.register(helmet, {
   }
 });
 // Higher rate limit in development to accommodate React strict mode double renders
-const isProduction = config.env === "production";
+const isProduction = config.environment === "production";
 await app.register(rateLimit, {
   max: isProduction ? 100 : 500,
   timeWindow: "1 minute"

@@ -1,42 +1,50 @@
 import { useState } from "react";
 import { Modal, TextInput, TextArea, Select, Button } from "./Modal";
-import type { RequirementPattern, VerificationMethod } from "../types";
+import type { RequirementPattern, VerificationMethod, DocumentSectionRecord } from "../types";
 
 interface AddRequirementModalProps {
   isOpen: boolean;
   sectionName: string;
+  sectionId: string;
+  sections?: DocumentSectionRecord[];
   onClose: () => void;
   onAdd: (requirement: {
     text: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
+    sectionId: string;
   }) => void;
 }
 
 export function AddRequirementModal({
   isOpen,
   sectionName,
+  sectionId: defaultSectionId,
+  sections = [],
   onClose,
   onAdd
 }: AddRequirementModalProps): JSX.Element {
   const [text, setText] = useState("");
   const [pattern, setPattern] = useState<RequirementPattern | "">("");
   const [verification, setVerification] = useState<VerificationMethod | "">("");
+  const [sectionId, setSectionId] = useState<string>(defaultSectionId);
 
   const handleClose = () => {
     setText("");
     setPattern("");
     setVerification("");
+    setSectionId(defaultSectionId);
     onClose();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (text.trim()) {
+    if (text.trim() && sectionId) {
       onAdd({
         text: text.trim(),
         pattern: pattern as RequirementPattern || undefined,
-        verification: verification as VerificationMethod || undefined
+        verification: verification as VerificationMethod || undefined,
+        sectionId
       });
       handleClose();
     }
@@ -64,9 +72,9 @@ export function AddRequirementModal({
       <Button variant="secondary" onClick={handleClose}>
         Cancel
       </Button>
-      <Button 
-        type="submit" 
-        disabled={!text.trim()}
+      <Button
+        type="submit"
+        disabled={!text.trim() || !sectionId}
         onClick={handleSubmit}
       >
         Add Requirement
@@ -111,6 +119,23 @@ export function AddRequirementModal({
             help="How this requirement will be verified"
           />
         </div>
+
+        {sections.length > 0 && (
+          <Select
+            label="Section"
+            required
+            value={sectionId}
+            onChange={(e) => setSectionId(e.target.value)}
+            options={[
+              { value: "", label: "Select section" },
+              ...sections.map(section => ({
+                value: section.id,
+                label: `${section.shortCode ? `[${section.shortCode}] ` : ''}${section.name}`
+              }))
+            ]}
+            help="Section where this requirement will be added"
+          />
+        )}
       </form>
     </Modal>
   );
