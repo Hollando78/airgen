@@ -332,6 +332,19 @@ export type InfoRecord = {
   updatedAt: string;
 };
 
+export type SurrogateReferenceRecord = {
+  id: string;
+  tenant: string;
+  projectKey: string;
+  documentSlug: string;
+  slug: string;
+  caption?: string;
+  sectionId?: string;
+  order?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DocumentsResponse = {
   documents: DocumentRecord[];
 };

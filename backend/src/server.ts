@@ -29,6 +29,7 @@ import { linksetRoutes } from "./routes/linksets.js";
 import authRoutes from "./routes/auth.js";
 import markdownRoutes from "./routes/markdown-api.js";
 import thumbnailRoutes from "./routes/thumbnails.js";
+import { adminRequirementsRoutes } from "./routes/admin-requirements.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -123,7 +124,12 @@ await app.register(helmet, {
     }
   }
 });
-await app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
+// Higher rate limit in development to accommodate React strict mode double renders
+const isProduction = config.env === "production";
+await app.register(rateLimit, {
+  max: isProduction ? 100 : 500,
+  timeWindow: "1 minute"
+});
 
 // Register Swagger for API documentation
 await app.register(swagger, {
@@ -240,6 +246,7 @@ await app.register(airgenRoutes, { prefix: "/api" });
 if (config.environment !== "production") {
   const adminRoutes = await import("./routes/admin-users.js");
   await app.register(adminRoutes.default, { prefix: "/api/dev" });
+  await app.register(adminRequirementsRoutes, { prefix: "/api" });
 }
 
 const port = config.port;

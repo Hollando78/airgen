@@ -8,6 +8,7 @@ export {
   updateRequirement,
   updateRequirementTimestamp,
   softDeleteRequirement,
+  restoreRequirement,
   archiveRequirements,
   unarchiveRequirements,
   updateRequirementRefsForDocument,

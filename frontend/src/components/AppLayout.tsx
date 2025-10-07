@@ -25,6 +25,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
 
   if (isDevMode && user?.roles.includes('admin')) {
     links.push({ to: "/admin/users", label: "Admin Users" });
+    links.push({ to: "/admin/requirements", label: "Admin Requirements" });
   }
 
   return (

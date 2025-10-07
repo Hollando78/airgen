@@ -23,6 +23,7 @@ import {
   listSectionRequirements
 } from "../services/graph.js";
 import { listSectionInfos } from "../services/graph/infos.js";
+import { listSectionSurrogateReferences } from "../services/graph/surrogates.js";
 import { config } from "../config.js";
 import { slugify } from "../services/workspace.js";
 
@@ -531,6 +532,60 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     return reply.send(createReadStream(absolutePath));
   });
 
+  app.get("/documents/:tenant/:project/:documentSlug/view", async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      documentSlug: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+
+    const document = await getDocument(params.tenant, params.project, params.documentSlug);
+    if (!document || document.kind !== "surrogate") {
+      return reply.status(404).send({ error: "Surrogate document not found" });
+    }
+
+    const tenantSlug = slugify(params.tenant);
+    const projectSlug = slugify(params.project);
+    const baseDirectory = resolve(config.workspaceRoot, tenantSlug, projectSlug);
+
+    // Try preview first, then fall back to original file
+    let absolutePath: string;
+    let mimeType: string;
+
+    if (document.previewPath) {
+      absolutePath = resolve(baseDirectory, document.previewPath);
+      mimeType = document.previewMimeType ?? "application/pdf";
+    } else if (document.storagePath) {
+      absolutePath = resolve(baseDirectory, document.storagePath);
+      mimeType = document.mimeType ?? "application/octet-stream";
+    } else {
+      return reply.status(404).send({ error: "Document file not found" });
+    }
+
+    const normalizedBase = baseDirectory.endsWith(sep) ? baseDirectory : `${baseDirectory}${sep}`;
+    if (absolutePath !== baseDirectory && !absolutePath.startsWith(normalizedBase)) {
+      return reply.status(400).send({ error: "Invalid document path" });
+    }
+
+    try {
+      await fs.access(absolutePath);
+    } catch {
+      return reply.status(404).send({ error: "Document file missing" });
+    }
+
+    const fileName = absolutePath.split(sep).pop() ?? `${params.documentSlug}`;
+    const safeName = fileName.replace(/"/g, "'");
+
+    reply.type(mimeType);
+    reply.header(
+      "Content-Disposition",
+      `inline; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`
+    );
+
+    return reply.send(createReadStream(absolutePath));
+  });
+
   app.patch("/documents/:tenant/:project/:documentSlug", async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
@@ -762,5 +817,14 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     const params = paramsSchema.parse(req.params);
     const infos = await listSectionInfos(params.sectionId);
     return { infos };
+  });
+
+  app.get("/sections/:sectionId/surrogates", async (req) => {
+    const paramsSchema = z.object({
+      sectionId: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+    const surrogates = await listSectionSurrogateReferences(params.sectionId);
+    return { surrogates };
   });
 }

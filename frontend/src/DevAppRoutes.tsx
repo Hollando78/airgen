@@ -17,6 +17,7 @@ const BaselinesRoute = lazy(() => import("./routes/BaselinesRoute").then(m => ({
 const LinksRoute = lazy(() => import("./routes/LinksRoute").then(m => ({ default: m.LinksRoute })));
 const RequirementsSchemaRoute = lazy(() => import("./routes/RequirementsSchemaRoute").then(m => ({ default: m.RequirementsSchemaRoute })));
 const AdminUsersRoute = lazy(() => import("./routes/AdminUsersRoute").then(m => ({ default: m.AdminUsersRoute })));
+const AdminRequirementsRoute = lazy(() => import("./routes/AdminRequirementsRoute").then(m => ({ default: m.AdminRequirementsRoute })));
 
 export default function DevAppRoutes(): JSX.Element {
   return (
@@ -109,6 +110,14 @@ export default function DevAppRoutes(): JSX.Element {
           element={
             <ProtectedRoute fallback={<LandingPage />} requiredRoles={["admin"]}>
               <AdminUsersRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/requirements"
+          element={
+            <ProtectedRoute fallback={<LandingPage />} requiredRoles={["admin"]}>
+              <AdminRequirementsRoute />
             </ProtectedRoute>
           }
         />

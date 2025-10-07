@@ -7,6 +7,7 @@ export type FilterState = {
   verification: string;
   minQaScore: string;
   maxQaScore: string;
+  objectTypes: string[]; // Array of object types to display: 'requirement', 'info'
 };
 
 /**
@@ -40,13 +41,28 @@ export function TableFilterBar({
     });
   };
 
+  const handleObjectTypeToggle = (objectType: string) => {
+    const currentTypes = filters.objectTypes || ['requirement', 'info'];
+    const newTypes = currentTypes.includes(objectType)
+      ? currentTypes.filter(t => t !== objectType)
+      : [...currentTypes, objectType];
+
+    // Ensure at least one type is always selected
+    if (newTypes.length === 0) return;
+
+    onFiltersChange({
+      ...filters,
+      objectTypes: newTypes
+    });
+  };
+
   return (
     <div style={{
       padding: "16px 24px",
       backgroundColor: "#f1f5f9",
       borderBottom: "1px solid #e2e8f0",
       display: "grid",
-      gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto",
+      gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr auto",
       gap: "12px",
       alignItems: "end"
     }}>
@@ -156,6 +172,41 @@ export function TableFilterBar({
             fontSize: "12px"
           }}
         />
+      </div>
+
+      <div>
+        <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
+          Object Types
+        </label>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", cursor: "pointer", userSelect: "none" }}>
+            <input
+              type="checkbox"
+              checked={(filters.objectTypes || ['requirement', 'info']).includes('requirement')}
+              onChange={() => handleObjectTypeToggle('requirement')}
+              style={{ cursor: "pointer" }}
+            />
+            <span>Requirements</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", cursor: "pointer", userSelect: "none" }}>
+            <input
+              type="checkbox"
+              checked={(filters.objectTypes || ['requirement', 'info']).includes('info')}
+              onChange={() => handleObjectTypeToggle('info')}
+              style={{ cursor: "pointer" }}
+            />
+            <span>Info</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", cursor: "pointer", userSelect: "none" }}>
+            <input
+              type="checkbox"
+              checked={(filters.objectTypes || ['requirement', 'info']).includes('surrogate')}
+              onChange={() => handleObjectTypeToggle('surrogate')}
+              style={{ cursor: "pointer" }}
+            />
+            <span>Surrogates</span>
+          </label>
+        </div>
       </div>
 
       <button

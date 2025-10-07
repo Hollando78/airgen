@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID as nodeRandomUUID } from "node:crypto";
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { toNumber } from "../lib/neo4j-utils.js";
+import { computeRequirementHash } from "../lib/requirement-hash.js";
 import type { ParsedDocument } from "./markdown-parser.js";
 import { slugify } from "./workspace.js";
 import type { DocumentRecord } from "./graph/documents/index.js";
@@ -61,6 +62,21 @@ function getInfoData(node: Neo4jNode): {
     ref: String(props.ref),
     text: String(props.text ?? ""),
     title: props.title ? String(props.title) : null,
+    order: props.order !== undefined ? toNumber(props.order, 0) : undefined
+  };
+}
+
+function getSurrogateData(node: Neo4jNode): {
+  id: string;
+  slug: string;
+  caption?: string | null;
+  order?: number;
+} {
+  const props = node.properties as Record<string, unknown>;
+  return {
+    id: String(props.id),
+    slug: String(props.slug),
+    caption: props.caption ? String(props.caption) : null,
     order: props.order !== undefined ? toNumber(props.order, 0) : undefined
   };
 }
@@ -186,6 +202,34 @@ export async function syncParsedDocument(
     existingInfosByRef.set(info.ref, infoWithSection);
   }
 
+  // Fetch existing surrogate references
+  const existingSurrogatesResult = await tx.run(
+    `
+      MATCH (doc:Document {slug: $documentSlug, tenant: $tenantSlug, projectKey: $projectSlug})
+      OPTIONAL MATCH (doc)-[:HAS_SURROGATE_REFERENCE]->(surrogate:SurrogateReference)
+      OPTIONAL MATCH (section:DocumentSection)-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate)
+      RETURN surrogate, section
+    `,
+    { documentSlug, tenantSlug, projectSlug }
+  );
+
+  type SurrogateWithSection = ReturnType<typeof getSurrogateData> & { sectionId?: string | null };
+  const existingSurrogatesBySlug = new Map<string, SurrogateWithSection>();
+
+  for (const record of existingSurrogatesResult.records) {
+    const surrogateNode = record.get("surrogate") as Neo4jNode | null;
+    if (!surrogateNode) {continue;}
+    const sectionNode = record.get("section") as Neo4jNode | null;
+    const surrogate = getSurrogateData(surrogateNode);
+    const surrogateWithSection: SurrogateWithSection = {
+      ...surrogate,
+      sectionId: sectionNode ? String(sectionNode.properties.id) : null
+    };
+    // Use a composite key: slug + line number to handle multiple references to same surrogate
+    const key = `${surrogate.slug}-${surrogate.order}`;
+    existingSurrogatesBySlug.set(key, surrogateWithSection);
+  }
+
   const processedSectionIds = new Set<string>();
   const sectionIdByName = new Map<string, string>();
 
@@ -275,12 +319,19 @@ export async function syncParsedDocument(
 
     const existing = existingRequirementsByRef.get(ref);
     if (existing) {
+      const contentHash = computeRequirementHash({
+        text: requirement.text,
+        pattern: requirement.pattern ?? null,
+        verification: requirement.verification ?? null
+      });
+
       await tx.run(
         `
           MATCH (req:Requirement {id: $requirementId})
           SET req.text = $text,
               req.pattern = $pattern,
               req.verification = $verification,
+              req.contentHash = $contentHash,
               req.updatedAt = $now,
               req.deleted = false,
               req.archived = false
@@ -290,6 +341,7 @@ export async function syncParsedDocument(
           text: requirement.text,
           pattern: requirement.pattern ?? null,
           verification: requirement.verification ?? null,
+          contentHash,
           now: timestamp
         }
       );
@@ -319,6 +371,11 @@ export async function syncParsedDocument(
     } else {
       const requirementId = `${tenantSlug}:${projectSlug}:${ref}`;
       const hashId = randomBytes(8).toString("hex");
+      const contentHash = computeRequirementHash({
+        text: requirement.text,
+        pattern: requirement.pattern ?? null,
+        verification: requirement.verification ?? null
+      });
 
       await tx.run(
         `
@@ -332,6 +389,7 @@ export async function syncParsedDocument(
               req.text = $text,
               req.pattern = $pattern,
               req.verification = $verification,
+              req.contentHash = $contentHash,
               req.qaScore = NULL,
               req.qaVerdict = NULL,
               req.suggestions = [],
@@ -353,6 +411,7 @@ export async function syncParsedDocument(
           text: requirement.text,
           pattern: requirement.pattern ?? null,
           verification: requirement.verification ?? null,
+          contentHash,
           path: REQUIREMENT_PATH(tenantSlug, projectSlug, ref),
           now: timestamp
         }
@@ -508,6 +567,121 @@ export async function syncParsedDocument(
           DETACH DELETE info
         `,
         { infoId: info.id }
+      );
+    }
+  }
+
+  // Sync surrogate references
+  const processedSurrogateKeys = new Set<string>();
+
+  for (let idx = 0; idx < parsed.surrogates.length; idx++) {
+    const surrogate = parsed.surrogates[idx];
+    const sectionId = surrogate.sectionName ? sectionIdByName.get(surrogate.sectionName) : undefined;
+    const targetSectionId = sectionId ?? null;
+    const key = `${surrogate.slug}-${surrogate.line}`;
+    processedSurrogateKeys.add(key);
+
+    const existing = existingSurrogatesBySlug.get(key);
+    if (existing) {
+      // Update existing surrogate reference
+      await tx.run(
+        `
+          MATCH (surrogate:SurrogateReference {id: $surrogateId})
+          SET surrogate.caption = $caption,
+              surrogate.order = $order,
+              surrogate.sectionId = $sectionId,
+              surrogate.updatedAt = $now
+        `,
+        {
+          surrogateId: existing.id,
+          caption: surrogate.caption ?? null,
+          order: surrogate.line,
+          sectionId: targetSectionId,
+          now: timestamp
+        }
+      );
+
+      // Update section relationship
+      await tx.run(
+        `
+          MATCH (surrogate:SurrogateReference {id: $surrogateId})
+          OPTIONAL MATCH (surrogate)<-[rel:CONTAINS_SURROGATE_REFERENCE]-(:DocumentSection)
+          DELETE rel
+        `,
+        { surrogateId: existing.id }
+      );
+
+      if (targetSectionId) {
+        await tx.run(
+          `
+            MATCH (surrogate:SurrogateReference {id: $surrogateId})
+            MATCH (section:DocumentSection {id: $sectionId})
+            MERGE (section)-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate)
+          `,
+          {
+            surrogateId: existing.id,
+            sectionId: targetSectionId
+          }
+        );
+      }
+    } else {
+      // Create new surrogate reference
+      const surrogateId = `surrogate-ref-${makeUuid()}`;
+      await tx.run(
+        `
+          MATCH (doc:Document {slug: $documentSlug, tenant: $tenantSlug, projectKey: $projectSlug})
+          CREATE (surrogate:SurrogateReference {
+            id: $surrogateId,
+            tenant: $tenantSlug,
+            projectKey: $projectSlug,
+            documentSlug: $documentSlug,
+            slug: $slug,
+            caption: $caption,
+            sectionId: $sectionId,
+            order: $order,
+            createdAt: $now,
+            updatedAt: $now
+          })
+          MERGE (doc)-[:HAS_SURROGATE_REFERENCE]->(surrogate)
+        `,
+        {
+          surrogateId,
+          tenantSlug,
+          projectSlug,
+          documentSlug,
+          slug: surrogate.slug,
+          caption: surrogate.caption ?? null,
+          sectionId: targetSectionId,
+          order: surrogate.line,
+          now: timestamp
+        }
+      );
+
+      if (targetSectionId) {
+        await tx.run(
+          `
+            MATCH (surrogate:SurrogateReference {id: $surrogateId})
+            MATCH (section:DocumentSection {id: $sectionId})
+            MERGE (section)-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate)
+          `,
+          {
+            surrogateId,
+            sectionId: targetSectionId
+          }
+        );
+      }
+    }
+  }
+
+  // Delete surrogates that are no longer in the markdown
+  for (const [key, surrogate] of existingSurrogatesBySlug) {
+    if (!processedSurrogateKeys.has(key)) {
+      await tx.run(
+        `
+          MATCH (surrogate:SurrogateReference {id: $surrogateId})
+          DETACH DELETE surrogate
+        `,
+        { surrogateId: surrogate.id }
       );
     }
   }

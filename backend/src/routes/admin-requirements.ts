@@ -1,0 +1,516 @@
+import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { hasDrift } from "../lib/requirement-hash.js";
+import {
+  listRequirements,
+  restoreRequirement,
+  softDeleteRequirement,
+  getRequirement
+} from "../services/graph/requirements/index.js";
+import { writeRequirementMarkdown, readRequirementMarkdown } from "../services/workspace.js";
+import { logger } from "../lib/logger.js";
+
+/**
+ * Admin routes for requirements management
+ * - List deleted/archived requirements
+ * - Restore deleted requirements
+ * - Detect drift between Neo4j and markdown
+ * - Force sync requirements
+ */
+export async function adminRequirementsRoutes(app: FastifyInstance) {
+  /**
+   * List deleted requirements
+   */
+  app.get(
+    "/admin/requirements/deleted",
+    async (
+      req: FastifyRequest<{
+        Querystring: {
+          tenant: string;
+          project: string;
+          limit?: string;
+          offset?: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tenant, project, limit, offset } = req.query;
+
+      if (!tenant || !project) {
+        return reply.code(400).send({
+          error: "tenant and project are required"
+        });
+      }
+
+      // listRequirements only returns non-deleted, non-archived requirements
+      // We need to query Neo4j directly for deleted requirements
+      const tenantSlug = tenant.toLowerCase().replace(/\s+/g, "-");
+      const projectSlug = project.toLowerCase().replace(/\s+/g, "-");
+
+      const session = (await import("../services/graph/driver.js")).getSession();
+      try {
+        const result = await session.run(
+          `
+            MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+            OPTIONAL MATCH (project)-[:CONTAINS]->(direct:Requirement)
+            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
+            WITH collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
+            UNWIND reqs AS requirement
+            WITH DISTINCT requirement
+            WHERE requirement IS NOT NULL
+              AND requirement.deleted = true
+            RETURN requirement
+            ORDER BY requirement.ref ASC
+            SKIP $offset
+            LIMIT $limit
+          `,
+          {
+            tenantSlug,
+            projectSlug,
+            offset: (await import("neo4j-driver")).int(offset ? parseInt(offset, 10) : 0),
+            limit: (await import("neo4j-driver")).int(limit ? parseInt(limit, 10) : 100)
+          }
+        );
+
+        const { mapRequirement } = await import("../services/graph/requirements/requirements-crud.js");
+        const requirements = result.records.map(record => {
+          const node = record.get("requirement");
+          return mapRequirement(node);
+        });
+
+        return reply.send({
+          requirements,
+          count: requirements.length
+        });
+      } finally {
+        await session.close();
+      }
+    }
+  );
+
+  /**
+   * List archived requirements
+   */
+  app.get(
+    "/admin/requirements/archived",
+    async (
+      req: FastifyRequest<{
+        Querystring: {
+          tenant: string;
+          project: string;
+          limit?: string;
+          offset?: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tenant, project, limit, offset } = req.query;
+
+      if (!tenant || !project) {
+        return reply.code(400).send({
+          error: "tenant and project are required"
+        });
+      }
+
+      // listRequirements only returns non-deleted, non-archived requirements
+      // We need to query Neo4j directly for archived requirements
+      const tenantSlug = tenant.toLowerCase().replace(/\s+/g, "-");
+      const projectSlug = project.toLowerCase().replace(/\s+/g, "-");
+
+      const session = (await import("../services/graph/driver.js")).getSession();
+      try {
+        const result = await session.run(
+          `
+            MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+            OPTIONAL MATCH (project)-[:CONTAINS]->(direct:Requirement)
+            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
+            WITH collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
+            UNWIND reqs AS requirement
+            WITH DISTINCT requirement
+            WHERE requirement IS NOT NULL
+              AND (requirement.deleted IS NULL OR requirement.deleted = false)
+              AND requirement.archived = true
+            RETURN requirement
+            ORDER BY requirement.ref ASC
+            SKIP $offset
+            LIMIT $limit
+          `,
+          {
+            tenantSlug,
+            projectSlug,
+            offset: (await import("neo4j-driver")).int(offset ? parseInt(offset, 10) : 0),
+            limit: (await import("neo4j-driver")).int(limit ? parseInt(limit, 10) : 100)
+          }
+        );
+
+        const { mapRequirement } = await import("../services/graph/requirements/requirements-crud.js");
+        const requirements = result.records.map(record => {
+          const node = record.get("requirement");
+          return mapRequirement(node);
+        });
+
+        return reply.send({
+          requirements,
+          count: requirements.length
+        });
+      } finally {
+        await session.close();
+      }
+    }
+  );
+
+  /**
+   * Restore a deleted requirement
+   */
+  app.post(
+    "/admin/requirements/:tenant/:project/:requirementId/restore",
+    async (
+      req: FastifyRequest<{
+        Params: {
+          tenant: string;
+          project: string;
+          requirementId: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tenant, project, requirementId } = req.params;
+
+      try {
+        const requirement = await restoreRequirement(tenant, project, requirementId);
+
+        if (!requirement) {
+          return reply.code(404).send({
+            error: "Requirement not found or not deleted"
+          });
+        }
+
+        return reply.send({
+          message: "Requirement restored successfully",
+          requirement
+        });
+      } catch (error) {
+        logger.error({ error, tenant, project, requirementId }, "Failed to restore requirement");
+        return reply.code(500).send({
+          error: "Failed to restore requirement"
+        });
+      }
+    }
+  );
+
+  /**
+   * Permanently delete a soft-deleted requirement
+   */
+  app.delete(
+    "/admin/requirements/:tenant/:project/:requirementId/purge",
+    async (
+      req: FastifyRequest<{
+        Params: {
+          tenant: string;
+          project: string;
+          requirementId: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tenant, project, requirementId } = req.params;
+
+      try {
+        const requirement = await getRequirement(tenant, project, requirementId);
+
+        if (!requirement) {
+          return reply.code(404).send({
+            error: "Requirement not found"
+          });
+        }
+
+        if (!requirement.deleted) {
+          return reply.code(400).send({
+            error: "Requirement must be soft-deleted before purging"
+          });
+        }
+
+        // TODO: Implement hard delete function
+        return reply.code(501).send({
+          error: "Permanent deletion not yet implemented"
+        });
+      } catch (error) {
+        logger.error({ error, tenant, project, requirementId }, "Failed to purge requirement");
+        return reply.code(500).send({
+          error: "Failed to purge requirement"
+        });
+      }
+    }
+  );
+
+  /**
+   * Detect drift between Neo4j and markdown files
+   */
+  app.get(
+    "/admin/requirements/drift",
+    async (
+      req: FastifyRequest<{
+        Querystring: {
+          tenant: string;
+          project: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tenant, project } = req.query;
+
+      if (!tenant || !project) {
+        return reply.code(400).send({
+          error: "tenant and project are required"
+        });
+      }
+
+      try {
+        const requirements = await listRequirements(tenant, project, { limit: 10000 });
+
+        const driftedRequirements = requirements.filter(req => hasDrift(req));
+
+        return reply.send({
+          drifted: driftedRequirements,
+          count: driftedRequirements.length,
+          total: requirements.length
+        });
+      } catch (error) {
+        logger.error({ error, tenant, project }, "Failed to detect drift");
+        return reply.code(500).send({
+          error: "Failed to detect drift"
+        });
+      }
+    }
+  );
+
+  /**
+   * List requirements with broken trace links
+   */
+  app.get(
+    "/admin/requirements/bad-links",
+    async (
+      req: FastifyRequest<{
+        Querystring: {
+          tenant: string;
+          project: string;
+          limit?: string;
+          offset?: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tenant, project, limit, offset } = req.query;
+
+      if (!tenant || !project) {
+        return reply.code(400).send({
+          error: "tenant and project are required"
+        });
+      }
+
+      const tenantSlug = tenant.toLowerCase().replace(/\s+/g, "-");
+      const projectSlug = project.toLowerCase().replace(/\s+/g, "-");
+
+      const session = (await import("../services/graph/driver.js")).getSession();
+      try {
+        // Find all requirements that have trace links pointing to deleted/archived requirements
+        // or that have trace links where the target requirement doesn't exist
+        const result = await session.run(
+          `
+            MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+            OPTIONAL MATCH (project)-[:CONTAINS]->(direct:Requirement)
+            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
+            WITH collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
+            UNWIND reqs AS requirement
+            WITH DISTINCT requirement
+            WHERE requirement IS NOT NULL
+              AND (requirement.deleted IS NULL OR requirement.deleted = false)
+              AND (requirement.archived IS NULL OR requirement.archived = false)
+
+            // Find trace links from or to this requirement
+            OPTIONAL MATCH (project)-[:HAS_TRACE_LINK]->(traceLink:TraceLink)
+            WHERE traceLink.sourceRequirementId = requirement.id OR traceLink.targetRequirementId = requirement.id
+
+            // Get the target requirement for this trace link
+            OPTIONAL MATCH (traceLink)-[:TO_REQUIREMENT]->(toReq:Requirement)
+            WHERE traceLink.sourceRequirementId = requirement.id
+
+            // Get the source requirement for this trace link (when requirement is the target)
+            OPTIONAL MATCH (traceLink)-[:FROM_REQUIREMENT]->(fromReq:Requirement)
+            WHERE traceLink.targetRequirementId = requirement.id
+
+            // Check if links are broken or duplicate
+            WITH requirement,
+                 [link IN collect({
+                   link: traceLink,
+                   linkId: traceLink.id,
+                   targetId: CASE
+                     WHEN traceLink.sourceRequirementId = requirement.id THEN traceLink.targetRequirementId
+                     ELSE traceLink.sourceRequirementId
+                   END,
+                   linkedReq: CASE
+                     WHEN traceLink.sourceRequirementId = requirement.id THEN toReq
+                     ELSE fromReq
+                   END,
+                   isBroken: traceLink IS NOT NULL AND (
+                     (traceLink.sourceRequirementId = requirement.id AND (toReq IS NULL OR toReq.deleted = true OR toReq.archived = true)) OR
+                     (traceLink.targetRequirementId = requirement.id AND (fromReq IS NULL OR fromReq.deleted = true OR fromReq.archived = true))
+                   )
+                 }) WHERE link.linkId IS NOT NULL] AS links
+
+            // Find duplicate links (multiple links to the same target)
+            WITH requirement, links,
+                 [l IN links WHERE l.isBroken] AS brokenLinks,
+                 [targetId IN [l IN links | l.targetId] WHERE size([l2 IN links WHERE l2.targetId = targetId]) > 1] AS duplicateTargets
+
+            // Get the IDs of duplicate links (keep one, mark others as bad)
+            WITH requirement, links, brokenLinks, duplicateTargets,
+                 [l IN links WHERE l.targetId IN duplicateTargets] AS duplicateLinkGroups
+
+            // Build list of all bad links with metadata
+            WITH requirement, brokenLinks, duplicateLinkGroups, duplicateTargets,
+                 // Mark broken links
+                 [l IN brokenLinks | {linkId: l.linkId, type: 'broken'}] +
+                 // Mark duplicate links (keep first, remove rest)
+                 reduce(duplicates = [], target IN duplicateTargets |
+                   duplicates + [dl IN tail([l IN duplicateLinkGroups WHERE l.targetId = target]) | {linkId: dl.linkId, type: 'duplicate'}]
+                 ) AS allBadLinksWithType
+
+            // Only return requirements that have at least one bad link (broken or duplicate)
+            WHERE size(allBadLinksWithType) > 0
+
+            RETURN requirement,
+                   size(allBadLinksWithType) AS brokenLinkCount,
+                   [l IN allBadLinksWithType | l.linkId] AS brokenLinkIds,
+                   allBadLinksWithType AS brokenLinksMetadata
+            ORDER BY requirement.ref ASC
+            SKIP $offset
+            LIMIT $limit
+          `,
+          {
+            tenantSlug,
+            projectSlug,
+            offset: (await import("neo4j-driver")).int(offset ? parseInt(offset, 10) : 0),
+            limit: (await import("neo4j-driver")).int(limit ? parseInt(limit, 10) : 100)
+          }
+        );
+
+        const { mapRequirement } = await import("../services/graph/requirements/requirements-crud.js");
+        const requirements = result.records.map(record => {
+          const node = record.get("requirement");
+          const brokenLinkCount = record.get("brokenLinkCount");
+          const brokenLinkIds = record.get("brokenLinkIds");
+          const brokenLinksMetadata = record.get("brokenLinksMetadata");
+          const req = mapRequirement(node);
+          return {
+            ...req,
+            brokenLinkCount: brokenLinkCount ? Number(brokenLinkCount.toInt()) : 0,
+            brokenLinkIds: brokenLinkIds || [],
+            brokenLinksMetadata: brokenLinksMetadata || []
+          };
+        });
+
+        return reply.send({
+          requirements,
+          count: requirements.length
+        });
+      } finally {
+        await session.close();
+      }
+    }
+  );
+
+  /**
+   * Force sync requirement from Neo4j to markdown
+   */
+  app.post(
+    "/admin/requirements/:tenant/:project/:requirementId/sync-to-markdown",
+    async (
+      req: FastifyRequest<{
+        Params: {
+          tenant: string;
+          project: string;
+          requirementId: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tenant, project, requirementId } = req.params;
+
+      try {
+        const requirement = await getRequirement(tenant, project, requirementId);
+
+        if (!requirement) {
+          return reply.code(404).send({
+            error: "Requirement not found"
+          });
+        }
+
+        await writeRequirementMarkdown(requirement);
+
+        return reply.send({
+          message: "Requirement synced to markdown successfully",
+          requirement
+        });
+      } catch (error) {
+        logger.error({ error, tenant, project, requirementId }, "Failed to sync to markdown");
+        return reply.code(500).send({
+          error: "Failed to sync to markdown"
+        });
+      }
+    }
+  );
+
+  /**
+   * Bulk restore deleted requirements
+   */
+  app.post(
+    "/admin/requirements/bulk-restore",
+    async (
+      req: FastifyRequest<{
+        Body: {
+          tenant: string;
+          project: string;
+          requirementIds: string[];
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tenant, project, requirementIds } = req.body;
+
+      if (!tenant || !project || !requirementIds || !Array.isArray(requirementIds)) {
+        return reply.code(400).send({
+          error: "tenant, project, and requirementIds array are required"
+        });
+      }
+
+      const results = {
+        restored: [] as string[],
+        failed: [] as { id: string; error: string }[]
+      };
+
+      for (const requirementId of requirementIds) {
+        try {
+          const requirement = await restoreRequirement(tenant, project, requirementId);
+          if (requirement) {
+            results.restored.push(requirementId);
+          } else {
+            results.failed.push({
+              id: requirementId,
+              error: "Requirement not found or not deleted"
+            });
+          }
+        } catch (error) {
+          results.failed.push({
+            id: requirementId,
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
+      }
+
+      return reply.send({
+        message: `Restored ${results.restored.length} of ${requirementIds.length} requirements`,
+        results
+      });
+    }
+  );
+}

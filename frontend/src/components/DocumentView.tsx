@@ -164,28 +164,31 @@ export function DocumentView({
     }
   });
 
-  // Populate sections with their requirements and infos when sections data is available
+  // Populate sections with their requirements, infos, and surrogates when sections data is available
   useEffect(() => {
     if (sectionsQuery.data?.sections) {
       const loadSectionsWithRequirements = async () => {
         const sectionsWithRequirements = await Promise.all(
           sectionsQuery.data.sections.map(async (section) => {
             try {
-              const [requirementsResponse, infosResponse] = await Promise.all([
+              const [requirementsResponse, infosResponse, surrogatesResponse] = await Promise.all([
                 api.listSectionRequirements(section.id),
-                api.listSectionInfos(section.id)
+                api.listSectionInfos(section.id),
+                api.listSectionSurrogates(section.id)
               ]);
               return {
                 ...section,
                 requirements: requirementsResponse.requirements,
-                infos: infosResponse.infos
+                infos: infosResponse.infos,
+                surrogates: surrogatesResponse.surrogates
               };
             } catch (error) {
-              console.error(`Failed to load requirements/infos for section ${section.id}:`, error);
+              console.error(`Failed to load requirements/infos/surrogates for section ${section.id}:`, error);
               return {
                 ...section,
                 requirements: [],
-                infos: []
+                infos: [],
+                surrogates: []
               };
             }
           })
@@ -423,13 +426,14 @@ export function DocumentView({
       </div>
 
       {/* Content Area */}
-      <div style={{ display: "flex", flex: 1 }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Sections Sidebar */}
         <div style={{
           width: "300px",
           borderRight: "1px solid #e2e8f0",
           backgroundColor: "#fafafa",
-          padding: "16px"
+          padding: "16px",
+          overflowY: "auto"
         }}>
           <h3 style={{ margin: "0 0 16px 0", fontSize: "16px" }}>Document Sections</h3>
           {[...sections]
@@ -601,10 +605,10 @@ export function DocumentView({
         </div>
 
         {/* Requirements Table */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          {selectedSection && sections.find(s => s.id === selectedSection) ? (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {sections.length > 0 ? (
             <RequirementsTable
-              section={sections.find(s => s.id === selectedSection)!}
+              sections={sections}
               tenant={tenant}
               project={project}
               traceLinks={traceLinksQuery.data?.traceLinks || []}
@@ -613,17 +617,6 @@ export function DocumentView({
               onOpenFloatingDocument={handleOpenFloatingDocument}
               onEditMarkdown={() => setShowMarkdownEditor(true)}
             />
-          ) : selectedSection ? (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flex: 1,
-              color: "#64748b",
-              fontSize: "16px"
-            }}>
-              Loading section...
-            </div>
           ) : (
             <div style={{
               display: "flex",
@@ -633,7 +626,7 @@ export function DocumentView({
               color: "#64748b",
               fontSize: "16px"
             }}>
-              Select a section to view requirements
+              No sections found. Add a section to get started.
             </div>
           )}
         </div>

@@ -25,6 +25,11 @@ export type RequirementRecord = {
   updatedAt: string;
   deleted?: boolean;
   archived?: boolean;
+  // Data integrity fields
+  contentHash?: string; // SHA-256 hash of requirement content
+  deletedAt?: string; // ISO timestamp when deleted
+  deletedBy?: string; // User who deleted it
+  restoredAt?: string; // ISO timestamp when restored from deletion
 };
 
 export type BaselineRecord = {
@@ -61,7 +66,7 @@ export function slugify(value: string): string {
     .replace(/^-+|-+$/g, "") || "project";
 }
 
-function requirementMarkdown(record: RequirementRecord): string {
+export function requirementMarkdown(record: RequirementRecord): string {
   const metadata = {
     id: record.id,
     ref: record.ref,
@@ -111,7 +116,7 @@ function requirementMarkdown(record: RequirementRecord): string {
   return `---\n${yaml}\n---\n\n${record.text}\n`;
 }
 
-function requirementFile(record: { tenant: string; projectKey: string; ref: string }): string {
+export function requirementFile(record: { tenant: string; projectKey: string; ref: string }): string {
   return join(config.workspaceRoot, record.tenant, record.projectKey, "requirements", `${record.ref}.md`);
 }
 
