@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
 import { Modal, TextInput, TextArea, Select, Button } from "./Modal";
-import type { RequirementRecord, RequirementPattern, VerificationMethod } from "../types";
+import type { RequirementRecord, RequirementPattern, VerificationMethod, DocumentSectionRecord } from "../types";
 
 interface EditRequirementModalProps {
   isOpen: boolean;
   requirement: RequirementRecord | null;
+  sections?: DocumentSectionRecord[];
   onClose: () => void;
   onUpdate: (updates: {
     text?: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
+    sectionId?: string;
   }) => void;
   onDelete?: () => void;
 }
@@ -17,6 +19,7 @@ interface EditRequirementModalProps {
 export function EditRequirementModal({
   isOpen,
   requirement,
+  sections = [],
   onClose,
   onUpdate,
   onDelete
@@ -24,19 +27,26 @@ export function EditRequirementModal({
   const [text, setText] = useState("");
   const [pattern, setPattern] = useState<RequirementPattern | "">("");
   const [verification, setVerification] = useState<VerificationMethod | "">("");
+  const [sectionId, setSectionId] = useState<string>("");
 
   useEffect(() => {
     if (isOpen && requirement) {
       setText(requirement.text);
       setPattern(requirement.pattern || "");
       setVerification(requirement.verification || "");
+      // Find the current section ID if the requirement belongs to a section
+      const currentSection = sections.find(s =>
+        s.requirements?.some((r: any) => r.id === requirement.id)
+      );
+      setSectionId(currentSection?.id || "");
     }
-  }, [isOpen, requirement]);
+  }, [isOpen, requirement, sections]);
 
   const handleClose = () => {
     setText("");
     setPattern("");
     setVerification("");
+    setSectionId("");
     onClose();
   };
 
@@ -46,7 +56,8 @@ export function EditRequirementModal({
       onUpdate({
         text: text.trim(),
         pattern: pattern as RequirementPattern || undefined,
-        verification: verification as VerificationMethod || undefined
+        verification: verification as VerificationMethod || undefined,
+        sectionId: sectionId || undefined
       });
       handleClose();
     }
@@ -149,6 +160,22 @@ export function EditRequirementModal({
             help="How this requirement will be verified"
           />
         </div>
+
+        {sections.length > 0 && (
+          <Select
+            label="Section"
+            value={sectionId}
+            onChange={(e) => setSectionId(e.target.value)}
+            options={[
+              { value: "", label: "Select section (optional)" },
+              ...sections.map(section => ({
+                value: section.id,
+                label: `${section.shortCode ? `[${section.shortCode}] ` : ''}${section.name}`
+              }))
+            ]}
+            help="Move this requirement to a different section"
+          />
+        )}
       </form>
     </Modal>
   );

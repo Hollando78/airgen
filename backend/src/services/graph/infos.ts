@@ -222,3 +222,52 @@ export async function listSectionInfos(sectionId: string): Promise<InfoRecord[]>
     await session.close();
   }
 }
+
+export async function reorderInfos(sectionId: string, infoIds: string[]): Promise<void> {
+  const session = getSession();
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      // Update order for each info
+      for (let i = 0; i < infoIds.length; i++) {
+        const query = `
+          MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_INFO]->(info:Info {id: $infoId})
+          SET info.order = $order, info.updatedAt = $now
+        `;
+        await tx.run(query, {
+          sectionId,
+          infoId: infoIds[i],
+          order: i,
+          now: new Date().toISOString()
+        });
+      }
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+export async function reorderInfosWithOrder(
+  sectionId: string,
+  infos: Array<{ id: string; order: number }>
+): Promise<void> {
+  const session = getSession();
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      // Update order for each info with explicit order value
+      for (const info of infos) {
+        const query = `
+          MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_INFO]->(info:Info {id: $infoId})
+          SET info.order = $order, info.updatedAt = $now
+        `;
+        await tx.run(query, {
+          sectionId,
+          infoId: info.id,
+          order: info.order,
+          now: new Date().toISOString()
+        });
+      }
+    });
+  } finally {
+    await session.close();
+  }
+}

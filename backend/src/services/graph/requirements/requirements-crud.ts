@@ -60,6 +60,7 @@ export function mapRequirement(node: Neo4jNode, documentSlug?: string): Requirem
     tags: Array.isArray(props.tags) ? (props.tags as string[]) : [],
     path: String(props.path),
     documentSlug,
+    order: props.order !== undefined && props.order !== null ? toNumber(props.order) : undefined,
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt),
     deleted: props.deleted ? Boolean(props.deleted) : undefined,
@@ -720,4 +721,53 @@ export async function updateRequirementRefsForSection(
   `;
 
   await tx.run(updateQuery, { sectionId, now: new Date().toISOString() });
+}
+
+export async function reorderRequirements(sectionId: string, requirementIds: string[]): Promise<void> {
+  const session = getSession();
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      // Update order for each requirement
+      for (let i = 0; i < requirementIds.length; i++) {
+        const query = `
+          MATCH (section:DocumentSection {id: $sectionId})-[:HAS_REQUIREMENT]->(requirement:Requirement {id: $requirementId})
+          SET requirement.order = $order, requirement.updatedAt = $now
+        `;
+        await tx.run(query, {
+          sectionId,
+          requirementId: requirementIds[i],
+          order: i,
+          now: new Date().toISOString()
+        });
+      }
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+export async function reorderRequirementsWithOrder(
+  sectionId: string,
+  requirements: Array<{ id: string; order: number }>
+): Promise<void> {
+  const session = getSession();
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      // Update order for each requirement with explicit order value
+      for (const req of requirements) {
+        const query = `
+          MATCH (section:DocumentSection {id: $sectionId})-[:HAS_REQUIREMENT]->(requirement:Requirement {id: $requirementId})
+          SET requirement.order = $order, requirement.updatedAt = $now
+        `;
+        await tx.run(query, {
+          sectionId,
+          requirementId: req.id,
+          order: req.order,
+          now: new Date().toISOString()
+        });
+      }
+    });
+  } finally {
+    await session.close();
+  }
 }

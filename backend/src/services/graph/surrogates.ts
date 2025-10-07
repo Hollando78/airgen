@@ -170,3 +170,52 @@ export async function deleteAllSurrogateReferencesForDocument(tenant: string, pr
     await session.close();
   }
 }
+
+export async function reorderSurrogateReferences(sectionId: string, surrogateIds: string[]): Promise<void> {
+  const session = getSession();
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      // Update order for each surrogate reference
+      for (let i = 0; i < surrogateIds.length; i++) {
+        const query = `
+          MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate:SurrogateReference {id: $surrogateId})
+          SET surrogate.order = $order, surrogate.updatedAt = $now
+        `;
+        await tx.run(query, {
+          sectionId,
+          surrogateId: surrogateIds[i],
+          order: i,
+          now: new Date().toISOString()
+        });
+      }
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+export async function reorderSurrogateReferencesWithOrder(
+  sectionId: string,
+  surrogates: Array<{ id: string; order: number }>
+): Promise<void> {
+  const session = getSession();
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      // Update order for each surrogate reference with explicit order value
+      for (const surrogate of surrogates) {
+        const query = `
+          MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate:SurrogateReference {id: $surrogateId})
+          SET surrogate.order = $order, surrogate.updatedAt = $now
+        `;
+        await tx.run(query, {
+          sectionId,
+          surrogateId: surrogate.id,
+          order: surrogate.order,
+          now: new Date().toISOString()
+        });
+      }
+    });
+  } finally {
+    await session.close();
+  }
+}

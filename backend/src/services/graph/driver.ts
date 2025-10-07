@@ -13,7 +13,14 @@ export async function initGraph(): Promise<void> {
     driver = neo4j.driver(
       config.graph.url,
       neo4j.auth.basic(config.graph.username, config.graph.password),
-      { encrypted: getEncryption() }
+      {
+        encrypted: getEncryption(),
+        // Connection pool configuration for optimal performance and resource management
+        maxConnectionPoolSize: 50,           // Max concurrent connections (default: 100)
+        connectionAcquisitionTimeout: 60000, // Wait up to 60s for connection (default: 60000)
+        maxConnectionLifetime: 3600000,      // Recycle connections after 1 hour (default: 1 hour)
+        connectionTimeout: 30000,            // Connection establishment timeout 30s (default: 30000)
+      }
     );
   }
 

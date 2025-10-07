@@ -6,6 +6,7 @@ import { mapRequirement } from "./requirements-crud.js";
 import type { RequirementRecord } from "../../workspace.js";
 import { getCached, CacheKeys, CacheInvalidation } from "../../../lib/cache.js";
 import { logger } from "../../../lib/logger.js";
+import { buildListRequirementsQuery, buildSuggestLinksQuery, executeCypherQuery } from "../../../lib/neo4j-query-builder.js";
 
 export interface ListOptions {
   limit?: number;              // Default 100, max 1000
@@ -26,18 +27,6 @@ export async function listRequirements(
   const orderBy = options?.orderBy ?? "ref";
   const orderDirection = options?.orderDirection === "DESC" ? "DESC" : "ASC";
 
-  const orderField = (() => {
-    switch (orderBy) {
-      case "createdAt":
-        return "requirement.createdAt";
-      case "qaScore":
-        return "requirement.qaScore";
-      case "ref":
-      default:
-        return "requirement.ref";
-    }
-  })();
-
   // Cache for 1 minute (60 seconds) - invalidate on update
   const cacheKey = CacheKeys.requirements(
     tenantSlug,
@@ -52,24 +41,17 @@ export async function listRequirements(
       const session = getSession();
       try {
         // QUERY PROFILE: expected <100ms for typical datasets with pagination
-        const result = await session.run(
-          `
-            MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
-            OPTIONAL MATCH (project)-[:CONTAINS]->(direct:Requirement)
-            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
-            WITH project, collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
-            UNWIND reqs AS requirement
-            WITH DISTINCT requirement
-            WHERE requirement IS NOT NULL
-              AND (requirement.deleted IS NULL OR requirement.deleted = false)
-              AND (requirement.archived IS NULL OR requirement.archived = false)
-            RETURN requirement
-            ORDER BY ${orderField} ${orderDirection}, requirement.ref ASC
-            SKIP $offset
-            LIMIT $limit
-          `,
-          { tenantSlug, projectSlug, offset: neo4jInt(offset), limit: neo4jInt(limit) }
-        );
+        // Using @neo4j/cypher-builder for type-safe query construction and automatic parameterization
+        const query = buildListRequirementsQuery({
+          tenantSlug,
+          projectSlug,
+          orderBy,
+          orderDirection,
+          offset,
+          limit
+        });
+
+        const result = await executeCypherQuery(session, query);
 
         return result.records.map(record => {
           const node = record.get("requirement") as Neo4jNode;
@@ -145,7 +127,7 @@ export async function listSectionRequirements(sectionId: string): Promise<Requir
         WHERE (requirement.deleted IS NULL OR requirement.deleted = false)
           AND (requirement.archived IS NULL OR requirement.archived = false)
         RETURN requirement, doc.slug AS documentSlug
-        ORDER BY requirement.ref
+        ORDER BY coalesce(requirement.order, 999999), requirement.ref
       `,
       { sectionId }
     );
@@ -228,15 +210,15 @@ export async function suggestLinks(params: {
 
   const session = getSession();
   try {
-    const result = await session.run(
-      `
-        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:CONTAINS]->(requirement:Requirement)
-        WHERE toLower(requirement.text) CONTAINS $needle
-        RETURN requirement.ref AS ref, requirement.title AS title, requirement.path AS path
-        LIMIT $limit
-      `,
-      { tenantSlug, projectSlug, needle, limit }
-    );
+    // Using @neo4j/cypher-builder for type-safe query construction
+    const query = buildSuggestLinksQuery({
+      tenantSlug,
+      projectSlug,
+      searchText: needle,
+      limit
+    });
+
+    const result = await executeCypherQuery(session, query);
 
     const suggestions: Array<{ ref: string; title: string; path: string }> = [];
     for (const record of result.records) {
