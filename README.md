@@ -9,12 +9,16 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Deterministic QA** – Scores requirements against ISO/IEC/IEEE 29148 inspired checks.
 - **Archive management** – Archive/unarchive requirements to hide them from default views without deletion. Works for individual requirements and groups.
 - **Duplicate detection** – Identifies and helps fix duplicate requirements.
+- **Inline editing** – Edit requirement fields directly in the table view with double-click activation.
+- **Custom attributes** – Extensible attribute system for project-specific metadata (foundation in place, full schema management coming soon).
 
 ### Document Management
 - **Document upload** – Support for Word, PDF, and other document formats.
 - **Document parsing** – Extracts sections and content from uploaded documents.
 - **Folder organization** – Organize documents in hierarchical folder structures.
 - **Section management** – Create and manage document sections with requirement linking.
+- **Markdown editor** – Edit structured documents in markdown format with live Neo4j data as source of truth.
+- **Optimized queries** – Batched Neo4j queries reduce API calls by ~97% for document loading.
 
 ### Traceability & Linking
 - **Trace links** – Create and manage trace relationships between requirements.
@@ -76,6 +80,8 @@ See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 - [E2E testing](./E2E_TESTING.md) – End-to-end testing with Playwright.
 - [Observability](./OBSERVABILITY.md) – Metrics, health checks, and optional Sentry wiring.
 - [Troubleshooting](./TROUBLESHOOTING.md) – Quick fixes for the most common developer issues.
+- [Custom Attributes Implementation](./CUSTOM_ATTRIBUTES_IMPLEMENTATION.md) – Guide for implementing extensible custom attributes on requirements.
+- [Neo4j Improvements](./NEO4J_IMPROVEMENTS_SUMMARY.md) – Performance optimizations and security enhancements.
 
 ## Getting started (Docker)
 ```bash
@@ -162,6 +168,7 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 | GET    | `/folders/:tenant/:project`               | List folders |
 | POST   | `/sections`                               | Create a section |
 | GET    | `/sections/:tenant/:project/:docSlug`     | List sections |
+| GET    | `/sections/:tenant/:project/:docSlug/full`| List sections with all relations (optimized) |
 
 ### Traceability & Linking
 | Method | Path                                      | Purpose |

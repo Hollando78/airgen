@@ -845,6 +845,152 @@ error TS2304: Cannot find name 'MyType'
 - [Radix UI Documentation](https://www.radix-ui.com/) - Accessible UI components
 - [Sonner Documentation](https://sonner.emilkowal.ski/) - Toast notifications
 
+### Implementing Inline Editing
+
+The requirements table supports inline editing for certain fields. Here's how to add inline editing for a new field:
+
+```typescript
+// 1. Add editing state in SortableRow component
+const [editingField, setEditingField] = useState<string | null>(null);
+const [editValue, setEditValue] = useState<string>("");
+
+// 2. Handle double-click to enter edit mode
+const handleDoubleClick = (field: string, currentValue: string) => {
+  setEditingField(field);
+  setEditValue(currentValue || "");
+};
+
+// 3. Save on blur or Enter key
+const handleSave = () => {
+  if (editingField && onFieldUpdate && item.type === 'requirement') {
+    const req = item.data as RequirementRecord;
+    if (editValue !== req[editingField as keyof RequirementRecord]) {
+      onFieldUpdate(req, editingField, editValue);
+    }
+  }
+  setEditingField(null);
+};
+
+// 4. Render editable cell
+<td
+  onDoubleClick={() => handleDoubleClick('myField', req.myField || "")}
+  style={{ cursor: "pointer" }}
+>
+  {editingField === 'myField' ? (
+    <input
+      value={editValue}
+      onChange={(e) => setEditValue(e.target.value)}
+      onBlur={handleSave}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') handleSave();
+        if (e.key === 'Escape') setEditingField(null);
+      }}
+      autoFocus
+    />
+  ) : (
+    req.myField || <span style={{ color: "#94a3b8" }}>Double-click to set</span>
+  )}
+</td>
+```
+
+For dropdown fields (like verification method):
+```typescript
+{editingField === 'verification' ? (
+  <select
+    value={editValue}
+    onChange={(e) => setEditValue(e.target.value)}
+    onBlur={handleSave}
+    autoFocus
+  >
+    <option value="">None</option>
+    <option value="Test">Test</option>
+    <option value="Analysis">Analysis</option>
+    <option value="Inspection">Inspection</option>
+    <option value="Demonstration">Demonstration</option>
+  </select>
+) : (
+  req.verification || <span>Double-click to set</span>
+)}
+```
+
+### Optimizing Neo4j Queries
+
+Follow these patterns for optimal Neo4j query performance:
+
+**1. Use Batched Queries Instead of N+1 Patterns**
+
+❌ **Bad** - N+1 queries:
+```typescript
+// Fetch sections
+const sections = await listDocumentSections(tenant, project, documentSlug);
+
+// Fetch related data for each section (N queries)
+for (const section of sections) {
+  section.requirements = await listSectionRequirements(section.id);
+  section.infos = await listSectionInfos(section.id);
+  section.surrogates = await listSectionSurrogates(section.id);
+}
+// Total: 1 + (3 × N) queries
+```
+
+✅ **Good** - Single batched query:
+```typescript
+// Fetch everything in one query
+const sections = await listDocumentSectionsWithRelations(tenant, project, documentSlug);
+// Total: 1 query (~97% reduction for 10 sections)
+```
+
+**2. Use Query Monitoring**
+
+```typescript
+import { executeMonitoredQuery } from "../lib/neo4j-monitor.js";
+
+const result = await executeMonitoredQuery(
+  session,
+  query,
+  params,
+  'operationName'  // Appears in logs for tracking
+);
+```
+
+**3. Batch Related Data with COLLECT**
+
+```cypher
+MATCH (section:DocumentSection)-[:HAS_REQUIREMENT]->(req:Requirement)
+WHERE section.id = $sectionId
+
+// Collect all requirements per section
+WITH section, COLLECT(req) as requirements
+
+RETURN section, requirements
+```
+
+**4. Use OPTIONAL MATCH for Relations That May Not Exist**
+
+```cypher
+MATCH (section:DocumentSection {id: $sectionId})
+
+OPTIONAL MATCH (section)-[:HAS_REQUIREMENT]->(req:Requirement)
+OPTIONAL MATCH (section)-[:CONTAINS_INFO]->(info:Info)
+
+WITH section,
+     COLLECT(DISTINCT req) as requirements,
+     COLLECT(DISTINCT info) as infos
+
+RETURN section, requirements, infos
+```
+
+**5. Filter Nulls from Collections**
+
+```cypher
+WITH section, COLLECT(req) as reqs
+
+RETURN section,
+       [r IN reqs WHERE r IS NOT NULL | r] as requirements
+```
+
+See [NEO4J_IMPROVEMENTS_SUMMARY.md](./NEO4J_IMPROVEMENTS_SUMMARY.md) for comprehensive optimization examples.
+
 ## Getting Help
 
 - Check existing issues on GitHub
@@ -852,3 +998,4 @@ error TS2304: Cannot find name 'MyType'
 - Check Neo4j schema docs in `backend/docs/NEO4J_SCHEMA.md`
 - Ask in team chat or create new issue
 - Consult the [documentation map](./README.md#documentation-map) for topic-specific guides
+- Review [CUSTOM_ATTRIBUTES_IMPLEMENTATION.md](./CUSTOM_ATTRIBUTES_IMPLEMENTATION.md) for extensibility patterns
