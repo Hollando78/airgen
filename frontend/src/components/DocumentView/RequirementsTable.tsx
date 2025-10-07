@@ -679,7 +679,7 @@ export function RequirementsTable({
       // Add requirements, infos, and surrogates for this section
       // Use stored order field if available, otherwise use index
       const sectionItems = [
-        ...section.requirements.map((req, idx) => ({
+        ...(section.requirements || []).map((req, idx) => ({
           type: 'requirement' as const,
           data: req,
           order: req.order ?? idx,
@@ -689,14 +689,14 @@ export function RequirementsTable({
         ...(section.infos || []).map((info, idx) => ({
           type: 'info' as const,
           data: info,
-          order: info.order ?? (section.requirements.length + idx),
+          order: info.order ?? ((section.requirements || []).length + idx),
           sectionName: section.name,
           sectionOrder: sectionIndex
         })),
         ...(section.surrogates || []).map((surrogate, idx) => ({
           type: 'surrogate' as const,
           data: surrogate,
-          order: surrogate.order ?? (section.requirements.length + (section.infos?.length || 0) + idx),
+          order: surrogate.order ?? ((section.requirements || []).length + (section.infos?.length || 0) + idx),
           sectionName: section.name,
           sectionOrder: sectionIndex
         }))

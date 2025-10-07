@@ -18,6 +18,7 @@ import {
   softDeleteFolder,
   createDocumentSection,
   listDocumentSections,
+  listDocumentSectionsWithRelations,
   updateDocumentSection,
   deleteDocumentSection,
   listSectionRequirements,
@@ -762,6 +763,19 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
     });
     const params = paramsSchema.parse(req.params);
     const sections = await listDocumentSections(params.tenant, params.project, params.documentSlug);
+    return { sections };
+  });
+
+  // Optimized endpoint that fetches sections with all related data in a single query
+  // Reduces N+1 queries: 30 API calls → 1 API call for 10 sections (~97% reduction)
+  app.get("/sections/:tenant/:project/:documentSlug/full", async (req) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      documentSlug: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+    const sections = await listDocumentSectionsWithRelations(params.tenant, params.project, params.documentSlug);
     return { sections };
   });
 
