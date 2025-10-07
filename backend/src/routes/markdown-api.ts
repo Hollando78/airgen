@@ -10,7 +10,7 @@ import { parseMarkdownDocument, validateMarkdownStructure } from "../services/ma
 import { syncParsedDocument } from "../services/markdown-sync.js";
 import { getSession } from "../services/graph/driver.js";
 import { slugify } from "../services/workspace.js";
-import { listDocumentSections } from "../services/graph/documents/documents-sections.js";
+import { listDocumentSections, listDocumentSectionsWithRelations } from "../services/graph/documents/documents-sections.js";
 import { listSectionRequirements, listDocumentRequirements } from "../services/graph/requirements/requirements-search.js";
 
 const getContentParams = z.object({
@@ -81,6 +81,10 @@ const validateContentBody = z.object({
 
 /**
  * Generate markdown content from Neo4j data
+ *
+ * The source of truth is always the live Neo4j data (sections, requirements, infos, surrogates).
+ * Inline edits modify Neo4j directly and are considered published changes.
+ * ContentBlocks are only used as a fallback for legacy documents or when live data is unavailable.
  */
 export async function generateMarkdownFromNeo4j(
   tenant: string,
@@ -93,48 +97,23 @@ export async function generateMarkdownFromNeo4j(
   const projectSlug = slugify(project);
 
   try {
-    const blocksResult = await session.run(
-      `
-        MATCH (doc:Document {slug: $documentSlug, tenant: $tenantSlug, projectKey: $projectSlug})
-        OPTIONAL MATCH (doc)-[:HAS_CONTENT_BLOCK]->(block:DocumentContentBlock)
-        RETURN block
-        ORDER BY block.order
-      `,
-      { documentSlug, tenantSlug, projectSlug }
-    );
-
-    const blocks = blocksResult.records
-      .map(record => record.get("block") as any)
-      .filter(Boolean);
-
-    if (blocks.length > 0) {
-      const markdownFromBlocks = blocks
-        .map(blockNode => {
-          const props = blockNode.properties as Record<string, unknown>;
-          const rawValue = props.raw;
-          return typeof rawValue === "string" ? rawValue : "";
-        })
-        .filter(raw => raw !== null && raw !== undefined)
-        .join("\n");
-
-      if (markdownFromBlocks.trim().length > 0) {
-        return markdownFromBlocks;
-      }
-    }
-
-    // Fallback to legacy generation for documents without content blocks recorded yet
-    const sections = await listDocumentSections(tenant, project, documentSlug);
+    // Always generate from live Neo4j data (source of truth)
+    // Use optimized query that fetches all data in one call
+    const sections = await listDocumentSectionsWithRelations(tenant, project, documentSlug);
 
     let markdown = `# ${documentName}\n\n`;
 
     if (sections.length > 0) {
+      // Track all requirements that are in sections
+      const sectionedReqIds = new Set<string>();
+
       for (const section of sections) {
-        const sectionReqs = await listSectionRequirements(section.id);
         const prefix = section.shortCode ? `[${section.shortCode}] ` : "";
         markdown += `## ${prefix}${section.name}\n\n`;
 
-        if (sectionReqs.length > 0) {
-          for (const req of sectionReqs) {
+        if (section.requirements && section.requirements.length > 0) {
+          for (const req of section.requirements) {
+            sectionedReqIds.add(req.id);
             markdown += `:::requirement{#${req.ref} title="${req.ref}"}\n`;
             markdown += `${req.text}\n`;
             if (req.pattern) {
@@ -146,18 +125,25 @@ export async function generateMarkdownFromNeo4j(
             markdown += `:::\n\n`;
           }
         }
-      }
 
-      const allRequirements = await listDocumentRequirements(tenant, project, documentSlug);
-      const sectionedReqIds = new Set<string>();
+        if (section.infos && section.infos.length > 0) {
+          for (const info of section.infos) {
+            markdown += `:::info\n`;
+            markdown += `${info.text}\n`;
+            markdown += `:::\n\n`;
+          }
+        }
 
-      for (const section of sections) {
-        const sectionReqs = await listSectionRequirements(section.id);
-        for (const req of sectionReqs) {
-          sectionedReqIds.add(req.id);
+        if (section.surrogates && section.surrogates.length > 0) {
+          for (const surrogate of section.surrogates) {
+            markdown += `:::surrogate{slug="${surrogate.slug}"}\n`;
+            markdown += `:::\n\n`;
+          }
         }
       }
 
+      // Handle unsectioned requirements
+      const allRequirements = await listDocumentRequirements(tenant, project, documentSlug);
       const unsectioned = allRequirements.filter(req => !sectionedReqIds.has(req.id));
       if (unsectioned.length > 0) {
         markdown += `## Unsectioned Requirements\n\n`;
