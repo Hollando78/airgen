@@ -9,6 +9,8 @@ import { DocumentTree } from "../components/Trace/DocumentTree";
 import { VisualLinksArea } from "../components/Trace/VisualLinksArea";
 import { RequirementContextMenu } from "../components/RequirementContextMenu";
 import { LinkTypeSelectionModal } from "../components/LinkTypeSelectionModal";
+import { CopyAndLinkModal } from "../components/CopyAndLinkModal";
+import { DeleteConfirmationModal } from "../components/DeleteConfirmationModal";
 import { useRequirementLinking } from "../contexts/RequirementLinkingContext";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -466,6 +468,12 @@ function TraceLinksView(): JSX.Element {
   const [draggedRequirement, setDraggedRequirement] = useState<RequirementRecord | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string>("");
   const [targetFilter, setTargetFilter] = useState<string>("");
+  const [copyLinkModal, setCopyLinkModal] = useState<{
+    sourceRequirement: RequirementRecord;
+    targetSectionId: string;
+    targetDocument: DocumentRecord;
+  } | null>(null);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<RequirementRecord | null>(null);
 
   // Fetch linksets
   const linksetsQuery = useQuery({
@@ -571,6 +579,18 @@ function TraceLinksView(): JSX.Element {
     }
   });
 
+  // Delete mutation (soft delete)
+  const deleteMutation = useMutation({
+    mutationFn: (requirementId: string) =>
+      apiClient.deleteRequirement(tenant, project, requirementId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trace-links", tenant, project] });
+      queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
+      queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
+      queryClient.invalidateQueries({ queryKey: ["sections-with-relations", tenant, project] });
+    }
+  });
+
   const handleArchive = React.useCallback((requirementId: string) => {
     archiveMutation.mutate(requirementId);
   }, [archiveMutation]);
@@ -578,6 +598,20 @@ function TraceLinksView(): JSX.Element {
   const handleUnarchive = React.useCallback((requirementId: string) => {
     unarchiveMutation.mutate(requirementId);
   }, [unarchiveMutation]);
+
+  const handleRequestDelete = React.useCallback((requirement: RequirementRecord) => {
+    setDeleteConfirmModal(requirement);
+  }, []);
+
+  const handleConfirmDelete = React.useCallback(async () => {
+    if (!deleteConfirmModal) return;
+    deleteMutation.mutate(deleteConfirmModal.id);
+    setDeleteConfirmModal(null);
+  }, [deleteConfirmModal, deleteMutation]);
+
+  const handleCancelDelete = React.useCallback(() => {
+    setDeleteConfirmModal(null);
+  }, []);
 
   const handleStartLink = React.useCallback(() => {
     if (contextMenu.requirement) {
@@ -614,6 +648,54 @@ function TraceLinksView(): JSX.Element {
   const handleCancelLink = React.useCallback(() => {
     setLinkModal(null);
     setLinkingState({ sourceRequirement: null, isLinking: false });
+  }, []);
+
+  const handleCopyAndLink = React.useCallback(async () => {
+    if (!copyLinkModal || !tenant || !project || !selectedLinkset) return;
+
+    const { sourceRequirement, targetSectionId, targetDocument } = copyLinkModal;
+
+    try {
+      // Step 1: Create a copy of the requirement in the target section
+      const createResponse = await apiClient.createRequirement({
+        tenant,
+        projectKey: project,
+        documentSlug: targetDocument.slug,
+        sectionId: targetSectionId,
+        text: sourceRequirement.text,
+        pattern: sourceRequirement.pattern,
+        verification: sourceRequirement.verification,
+        attributes: sourceRequirement.attributes || {}
+      });
+
+      const copiedRequirement = createResponse.requirement;
+
+      // Step 2: Create a trace link between source and copied requirement
+      // Use the linkset's default link type
+      const linkType = selectedLinkset.defaultLinkType || "satisfies";
+
+      await apiClient.createTraceLink(tenant, project, {
+        sourceRequirementId: sourceRequirement.id,
+        targetRequirementId: copiedRequirement.id,
+        linkType,
+        description: `Auto-linked from copy operation`
+      });
+
+      // Step 3: Invalidate queries to refresh the UI
+      await queryClient.invalidateQueries({ queryKey: ["trace-links", tenant, project] });
+      await queryClient.invalidateQueries({ queryKey: ["sections-with-relations", tenant, project] });
+      await queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
+
+      // Close the modal
+      setCopyLinkModal(null);
+    } catch (error) {
+      console.error('Failed to copy and link requirement:', error);
+      throw error; // Re-throw to let modal handle error state
+    }
+  }, [copyLinkModal, tenant, project, selectedLinkset, apiClient, queryClient]);
+
+  const handleCancelCopyLink = React.useCallback(() => {
+    setCopyLinkModal(null);
   }, []);
 
   const handleRequirementSelect = React.useCallback((requirement: RequirementRecord, isMultiSelect: boolean) => {
@@ -682,6 +764,35 @@ function TraceLinksView(): JSX.Element {
     }
     setDraggedRequirement(null);
   }, [draggedRequirement]);
+
+  const handleDropOnSection = React.useCallback((event: React.DragEvent, sectionId: string, targetDocumentSlug: string) => {
+    event.preventDefault();
+    const target = event.currentTarget as HTMLElement;
+    target.classList.remove('drag-over');
+
+    if (!draggedRequirement || !selectedLinkset) {
+      setDraggedRequirement(null);
+      return;
+    }
+
+    // Determine the target document based on which document the section belongs to
+    let targetDocument: DocumentRecord;
+    if (targetDocumentSlug === selectedLinkset.sourceDocument.slug) {
+      targetDocument = selectedLinkset.sourceDocument;
+    } else if (targetDocumentSlug === selectedLinkset.targetDocument.slug) {
+      targetDocument = selectedLinkset.targetDocument;
+    } else {
+      setDraggedRequirement(null);
+      return;
+    }
+
+    setCopyLinkModal({
+      sourceRequirement: draggedRequirement,
+      targetSectionId: sectionId,
+      targetDocument
+    });
+    setDraggedRequirement(null);
+  }, [draggedRequirement, selectedLinkset]);
 
 
   if (!tenant || !project) {
@@ -792,6 +903,7 @@ function TraceLinksView(): JSX.Element {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
+                onDropOnSection={handleDropOnSection}
                 traceLinks={traceLinksQuery.data?.traceLinks || []}
                 documentSide="left"
                 filter={sourceFilter}
@@ -855,6 +967,7 @@ function TraceLinksView(): JSX.Element {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
+                onDropOnSection={handleDropOnSection}
                 traceLinks={traceLinksQuery.data?.traceLinks || []}
                 documentSide="right"
                 filter={targetFilter}
@@ -878,6 +991,7 @@ function TraceLinksView(): JSX.Element {
           onCancelLink={() => setLinkingState({ sourceRequirement: null, isLinking: false })}
           onArchive={handleArchive}
           onUnarchive={handleUnarchive}
+          onRequestDelete={handleRequestDelete}
           linkingRequirement={linkingState.sourceRequirement}
           traceLinks={traceLinksQuery.data?.traceLinks || []}
         />
@@ -890,6 +1004,26 @@ function TraceLinksView(): JSX.Element {
           targetRequirement={linkModal.targetRequirement}
           onConfirm={handleCreateLink}
           onCancel={handleCancelLink}
+        />
+      )}
+
+      {copyLinkModal && (
+        <CopyAndLinkModal
+          isOpen={true}
+          sourceRequirement={copyLinkModal.sourceRequirement}
+          targetDocument={copyLinkModal.targetDocument}
+          targetSectionId={copyLinkModal.targetSectionId}
+          onConfirm={handleCopyAndLink}
+          onCancel={handleCancelCopyLink}
+        />
+      )}
+
+      {deleteConfirmModal && (
+        <DeleteConfirmationModal
+          isOpen={true}
+          requirement={deleteConfirmModal}
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
         />
       )}
     </div>
