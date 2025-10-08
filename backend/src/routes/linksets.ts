@@ -5,6 +5,7 @@ import {
   getLinkset,
   addLinkToLinkset,
   removeLinkFromLinkset,
+  updateLinkset,
   deleteLinkset,
   type DocumentLinksetRecord,
   type TraceLinkItem
@@ -175,6 +176,91 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       fastify.log.error(error);
       return reply.status(500).send({
         error: "Failed to create linkset",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Update a linkset
+  fastify.patch<{
+    Params: {
+      tenant: string;
+      project: string;
+      linksetId: string;
+    };
+    Body: {
+      defaultLinkType: string;
+    };
+  }>("/linksets/:tenant/:project/:linksetId", {
+    preHandler: [fastify.authenticate],
+    schema: {
+      tags: ["linksets"],
+      summary: "Update a linkset",
+      description: "Updates a linkset's default link type (admin only)",
+      params: {
+        type: "object",
+        required: ["tenant", "project", "linksetId"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" },
+          linksetId: { type: "string", description: "Linkset ID to update" }
+        }
+      },
+      body: {
+        type: "object",
+        required: ["defaultLinkType"],
+        properties: {
+          defaultLinkType: {
+            type: "string",
+            enum: ["satisfies", "derives", "verifies", "implements", "refines", "conflicts"],
+            description: "Default link type for the linkset"
+          }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            linkset: { type: "object" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" },
+            message: { type: "string" }
+          }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" },
+            message: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    if (!request.currentUser?.roles.includes('admin')) {
+      return reply.status(403).send({ error: "Admin access required to update linksets" });
+    }
+
+    try {
+      const { tenant, project, linksetId } = request.params;
+      const { defaultLinkType } = request.body;
+
+      const linkset = await updateLinkset({
+        tenant,
+        projectKey: project,
+        linksetId,
+        defaultLinkType
+      });
+
+      return reply.send({ linkset });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.status(500).send({
+        error: "Failed to update linkset",
         message: error instanceof Error ? error.message : "Unknown error"
       });
     }

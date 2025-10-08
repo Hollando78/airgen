@@ -4,7 +4,8 @@ import type { DocumentLinkset, DocumentRecord } from "../../types";
 interface LinksetManagementPanelProps {
   linksets: DocumentLinkset[];
   documents: DocumentRecord[];
-  onCreateLinkset: (sourceDocSlug: string, targetDocSlug: string) => Promise<void>;
+  onCreateLinkset: (sourceDocSlug: string, targetDocSlug: string, defaultLinkType?: string) => Promise<void>;
+  onUpdateLinkset: (linksetId: string, defaultLinkType: string) => Promise<void>;
   onDeleteLinkset: (linksetId: string) => Promise<void>;
   isAdmin: boolean;
 }
@@ -21,18 +22,36 @@ interface DeleteConfirmState {
   linkset: DocumentLinkset | null;
 }
 
+interface EditDialogState {
+  isOpen: boolean;
+  linkset: DocumentLinkset | null;
+  linkType: string;
+}
+
+const LINK_TYPES = [
+  { value: "satisfies", label: "Satisfies", description: "Target satisfies source" },
+  { value: "derives", label: "Derives From", description: "Target derives from source" },
+  { value: "verifies", label: "Verifies", description: "Target verifies source" },
+  { value: "implements", label: "Implements", description: "Target implements source" },
+  { value: "refines", label: "Refines", description: "Target refines source" },
+  { value: "conflicts", label: "Conflicts With", description: "Target conflicts with source" }
+] as const;
+
 export function LinksetManagementPanel({
   linksets,
   documents,
   onCreateLinkset,
+  onUpdateLinkset,
   onDeleteLinkset,
   isAdmin
 }: LinksetManagementPanelProps): JSX.Element {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [sourceDocSlug, setSourceDocSlug] = useState("");
   const [targetDocSlug, setTargetDocSlug] = useState("");
+  const [linkType, setLinkType] = useState("satisfies");
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     isOpen: false,
     x: 0,
@@ -42,6 +61,11 @@ export function LinksetManagementPanel({
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
     isOpen: false,
     linkset: null
+  });
+  const [editDialog, setEditDialog] = useState<EditDialogState>({
+    isOpen: false,
+    linkset: null,
+    linkType: "satisfies"
   });
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
@@ -74,9 +98,10 @@ export function LinksetManagementPanel({
 
     setIsCreating(true);
     try {
-      await onCreateLinkset(sourceDocSlug, targetDocSlug);
+      await onCreateLinkset(sourceDocSlug, targetDocSlug, linkType);
       setSourceDocSlug("");
       setTargetDocSlug("");
+      setLinkType("satisfies");
       setShowCreateDialog(false);
     } catch (error) {
       alert(`Failed to create linkset: ${error instanceof Error ? error.message : String(error)}`);
@@ -98,6 +123,22 @@ export function LinksetManagementPanel({
       alert(`Failed to delete linkset: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsDeleting(null);
+    }
+  };
+
+  const handleUpdateConfirm = async () => {
+    if (!editDialog.linkset) return;
+
+    const linksetId = editDialog.linkset.id;
+    setIsUpdating(linksetId);
+
+    try {
+      await onUpdateLinkset(linksetId, editDialog.linkType);
+      setEditDialog({ isOpen: false, linkset: null, linkType: "satisfies" });
+    } catch (error) {
+      alert(`Failed to update linkset: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsUpdating(null);
     }
   };
 
@@ -169,12 +210,12 @@ export function LinksetManagementPanel({
 
       {showCreateDialog && (
         <div className="modal-overlay" onClick={() => setShowCreateDialog(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
             <div className="modal-header">
               <h2>Create Link Set</h2>
               <p>Define a directional link set between two documents</p>
             </div>
-            <div className="modal-body">
+            <div className="modal-content">
               <div className="field">
                 <label htmlFor="source-doc">Source Document</label>
                 <select
@@ -204,6 +245,23 @@ export function LinksetManagementPanel({
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="field">
+                <label htmlFor="link-type">Default Link Type</label>
+                <select
+                  id="link-type"
+                  value={linkType}
+                  onChange={(e) => setLinkType(e.target.value)}
+                >
+                  {LINK_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                  {LINK_TYPES.find(t => t.value === linkType)?.description}
+                </div>
               </div>
               <div style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
                 <strong>Note:</strong> The linkset direction determines trace link flow. Requirements in the source document can trace to requirements in the target document.
@@ -287,6 +345,46 @@ export function LinksetManagementPanel({
               onClick={() => {
                 const linkset = contextMenu.linkset;
                 if (linkset) {
+                  setEditDialog({
+                    isOpen: true,
+                    linkset,
+                    linkType: linkset.defaultLinkType || "satisfies"
+                  });
+                }
+                setContextMenu({ isOpen: false, x: 0, y: 0, linkset: null });
+              }}
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                textAlign: "left",
+                backgroundColor: "transparent",
+                border: "none",
+                borderRadius: "0.25rem",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                color: "#374151"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#f3f4f6";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <span>✏️</span>
+              <span>Edit Link Type</span>
+            </button>
+          ) : null}
+
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={() => {
+                const linkset = contextMenu.linkset;
+                if (linkset) {
                   setDeleteConfirm({ isOpen: true, linkset });
                 }
                 setContextMenu({ isOpen: false, x: 0, y: 0, linkset: null });
@@ -340,12 +438,12 @@ export function LinksetManagementPanel({
       {/* Delete Confirmation Modal */}
       {deleteConfirm.isOpen && deleteConfirm.linkset && (
         <div className="modal-overlay" onClick={() => setDeleteConfirm({ isOpen: false, linkset: null })}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
             <div className="modal-header">
               <h2>Delete Link Set</h2>
               <p>Are you sure you want to delete this linkset?</p>
             </div>
-            <div className="modal-body">
+            <div className="modal-content">
               <div style={{
                 padding: "1rem",
                 backgroundColor: "#fef3c7",
@@ -398,6 +496,68 @@ export function LinksetManagementPanel({
                 }}
               >
                 {isDeleting === deleteConfirm.linkset.id ? "Deleting..." : "Delete Linkset"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Link Type Modal */}
+      {editDialog.isOpen && editDialog.linkset && (
+        <div className="modal-overlay" onClick={() => setEditDialog({ isOpen: false, linkset: null, linkType: "satisfies" })}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
+            <div className="modal-header">
+              <h2>Edit Link Set</h2>
+              <p>Change the default link type for this linkset</p>
+            </div>
+            <div className="modal-content">
+              <div style={{
+                padding: "0.75rem",
+                backgroundColor: "var(--bg-secondary)",
+                borderRadius: "0.375rem",
+                border: "1px solid var(--border-color)",
+                marginBottom: "1rem"
+              }}>
+                <div style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>
+                  {editDialog.linkset.sourceDocument.name} → {editDialog.linkset.targetDocument.name}
+                </div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                  {editDialog.linkset.linkCount} trace link{editDialog.linkset.linkCount !== 1 ? "s" : ""}
+                </div>
+              </div>
+              <div className="field">
+                <label htmlFor="edit-link-type">Default Link Type</label>
+                <select
+                  id="edit-link-type"
+                  value={editDialog.linkType}
+                  onChange={(e) => setEditDialog({ ...editDialog, linkType: e.target.value })}
+                >
+                  {LINK_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                  {LINK_TYPES.find(t => t.value === editDialog.linkType)?.description}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setEditDialog({ isOpen: false, linkset: null, linkType: "satisfies" })}
+                disabled={isUpdating === editDialog.linkset.id}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateConfirm}
+                disabled={isUpdating === editDialog.linkset.id}
+              >
+                {isUpdating === editDialog.linkset.id ? "Updating..." : "Update Link Type"}
               </button>
             </div>
           </div>

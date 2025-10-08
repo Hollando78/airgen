@@ -199,9 +199,10 @@ function EdgeLabelContent({
             fontWeight: 500,
             color: "#0f172a",
             whiteSpace: "nowrap",
-            cursor: onUpdateLabel ? "text" : "default"
+            cursor: onUpdateLabel ? "text" : onUpdateLabelOffset ? "move" : "default",
+            userSelect: onUpdateLabel ? "text" : "none"
           }}
-          onDoubleClick={handleLabelDoubleClick}
+          onDoubleClick={onUpdateLabel ? handleLabelDoubleClick : undefined}
           title={onUpdateLabel ? "Double-click or press F2 to rename" : undefined}
         >
           {label}
