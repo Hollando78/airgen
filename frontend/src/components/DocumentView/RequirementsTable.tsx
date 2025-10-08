@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
 import type { RequirementRecord, DocumentSectionRecord, InfoRecord, SurrogateReferenceRecord, TraceLink, TraceLinkType } from "../../types";
 import { RequirementContextMenu } from "../RequirementContextMenu";
 import { LinkTypeSelectionModal } from "../LinkTypeSelectionModal";
@@ -11,6 +12,7 @@ import { ColumnResizer } from "./RequirementsTable/ColumnResizer";
 import { ColumnSelector, type ColumnVisibility } from "./RequirementsTable/ColumnSelector";
 import { TableFilterBar, type FilterState } from "./RequirementsTable/TableFilterBar";
 import { RequirementRow } from "./RequirementsTable/RequirementRow";
+import { AttributesEditor } from "./RequirementsTable/AttributesEditor";
 import { useApiClient } from "../../lib/client";
 
 export interface RequirementsTableProps {
@@ -36,7 +38,11 @@ const DEFAULT_COLUMN_WIDTHS = {
   description: 300,
   pattern: 120,
   verification: 120,
+  rationale: 200,
+  complianceStatus: 140,
+  complianceRationale: 200,
   qaScore: 80,
+  attributes: 200,
   actions: 60
 };
 
@@ -59,6 +65,7 @@ interface SortableRowProps {
   onContextMenu: (e: React.MouseEvent, requirement: RequirementRecord) => void;
   onEdit: (requirement: RequirementRecord) => void;
   onFieldUpdate?: (requirement: RequirementRecord, field: string, value: string) => void;
+  onEditAttributes?: (requirement: RequirementRecord) => void;
   visibleColumnCount: number;
 }
 
@@ -72,6 +79,7 @@ function SortableRow({
   onContextMenu,
   onEdit,
   onFieldUpdate,
+  onEditAttributes,
   visibleColumnCount
 }: SortableRowProps): JSX.Element {
   const {
@@ -483,6 +491,134 @@ function SortableRow({
             )}
           </td>
         )}
+        {visibleColumns.rationale && (
+          <td
+            style={{
+              border: "1px solid #e2e8f0",
+              padding: "12px",
+              width: `${columnWidths.rationale}px`,
+              cursor: "pointer",
+              fontSize: "11px"
+            }}
+            onDoubleClick={() => handleDoubleClick('rationale', req.rationale || "")}
+          >
+            {editingField === 'rationale' ? (
+              <textarea
+                ref={inputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                style={{
+                  width: "100%",
+                  minHeight: "60px",
+                  padding: "4px 8px",
+                  border: "2px solid #3b82f6",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  resize: "vertical"
+                }}
+              />
+            ) : (
+              req.rationale ? (
+                <span style={{ fontSize: "11px", color: "#1e293b" }}>{req.rationale}</span>
+              ) : (
+                <span style={{ color: "#94a3b8", fontSize: "11px" }}>Double-click to add</span>
+              )
+            )}
+          </td>
+        )}
+        {visibleColumns.complianceStatus && (
+          <td
+            style={{
+              border: "1px solid #e2e8f0",
+              padding: "12px",
+              width: `${columnWidths.complianceStatus}px`,
+              cursor: "pointer"
+            }}
+            onDoubleClick={() => handleDoubleClick('complianceStatus', req.complianceStatus || "")}
+          >
+            {editingField === 'complianceStatus' ? (
+              <select
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                autoFocus
+                style={{
+                  width: "100%",
+                  padding: "4px 8px",
+                  border: "2px solid #3b82f6",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: "600"
+                }}
+              >
+                <option value="">None</option>
+                <option value="N/A">N/A</option>
+                <option value="Compliant">Compliant</option>
+                <option value="Compliance Risk">Compliance Risk</option>
+                <option value="Non-Compliant">Non-Compliant</option>
+              </select>
+            ) : (
+              req.complianceStatus ? (
+                <span style={{
+                  backgroundColor: req.complianceStatus === "Compliant" ? "#d1fae5" :
+                                 req.complianceStatus === "Compliance Risk" ? "#fed7aa" :
+                                 req.complianceStatus === "Non-Compliant" ? "#fee2e2" : "#e5e7eb",
+                  color: req.complianceStatus === "Compliant" ? "#065f46" :
+                         req.complianceStatus === "Compliance Risk" ? "#92400e" :
+                         req.complianceStatus === "Non-Compliant" ? "#991b1b" : "#374151",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: "600"
+                }}>
+                  {req.complianceStatus}
+                </span>
+              ) : (
+                <span style={{ color: "#94a3b8", fontSize: "11px" }}>Double-click to set</span>
+              )
+            )}
+          </td>
+        )}
+        {visibleColumns.complianceRationale && (
+          <td
+            style={{
+              border: "1px solid #e2e8f0",
+              padding: "12px",
+              width: `${columnWidths.complianceRationale}px`,
+              cursor: "pointer",
+              fontSize: "11px"
+            }}
+            onDoubleClick={() => handleDoubleClick('complianceRationale', req.complianceRationale || "")}
+          >
+            {editingField === 'complianceRationale' ? (
+              <textarea
+                ref={inputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                style={{
+                  width: "100%",
+                  minHeight: "60px",
+                  padding: "4px 8px",
+                  border: "2px solid #3b82f6",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  resize: "vertical"
+                }}
+              />
+            ) : (
+              req.complianceRationale ? (
+                <span style={{ fontSize: "11px", color: "#1e293b" }}>{req.complianceRationale}</span>
+              ) : (
+                <span style={{ color: "#94a3b8", fontSize: "11px" }}>Double-click to add</span>
+              )
+            )}
+          </td>
+        )}
         {visibleColumns.qaScore && (
           <td style={{
             border: "1px solid #e2e8f0",
@@ -499,6 +635,39 @@ function SortableRow({
               </span>
             ) : (
               <span style={{ color: "#94a3b8" }}>-</span>
+            )}
+          </td>
+        )}
+        {visibleColumns.attributes && (
+          <td
+            style={{
+              border: "1px solid #e2e8f0",
+              padding: "8px",
+              width: `${columnWidths.attributes}px`,
+              fontSize: "11px",
+              cursor: "pointer"
+            }}
+            onClick={() => onEditAttributes?.(req)}
+            title="Click to edit custom attributes"
+          >
+            {req.attributes && Object.keys(req.attributes).length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {Object.entries(req.attributes).slice(0, 3).map(([key, value]) => (
+                  <div key={key} style={{ display: "flex", gap: "4px" }}>
+                    <span style={{ fontWeight: "600", color: "#64748b" }}>{key}:</span>
+                    <span style={{ color: "#1e293b" }}>
+                      {typeof value === 'boolean' ? (value ? 'true' : 'false') : String(value)}
+                    </span>
+                  </div>
+                ))}
+                {Object.keys(req.attributes).length > 3 && (
+                  <span style={{ color: "#94a3b8", fontSize: "10px" }}>
+                    +{Object.keys(req.attributes).length - 3} more
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span style={{ color: "#94a3b8" }}>Click to add</span>
             )}
           </td>
         )}
@@ -567,17 +736,28 @@ export function RequirementsTable({
     description: true,
     pattern: true,
     verification: true,
+    rationale: false,
+    complianceStatus: false,
+    complianceRationale: false,
     qaScore: true,
+    attributes: false,
     actions: true
   });
   const [filters, setFilters] = useState<FilterState>({
     text: "",
     pattern: "",
     verification: "",
+    rationale: "",
+    complianceStatus: "",
+    complianceRationale: "",
     minQaScore: "",
     maxQaScore: "",
     objectTypes: ['requirement', 'info', 'surrogate'] // Default: show all types
   });
+  const [attributesEditor, setAttributesEditor] = useState<{
+    requirement: RequirementRecord;
+    attributes: Record<string, unknown>;
+  } | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const api = useApiClient();
   const queryClient = useQueryClient();
@@ -585,7 +765,9 @@ export function RequirementsTable({
   // Mutation for inline field updates with optimistic updates
   const updateRequirementMutation = useMutation({
     mutationFn: async ({ requirement, field, value }: { requirement: RequirementRecord; field: string; value: string }) => {
-      const updates: Partial<RequirementRecord> = { [field]: value };
+      // Convert empty strings to undefined for optional fields
+      const finalValue = value === "" ? undefined : value;
+      const updates: Partial<RequirementRecord> = { [field]: finalValue };
       return api.updateRequirement(tenant, project, requirement.id, updates);
     },
     onMutate: async ({ requirement, field, value }) => {
@@ -594,6 +776,9 @@ export function RequirementsTable({
 
       // Snapshot the previous value
       const previousSections = queryClient.getQueryData(["sections", tenant, project, documentSlug]);
+
+      // Convert empty strings to undefined for optional fields
+      const finalValue = value === "" ? undefined : value;
 
       // Optimistically update the requirement in sections
       queryClient.setQueryData(["sections", tenant, project, documentSlug], (old: any) => {
@@ -604,7 +789,7 @@ export function RequirementsTable({
           sections: old.sections.map((section: any) => ({
             ...section,
             requirements: section.requirements?.map((req: RequirementRecord) =>
-              req.id === requirement.id ? { ...req, [field]: value } : req
+              req.id === requirement.id ? { ...req, [field]: finalValue } : req
             )
           }))
         };
@@ -631,6 +816,96 @@ export function RequirementsTable({
   const handleFieldUpdate = useCallback((requirement: RequirementRecord, field: string, value: string) => {
     updateRequirementMutation.mutate({ requirement, field, value });
   }, [updateRequirementMutation]);
+
+  // Mutation for updating attributes
+  const updateAttributesMutation = useMutation({
+    mutationFn: async ({ requirement, attributes }: { requirement: RequirementRecord; attributes: Record<string, unknown> }) => {
+      const updates: Partial<RequirementRecord> = { attributes };
+      return api.updateRequirement(tenant, project, requirement.id, updates);
+    },
+    onMutate: async ({ requirement, attributes }) => {
+      await queryClient.cancelQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+      const previousSections = queryClient.getQueryData(["sections", tenant, project, documentSlug]);
+
+      queryClient.setQueryData(["sections", tenant, project, documentSlug], (old: any) => {
+        if (!old?.sections) return old;
+
+        return {
+          ...old,
+          sections: old.sections.map((section: any) => ({
+            ...section,
+            requirements: section.requirements?.map((req: RequirementRecord) =>
+              req.id === requirement.id ? { ...req, attributes } : req
+            )
+          }))
+        };
+      });
+
+      return { previousSections };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousSections) {
+        queryClient.setQueryData(
+          ["sections", tenant, project, documentSlug],
+          context.previousSections
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+    }
+  });
+
+  // Handler for opening attributes editor
+  const handleEditAttributes = useCallback((requirement: RequirementRecord) => {
+    setAttributesEditor({
+      requirement,
+      attributes: requirement.attributes || {}
+    });
+  }, []);
+
+  // Handler for updating attributes
+  const handleAttributesSave = useCallback((attributes: Record<string, unknown>) => {
+    if (attributesEditor) {
+      updateAttributesMutation.mutate({
+        requirement: attributesEditor.requirement,
+        attributes
+      });
+      setAttributesEditor(null);
+    }
+  }, [attributesEditor, updateAttributesMutation]);
+
+  // Handler for saving view preferences (columns visibility and widths)
+  const handleSaveView = useCallback(() => {
+    const viewPreferences = {
+      visibleColumns,
+      columnWidths
+    };
+    const storageKey = `requirementsTableView:${tenant}:${project}:${documentSlug}`;
+    localStorage.setItem(storageKey, JSON.stringify(viewPreferences));
+
+    toast.success('View preferences saved!', {
+      description: 'Column visibility and widths will be restored when you return to this document.'
+    });
+  }, [visibleColumns, columnWidths, tenant, project, documentSlug]);
+
+  // Load saved view preferences on mount
+  useEffect(() => {
+    const storageKey = `requirementsTableView:${tenant}:${project}:${documentSlug}`;
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const viewPreferences = JSON.parse(saved);
+        if (viewPreferences.visibleColumns) {
+          // Merge with current state to ensure all fields are defined
+          setVisibleColumns(prev => ({ ...prev, ...viewPreferences.visibleColumns }));
+        }
+        if (viewPreferences.columnWidths) {
+          setColumnWidths(prev => ({ ...prev, ...viewPreferences.columnWidths }));
+        }
+      } catch (e) {
+        console.error('Failed to load saved view preferences:', e);
+      }
+    }
+  }, [tenant, project, documentSlug]);
 
   // Setup DnD sensors
   const sensors = useSensors(
@@ -760,6 +1035,21 @@ export function RequirementsTable({
         return false;
       }
 
+      // Rationale filter
+      if (filters.rationale && (!req.rationale || !req.rationale.toLowerCase().includes(filters.rationale.toLowerCase()))) {
+        return false;
+      }
+
+      // Compliance Status filter
+      if (filters.complianceStatus && req.complianceStatus !== filters.complianceStatus) {
+        return false;
+      }
+
+      // Compliance Rationale filter
+      if (filters.complianceRationale && (!req.complianceRationale || !req.complianceRationale.toLowerCase().includes(filters.complianceRationale.toLowerCase()))) {
+        return false;
+      }
+
       // QA Score filters
       if (filters.minQaScore && req.qaScore && req.qaScore < parseInt(filters.minQaScore)) {
         return false;
@@ -836,6 +1126,9 @@ export function RequirementsTable({
       text: "",
       pattern: "",
       verification: "",
+      rationale: "",
+      complianceStatus: "",
+      complianceRationale: "",
       minQaScore: "",
       maxQaScore: "",
       objectTypes: ['requirement', 'info', 'surrogate']
@@ -902,6 +1195,9 @@ export function RequirementsTable({
     filters.text !== "" ||
     filters.pattern !== "" ||
     filters.verification !== "" ||
+    filters.rationale !== "" ||
+    filters.complianceStatus !== "" ||
+    filters.complianceRationale !== "" ||
     filters.minQaScore !== "" ||
     filters.maxQaScore !== "" ||
     (filters.objectTypes || []).length !== 3; // Active if not showing all three types
@@ -976,6 +1272,29 @@ export function RequirementsTable({
               </button>
             )}
             <button
+              onClick={handleSaveView}
+              style={{
+                backgroundColor: "transparent",
+                color: "#64748b",
+                border: "1px solid #d1d5db",
+                padding: "6px 12px",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}
+              title="Save current column visibility and widths"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Save View
+            </button>
+            <button
               onClick={() => setShowColumnSelector(!showColumnSelector)}
               style={{
                 backgroundColor: showColumnSelector ? "#059669" : "transparent",
@@ -1022,6 +1341,7 @@ export function RequirementsTable({
           onFiltersChange={setFilters}
           onClearFilters={clearFilters}
           hasActiveFilters={hasActiveFilters}
+          visibleColumns={visibleColumns}
         />
       )}
 
@@ -1090,6 +1410,42 @@ export function RequirementsTable({
                     />
                   </th>
                 )}
+                {visibleColumns.rationale && (
+                  <th style={headerStyle(columnWidths.rationale)}>
+                    Rationale
+                    <ColumnResizer
+                      columnKey="rationale"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "rationale"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
+                  </th>
+                )}
+                {visibleColumns.complianceStatus && (
+                  <th style={headerStyle(columnWidths.complianceStatus)}>
+                    Compliance Status
+                    <ColumnResizer
+                      columnKey="complianceStatus"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "complianceStatus"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
+                  </th>
+                )}
+                {visibleColumns.complianceRationale && (
+                  <th style={headerStyle(columnWidths.complianceRationale)}>
+                    Compliance Rationale
+                    <ColumnResizer
+                      columnKey="complianceRationale"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "complianceRationale"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
+                  </th>
+                )}
                 {visibleColumns.qaScore && (
                   <th style={headerStyle(columnWidths.qaScore)}>
                     QA Score
@@ -1102,9 +1458,28 @@ export function RequirementsTable({
                     />
                   </th>
                 )}
+                {visibleColumns.attributes && (
+                  <th style={headerStyle(columnWidths.attributes)}>
+                    Attributes
+                    <ColumnResizer
+                      columnKey="attributes"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "attributes"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
+                  </th>
+                )}
                 {visibleColumns.actions && (
                   <th style={headerStyle(columnWidths.actions)}>
                     Actions
+                    <ColumnResizer
+                      columnKey="actions"
+                      columnWidths={columnWidths}
+                      isResizing={isResizing === "actions"}
+                      onColumnWidthChange={handleColumnWidthChange}
+                      onResizingChange={setIsResizing}
+                    />
                   </th>
                 )}
               </tr>
@@ -1199,6 +1574,7 @@ export function RequirementsTable({
                                 onContextMenu={handleContextMenu}
                                 onEdit={onEditRequirement}
                                 onFieldUpdate={handleFieldUpdate}
+                                onEditAttributes={handleEditAttributes}
                                 visibleColumnCount={visibleColumnCount}
                               />
                             ))}
@@ -1294,6 +1670,14 @@ export function RequirementsTable({
           targetRequirement={linkModal.targetRequirement}
           onConfirm={handleCreateLink}
           onCancel={() => setLinkModal(null)}
+        />
+      )}
+
+      {attributesEditor && (
+        <AttributesEditor
+          attributes={attributesEditor.attributes}
+          onSave={handleAttributesSave}
+          onClose={() => setAttributesEditor(null)}
         />
       )}
     </div>

@@ -17,6 +17,8 @@ import {
 import { getSession } from "../driver.js";
 import { CacheInvalidation } from "../../../lib/cache.js";
 
+export type ComplianceStatus = "N/A" | "Compliant" | "Compliance Risk" | "Non-Compliant";
+
 export type RequirementInput = {
   tenant: string;
   projectKey: string;
@@ -26,6 +28,9 @@ export type RequirementInput = {
   text: string;
   pattern?: RequirementPattern;
   verification?: VerificationMethod;
+  rationale?: string;
+  complianceStatus?: ComplianceStatus;
+  complianceRationale?: string;
   qaScore?: number;
   qaVerdict?: string;
   suggestions?: string[];
@@ -50,6 +55,9 @@ export function mapRequirement(node: Neo4jNode, documentSlug?: string): Requirem
     text,
     pattern: props.pattern ? (props.pattern as RequirementPattern) : undefined,
     verification: props.verification ? (props.verification as VerificationMethod) : undefined,
+    rationale: props.rationale ? String(props.rationale) : undefined,
+    complianceStatus: props.complianceStatus ? (props.complianceStatus as ComplianceStatus) : undefined,
+    complianceRationale: props.complianceRationale ? String(props.complianceRationale) : undefined,
     qaScore:
       props.qaScore !== null && props.qaScore !== undefined
         ? toNumber(props.qaScore)
@@ -177,6 +185,9 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
           text: $text,
           pattern: $pattern,
           verification: $verification,
+          rationale: $rationale,
+          complianceStatus: $complianceStatus,
+          complianceRationale: $complianceRationale,
           contentHash: $contentHash,
           qaScore: $qaScore,
           qaVerdict: $qaVerdict,
@@ -210,6 +221,9 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
         text: input.text,
         pattern: input.pattern ?? null,
         verification: input.verification ?? null,
+        rationale: input.rationale ?? null,
+        complianceStatus: input.complianceStatus ?? null,
+        complianceRationale: input.complianceRationale ?? null,
         contentHash,
         qaScore: input.qaScore ?? null,
         qaVerdict: input.qaVerdict ?? null,
@@ -308,6 +322,9 @@ export async function updateRequirement(
     text?: string;
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
+    rationale?: string;
+    complianceStatus?: ComplianceStatus;
+    complianceRationale?: string;
     sectionId?: string | null;
     attributes?: Record<string, string | number | boolean | null>;
   }

@@ -29,6 +29,9 @@ const requirementSchema = z.object({
   text: z.string().min(10),
   pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional(),
   verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional(),
+  rationale: z.string().optional(),
+  complianceStatus: z.enum(["N/A", "Compliant", "Compliance Risk", "Non-Compliant"]).optional(),
+  complianceRationale: z.string().optional(),
   qaScore: z.number().int().min(0).max(100).optional(),
   qaVerdict: z.string().optional(),
   suggestions: z.array(z.string()).optional(),
@@ -218,6 +221,13 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
             enum: ["Test", "Analysis", "Inspection", "Demonstration"],
             description: "Verification method"
           },
+          rationale: { type: "string", description: "Rationale for the requirement" },
+          complianceStatus: {
+            type: "string",
+            enum: ["N/A", "Compliant", "Compliance Risk", "Non-Compliant"],
+            description: "Compliance status"
+          },
+          complianceRationale: { type: "string", description: "Compliance rationale" },
           sectionId: { type: "string", description: "Section ID to move the requirement to" }
         }
       },
@@ -246,6 +256,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       text: z.string().min(10).optional(),
       pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional(),
       verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional(),
+      rationale: z.string().optional(),
+      complianceStatus: z.enum(["N/A", "Compliant", "Compliance Risk", "Non-Compliant"]).optional(),
+      complianceRationale: z.string().optional(),
       sectionId: z.string().optional(),
       attributes: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional()
     });

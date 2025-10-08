@@ -1,5 +1,6 @@
 export type RequirementPattern = "ubiquitous" | "event" | "state" | "unwanted" | "optional";
 export type VerificationMethod = "Test" | "Analysis" | "Inspection" | "Demonstration";
+export type ComplianceStatus = "N/A" | "Compliant" | "Compliance Risk" | "Non-Compliant";
 
 export type DraftItem = {
   text: string;
@@ -65,6 +66,9 @@ export type RequirementRecord = {
   text: string;
   pattern?: RequirementPattern;
   verification?: VerificationMethod;
+  rationale?: string;
+  complianceStatus?: ComplianceStatus;
+  complianceRationale?: string;
   qaScore?: number;
   qaVerdict?: string;
   suggestions?: string[];
