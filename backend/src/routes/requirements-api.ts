@@ -32,7 +32,8 @@ const requirementSchema = z.object({
   qaScore: z.number().int().min(0).max(100).optional(),
   qaVerdict: z.string().optional(),
   suggestions: z.array(z.string()).optional(),
-  tags: z.array(z.string()).optional()
+  tags: z.array(z.string()).optional(),
+  attributes: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional()
 });
 
 const baselineSchema = z.object({
@@ -245,7 +246,8 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       text: z.string().min(10).optional(),
       pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional(),
       verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional(),
-      sectionId: z.string().optional()
+      sectionId: z.string().optional(),
+      attributes: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional()
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
