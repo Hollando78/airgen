@@ -6,7 +6,11 @@ export type ColumnVisibility = {
   description: boolean;
   pattern: boolean;
   verification: boolean;
+  rationale: boolean;
+  complianceStatus: boolean;
+  complianceRationale: boolean;
   qaScore: boolean;
+  attributes: boolean;
   actions: boolean;
 };
 
@@ -36,7 +40,11 @@ export function ColumnSelector({
         description: true,
         pattern: false,
         verification: false,
+        rationale: false,
+        complianceStatus: false,
+        complianceRationale: false,
         qaScore: false,
+        attributes: false,
         actions: true
       });
     } else {
@@ -46,16 +54,21 @@ export function ColumnSelector({
         description: true,
         pattern: true,
         verification: true,
+        rationale: true,
+        complianceStatus: true,
+        complianceRationale: true,
         qaScore: true,
+        attributes: true,
         actions: true
       });
     }
   };
 
-  const handleColumnToggle = (column: keyof ColumnVisibility, value: boolean) => {
+  const handleColumnToggle = (e: React.ChangeEvent<HTMLInputElement>, column: keyof ColumnVisibility) => {
+    e.stopPropagation();
     onVisibleColumnsChange({
       ...visibleColumns,
-      [column]: value
+      [column]: e.target.checked
     });
   };
 
@@ -109,7 +122,7 @@ export function ColumnSelector({
           <input
             type="checkbox"
             checked={visibleColumns.id}
-            onChange={(e) => handleColumnToggle('id', e.target.checked)}
+            onChange={(e) => handleColumnToggle(e, 'id')}
           />
           ID
         </label>
@@ -125,7 +138,7 @@ export function ColumnSelector({
           <input
             type="checkbox"
             checked={visibleColumns.description}
-            onChange={(e) => handleColumnToggle('description', e.target.checked)}
+            onChange={(e) => handleColumnToggle(e, 'description')}
             disabled={true}
           />
           Description
@@ -143,7 +156,7 @@ export function ColumnSelector({
           <input
             type="checkbox"
             checked={visibleColumns.pattern}
-            onChange={(e) => handleColumnToggle('pattern', e.target.checked)}
+            onChange={(e) => handleColumnToggle(e, 'pattern')}
           />
           Pattern
         </label>
@@ -159,7 +172,7 @@ export function ColumnSelector({
           <input
             type="checkbox"
             checked={visibleColumns.verification}
-            onChange={(e) => handleColumnToggle('verification', e.target.checked)}
+            onChange={(e) => handleColumnToggle(e, 'verification')}
           />
           Verification
         </label>
@@ -174,8 +187,56 @@ export function ColumnSelector({
         }}>
           <input
             type="checkbox"
+            checked={visibleColumns.rationale}
+            onChange={(e) => handleColumnToggle(e, 'rationale')}
+          />
+          Rationale
+        </label>
+
+        <label style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          fontSize: "13px",
+          minWidth: "150px",
+          fontWeight: "500"
+        }}>
+          <input
+            type="checkbox"
+            checked={visibleColumns.complianceStatus}
+            onChange={(e) => handleColumnToggle(e, 'complianceStatus')}
+          />
+          Compliance Status
+        </label>
+
+        <label style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          fontSize: "13px",
+          minWidth: "170px",
+          fontWeight: "500"
+        }}>
+          <input
+            type="checkbox"
+            checked={visibleColumns.complianceRationale}
+            onChange={(e) => handleColumnToggle(e, 'complianceRationale')}
+          />
+          Compliance Rationale
+        </label>
+
+        <label style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          fontSize: "13px",
+          minWidth: "90px",
+          fontWeight: "500"
+        }}>
+          <input
+            type="checkbox"
             checked={visibleColumns.qaScore}
-            onChange={(e) => handleColumnToggle('qaScore', e.target.checked)}
+            onChange={(e) => handleColumnToggle(e, 'qaScore')}
           />
           QA Score
         </label>
@@ -190,8 +251,24 @@ export function ColumnSelector({
         }}>
           <input
             type="checkbox"
+            checked={visibleColumns.attributes}
+            onChange={(e) => handleColumnToggle(e, 'attributes')}
+          />
+          Attributes
+        </label>
+
+        <label style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          fontSize: "13px",
+          minWidth: "100px",
+          fontWeight: "500"
+        }}>
+          <input
+            type="checkbox"
             checked={visibleColumns.actions}
-            onChange={(e) => handleColumnToggle('actions', e.target.checked)}
+            onChange={(e) => handleColumnToggle(e, 'actions')}
             disabled={true}
           />
           Actions

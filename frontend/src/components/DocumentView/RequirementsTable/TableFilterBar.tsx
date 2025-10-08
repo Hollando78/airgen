@@ -1,3 +1,5 @@
+import type { ColumnVisibility } from "./ColumnSelector";
+
 /**
  * Filter state type
  */
@@ -5,6 +7,9 @@ export type FilterState = {
   text: string;
   pattern: string;
   verification: string;
+  rationale: string;
+  complianceStatus: string;
+  complianceRationale: string;
   minQaScore: string;
   maxQaScore: string;
   objectTypes: string[]; // Array of object types to display: 'requirement', 'info'
@@ -22,6 +27,8 @@ export interface TableFilterBarProps {
   onClearFilters: () => void;
   /** Whether any filters are active */
   hasActiveFilters: boolean;
+  /** Column visibility to show only relevant filters */
+  visibleColumns: ColumnVisibility;
 }
 
 /**
@@ -32,7 +39,8 @@ export function TableFilterBar({
   filters,
   onFiltersChange,
   onClearFilters,
-  hasActiveFilters
+  hasActiveFilters,
+  visibleColumns
 }: TableFilterBarProps): JSX.Element {
   const handleFilterChange = (key: keyof FilterState, value: string) => {
     onFiltersChange({
@@ -56,17 +64,29 @@ export function TableFilterBar({
     });
   };
 
+  // Count visible filter fields to determine grid layout
+  const visibleFilterCount =
+    1 + // text search is always visible
+    (visibleColumns.pattern ? 1 : 0) +
+    (visibleColumns.verification ? 1 : 0) +
+    (visibleColumns.rationale ? 1 : 0) +
+    (visibleColumns.complianceStatus ? 1 : 0) +
+    (visibleColumns.complianceRationale ? 1 : 0) +
+    (visibleColumns.qaScore ? 2 : 0) + // min and max
+    1 + // object types
+    1; // clear button
+
   return (
     <div style={{
       padding: "16px 24px",
       backgroundColor: "#f1f5f9",
       borderBottom: "1px solid #e2e8f0",
-      display: "grid",
-      gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr auto",
+      display: "flex",
+      flexWrap: "wrap",
       gap: "12px",
       alignItems: "end"
     }}>
-      <div>
+      <div style={{ minWidth: "250px", flexGrow: 1 }}>
         <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
           Text Search
         </label>
@@ -85,94 +105,169 @@ export function TableFilterBar({
         />
       </div>
 
-      <div>
-        <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
-          Pattern
-        </label>
-        <select
-          value={filters.pattern}
-          onChange={(e) => handleFilterChange('pattern', e.target.value)}
-          style={{
-            width: "100%",
-            padding: "6px 8px",
-            border: "1px solid #d1d5db",
-            borderRadius: "4px",
-            fontSize: "12px"
-          }}
-        >
-          <option value="">All</option>
-          <option value="ubiquitous">Ubiquitous</option>
-          <option value="event">Event</option>
-          <option value="state">State</option>
-          <option value="unwanted">Unwanted</option>
-          <option value="optional">Optional</option>
-        </select>
-      </div>
+      {visibleColumns.pattern && (
+        <div style={{ minWidth: "150px" }}>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
+            Pattern
+          </label>
+          <select
+            value={filters.pattern}
+            onChange={(e) => handleFilterChange('pattern', e.target.value)}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              border: "1px solid #d1d5db",
+              borderRadius: "4px",
+              fontSize: "12px"
+            }}
+          >
+            <option value="">All</option>
+            <option value="ubiquitous">Ubiquitous</option>
+            <option value="event">Event</option>
+            <option value="state">State</option>
+            <option value="unwanted">Unwanted</option>
+            <option value="optional">Optional</option>
+          </select>
+        </div>
+      )}
 
-      <div>
-        <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
-          Verification
-        </label>
-        <select
-          value={filters.verification}
-          onChange={(e) => handleFilterChange('verification', e.target.value)}
-          style={{
-            width: "100%",
-            padding: "6px 8px",
-            border: "1px solid #d1d5db",
-            borderRadius: "4px",
-            fontSize: "12px"
-          }}
-        >
-          <option value="">All</option>
-          <option value="Test">Test</option>
-          <option value="Analysis">Analysis</option>
-          <option value="Inspection">Inspection</option>
-          <option value="Demonstration">Demonstration</option>
-        </select>
-      </div>
+      {visibleColumns.verification && (
+        <div style={{ minWidth: "150px" }}>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
+            Verification
+          </label>
+          <select
+            value={filters.verification}
+            onChange={(e) => handleFilterChange('verification', e.target.value)}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              border: "1px solid #d1d5db",
+              borderRadius: "4px",
+              fontSize: "12px"
+            }}
+          >
+            <option value="">All</option>
+            <option value="Test">Test</option>
+            <option value="Analysis">Analysis</option>
+            <option value="Inspection">Inspection</option>
+            <option value="Demonstration">Demonstration</option>
+          </select>
+        </div>
+      )}
 
-      <div>
-        <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
-          Min QA Score
-        </label>
-        <input
-          type="number"
-          min="0"
-          max="100"
-          placeholder="0"
-          value={filters.minQaScore}
-          onChange={(e) => handleFilterChange('minQaScore', e.target.value)}
-          style={{
-            width: "100%",
-            padding: "6px 8px",
-            border: "1px solid #d1d5db",
-            borderRadius: "4px",
-            fontSize: "12px"
-          }}
-        />
-      </div>
+      {visibleColumns.rationale && (
+        <div style={{ minWidth: "200px" }}>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
+            Rationale
+          </label>
+          <input
+            type="text"
+            placeholder="Search rationale..."
+            value={filters.rationale}
+            onChange={(e) => handleFilterChange('rationale', e.target.value)}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              border: "1px solid #d1d5db",
+              borderRadius: "4px",
+              fontSize: "12px"
+            }}
+          />
+        </div>
+      )}
 
-      <div>
-        <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
-          Max QA Score
-        </label>
-        <input
-          type="number"
-          min="0"
-          max="100"
-          placeholder="100"
-          value={filters.maxQaScore}
-          onChange={(e) => handleFilterChange('maxQaScore', e.target.value)}
-          style={{
-            width: "100%",
-            padding: "6px 8px",
-            border: "1px solid #d1d5db",
-            borderRadius: "4px",
-            fontSize: "12px"
-          }}
-        />
-      </div>
+      {visibleColumns.complianceStatus && (
+        <div style={{ minWidth: "180px" }}>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
+            Compliance Status
+          </label>
+          <select
+            value={filters.complianceStatus}
+            onChange={(e) => handleFilterChange('complianceStatus', e.target.value)}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              border: "1px solid #d1d5db",
+              borderRadius: "4px",
+              fontSize: "12px"
+            }}
+          >
+            <option value="">All</option>
+            <option value="N/A">N/A</option>
+            <option value="Compliant">Compliant</option>
+            <option value="Compliance Risk">Compliance Risk</option>
+            <option value="Non-Compliant">Non-Compliant</option>
+          </select>
+        </div>
+      )}
+
+      {visibleColumns.complianceRationale && (
+        <div style={{ minWidth: "200px" }}>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
+            Compliance Rationale
+          </label>
+          <input
+            type="text"
+            placeholder="Search compliance rationale..."
+            value={filters.complianceRationale}
+            onChange={(e) => handleFilterChange('complianceRationale', e.target.value)}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              border: "1px solid #d1d5db",
+              borderRadius: "4px",
+              fontSize: "12px"
+            }}
+          />
+        </div>
+      )}
+
+      {visibleColumns.qaScore && (
+        <div style={{ minWidth: "120px" }}>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
+            Min QA Score
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="0"
+            value={filters.minQaScore}
+            onChange={(e) => handleFilterChange('minQaScore', e.target.value)}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              border: "1px solid #d1d5db",
+              borderRadius: "4px",
+              fontSize: "12px"
+            }}
+          />
+        </div>
+      )}
+
+      {visibleColumns.qaScore && (
+        <div style={{ minWidth: "120px" }}>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
+            Max QA Score
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="100"
+            value={filters.maxQaScore}
+            onChange={(e) => handleFilterChange('maxQaScore', e.target.value)}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              border: "1px solid #d1d5db",
+              borderRadius: "4px",
+              fontSize: "12px"
+            }}
+          />
+        </div>
+      )}
 
       <div>
         <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#374151", marginBottom: "4px" }}>
