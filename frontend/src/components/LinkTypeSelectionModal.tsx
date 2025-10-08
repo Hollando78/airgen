@@ -13,7 +13,7 @@ interface LinkTypeSelectionModalProps {
   isOpen: boolean;
   sourceRequirement: RequirementRecord;
   targetRequirement: RequirementRecord;
-  onConfirm: (linkType: TraceLinkType, description?: string) => void;
+  onConfirm: (linkType: TraceLinkType, description?: string) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -65,6 +65,7 @@ export function LinkTypeSelectionModal({
 }: LinkTypeSelectionModalProps) {
   const [selectedType, setSelectedType] = useState<TraceLinkType>("satisfies");
   const [description, setDescription] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
   const apiClient = useApiClient();
 
   // Fetch linksets to check if one exists for this document pair
@@ -120,19 +121,45 @@ export function LinkTypeSelectionModal({
     };
   }, [sourceRequirement, targetRequirement, linksetsData]);
 
-  const handleConfirm = () => {
-    onConfirm(selectedType, description.trim() || undefined);
-    setDescription("");
-    setSelectedType("satisfies");
+  // Initialize selected type from linkset's defaultLinkType when linkset is found
+  useEffect(() => {
+    if (linksetInfo.type === 'has-linkset' && linksetInfo.linkset?.defaultLinkType) {
+      setSelectedType(linksetInfo.linkset.defaultLinkType);
+    }
+  }, [linksetInfo]);
+
+  const handleConfirm = async () => {
+    if (isCreating) return; // Prevent multiple submissions
+
+    setIsCreating(true);
+    try {
+      await onConfirm(selectedType, description.trim() || undefined);
+      setDescription("");
+      setSelectedType("satisfies");
+    } catch (error) {
+      console.error('Failed to create link:', error);
+      // Keep the modal open on error so user can retry
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleCancel = () => {
+    if (isCreating) return; // Prevent canceling while creating
+
     onCancel();
     setDescription("");
     setSelectedType("satisfies");
   };
 
   const canCreateLink = linksetInfo.type !== 'missing-linkset';
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsCreating(false);
+    }
+  }, [isOpen]);
 
   // Fix z-index for overlay when modal opens
   useEffect(() => {
@@ -299,7 +326,7 @@ export function LinkTypeSelectionModal({
                         "flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all text-left",
                         selectedType === linkType.value
                           ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                          : "border-gray-300 bg-gray-50 hover:border-primary hover:bg-gray-100 text-gray-900"
                       )}
                     >
                       <span className="text-lg">{linkType.icon}</span>
@@ -309,7 +336,7 @@ export function LinkTypeSelectionModal({
                     </button>
                   ))}
                 </div>
-                <div className="text-xs text-muted-foreground bg-gray-50 rounded p-2 border border-gray-200">
+                <div className="text-xs text-muted-foreground bg-gray-50 rounded p-3 border border-gray-200">
                   {LINK_TYPES.find(lt => lt.value === selectedType)?.description}
                 </div>
               </div>
@@ -331,14 +358,14 @@ export function LinkTypeSelectionModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
+          <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
             Cancel
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!canCreateLink || isLoading}
+            disabled={!canCreateLink || isLoading || isCreating}
           >
-            {isLoading ? "Checking..." : "Create Link"}
+            {isCreating ? "Creating..." : isLoading ? "Checking..." : "Create Link"}
           </Button>
         </DialogFooter>
       </DialogContent>

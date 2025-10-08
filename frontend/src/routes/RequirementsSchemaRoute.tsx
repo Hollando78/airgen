@@ -57,7 +57,9 @@ function mapConnectorFromApi(connector: ArchitectureConnectorRecord): SysmlConne
     markerEnd: connector.markerEnd || undefined,
     linePattern: connector.linePattern || undefined,
     color: connector.color || undefined,
-    strokeWidth: connector.strokeWidth || undefined
+    strokeWidth: connector.strokeWidth || undefined,
+    labelOffsetX: connector.labelOffsetX || undefined,
+    labelOffsetY: connector.labelOffsetY || undefined
   };
 }
 
@@ -87,6 +89,17 @@ export function RequirementsSchemaRoute(): JSX.Element {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [activeDiagramId, setActiveDiagramId] = useState<string | null>(null);
   const linksetApiUnavailableRef = useRef(false);
+  const [pendingLinksetCreation, setPendingLinksetCreation] = useState<{
+    sourceSlug: string;
+    targetSlug: string;
+    pendingConnector: {
+      source: string;
+      target: string;
+      sourcePortId?: string;
+      targetPortId?: string;
+      label?: string;
+    };
+  } | null>(null);
 
   // New diagram form state
   const [newDiagramName, setNewDiagramName] = useState("");
@@ -392,11 +405,12 @@ export function RequirementsSchemaRoute(): JSX.Element {
       );
     };
 
-    const attemptCreateLinkset = async (sourceSlug: string, targetSlug: string) => {
+    const attemptCreateLinkset = async (sourceSlug: string, targetSlug: string, defaultLinkType?: string) => {
       try {
         const response = await api.createLinkset(tenant, project, {
           sourceDocumentSlug: sourceSlug,
-          targetDocumentSlug: targetSlug
+          targetDocumentSlug: targetSlug,
+          defaultLinkType: defaultLinkType as any
         });
         queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
         return response.linkset;
@@ -405,38 +419,39 @@ export function RequirementsSchemaRoute(): JSX.Element {
       }
     };
 
-    const checkLinksetExists = async (): Promise<boolean> => {
-      const sourceSlug = resolveDocumentSlug(input.source);
-      const targetSlug = resolveDocumentSlug(input.target);
+    // Check if linkset exists before allowing connector creation and get its default link type
+    const sourceSlug = resolveDocumentSlug(input.source);
+    const targetSlug = resolveDocumentSlug(input.target);
 
-      if (!sourceSlug || !targetSlug) {
-        console.warn("Schema connector created without document slugs", {
-          sourceBlockId: input.source,
-          targetBlockId: input.target
+    let linksetDefaultType = "satisfies"; // fallback
+    try {
+      const linkset = await api.getLinkset(tenant, project, sourceSlug, targetSlug);
+      linksetDefaultType = linkset.linkset.defaultLinkType || "satisfies";
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (message.includes("not found")) {
+        // Store the pending connector info and prompt user to create linkset
+        setPendingLinksetCreation({
+          sourceSlug,
+          targetSlug,
+          pendingConnector: input
         });
-        return false;
+        throw new Error("LINKSET_REQUIRED"); // Special error to suppress default error handling
       }
-
-      try {
-        await api.getLinkset(tenant, project, sourceSlug, targetSlug);
-        return true;
-      } catch (error) {
-        const message = error instanceof Error ? error.message.toLowerCase() : "";
-        if (message.includes("not found")) {
-          return false;
-        }
-        console.error("Failed to check linkset", { sourceSlug, targetSlug, error });
-        return false;
-      }
-    };
-
-    // Check if linkset exists before allowing connector creation
-    const linksetExists = await checkLinksetExists();
-    if (!linksetExists) {
-      const sourceSlug = resolveDocumentSlug(input.source);
-      const targetSlug = resolveDocumentSlug(input.target);
-      throw new Error(`Cannot create connector: No linkset exists between ${sourceSlug} and ${targetSlug}. Please create a linkset first in the Link Sets panel.`);
+      console.error("Failed to check linkset", { sourceSlug, targetSlug, error });
+      throw error;
     }
+
+    // Convert link type to label
+    const linkTypeLabels: Record<string, string> = {
+      "satisfies": "satisfies",
+      "derives": "derives from",
+      "verifies": "verifies",
+      "implements": "implements",
+      "refines": "refines",
+      "conflicts": "conflicts with"
+    };
+    const connectorLabel = input.label || linkTypeLabels[linksetDefaultType] || "traces to";
 
     const result = await api.createArchitectureConnector({
       tenant,
@@ -447,7 +462,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
       sourcePortId: input.sourcePortId || undefined,
       targetPortId: input.targetPortId || undefined,
       kind: "flow",
-      label: input.label || "traces to",
+      label: connectorLabel,
       lineStyle: "smoothstep",
       markerStart: "none",
       markerEnd: "arrowclosed",
@@ -462,12 +477,22 @@ export function RequirementsSchemaRoute(): JSX.Element {
   }, [tenant, project, activeDiagramId, api, queryClient, resolveDocumentSlug, documentsIndex, blockIndex]);
 
   // Linkset management handlers
-  const handleCreateLinkset = useCallback(async (sourceDocSlug: string, targetDocSlug: string) => {
+  const handleCreateLinkset = useCallback(async (sourceDocSlug: string, targetDocSlug: string, defaultLinkType?: string) => {
     try {
       await api.createLinkset(tenant, project, {
         sourceDocumentSlug: sourceDocSlug,
-        targetDocumentSlug: targetDocSlug
+        targetDocumentSlug: targetDocSlug,
+        defaultLinkType: defaultLinkType as any
       });
+      queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
+    } catch (error) {
+      throw error;
+    }
+  }, [tenant, project, api, queryClient]);
+
+  const handleUpdateLinkset = useCallback(async (linksetId: string, defaultLinkType: string) => {
+    try {
+      await api.updateLinkset(tenant, project, linksetId, defaultLinkType);
       queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
     } catch (error) {
       throw error;
@@ -594,13 +619,46 @@ export function RequirementsSchemaRoute(): JSX.Element {
       strokeDasharray = "2 2";
     }
 
+    // Look up the linkset to get the default link type label
+    // Always look up from linkset unless user has set a custom label different from standard types
+    const linkTypeLabels: Record<string, string> = {
+      "satisfies": "satisfies",
+      "derives": "derives from",
+      "verifies": "verifies",
+      "implements": "implements",
+      "refines": "refines",
+      "conflicts": "conflicts with"
+    };
+    const standardLabels = new Set(Object.values(linkTypeLabels));
+    const isStandardLabel = !connector.label || connector.label === "traces to" || standardLabels.has(connector.label);
+
+    let label = connector.label || "traces to";
+
+    if (isStandardLabel) {
+      // Resolve document slugs from source and target block IDs
+      const sourceSlug = resolveDocumentSlug(connector.source);
+      const targetSlug = resolveDocumentSlug(connector.target);
+
+      if (sourceSlug && targetSlug && linksetsQuery.data?.linksets) {
+        // Find matching linkset (check both directions)
+        const linkset = linksetsQuery.data.linksets.find(ls =>
+          (ls.sourceDocumentSlug === sourceSlug && ls.targetDocumentSlug === targetSlug) ||
+          (ls.sourceDocumentSlug === targetSlug && ls.targetDocumentSlug === sourceSlug)
+        );
+
+        if (linkset?.defaultLinkType) {
+          label = linkTypeLabels[linkset.defaultLinkType] || "traces to";
+        }
+      }
+    }
+
     return {
       id: connector.id,
       source: connector.source,
       target: connector.target,
       type: connector.lineStyle ?? "smoothstep",
       animated: true,
-      label: connector.label || "traces to",
+      label,
       style: {
         stroke: strokeColor,
         strokeWidth,
@@ -614,7 +672,27 @@ export function RequirementsSchemaRoute(): JSX.Element {
       },
       data: {
         documentIds: connector.documentIds || [],
-        originalLabel: connector.label || "traces to"
+        originalLabel: label,
+        labelOffsetX: connector.labelOffsetX ?? 0,
+        labelOffsetY: connector.labelOffsetY ?? 0,
+        onUpdateLabelOffset: async (offsetX: number, offsetY: number) => {
+          if (!activeDiagramId) return;
+          try {
+            await api.updateArchitectureConnector(
+              tenant,
+              project,
+              connector.id,
+              {
+                diagramId: activeDiagramId,
+                labelOffsetX: offsetX,
+                labelOffsetY: offsetY
+              }
+            );
+            queryClient.invalidateQueries({ queryKey: ["requirements-schema-content"] });
+          } catch (error) {
+            console.error("Failed to update label offset:", error);
+          }
+        }
       }
     } satisfies Edge;
   };
@@ -770,6 +848,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
                 linksets={linksetsQuery.data?.linksets ?? []}
                 documents={documentsQuery.data?.documents ?? []}
                 onCreateLinkset={handleCreateLinkset}
+                onUpdateLinkset={handleUpdateLinkset}
                 onDeleteLinkset={handleDeleteLinkset}
                 isAdmin={isAdmin}
               />
@@ -781,12 +860,12 @@ export function RequirementsSchemaRoute(): JSX.Element {
       {/* Create Diagram Dialog */}
       {showCreateDialog && (
         <div className="modal-overlay" onClick={() => setShowCreateDialog(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
             <div className="modal-header">
               <h2>Create Requirements Schema Diagram</h2>
               <p>Create a new requirements schema diagram to map document relationships</p>
             </div>
-            <div className="modal-body">
+            <div className="modal-content">
               <div className="field">
                 <label htmlFor="name">Diagram Name</label>
                 <input
@@ -814,6 +893,76 @@ export function RequirementsSchemaRoute(): JSX.Element {
               </button>
               <button type="button" onClick={() => createDiagramMutation.mutate()}>
                 Create Diagram
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Linkset Prompt Dialog */}
+      {pendingLinksetCreation && (
+        <div className="modal-overlay" onClick={() => setPendingLinksetCreation(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
+            <div className="modal-header">
+              <h2>Create Link Set?</h2>
+              <p>No linkset exists between these documents. Would you like to create one?</p>
+            </div>
+            <div className="modal-content">
+              <div style={{
+                padding: "0.75rem",
+                backgroundColor: "var(--bg-secondary)",
+                borderRadius: "0.375rem",
+                border: "1px solid var(--border-color)",
+                marginBottom: "1rem"
+              }}>
+                <div style={{ fontSize: "0.875rem", marginBottom: "0.5rem" }}>
+                  <strong>Source:</strong> <code style={{ backgroundColor: "var(--bg-tertiary)", padding: "0.125rem 0.25rem", borderRadius: "0.125rem" }}>{pendingLinksetCreation.sourceSlug}</code>
+                </div>
+                <div style={{ fontSize: "0.875rem" }}>
+                  <strong>Target:</strong> <code style={{ backgroundColor: "var(--bg-tertiary)", padding: "0.125rem 0.25rem", borderRadius: "0.125rem" }}>{pendingLinksetCreation.targetSlug}</code>
+                </div>
+              </div>
+              <p style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>
+                Creating a linkset will allow you to establish trace relationships between requirements in these documents. You can customize the link type in the next step.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setPendingLinksetCreation(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!pendingLinksetCreation) return;
+
+                  try {
+                    // Create the linkset with default "satisfies" type
+                    await handleCreateLinkset(
+                      pendingLinksetCreation.sourceSlug,
+                      pendingLinksetCreation.targetSlug,
+                      "satisfies"
+                    );
+
+                    // Now retry creating the connector
+                    const pending = pendingLinksetCreation.pendingConnector;
+                    await addConnector(pending);
+
+                    // Success - close the dialog
+                    setPendingLinksetCreation(null);
+                  } catch (error) {
+                    console.error("Failed to create linkset and connector:", error);
+                    // Don't show alert if it's the special LINKSET_REQUIRED error
+                    if (error instanceof Error && error.message !== "LINKSET_REQUIRED") {
+                      alert(`Failed to create linkset: ${error.message}`);
+                    }
+                  }
+                }}
+              >
+                Create Link Set
               </button>
             </div>
           </div>

@@ -384,6 +384,8 @@ export function useApiClient() {
         request<{ linkset: DocumentLinkset }>(`/linksets/${tenant}/${project}/${linksetId}/links`, { method: "POST", body: JSON.stringify(body) }),
       removeLinkFromLinkset: (tenant: string, project: string, linksetId: string, linkId: string) =>
         request<{ linkset: DocumentLinkset }>(`/linksets/${tenant}/${project}/${linksetId}/links/${linkId}`, { method: "DELETE" }),
+      updateLinkset: (tenant: string, project: string, linksetId: string, defaultLinkType: string) =>
+        request<{ linkset: DocumentLinkset }>(`/linksets/${tenant}/${project}/${linksetId}`, { method: "PATCH", body: JSON.stringify({ defaultLinkType }) }),
       deleteLinkset: (tenant: string, project: string, linksetId: string) =>
         request<{ success: boolean }>(`/linksets/${tenant}/${project}/${linksetId}`, { method: "DELETE" }),
 

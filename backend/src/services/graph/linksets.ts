@@ -23,6 +23,7 @@ export type DocumentLinksetRecord = {
   targetDocument: ReturnType<typeof mapDocument>;
   linkCount: number;
   links: TraceLinkItem[];
+  defaultLinkType?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -52,6 +53,7 @@ function mapLinkset(
       createdAt: String(link.createdAt),
       updatedAt: String(link.updatedAt)
     })) : [],
+    defaultLinkType: props.defaultLinkType ? String(props.defaultLinkType) : undefined,
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt)
   };
@@ -62,6 +64,7 @@ export async function createLinkset(params: {
   projectKey: string;
   sourceDocumentSlug: string;
   targetDocumentSlug: string;
+  defaultLinkType?: string;
   links?: TraceLinkItem[];
 }): Promise<DocumentLinksetRecord> {
   const tenantSlug = slugify(params.tenant);
@@ -84,6 +87,7 @@ export async function createLinkset(params: {
           targetDocumentSlug: $targetDocumentSlug,
           linkCount: $linkCount,
           links: $links,
+          defaultLinkType: $defaultLinkType,
           createdAt: $now,
           updatedAt: $now
         })
@@ -110,6 +114,7 @@ export async function createLinkset(params: {
           createdAt: link.createdAt || now,
           updatedAt: link.updatedAt || now
         })),
+        defaultLinkType: params.defaultLinkType || null,
         now
       });
 
@@ -398,6 +403,54 @@ export async function removeLinkFromLinkset(params: {
         projectSlug,
         linksetId: params.linksetId,
         linkId: params.linkId,
+        now
+      });
+
+      if (res.records.length === 0) {
+        throw new Error("Linkset not found");
+      }
+
+      const record = res.records[0];
+      return mapLinkset(
+        record.get("linkset"),
+        mapDocument(record.get("sourceDoc")),
+        mapDocument(record.get("targetDoc"))
+      );
+    });
+
+    return result;
+  } finally {
+    await session.close();
+  }
+}
+
+export async function updateLinkset(params: {
+  tenant: string;
+  projectKey: string;
+  linksetId: string;
+  defaultLinkType: string;
+}): Promise<DocumentLinksetRecord> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+  const now = new Date().toISOString();
+  const session = getSession();
+
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_LINKSET]->(linkset:DocumentLinkset {id: $linksetId})
+        MATCH (linkset)-[:FROM_DOCUMENT]->(sourceDoc:Document)
+        MATCH (linkset)-[:TO_DOCUMENT]->(targetDoc:Document)
+        SET linkset.defaultLinkType = $defaultLinkType
+        SET linkset.updatedAt = $now
+        RETURN linkset, sourceDoc, targetDoc
+      `;
+
+      const res = await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        linksetId: params.linksetId,
+        defaultLinkType: params.defaultLinkType,
         now
       });
 
