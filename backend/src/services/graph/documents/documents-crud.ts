@@ -220,7 +220,7 @@ export async function listDocuments(
           `
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document)
             WHERE document.deletedAt IS NULL
-            OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:HAS_REQUIREMENT]->(requirement:Requirement)
+            OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:CONTAINS]->(requirement:Requirement)
             WHERE (requirement.deleted IS NULL OR requirement.deleted = false) AND (requirement.archived IS NULL OR requirement.archived = false)
             RETURN document, count(DISTINCT requirement) AS requirementCount
             ORDER BY document.name
@@ -260,7 +260,7 @@ export async function getDocument(
     const result = await session.run(
       `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
-        OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:HAS_REQUIREMENT]->(requirement:Requirement)
+        OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:CONTAINS]->(requirement:Requirement)
         WHERE (requirement.deleted IS NULL OR requirement.deleted = false) AND (requirement.archived IS NULL OR requirement.archived = false)
         RETURN document, count(DISTINCT requirement) AS requirementCount
       `,
@@ -365,7 +365,7 @@ export async function updateDocumentFolder(
             MERGE (document)-[:IN_FOLDER]->(folder)
             SET document.parentFolder = $parentFolder, document.updatedAt = $now
             WITH document
-            OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:HAS_REQUIREMENT]->(requirement:Requirement)
+            OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:CONTAINS]->(requirement:Requirement)
             WHERE (requirement.deleted IS NULL OR requirement.deleted = false) AND (requirement.archived IS NULL OR requirement.archived = false)
             RETURN document, count(DISTINCT requirement) AS requirementCount
           `,
@@ -385,7 +385,7 @@ export async function updateDocumentFolder(
           MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
           SET document.parentFolder = null, document.updatedAt = $now
           WITH document
-          OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:HAS_REQUIREMENT]->(requirement:Requirement)
+          OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:CONTAINS]->(requirement:Requirement)
           WHERE (requirement.deleted IS NULL OR requirement.deleted = false) AND (requirement.archived IS NULL OR requirement.archived = false)
           RETURN document, count(DISTINCT requirement) AS requirementCount
         `,

@@ -157,7 +157,7 @@ export async function syncParsedDocument(
     `
       MATCH (doc:Document {slug: $documentSlug, tenant: $tenantSlug, projectKey: $projectSlug})
       MATCH (doc)-[:CONTAINS]->(req:Requirement)
-      OPTIONAL MATCH (section:DocumentSection)-[:HAS_REQUIREMENT]->(req)
+      OPTIONAL MATCH (section:DocumentSection)-[:CONTAINS]->(req)
       RETURN req, section
     `,
     { documentSlug, tenantSlug, projectSlug }
@@ -181,7 +181,7 @@ export async function syncParsedDocument(
     `
       MATCH (doc:Document {slug: $documentSlug, tenant: $tenantSlug, projectKey: $projectSlug})
       OPTIONAL MATCH (doc)-[:HAS_INFO]->(info:Info)
-      OPTIONAL MATCH (section:DocumentSection)-[:CONTAINS_INFO]->(info)
+      OPTIONAL MATCH (section:DocumentSection)-[:CONTAINS]->(info)
       RETURN info, section
     `,
     { documentSlug, tenantSlug, projectSlug }
@@ -207,7 +207,7 @@ export async function syncParsedDocument(
     `
       MATCH (doc:Document {slug: $documentSlug, tenant: $tenantSlug, projectKey: $projectSlug})
       OPTIONAL MATCH (doc)-[:HAS_SURROGATE_REFERENCE]->(surrogate:SurrogateReference)
-      OPTIONAL MATCH (section:DocumentSection)-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate)
+      OPTIONAL MATCH (section:DocumentSection)-[:CONTAINS]->(surrogate)
       RETURN surrogate, section
     `,
     { documentSlug, tenantSlug, projectSlug }
@@ -349,7 +349,7 @@ export async function syncParsedDocument(
       await tx.run(
         `
           MATCH (req:Requirement {id: $requirementId})
-          OPTIONAL MATCH (req)<-[rel:HAS_REQUIREMENT]-(:DocumentSection)
+          OPTIONAL MATCH (req)<-[rel:CONTAINS]-(:DocumentSection)
           DELETE rel
         `,
         { requirementId: existing.id }
@@ -360,7 +360,7 @@ export async function syncParsedDocument(
           `
             MATCH (req:Requirement {id: $requirementId})
             MATCH (section:DocumentSection {id: $sectionId})
-            MERGE (section)-[:HAS_REQUIREMENT]->(req)
+            MERGE (section)-[:CONTAINS]->(req)
           `,
           {
             requirementId: existing.id,
@@ -422,7 +422,7 @@ export async function syncParsedDocument(
           `
             MATCH (req:Requirement {id: $requirementId})
             MATCH (section:DocumentSection {id: $sectionId})
-            MERGE (section)-[:HAS_REQUIREMENT]->(req)
+            MERGE (section)-[:CONTAINS]->(req)
           `,
           {
             requirementId,
@@ -438,7 +438,7 @@ export async function syncParsedDocument(
       await tx.run(
         `
           MATCH (req:Requirement {id: $requirementId})
-          OPTIONAL MATCH (req)<-[rel:HAS_REQUIREMENT]-(:DocumentSection)
+          OPTIONAL MATCH (req)<-[rel:CONTAINS]-(:DocumentSection)
           DELETE rel
           SET req.deleted = true,
               req.updatedAt = $now
@@ -490,7 +490,7 @@ export async function syncParsedDocument(
       await tx.run(
         `
           MATCH (info:Info {id: $infoId})
-          OPTIONAL MATCH (info)<-[rel:CONTAINS_INFO]-(:DocumentSection)
+          OPTIONAL MATCH (info)<-[rel:CONTAINS]-(:DocumentSection)
           DELETE rel
         `,
         { infoId: existing.id }
@@ -501,7 +501,7 @@ export async function syncParsedDocument(
           `
             MATCH (info:Info {id: $infoId})
             MATCH (section:DocumentSection {id: $sectionId})
-            MERGE (section)-[:CONTAINS_INFO]->(info)
+            MERGE (section)-[:CONTAINS]->(info)
           `,
           {
             infoId: existing.id,
@@ -548,7 +548,7 @@ export async function syncParsedDocument(
           `
             MATCH (info:Info {id: $infoId})
             MATCH (section:DocumentSection {id: $sectionId})
-            MERGE (section)-[:CONTAINS_INFO]->(info)
+            MERGE (section)-[:CONTAINS]->(info)
           `,
           {
             infoId,
@@ -605,7 +605,7 @@ export async function syncParsedDocument(
       await tx.run(
         `
           MATCH (surrogate:SurrogateReference {id: $surrogateId})
-          OPTIONAL MATCH (surrogate)<-[rel:CONTAINS_SURROGATE_REFERENCE]-(:DocumentSection)
+          OPTIONAL MATCH (surrogate)<-[rel:CONTAINS]-(:DocumentSection)
           DELETE rel
         `,
         { surrogateId: existing.id }
@@ -616,7 +616,7 @@ export async function syncParsedDocument(
           `
             MATCH (surrogate:SurrogateReference {id: $surrogateId})
             MATCH (section:DocumentSection {id: $sectionId})
-            MERGE (section)-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate)
+            MERGE (section)-[:CONTAINS]->(surrogate)
           `,
           {
             surrogateId: existing.id,
@@ -662,7 +662,7 @@ export async function syncParsedDocument(
           `
             MATCH (surrogate:SurrogateReference {id: $surrogateId})
             MATCH (section:DocumentSection {id: $sectionId})
-            MERGE (section)-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate)
+            MERGE (section)-[:CONTAINS]->(surrogate)
           `,
           {
             surrogateId,

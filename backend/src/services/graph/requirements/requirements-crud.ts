@@ -207,7 +207,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
           MERGE (proj)-[:CONTAINS]->(requirement)
         )
         FOREACH (sec IN CASE WHEN section IS NOT NULL THEN [section] ELSE [] END |
-          MERGE (sec)-[:HAS_REQUIREMENT]->(requirement)
+          MERGE (sec)-[:CONTAINS]->(requirement)
         )
         RETURN requirement
       `;
@@ -456,7 +456,7 @@ export async function updateRequirement(
           `
             MATCH (requirement:Requirement {id: $requirementId})
             WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
-            OPTIONAL MATCH (requirement)<-[existingRel:HAS_REQUIREMENT]-(:DocumentSection)
+            OPTIONAL MATCH (requirement)<-[existingRel:CONTAINS]-(:DocumentSection)
             WITH requirement, collect(existingRel) AS rels
             FOREACH (rel IN rels | DELETE rel)
           `,
@@ -469,7 +469,7 @@ export async function updateRequirement(
               MATCH (requirement:Requirement {id: $requirementId})
               WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
               MATCH (newSection:DocumentSection {id: $sectionId})
-              MERGE (newSection)-[:HAS_REQUIREMENT]->(requirement)
+              MERGE (newSection)-[:CONTAINS]->(requirement)
             `,
             sectionParams
           );
@@ -716,7 +716,7 @@ export async function updateRequirementRefsForDocument(
   const updateQuery = `
     MATCH (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
     MATCH (document)-[:CONTAINS]->(requirement:Requirement)
-    OPTIONAL MATCH (requirement)<-[:HAS_REQUIREMENT]-(section:DocumentSection)
+    OPTIONAL MATCH (requirement)<-[:CONTAINS]-(section:DocumentSection)
     WITH requirement, document, section,
          CASE
            WHEN section IS NOT NULL THEN
@@ -744,7 +744,7 @@ export async function updateRequirementRefsForSection(
 ): Promise<void> {
   const updateQuery = `
     MATCH (section:DocumentSection {id: $sectionId})<-[:HAS_SECTION]-(document:Document)<-[:HAS_DOCUMENT]-(project:Project)
-    MATCH (section)-[:HAS_REQUIREMENT]->(requirement:Requirement)
+    MATCH (section)-[:CONTAINS]->(requirement:Requirement)
     WITH requirement, document, section,
          coalesce(document.shortCode, toUpper(document.slug)) + '-' + coalesce(section.shortCode, toUpper(replace(section.name, ' ', ''))) AS newPrefix,
          split(requirement.ref, '-') AS refParts
@@ -763,8 +763,8 @@ export async function reorderRequirements(sectionId: string, requirementIds: str
       // Update order for each requirement
       for (let i = 0; i < requirementIds.length; i++) {
         const query = `
-          MATCH (section:DocumentSection {id: $sectionId})-[:HAS_REQUIREMENT]->(requirement:Requirement {id: $requirementId})
-          SET requirement.order = $order, requirement.updatedAt = $now
+          MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(requirement:Requirement {id: $requirementId})
+          SET rel.order = $order, rel.updatedAt = $now, requirement.updatedAt = $now
         `;
         await tx.run(query, {
           sectionId,
@@ -789,8 +789,8 @@ export async function reorderRequirementsWithOrder(
       // Update order for each requirement with explicit order value
       for (const req of requirements) {
         const query = `
-          MATCH (section:DocumentSection {id: $sectionId})-[:HAS_REQUIREMENT]->(requirement:Requirement {id: $requirementId})
-          SET requirement.order = $order, requirement.updatedAt = $now
+          MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(requirement:Requirement {id: $requirementId})
+          SET rel.order = $order, rel.updatedAt = $now, requirement.updatedAt = $now
         `;
         await tx.run(query, {
           sectionId,

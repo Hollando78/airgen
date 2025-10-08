@@ -16,7 +16,7 @@ export type InfoRecord = {
   updatedAt: string;
 };
 
-export function mapInfo(node: Neo4jNode): InfoRecord {
+export function mapInfo(node: Neo4jNode, relOrder?: number): InfoRecord {
   const props = node.properties as Record<string, unknown>;
   return {
     id: String(props.id),
@@ -27,7 +27,7 @@ export function mapInfo(node: Neo4jNode): InfoRecord {
     text: String(props.text),
     title: props.title ? String(props.title) : undefined,
     sectionId: props.sectionId ? String(props.sectionId) : undefined,
-    order: props.order !== undefined && props.order !== null ? Number(props.order) : undefined,
+    order: relOrder !== undefined ? relOrder : (props.order !== undefined && props.order !== null ? Number(props.order) : undefined),
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt)
   };
@@ -70,7 +70,7 @@ export async function createInfo(params: {
         ${params.sectionId ? `
           WITH info
           MATCH (section:DocumentSection {id: $sectionId})
-          MERGE (section)-[:CONTAINS_INFO]->(info)
+          MERGE (section)-[:CONTAINS]->(info)
         ` : ''}
         RETURN info
       `;
@@ -142,11 +142,11 @@ export async function updateInfo(
         SET ${setClauses.join(", ")}
         ${updates.sectionId !== undefined ? `
           WITH info
-          OPTIONAL MATCH (info)<-[oldRel:CONTAINS_INFO]-(oldSection:DocumentSection)
+          OPTIONAL MATCH (info)<-[oldRel:CONTAINS]-(oldSection:DocumentSection)
           DELETE oldRel
           WITH info
           MATCH (section:DocumentSection {id: $sectionId})
-          MERGE (section)-[:CONTAINS_INFO]->(info)
+          MERGE (section)-[:CONTAINS]->(info)
         ` : ''}
         RETURN info
       `;
@@ -210,14 +210,19 @@ export async function listSectionInfos(sectionId: string): Promise<InfoRecord[]>
   try {
     const result = await session.run(
       `
-        MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_INFO]->(info:Info)
-        RETURN info
-        ORDER BY coalesce(info.order, 999999), info.createdAt
+        MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(info:Info)
+        RETURN info, rel
+        ORDER BY coalesce(rel.order, 999999), info.createdAt
       `,
       { sectionId }
     );
 
-    return result.records.map(record => mapInfo(record.get("info")));
+    return result.records.map(record => {
+      const node = record.get("info") as Neo4jNode;
+      const rel = record.get("rel") as any;
+      const relOrder = rel?.properties?.order !== undefined ? Number(rel.properties.order) : undefined;
+      return mapInfo(node, relOrder);
+    });
   } finally {
     await session.close();
   }
@@ -230,8 +235,9 @@ export async function reorderInfos(sectionId: string, infoIds: string[]): Promis
       // Update order for each info
       for (let i = 0; i < infoIds.length; i++) {
         const query = `
-          MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_INFO]->(info:Info {id: $infoId})
-          SET info.order = $order, info.updatedAt = $now
+          MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(info:Info {id: $infoId})
+          SET rel.order = $order
+          SET info.updatedAt = $now
         `;
         await tx.run(query, {
           sectionId,
@@ -256,8 +262,9 @@ export async function reorderInfosWithOrder(
       // Update order for each info with explicit order value
       for (const info of infos) {
         const query = `
-          MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_INFO]->(info:Info {id: $infoId})
-          SET info.order = $order, info.updatedAt = $now
+          MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(info:Info {id: $infoId})
+          SET rel.order = $order
+          SET info.updatedAt = $now
         `;
         await tx.run(query, {
           sectionId,
