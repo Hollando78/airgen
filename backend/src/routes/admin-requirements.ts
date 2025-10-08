@@ -51,13 +51,14 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
         const result = await session.run(
           `
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
-            OPTIONAL MATCH (project)-[:CONTAINS]->(direct:Requirement)
-            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
-            WITH collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
+            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(doc:Document)-[:HAS_SECTION]->(section:DocumentSection)-[:CONTAINS]->(newReq:Requirement)
+            WHERE newReq.deleted = true
+            OPTIONAL MATCH (project)-[:CONTAINS]->(oldReq:Requirement)
+            WHERE oldReq.deleted = true
+            WITH collect(DISTINCT newReq) + collect(DISTINCT oldReq) AS reqs
             UNWIND reqs AS requirement
             WITH DISTINCT requirement
             WHERE requirement IS NOT NULL
-              AND requirement.deleted = true
             RETURN requirement
             ORDER BY requirement.ref ASC
             SKIP $offset
@@ -121,14 +122,16 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
         const result = await session.run(
           `
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
-            OPTIONAL MATCH (project)-[:CONTAINS]->(direct:Requirement)
-            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
-            WITH collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
+            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(doc:Document)-[:HAS_SECTION]->(section:DocumentSection)-[:CONTAINS]->(newReq:Requirement)
+            WHERE (newReq.deleted IS NULL OR newReq.deleted = false)
+              AND newReq.archived = true
+            OPTIONAL MATCH (project)-[:CONTAINS]->(oldReq:Requirement)
+            WHERE (oldReq.deleted IS NULL OR oldReq.deleted = false)
+              AND oldReq.archived = true
+            WITH collect(DISTINCT newReq) + collect(DISTINCT oldReq) AS reqs
             UNWIND reqs AS requirement
             WITH DISTINCT requirement
             WHERE requirement IS NOT NULL
-              AND (requirement.deleted IS NULL OR requirement.deleted = false)
-              AND requirement.archived = true
             RETURN requirement
             ORDER BY requirement.ref ASC
             SKIP $offset
@@ -313,18 +316,24 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
       const session = (await import("../services/graph/driver.js")).getSession();
       try {
         // Find all requirements that have trace links pointing to deleted/archived requirements
-        // or that have trace links where the target requirement doesn't exist
+        // or that have trace links where the target requirement doesn't exist or duplicates
         const result = await session.run(
           `
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
-            OPTIONAL MATCH (project)-[:CONTAINS]->(direct:Requirement)
-            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
-            WITH collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
+
+            // Get all requirements from new structure (with sections) and old structure (direct)
+            OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(doc:Document)-[:HAS_SECTION]->(section:DocumentSection)-[:CONTAINS]->(newReq:Requirement)
+            WHERE (newReq.deleted IS NULL OR newReq.deleted = false)
+              AND (newReq.archived IS NULL OR newReq.archived = false)
+
+            OPTIONAL MATCH (project)-[:CONTAINS]->(oldReq:Requirement)
+            WHERE (oldReq.deleted IS NULL OR oldReq.deleted = false)
+              AND (oldReq.archived IS NULL OR oldReq.archived = false)
+
+            WITH collect(DISTINCT newReq) + collect(DISTINCT oldReq) AS reqs
             UNWIND reqs AS requirement
             WITH DISTINCT requirement
             WHERE requirement IS NOT NULL
-              AND (requirement.deleted IS NULL OR requirement.deleted = false)
-              AND (requirement.archived IS NULL OR requirement.archived = false)
 
             // Find trace links from or to this requirement
             OPTIONAL MATCH (project)-[:HAS_TRACE_LINK]->(traceLink:TraceLink)
@@ -343,6 +352,7 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
                  [link IN collect({
                    link: traceLink,
                    linkId: traceLink.id,
+                   linkType: traceLink.linkType,
                    targetId: CASE
                      WHEN traceLink.sourceRequirementId = requirement.id THEN traceLink.targetRequirementId
                      ELSE traceLink.sourceRequirementId
@@ -357,22 +367,24 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
                    )
                  }) WHERE link.linkId IS NOT NULL] AS links
 
-            // Find duplicate links (multiple links to the same target)
+            // Find duplicate links (multiple links to the same target with same link type)
             WITH requirement, links,
                  [l IN links WHERE l.isBroken] AS brokenLinks,
-                 [targetId IN [l IN links | l.targetId] WHERE size([l2 IN links WHERE l2.targetId = targetId]) > 1] AS duplicateTargets
+                 // Group by targetId + linkType to find true duplicates (same target AND same link type)
+                 [combo IN [l IN links | l.targetId + '::' + l.linkType]
+                  WHERE size([l2 IN links WHERE l2.targetId + '::' + l2.linkType = combo]) > 1] AS duplicateCombos
 
-            // Get the IDs of duplicate links (keep one, mark others as bad)
-            WITH requirement, links, brokenLinks, duplicateTargets,
-                 [l IN links WHERE l.targetId IN duplicateTargets] AS duplicateLinkGroups
+            // Get the IDs of duplicate links (keep first, mark rest as bad)
+            WITH requirement, links, brokenLinks, duplicateCombos,
+                 [l IN links WHERE l.targetId + '::' + l.linkType IN duplicateCombos] AS duplicateLinkGroups
 
             // Build list of all bad links with metadata
-            WITH requirement, brokenLinks, duplicateLinkGroups, duplicateTargets,
+            WITH requirement, brokenLinks, duplicateLinkGroups, duplicateCombos,
                  // Mark broken links
                  [l IN brokenLinks | {linkId: l.linkId, type: 'broken'}] +
-                 // Mark duplicate links (keep first, remove rest)
-                 reduce(duplicates = [], target IN duplicateTargets |
-                   duplicates + [dl IN tail([l IN duplicateLinkGroups WHERE l.targetId = target]) | {linkId: dl.linkId, type: 'duplicate'}]
+                 // Mark duplicate links (keep first of each group, remove rest)
+                 reduce(duplicates = [], combo IN duplicateCombos |
+                   duplicates + [dl IN tail([l IN duplicateLinkGroups WHERE l.targetId + '::' + l.linkType = combo]) | {linkId: dl.linkId, type: 'duplicate'}]
                  ) AS allBadLinksWithType
 
             // Only return requirements that have at least one bad link (broken or duplicate)
