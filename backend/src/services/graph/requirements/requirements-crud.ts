@@ -327,6 +327,9 @@ export async function updateRequirement(
     complianceRationale?: string;
     sectionId?: string | null;
     attributes?: Record<string, string | number | boolean | null>;
+    qaScore?: number;
+    qaVerdict?: string;
+    suggestions?: string[];
   }
 ): Promise<RequirementRecord | null> {
   const tenantSlug = slugify(tenant);
@@ -376,15 +379,6 @@ export async function updateRequirement(
 
       const allUpdates = contentHash ? { ...propertyUpdates, contentHash } : propertyUpdates;
 
-      const setClause = Object.entries(allUpdates)
-        .filter(([_, value]) => value !== undefined)
-        .map(([key]) => `requirement.${key} = $${key}`)
-        .join(', ');
-
-      if (!setClause && !hasSectionUpdate) {
-        throw new Error("No valid updates provided");
-      }
-
       const now = new Date().toISOString();
       const baseParams: Record<string, unknown> = {
         tenantSlug,
@@ -392,12 +386,27 @@ export async function updateRequirement(
         requirementId
       };
 
-      // JSON-stringify attributes if present
+      // JSON-stringify attributes and suggestions BEFORE building setClause
       const serializedUpdates = { ...allUpdates };
       if (serializedUpdates.attributes !== undefined) {
         serializedUpdates.attributes = serializedUpdates.attributes
           ? JSON.stringify(serializedUpdates.attributes)
           : null;
+      }
+      if (serializedUpdates.suggestions !== undefined) {
+        serializedUpdates.suggestions = serializedUpdates.suggestions
+          ? JSON.stringify(serializedUpdates.suggestions)
+          : null;
+      }
+
+      // Build setClause from serialized updates
+      const setClause = Object.entries(serializedUpdates)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key]) => `requirement.${key} = $${key}`)
+        .join(', ');
+
+      if (!setClause && !hasSectionUpdate) {
+        throw new Error("No valid updates provided");
       }
 
       const writeParams: Record<string, unknown> = {
@@ -411,7 +420,6 @@ export async function updateRequirement(
           `
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
             MATCH (requirement:Requirement {id: $requirementId})
-            WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
             SET ${setClause}, requirement.updatedAt = $now
           `,
           writeParams
@@ -421,7 +429,6 @@ export async function updateRequirement(
           `
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
             MATCH (requirement:Requirement {id: $requirementId})
-            WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
             SET requirement.updatedAt = $now
           `,
           writeParams
@@ -439,7 +446,6 @@ export async function updateRequirement(
         const docResult = await tx.run(
           `
             MATCH (requirement:Requirement {id: $requirementId})
-            WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
             OPTIONAL MATCH (document:Document)-[:CONTAINS]->(requirement)
             RETURN document.slug AS documentSlug
           `,
@@ -455,7 +461,6 @@ export async function updateRequirement(
         await tx.run(
           `
             MATCH (requirement:Requirement {id: $requirementId})
-            WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
             OPTIONAL MATCH (requirement)<-[existingRel:CONTAINS]-(:DocumentSection)
             WITH requirement, collect(existingRel) AS rels
             FOREACH (rel IN rels | DELETE rel)
@@ -483,7 +488,6 @@ export async function updateRequirement(
       const finalResult = await tx.run(
         `
           MATCH (requirement:Requirement {id: $requirementId})
-          WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
           RETURN requirement
         `,
         baseParams

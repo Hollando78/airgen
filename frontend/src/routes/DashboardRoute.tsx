@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
@@ -45,13 +45,9 @@ export function DashboardRoute(): JSX.Element {
     queryFn: () => api.listBaselines(state.tenant ?? "", state.project ?? ""),
     enabled: Boolean(state.tenant && state.project)
   });
-  const requirementsQuery = useQuery({
-    queryKey: ["requirements", state.tenant, state.project, "all"],
-    queryFn: async () => {
-      const response = await fetch(`/api/requirements/${state.tenant}/${state.project}?limit=100`);
-      if (!response.ok) throw new Error('Failed to fetch requirements');
-      return response.json();
-    },
+  const graphDataQuery = useQuery({
+    queryKey: ["graph-data", state.tenant, state.project],
+    queryFn: () => api.getGraphData(state.tenant ?? "", state.project ?? ""),
     enabled: Boolean(state.tenant && state.project)
   });
   const documentsQuery = useQuery({
@@ -63,6 +59,16 @@ export function DashboardRoute(): JSX.Element {
     queryKey: ["traceLinks", state.tenant, state.project],
     queryFn: () => api.listTraceLinks(state.tenant ?? "", state.project ?? ""),
     enabled: Boolean(state.tenant && state.project)
+  });
+
+  // QA Scorer worker status
+  const qaScorerStatusQuery = useQuery({
+    queryKey: ["qa-scorer-status"],
+    queryFn: api.getQAScorerStatus,
+    refetchInterval: (query) => {
+      // Poll every 2 seconds while worker is running
+      return query.state.data?.isRunning ? 2000 : false;
+    }
   });
 
   // Admin mutations
@@ -94,12 +100,38 @@ export function DashboardRoute(): JSX.Element {
   });
 
   const deleteProjectMutation = useMutation({
-    mutationFn: ({ tenant, project }: { tenant: string; project: string }) => 
+    mutationFn: ({ tenant, project }: { tenant: string; project: string }) =>
       api.deleteProject(tenant, project),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["projects", variables.tenant] });
     }
   });
+
+  // QA Scorer worker mutations
+  const startQAScorerMutation = useMutation({
+    mutationFn: ({ tenant, project }: { tenant: string; project: string }) =>
+      api.startQAScorer(tenant, project),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["qa-scorer-status"] });
+      queryClient.invalidateQueries({ queryKey: ["graph-data", state.tenant, state.project] });
+    }
+  });
+
+  const stopQAScorerMutation = useMutation({
+    mutationFn: api.stopQAScorer,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["qa-scorer-status"] });
+    }
+  });
+
+  // Track when worker completes and invalidate graph data
+  useEffect(() => {
+    const status = qaScorerStatusQuery.data;
+    if (status && !status.isRunning && status.completedAt) {
+      // Worker has completed, invalidate graph data to refresh metrics
+      queryClient.invalidateQueries({ queryKey: ["graph-data", state.tenant, state.project] });
+    }
+  }, [qaScorerStatusQuery.data, queryClient, state.tenant, state.project]);
 
   const activeProject = useMemo(() => {
     if (!state.project || !projectsQuery.data) {return null;}
@@ -108,81 +140,98 @@ export function DashboardRoute(): JSX.Element {
 
   // Calculate comprehensive metrics
   const metrics = useMemo(() => {
-    const requirements = requirementsQuery.data?.data ?? [];
-    const totalRequirements = requirementsQuery.data?.meta?.totalItems ?? requirements.length;
+    const nodes = graphDataQuery.data?.nodes ?? [];
+    const relationships = graphDataQuery.data?.relationships ?? [];
     const traceLinks = traceLinksQuery.data?.traceLinks ?? [];
     const documents = documentsQuery.data?.documents ?? [];
 
-    // Helper function to categorize requirements by type based on ref pattern
-    const getObjectType = (ref: string): 'requirement' | 'info' | 'surrogate' => {
-      if (ref.includes('KEY')) return 'info';
-      if (ref.includes('SYSTEMREQUIREMENTSDOCUMENT')) return 'surrogate';
-      return 'requirement';
-    };
+    // Get nodes by type
+    const requirementNodes = nodes.filter(n => n.type === 'Requirement');
+    const infoNodes = nodes.filter(n => n.type === 'Info');
+    const surrogateNodes = nodes.filter(n => n.type === 'SurrogateReference');
+    const candidateNodes = nodes.filter(n => n.type === 'RequirementCandidate');
+    const documentNodes = nodes.filter(n => n.type === 'Document');
+    const sectionNodes = nodes.filter(n => n.type === 'DocumentSection');
+    const linksetNodes = nodes.filter(n => n.type === 'DocumentLinkset');
+    const traceLinkNodes = nodes.filter(n => n.type === 'TraceLink');
 
     // Object type distribution
     const objectTypeCounts = {
-      requirement: requirements.filter(r => getObjectType(r.ref) === 'requirement').length,
-      info: requirements.filter(r => getObjectType(r.ref) === 'info').length,
-      surrogate: requirements.filter(r => getObjectType(r.ref) === 'surrogate').length
+      requirement: requirementNodes.length,
+      info: infoNodes.length,
+      surrogate: surrogateNodes.length,
+      candidate: candidateNodes.length
     };
 
     // Filter to only actual requirements (exclude info and surrogate) for detailed metrics
-    const actualRequirements = requirements.filter(r => getObjectType(r.ref) === 'requirement');
+    const actualRequirements = requirementNodes;
 
     // Pattern distribution (only for actual requirements)
     const patternCounts = {
-      ubiquitous: actualRequirements.filter(r => r.pattern === "ubiquitous").length,
-      event: actualRequirements.filter(r => r.pattern === "event").length,
-      state: actualRequirements.filter(r => r.pattern === "state").length,
-      unwanted: actualRequirements.filter(r => r.pattern === "unwanted").length,
-      optional: actualRequirements.filter(r => r.pattern === "optional").length,
-      unspecified: actualRequirements.filter(r => !r.pattern).length
+      ubiquitous: actualRequirements.filter(r => r.properties?.pattern === "ubiquitous").length,
+      event: actualRequirements.filter(r => r.properties?.pattern === "event").length,
+      state: actualRequirements.filter(r => r.properties?.pattern === "state").length,
+      unwanted: actualRequirements.filter(r => r.properties?.pattern === "unwanted").length,
+      optional: actualRequirements.filter(r => r.properties?.pattern === "optional").length,
+      unspecified: actualRequirements.filter(r => !r.properties?.pattern).length
     };
 
     // Verification distribution (only for actual requirements)
     const verificationCounts = {
-      Test: actualRequirements.filter(r => r.verification === "Test").length,
-      Analysis: actualRequirements.filter(r => r.verification === "Analysis").length,
-      Inspection: actualRequirements.filter(r => r.verification === "Inspection").length,
-      Demonstration: actualRequirements.filter(r => r.verification === "Demonstration").length,
-      unspecified: actualRequirements.filter(r => !r.verification).length
+      Test: actualRequirements.filter(r => r.properties?.verification === "Test").length,
+      Analysis: actualRequirements.filter(r => r.properties?.verification === "Analysis").length,
+      Inspection: actualRequirements.filter(r => r.properties?.verification === "Inspection").length,
+      Demonstration: actualRequirements.filter(r => r.properties?.verification === "Demonstration").length,
+      unspecified: actualRequirements.filter(r => !r.properties?.verification).length
     };
 
     // Compliance distribution (only for actual requirements)
     const complianceCounts = {
-      "N/A": actualRequirements.filter(r => r.complianceStatus === "N/A").length,
-      Compliant: actualRequirements.filter(r => r.complianceStatus === "Compliant").length,
-      "Compliance Risk": actualRequirements.filter(r => r.complianceStatus === "Compliance Risk").length,
-      "Non-Compliant": actualRequirements.filter(r => r.complianceStatus === "Non-Compliant").length,
-      unspecified: actualRequirements.filter(r => !r.complianceStatus).length
+      "N/A": actualRequirements.filter(r => r.properties?.complianceStatus === "N/A").length,
+      Compliant: actualRequirements.filter(r => r.properties?.complianceStatus === "Compliant").length,
+      "Compliance Risk": actualRequirements.filter(r => r.properties?.complianceStatus === "Compliance Risk").length,
+      "Non-Compliant": actualRequirements.filter(r => r.properties?.complianceStatus === "Non-Compliant").length,
+      unspecified: actualRequirements.filter(r => !r.properties?.complianceStatus).length
     };
 
     // QA Score statistics (only for actual requirements)
-    const requirementsWithQA = actualRequirements.filter(r => r.qaScore !== undefined && r.qaScore !== null);
+    const requirementsWithQA = actualRequirements.filter(r => r.properties?.qaScore !== undefined && r.properties?.qaScore !== null);
     const avgQaScore = requirementsWithQA.length > 0
-      ? Math.round(requirementsWithQA.reduce((sum, r) => sum + (r.qaScore ?? 0), 0) / requirementsWithQA.length)
+      ? Math.round(requirementsWithQA.reduce((sum, r) => sum + (r.properties?.qaScore ?? 0), 0) / requirementsWithQA.length)
       : 0;
     const qaDistribution = {
-      excellent: actualRequirements.filter(r => (r.qaScore ?? 0) >= 80).length,
-      good: actualRequirements.filter(r => (r.qaScore ?? 0) >= 60 && (r.qaScore ?? 0) < 80).length,
-      needsWork: actualRequirements.filter(r => (r.qaScore ?? 0) > 0 && (r.qaScore ?? 0) < 60).length,
-      unscored: actualRequirements.filter(r => !r.qaScore).length
+      excellent: actualRequirements.filter(r => (r.properties?.qaScore ?? 0) >= 80).length,
+      good: actualRequirements.filter(r => (r.properties?.qaScore ?? 0) >= 60 && (r.properties?.qaScore ?? 0) < 80).length,
+      needsWork: actualRequirements.filter(r => (r.properties?.qaScore ?? 0) > 0 && (r.properties?.qaScore ?? 0) < 60).length,
+      unscored: actualRequirements.filter(r => !r.properties?.qaScore).length
     };
 
-    // Traceability (only for actual requirements)
-    const uniqueRequirementIds = new Set(traceLinks.map(link => link.sourceId));
-    const tracedRequirements = actualRequirements.filter(r => uniqueRequirementIds.has(r.id)).length;
+    // Traceability - count requirements involved in trace links
+    // A requirement is traced if it's connected via FROM_REQUIREMENT or TO_REQUIREMENT
+    const fromReqRels = relationships.filter(r => r.type === 'FROM_REQUIREMENT');
+    const toReqRels = relationships.filter(r => r.type === 'TO_REQUIREMENT');
+
+    // Collect requirement IDs that are targets of FROM_REQUIREMENT or TO_REQUIREMENT
+    const tracedIds = new Set([
+      ...fromReqRels.map(r => r.target),  // Requirements pointed to by FROM_REQUIREMENT
+      ...toReqRels.map(r => r.target)     // Requirements pointed to by TO_REQUIREMENT
+    ]);
+
+    const tracedRequirements = actualRequirements.filter(r => tracedIds.has(r.id)).length;
     const untracedRequirements = objectTypeCounts.requirement - tracedRequirements;
 
     // Archive status (only for actual requirements)
-    const archivedCount = actualRequirements.filter(r => r.archived).length;
+    const archivedCount = actualRequirements.filter(r => r.properties?.archived === true).length;
     const activeCount = objectTypeCounts.requirement - archivedCount;
 
     return {
-      totalRequirements,
-      totalDocuments: documents.length,
-      totalTraceLinks: traceLinks.length,
+      totalObjects: nodes.length,
+      totalRequirements: objectTypeCounts.requirement,
+      totalDocuments: documentNodes.length,
+      totalSections: sectionNodes.length,
+      totalTraceLinks: traceLinkNodes.length,
+      totalLinksets: linksetNodes.length,
+      totalRelationships: relationships.length,
       objectTypeCounts,
       patternCounts,
       verificationCounts,
@@ -194,7 +243,7 @@ export function DashboardRoute(): JSX.Element {
       archivedCount,
       activeCount
     };
-  }, [requirementsQuery.data, traceLinksQuery.data, documentsQuery.data]);
+  }, [graphDataQuery.data, traceLinksQuery.data, documentsQuery.data]);
 
   return (
     <div className="panel-stack">
@@ -314,19 +363,122 @@ export function DashboardRoute(): JSX.Element {
         )}
       </section>
 
+      {/* QA Scorer Worker Status */}
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>QA Scorer Worker</h2>
+            <p>Background worker for scoring all requirements in a project.</p>
+          </div>
+          {state.tenant && state.project && (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {qaScorerStatusQuery.data?.isRunning ? (
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={() => stopQAScorerMutation.mutate()}
+                  disabled={stopQAScorerMutation.isPending}
+                >
+                  Stop Worker
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => startQAScorerMutation.mutate({ tenant: state.tenant!, project: state.project! })}
+                  disabled={startQAScorerMutation.isPending}
+                >
+                  Start QA Scoring
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        {!state.tenant || !state.project ? (
+          <p className="hint">Select a tenant and project to use the QA scorer.</p>
+        ) : qaScorerStatusQuery.isLoading ? (
+          <Spinner />
+        ) : qaScorerStatusQuery.isError ? (
+          <ErrorState message={(qaScorerStatusQuery.error as Error).message} />
+        ) : qaScorerStatusQuery.data ? (
+          <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>STATUS</div>
+                <div style={{
+                  fontWeight: 600,
+                  color: qaScorerStatusQuery.data.isRunning ? '#3b82f6' : '#6b7280'
+                }}>
+                  {qaScorerStatusQuery.data.isRunning ? 'RUNNING' : 'IDLE'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>PROGRESS</div>
+                <div>{qaScorerStatusQuery.data.processedCount} / {qaScorerStatusQuery.data.totalCount}</div>
+              </div>
+              {qaScorerStatusQuery.data.currentRequirement && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>CURRENT</div>
+                  <div>{qaScorerStatusQuery.data.currentRequirement}</div>
+                </div>
+              )}
+              {qaScorerStatusQuery.data.startedAt && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>STARTED</div>
+                  <div>{formatDate(qaScorerStatusQuery.data.startedAt)}</div>
+                </div>
+              )}
+              {qaScorerStatusQuery.data.completedAt && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>COMPLETED</div>
+                  <div>{formatDate(qaScorerStatusQuery.data.completedAt)}</div>
+                </div>
+              )}
+            </div>
+            {qaScorerStatusQuery.data.lastError && (
+              <div style={{
+                padding: '0.75rem',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '0.5rem',
+                color: '#991b1b'
+              }}>
+                <strong>Error:</strong> {qaScorerStatusQuery.data.lastError}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </section>
+
       <section className="panel">
         <div className="panel-header">
           <div>
             <h2>Active Project Metrics</h2>
             <p>Comprehensive metrics and health indicators for the current project.</p>
           </div>
+          {state.tenant && state.project && (
+            <button
+              type="button"
+              onClick={() => {
+                graphDataQuery.refetch();
+                projectsQuery.refetch();
+                documentsQuery.refetch();
+                traceLinksQuery.refetch();
+              }}
+              disabled={graphDataQuery.isFetching || projectsQuery.isFetching || documentsQuery.isFetching || traceLinksQuery.isFetching}
+            >
+              Refresh
+            </button>
+          )}
         </div>
         {!state.tenant || !state.project ? (
           <p>Select a tenant and project to view project metrics.</p>
-        ) : projectsQuery.isLoading || requirementsQuery.isLoading || documentsQuery.isLoading || traceLinksQuery.isLoading ? (
+        ) : projectsQuery.isLoading || graphDataQuery.isLoading || documentsQuery.isLoading || traceLinksQuery.isLoading ? (
           <Spinner />
         ) : projectsQuery.isError ? (
           <ErrorState message={(projectsQuery.error as Error).message} />
+        ) : graphDataQuery.isError ? (
+          <ErrorState message={(graphDataQuery.error as Error).message} />
         ) : activeProject ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {/* Project Overview */}
@@ -342,20 +494,43 @@ export function DashboardRoute(): JSX.Element {
                   <span className="stat-value">{activeProject.slug}</span>
                 </div>
                 <div className="stat-card">
-                  <span className="stat-label">Total Objects</span>
-                  <span className="stat-value">{metrics.totalRequirements}</span>
+                  <span className="stat-label">Total Graph Nodes</span>
+                  <span className="stat-value">{metrics.totalObjects}</span>
                 </div>
+                <div className="stat-card">
+                  <span className="stat-label">Total Relationships</span>
+                  <span className="stat-value">{metrics.totalRelationships}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Graph Structure */}
+            <div>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Graph Structure</h3>
+              <div className="grid grid-cols-4">
                 <div className="stat-card">
                   <span className="stat-label">Documents</span>
                   <span className="stat-value">{metrics.totalDocuments}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Sections</span>
+                  <span className="stat-value">{metrics.totalSections}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Linksets</span>
+                  <span className="stat-value">{metrics.totalLinksets}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Trace Links</span>
+                  <span className="stat-value">{metrics.totalTraceLinks}</span>
                 </div>
               </div>
             </div>
 
             {/* Object Type Distribution */}
             <div>
-              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Object Type Distribution</h3>
-              <div className="grid grid-cols-3">
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Content Object Distribution</h3>
+              <div className="grid grid-cols-4">
                 <div className="stat-card">
                   <span className="stat-label">Requirements</span>
                   <span className="stat-value" style={{ color: '#10b981' }}>{metrics.objectTypeCounts.requirement}</span>
@@ -367,6 +542,10 @@ export function DashboardRoute(): JSX.Element {
                 <div className="stat-card">
                   <span className="stat-label">Surrogates</span>
                   <span className="stat-value" style={{ color: '#8b5cf6' }}>{metrics.objectTypeCounts.surrogate}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Candidates</span>
+                  <span className="stat-value" style={{ color: '#f59e0b' }}>{metrics.objectTypeCounts.candidate}</span>
                 </div>
               </div>
             </div>
