@@ -324,6 +324,12 @@ export type DocumentSectionRecord = {
   updatedAt: string;
 };
 
+export type DocumentSectionWithRelations = DocumentSectionRecord & {
+  requirements: RequirementRecord[];
+  infos: InfoRecord[];
+  surrogates: SurrogateReferenceRecord[];
+};
+
 export type InfoRecord = {
   id: string;
   ref: string;
@@ -369,6 +375,10 @@ export type FolderResponse = {
 
 export type DocumentSectionsResponse = {
   sections: DocumentSectionRecord[];
+};
+
+export type DocumentSectionsWithRelationsResponse = {
+  sections: DocumentSectionWithRelations[];
 };
 
 export type DocumentSectionResponse = {

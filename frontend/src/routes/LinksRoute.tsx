@@ -207,8 +207,10 @@ export function LinksRoute(): JSX.Element {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const { state } = useTenantProject();
-  
+
   const [selectedLinksetId, setSelectedLinksetId] = useState<string>("");
+  const hasLoadedFromStorage = useRef(false);
+  const previousTenantProject = useRef<string | null>(null);
   const [selectedRequirements, setSelectedRequirements] = useState<Set<string>>(new Set());
   const [linkStartRequirements, setLinkStartRequirements] = useState<RequirementRecord[]>([]);
   const [contextMenu, setContextMenu] = useState<{
@@ -236,13 +238,54 @@ export function LinksRoute(): JSX.Element {
     return linkset || null;
   }, [selectedLinksetId, linksetsQuery.data]);
   
-  // Reset selection if linkset no longer exists
+  // Load from localStorage when tenant/project become available
   React.useEffect(() => {
-    if (selectedLinksetId && linksetsQuery.data?.linksets && !selectedLinkset) {
-      console.warn(`Linkset "${selectedLinksetId}" not found, clearing selection`);
-      setSelectedLinksetId("");
+    if (state.tenant && state.project && linksetsQuery.data?.linksets && !hasLoadedFromStorage.current) {
+      const storageKey = `trace-links-selected-linkset-${state.tenant}-${state.project}`;
+      const saved = localStorage.getItem(storageKey);
+      console.log('[LinksRoute] Loading from localStorage:', { storageKey, saved, linksets: linksetsQuery.data.linksets });
+
+      if (saved) {
+        // Check if saved linkset still exists
+        const exists = linksetsQuery.data.linksets.some(ls => ls.id === saved);
+        if (exists) {
+          console.log('[LinksRoute] Restoring saved linkset:', saved);
+          setSelectedLinksetId(saved);
+        } else if (linksetsQuery.data.linksets.length > 0) {
+          // Saved linkset doesn't exist, select first available
+          console.log('[LinksRoute] Saved linkset not found, selecting first');
+          setSelectedLinksetId(linksetsQuery.data.linksets[0].id);
+        }
+      } else if (linksetsQuery.data.linksets.length > 0) {
+        // No saved selection, auto-select first linkset
+        console.log('[LinksRoute] No saved selection, auto-selecting first');
+        setSelectedLinksetId(linksetsQuery.data.linksets[0].id);
+      }
+      hasLoadedFromStorage.current = true;
     }
-  }, [selectedLinksetId, selectedLinkset, linksetsQuery.data]);
+  }, [state.tenant, state.project, linksetsQuery.data]);
+
+  // Save selected linkset to localStorage when it changes
+  React.useEffect(() => {
+    if (state.tenant && state.project && selectedLinksetId && hasLoadedFromStorage.current) {
+      const storageKey = `trace-links-selected-linkset-${state.tenant}-${state.project}`;
+      console.log('[LinksRoute] Saving to localStorage:', { storageKey, selectedLinksetId });
+      localStorage.setItem(storageKey, selectedLinksetId);
+    }
+  }, [selectedLinksetId, state.tenant, state.project]);
+
+  // Reset hasLoadedFromStorage flag when tenant/project ACTUALLY changes (not on initial mount)
+  React.useEffect(() => {
+    const currentTenantProject = `${state.tenant}-${state.project}`;
+    if (previousTenantProject.current !== null && previousTenantProject.current !== currentTenantProject) {
+      console.log('[LinksRoute] Tenant/project changed, resetting hasLoadedFromStorage', {
+        previous: previousTenantProject.current,
+        current: currentTenantProject
+      });
+      hasLoadedFromStorage.current = false;
+    }
+    previousTenantProject.current = currentTenantProject;
+  }, [state.tenant, state.project]);
 
   const traceLinksQuery = useQuery({
     queryKey: ["traceLinks", state.tenant, state.project],
@@ -398,8 +441,10 @@ function TraceLinksView(): JSX.Element {
   const { state: { tenant, project } } = useTenantProject();
   const apiClient = useApiClient();
   const queryClient = useQueryClient();
-  
+
   const [selectedLinksetId, setSelectedLinksetId] = useState<string>("");
+  const hasLoadedFromStorage = useRef(false);
+  const previousTenantProject = useRef<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean;
     x: number;
@@ -441,6 +486,43 @@ function TraceLinksView(): JSX.Element {
     if (!selectedLinksetId || !linksetsQuery.data?.linksets) {return null;}
     return linksetsQuery.data.linksets.find(ls => ls.id === selectedLinksetId) || null;
   }, [selectedLinksetId, linksetsQuery.data?.linksets]);
+
+  // Load from localStorage when tenant/project become available
+  React.useEffect(() => {
+    if (tenant && project && linksetsQuery.data?.linksets && !hasLoadedFromStorage.current) {
+      const storageKey = `trace-links-selected-linkset-${tenant}-${project}`;
+      const saved = localStorage.getItem(storageKey);
+
+      if (saved) {
+        const exists = linksetsQuery.data.linksets.some(ls => ls.id === saved);
+        if (exists) {
+          setSelectedLinksetId(saved);
+        } else if (linksetsQuery.data.linksets.length > 0) {
+          setSelectedLinksetId(linksetsQuery.data.linksets[0].id);
+        }
+      } else if (linksetsQuery.data.linksets.length > 0) {
+        setSelectedLinksetId(linksetsQuery.data.linksets[0].id);
+      }
+      hasLoadedFromStorage.current = true;
+    }
+  }, [tenant, project, linksetsQuery.data]);
+
+  // Save selected linkset to localStorage when it changes
+  React.useEffect(() => {
+    if (tenant && project && selectedLinksetId && hasLoadedFromStorage.current) {
+      const storageKey = `trace-links-selected-linkset-${tenant}-${project}`;
+      localStorage.setItem(storageKey, selectedLinksetId);
+    }
+  }, [selectedLinksetId, tenant, project]);
+
+  // Reset hasLoadedFromStorage flag when tenant/project ACTUALLY changes (not on initial mount)
+  React.useEffect(() => {
+    const currentTenantProject = `${tenant}-${project}`;
+    if (previousTenantProject.current !== null && previousTenantProject.current !== currentTenantProject) {
+      hasLoadedFromStorage.current = false;
+    }
+    previousTenantProject.current = currentTenantProject;
+  }, [tenant, project]);
 
   // Create trace link mutation
   const createTraceLinkMutation = useMutation({
