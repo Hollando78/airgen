@@ -15,7 +15,7 @@ export type SurrogateReferenceRecord = {
   updatedAt: string;
 };
 
-export function mapSurrogateReference(node: Neo4jNode): SurrogateReferenceRecord {
+export function mapSurrogateReference(node: Neo4jNode, relOrder?: number): SurrogateReferenceRecord {
   const props = node.properties as Record<string, unknown>;
   return {
     id: String(props.id),
@@ -25,7 +25,7 @@ export function mapSurrogateReference(node: Neo4jNode): SurrogateReferenceRecord
     slug: String(props.slug),
     caption: props.caption ? String(props.caption) : undefined,
     sectionId: props.sectionId ? String(props.sectionId) : undefined,
-    order: props.order !== undefined && props.order !== null ? Number(props.order) : undefined,
+    order: relOrder !== undefined ? relOrder : (props.order !== undefined && props.order !== null ? Number(props.order) : undefined),
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt)
   };
@@ -66,7 +66,7 @@ export async function createSurrogateReference(params: {
         ${params.sectionId ? `
           WITH surrogate
           MATCH (section:DocumentSection {id: $sectionId})
-          MERGE (section)-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate)
+          MERGE (section)-[:CONTAINS]->(surrogate)
         ` : ''}
         RETURN surrogate
       `;
@@ -139,14 +139,19 @@ export async function listSectionSurrogateReferences(sectionId: string): Promise
   try {
     const result = await session.run(
       `
-        MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate:SurrogateReference)
-        RETURN surrogate
-        ORDER BY coalesce(surrogate.order, 999999), surrogate.createdAt
+        MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(surrogate:SurrogateReference)
+        RETURN surrogate, rel
+        ORDER BY coalesce(rel.order, 999999), surrogate.createdAt
       `,
       { sectionId }
     );
 
-    return result.records.map(record => mapSurrogateReference(record.get("surrogate")));
+    return result.records.map(record => {
+      const node = record.get("surrogate") as Neo4jNode;
+      const rel = record.get("rel") as any;
+      const relOrder = rel?.properties?.order !== undefined ? Number(rel.properties.order) : undefined;
+      return mapSurrogateReference(node, relOrder);
+    });
   } finally {
     await session.close();
   }
@@ -178,8 +183,9 @@ export async function reorderSurrogateReferences(sectionId: string, surrogateIds
       // Update order for each surrogate reference
       for (let i = 0; i < surrogateIds.length; i++) {
         const query = `
-          MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate:SurrogateReference {id: $surrogateId})
-          SET surrogate.order = $order, surrogate.updatedAt = $now
+          MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(surrogate:SurrogateReference {id: $surrogateId})
+          SET rel.order = $order
+          SET surrogate.updatedAt = $now
         `;
         await tx.run(query, {
           sectionId,
@@ -204,8 +210,9 @@ export async function reorderSurrogateReferencesWithOrder(
       // Update order for each surrogate reference with explicit order value
       for (const surrogate of surrogates) {
         const query = `
-          MATCH (section:DocumentSection {id: $sectionId})-[:CONTAINS_SURROGATE_REFERENCE]->(surrogate:SurrogateReference {id: $surrogateId})
-          SET surrogate.order = $order, surrogate.updatedAt = $now
+          MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(surrogate:SurrogateReference {id: $surrogateId})
+          SET rel.order = $order
+          SET surrogate.updatedAt = $now
         `;
         await tx.run(query, {
           sectionId,

@@ -122,12 +122,12 @@ export async function listSectionRequirements(sectionId: string): Promise<Requir
   try {
     const result = await session.run(
       `
-        MATCH (section:DocumentSection {id: $sectionId})-[:HAS_REQUIREMENT]->(requirement:Requirement)
+        MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(requirement:Requirement)
         OPTIONAL MATCH (doc:Document)-[:CONTAINS]->(requirement)
         WHERE (requirement.deleted IS NULL OR requirement.deleted = false)
           AND (requirement.archived IS NULL OR requirement.archived = false)
         RETURN requirement, doc.slug AS documentSlug
-        ORDER BY coalesce(requirement.order, 999999), requirement.ref
+        ORDER BY coalesce(rel.order, 999999), requirement.ref
       `,
       { sectionId }
     );

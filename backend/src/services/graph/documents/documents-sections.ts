@@ -240,11 +240,11 @@ export async function listDocumentSectionsWithRelations(
       MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})-[:HAS_SECTION]->(section:DocumentSection)
 
       // Get all requirements, infos, and surrogates for each section
-      OPTIONAL MATCH (section)-[reqRel:HAS_REQUIREMENT]->(req:Requirement)
+      OPTIONAL MATCH (section)-[reqRel:CONTAINS]->(req:Requirement)
       WHERE (req.deleted IS NULL OR req.deleted = false)
         AND (req.archived IS NULL OR req.archived = false)
-      OPTIONAL MATCH (section)-[infoRel:CONTAINS_INFO]->(info:Info)
-      OPTIONAL MATCH (section)-[surRel:CONTAINS_SURROGATE_REFERENCE]->(sur:SurrogateReference)
+      OPTIONAL MATCH (section)-[infoRel:CONTAINS]->(info:Info)
+      OPTIONAL MATCH (section)-[surRel:CONTAINS]->(sur:SurrogateReference)
 
       // Return each section with its requirements sorted by ref
       WITH section,
