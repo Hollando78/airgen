@@ -16,6 +16,7 @@ const RequirementsRoute = lazy(() => import("./routes/RequirementsRoute").then(m
 const BaselinesRoute = lazy(() => import("./routes/BaselinesRoute").then(m => ({ default: m.BaselinesRoute })));
 const LinksRoute = lazy(() => import("./routes/LinksRoute").then(m => ({ default: m.LinksRoute })));
 const RequirementsSchemaRoute = lazy(() => import("./routes/RequirementsSchemaRoute").then(m => ({ default: m.RequirementsSchemaRoute })));
+const GraphViewerRoute = lazy(() => import("./routes/GraphViewerRoute").then(m => ({ default: m.GraphViewerRoute })));
 const AdminUsersRoute = lazy(() => import("./routes/AdminUsersRoute").then(m => ({ default: m.AdminUsersRoute })));
 const AdminRequirementsRoute = lazy(() => import("./routes/AdminRequirementsRoute").then(m => ({ default: m.AdminRequirementsRoute })));
 
@@ -102,6 +103,14 @@ export default function DevAppRoutes(): JSX.Element {
           element={
             <ProtectedRoute fallback={<LandingPage />}>
               <RequirementsSchemaRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/graph-viewer"
+          element={
+            <ProtectedRoute fallback={<LandingPage />}>
+              <GraphViewerRoute />
             </ProtectedRoute>
           }
         />

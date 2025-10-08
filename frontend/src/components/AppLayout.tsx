@@ -20,7 +20,8 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
     { to: "/requirements", label: "Requirements" },
     { to: "/baselines", label: "Baselines" },
     { to: "/links", label: "Trace Links" },
-    { to: "/requirements-schema", label: "Requirements Schema" }
+    { to: "/requirements-schema", label: "Requirements Schema" },
+    { to: "/graph-viewer", label: "Graph Viewer" }
   ];
 
   if (isDevMode && user?.roles.includes('admin')) {

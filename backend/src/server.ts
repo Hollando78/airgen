@@ -29,6 +29,7 @@ import { linksetRoutes } from "./routes/linksets.js";
 import authRoutes from "./routes/auth.js";
 import markdownRoutes from "./routes/markdown-api.js";
 import thumbnailRoutes from "./routes/thumbnails.js";
+import graphRoutes from "./routes/graph.js";
 import { adminRequirementsRoutes } from "./routes/admin-requirements.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -242,6 +243,7 @@ await app.register(traceRoutes, { prefix: "/api" });
 await app.register(linksetRoutes, { prefix: "/api" });
 await app.register(draftRoutes, { prefix: "/api" });
 await app.register(airgenRoutes, { prefix: "/api" });
+await app.register(graphRoutes, { prefix: "/api" });
 
 if (config.environment !== "production") {
   const adminRoutes = await import("./routes/admin-users.js");

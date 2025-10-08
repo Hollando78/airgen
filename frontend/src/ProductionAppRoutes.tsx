@@ -11,6 +11,7 @@ import { ArchitectureRoute } from "./routes/ArchitectureRoute";
 import { InterfaceRoute } from "./routes/InterfaceRoute";
 import { AirGenRoute } from "./routes/AirGenRoute";
 import { AdminUsersRoute } from "./routes/AdminUsersRoute";
+import { GraphViewerRoute } from "./routes/GraphViewerRoute";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { useAuth } from "./contexts/AuthContext";
 
@@ -42,6 +43,7 @@ export default function ProductionAppRoutes(): JSX.Element {
         <Route path="/baselines" element={<BaselinesRoute />} />
         <Route path="/links" element={<LinksRoute />} />
         <Route path="/requirements-schema" element={<RequirementsSchemaRoute />} />
+        <Route path="/graph-viewer" element={<GraphViewerRoute />} />
         
         {/* Admin routes - only for admin users in dev mode */}
         {isDevMode && user?.roles.includes('admin') && (

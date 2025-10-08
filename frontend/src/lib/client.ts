@@ -443,6 +443,13 @@ export function useApiClient() {
         if (limit !== undefined) params.append("limit", limit.toString());
         if (offset !== undefined) params.append("offset", offset.toString());
         return request<{ requirements: (RequirementRecord & { brokenLinkCount?: number })[]; count: number }>(`/admin/requirements/bad-links?${params}`);
+      },
+      getGraphData: (tenant: string, project: string) => {
+        const params = new URLSearchParams({ tenant, project });
+        return request<{
+          nodes: Array<{ id: string; label: string; type: string; properties: Record<string, any> }>;
+          relationships: Array<{ id: string; source: string; target: string; type: string; properties: Record<string, any> }>;
+        }>(`/graph/data?${params}`);
       }
     }),
     [request]

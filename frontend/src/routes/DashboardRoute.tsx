@@ -45,6 +45,25 @@ export function DashboardRoute(): JSX.Element {
     queryFn: () => api.listBaselines(state.tenant ?? "", state.project ?? ""),
     enabled: Boolean(state.tenant && state.project)
   });
+  const requirementsQuery = useQuery({
+    queryKey: ["requirements", state.tenant, state.project, "all"],
+    queryFn: async () => {
+      const response = await fetch(`/api/requirements/${state.tenant}/${state.project}?limit=100`);
+      if (!response.ok) throw new Error('Failed to fetch requirements');
+      return response.json();
+    },
+    enabled: Boolean(state.tenant && state.project)
+  });
+  const documentsQuery = useQuery({
+    queryKey: ["documents", state.tenant, state.project],
+    queryFn: () => api.listDocuments(state.tenant ?? "", state.project ?? ""),
+    enabled: Boolean(state.tenant && state.project)
+  });
+  const traceLinksQuery = useQuery({
+    queryKey: ["traceLinks", state.tenant, state.project],
+    queryFn: () => api.listTraceLinks(state.tenant ?? "", state.project ?? ""),
+    enabled: Boolean(state.tenant && state.project)
+  });
 
   // Admin mutations
   const createTenantMutation = useMutation({
@@ -86,6 +105,96 @@ export function DashboardRoute(): JSX.Element {
     if (!state.project || !projectsQuery.data) {return null;}
     return projectsQuery.data.projects.find(project => project.slug === state.project) ?? null;
   }, [state.project, projectsQuery.data]);
+
+  // Calculate comprehensive metrics
+  const metrics = useMemo(() => {
+    const requirements = requirementsQuery.data?.data ?? [];
+    const totalRequirements = requirementsQuery.data?.meta?.totalItems ?? requirements.length;
+    const traceLinks = traceLinksQuery.data?.traceLinks ?? [];
+    const documents = documentsQuery.data?.documents ?? [];
+
+    // Helper function to categorize requirements by type based on ref pattern
+    const getObjectType = (ref: string): 'requirement' | 'info' | 'surrogate' => {
+      if (ref.includes('KEY')) return 'info';
+      if (ref.includes('SYSTEMREQUIREMENTSDOCUMENT')) return 'surrogate';
+      return 'requirement';
+    };
+
+    // Object type distribution
+    const objectTypeCounts = {
+      requirement: requirements.filter(r => getObjectType(r.ref) === 'requirement').length,
+      info: requirements.filter(r => getObjectType(r.ref) === 'info').length,
+      surrogate: requirements.filter(r => getObjectType(r.ref) === 'surrogate').length
+    };
+
+    // Filter to only actual requirements (exclude info and surrogate) for detailed metrics
+    const actualRequirements = requirements.filter(r => getObjectType(r.ref) === 'requirement');
+
+    // Pattern distribution (only for actual requirements)
+    const patternCounts = {
+      ubiquitous: actualRequirements.filter(r => r.pattern === "ubiquitous").length,
+      event: actualRequirements.filter(r => r.pattern === "event").length,
+      state: actualRequirements.filter(r => r.pattern === "state").length,
+      unwanted: actualRequirements.filter(r => r.pattern === "unwanted").length,
+      optional: actualRequirements.filter(r => r.pattern === "optional").length,
+      unspecified: actualRequirements.filter(r => !r.pattern).length
+    };
+
+    // Verification distribution (only for actual requirements)
+    const verificationCounts = {
+      Test: actualRequirements.filter(r => r.verification === "Test").length,
+      Analysis: actualRequirements.filter(r => r.verification === "Analysis").length,
+      Inspection: actualRequirements.filter(r => r.verification === "Inspection").length,
+      Demonstration: actualRequirements.filter(r => r.verification === "Demonstration").length,
+      unspecified: actualRequirements.filter(r => !r.verification).length
+    };
+
+    // Compliance distribution (only for actual requirements)
+    const complianceCounts = {
+      "N/A": actualRequirements.filter(r => r.complianceStatus === "N/A").length,
+      Compliant: actualRequirements.filter(r => r.complianceStatus === "Compliant").length,
+      "Compliance Risk": actualRequirements.filter(r => r.complianceStatus === "Compliance Risk").length,
+      "Non-Compliant": actualRequirements.filter(r => r.complianceStatus === "Non-Compliant").length,
+      unspecified: actualRequirements.filter(r => !r.complianceStatus).length
+    };
+
+    // QA Score statistics (only for actual requirements)
+    const requirementsWithQA = actualRequirements.filter(r => r.qaScore !== undefined && r.qaScore !== null);
+    const avgQaScore = requirementsWithQA.length > 0
+      ? Math.round(requirementsWithQA.reduce((sum, r) => sum + (r.qaScore ?? 0), 0) / requirementsWithQA.length)
+      : 0;
+    const qaDistribution = {
+      excellent: actualRequirements.filter(r => (r.qaScore ?? 0) >= 80).length,
+      good: actualRequirements.filter(r => (r.qaScore ?? 0) >= 60 && (r.qaScore ?? 0) < 80).length,
+      needsWork: actualRequirements.filter(r => (r.qaScore ?? 0) > 0 && (r.qaScore ?? 0) < 60).length,
+      unscored: actualRequirements.filter(r => !r.qaScore).length
+    };
+
+    // Traceability (only for actual requirements)
+    const uniqueRequirementIds = new Set(traceLinks.map(link => link.sourceId));
+    const tracedRequirements = actualRequirements.filter(r => uniqueRequirementIds.has(r.id)).length;
+    const untracedRequirements = objectTypeCounts.requirement - tracedRequirements;
+
+    // Archive status (only for actual requirements)
+    const archivedCount = actualRequirements.filter(r => r.archived).length;
+    const activeCount = objectTypeCounts.requirement - archivedCount;
+
+    return {
+      totalRequirements,
+      totalDocuments: documents.length,
+      totalTraceLinks: traceLinks.length,
+      objectTypeCounts,
+      patternCounts,
+      verificationCounts,
+      complianceCounts,
+      avgQaScore,
+      qaDistribution,
+      tracedRequirements,
+      untracedRequirements,
+      archivedCount,
+      activeCount
+    };
+  }, [requirementsQuery.data, traceLinksQuery.data, documentsQuery.data]);
 
   return (
     <div className="panel-stack">
@@ -208,58 +317,258 @@ export function DashboardRoute(): JSX.Element {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h2>Active Project</h2>
-            <p>Requirement and baseline snapshot for current selection.</p>
+            <h2>Active Project Metrics</h2>
+            <p>Comprehensive metrics and health indicators for the current project.</p>
           </div>
         </div>
         {!state.tenant || !state.project ? (
           <p>Select a tenant and project to view project metrics.</p>
-        ) : projectsQuery.isLoading ? (
+        ) : projectsQuery.isLoading || requirementsQuery.isLoading || documentsQuery.isLoading || traceLinksQuery.isLoading ? (
           <Spinner />
         ) : projectsQuery.isError ? (
           <ErrorState message={(projectsQuery.error as Error).message} />
         ) : activeProject ? (
-          <div className="grid grid-cols-3">
-            <div className="stat-card">
-              <span className="stat-label">Tenant</span>
-              <span className="stat-value">{state.tenant}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* Project Overview */}
+            <div>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Project Overview</h3>
+              <div className="grid grid-cols-4">
+                <div className="stat-card">
+                  <span className="stat-label">Tenant</span>
+                  <span className="stat-value">{state.tenant}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Project</span>
+                  <span className="stat-value">{activeProject.slug}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Total Objects</span>
+                  <span className="stat-value">{metrics.totalRequirements}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Documents</span>
+                  <span className="stat-value">{metrics.totalDocuments}</span>
+                </div>
+              </div>
             </div>
-            <div className="stat-card">
-              <span className="stat-label">Project</span>
-              <span className="stat-value">{activeProject.slug}</span>
+
+            {/* Object Type Distribution */}
+            <div>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Object Type Distribution</h3>
+              <div className="grid grid-cols-3">
+                <div className="stat-card">
+                  <span className="stat-label">Requirements</span>
+                  <span className="stat-value" style={{ color: '#10b981' }}>{metrics.objectTypeCounts.requirement}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Info Objects</span>
+                  <span className="stat-value" style={{ color: '#3b82f6' }}>{metrics.objectTypeCounts.info}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Surrogates</span>
+                  <span className="stat-value" style={{ color: '#8b5cf6' }}>{metrics.objectTypeCounts.surrogate}</span>
+                </div>
+              </div>
             </div>
-            <div className="stat-card">
-              <span className="stat-label">Requirements</span>
-              <span className="stat-value">{activeProject.requirementCount}</span>
+
+            {/* Requirements Status */}
+            <div>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Requirements Status</h3>
+              <div className="grid grid-cols-4">
+                <div className="stat-card">
+                  <span className="stat-label">Active</span>
+                  <span className="stat-value" style={{ color: '#059669' }}>{metrics.activeCount}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Archived</span>
+                  <span className="stat-value" style={{ color: '#9ca3af' }}>{metrics.archivedCount}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">With Pattern</span>
+                  <span className="stat-value">{metrics.objectTypeCounts.requirement - metrics.patternCounts.unspecified}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Avg QA Score</span>
+                  <span className="stat-value" style={{ color: metrics.avgQaScore >= 70 ? '#059669' : metrics.avgQaScore >= 50 ? '#f59e0b' : '#ef4444' }}>{metrics.avgQaScore}</span>
+                </div>
+              </div>
             </div>
+
+            {/* Quality Distribution */}
+            <div>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Quality Distribution</h3>
+              <div className="grid grid-cols-4">
+                <div className="stat-card">
+                  <span className="stat-label">Excellent (≥80)</span>
+                  <span className="stat-value" style={{ color: '#059669' }}>{metrics.qaDistribution.excellent}</span>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                    {metrics.totalRequirements > 0 ? Math.round((metrics.qaDistribution.excellent / metrics.totalRequirements) * 100) : 0}%
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Good (60-79)</span>
+                  <span className="stat-value" style={{ color: '#3b82f6' }}>{metrics.qaDistribution.good}</span>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                    {metrics.totalRequirements > 0 ? Math.round((metrics.qaDistribution.good / metrics.totalRequirements) * 100) : 0}%
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Needs Work (&lt;60)</span>
+                  <span className="stat-value" style={{ color: '#f59e0b' }}>{metrics.qaDistribution.needsWork}</span>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                    {metrics.totalRequirements > 0 ? Math.round((metrics.qaDistribution.needsWork / metrics.totalRequirements) * 100) : 0}%
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Unscored</span>
+                  <span className="stat-value" style={{ color: '#9ca3af' }}>{metrics.qaDistribution.unscored}</span>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                    {metrics.totalRequirements > 0 ? Math.round((metrics.qaDistribution.unscored / metrics.totalRequirements) * 100) : 0}%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pattern Distribution */}
+            <div>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Pattern Distribution</h3>
+              <div className="grid grid-cols-3">
+                <div className="stat-card">
+                  <span className="stat-label">Ubiquitous</span>
+                  <span className="stat-value">{metrics.patternCounts.ubiquitous}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Event</span>
+                  <span className="stat-value">{metrics.patternCounts.event}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">State</span>
+                  <span className="stat-value">{metrics.patternCounts.state}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Unwanted</span>
+                  <span className="stat-value">{metrics.patternCounts.unwanted}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Optional</span>
+                  <span className="stat-value">{metrics.patternCounts.optional}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Unspecified</span>
+                  <span className="stat-value" style={{ color: '#9ca3af' }}>{metrics.patternCounts.unspecified}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Verification Distribution */}
+            <div>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Verification Methods</h3>
+              <div className="grid grid-cols-3">
+                <div className="stat-card">
+                  <span className="stat-label">Test</span>
+                  <span className="stat-value">{metrics.verificationCounts.Test}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Analysis</span>
+                  <span className="stat-value">{metrics.verificationCounts.Analysis}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Inspection</span>
+                  <span className="stat-value">{metrics.verificationCounts.Inspection}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Demonstration</span>
+                  <span className="stat-value">{metrics.verificationCounts.Demonstration}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Unspecified</span>
+                  <span className="stat-value" style={{ color: '#9ca3af' }}>{metrics.verificationCounts.unspecified}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Compliance Status */}
+            <div>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Compliance Status</h3>
+              <div className="grid grid-cols-3">
+                <div className="stat-card">
+                  <span className="stat-label">Compliant</span>
+                  <span className="stat-value" style={{ color: '#059669' }}>{metrics.complianceCounts.Compliant}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Compliance Risk</span>
+                  <span className="stat-value" style={{ color: '#f59e0b' }}>{metrics.complianceCounts["Compliance Risk"]}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Non-Compliant</span>
+                  <span className="stat-value" style={{ color: '#ef4444' }}>{metrics.complianceCounts["Non-Compliant"]}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">N/A</span>
+                  <span className="stat-value" style={{ color: '#6b7280' }}>{metrics.complianceCounts["N/A"]}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Unspecified</span>
+                  <span className="stat-value" style={{ color: '#9ca3af' }}>{metrics.complianceCounts.unspecified}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Traceability */}
+            <div>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Traceability</h3>
+              <div className="grid grid-cols-3">
+                <div className="stat-card">
+                  <span className="stat-label">Total Trace Links</span>
+                  <span className="stat-value">{metrics.totalTraceLinks}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Traced Requirements</span>
+                  <span className="stat-value" style={{ color: '#059669' }}>{metrics.tracedRequirements}</span>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                    {metrics.totalRequirements > 0 ? Math.round((metrics.tracedRequirements / metrics.totalRequirements) * 100) : 0}%
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Untraced</span>
+                  <span className="stat-value" style={{ color: '#ef4444' }}>{metrics.untracedRequirements}</span>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                    {metrics.totalRequirements > 0 ? Math.round((metrics.untracedRequirements / metrics.totalRequirements) * 100) : 0}%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Baselines */}
+            {baselinesQuery.data && (
+              <div>
+                <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '600' }}>Baselines</h3>
+                <div className="grid grid-cols-3">
+                  <div className="stat-card">
+                    <span className="stat-label">Total Baselines</span>
+                    <span className="stat-value">{baselinesQuery.data.items.length}</span>
+                  </div>
+                  {baselinesQuery.data.items[0] && (
+                    <>
+                      <div className="stat-card">
+                        <span className="stat-label">Latest Baseline</span>
+                        <span className="stat-value" style={{ fontSize: '0.9rem' }}>{baselinesQuery.data.items[0].ref}</span>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                          {formatDate(baselinesQuery.data.items[0].createdAt)}
+                        </div>
+                      </div>
+                      <div className="stat-card">
+                        <span className="stat-label">Requirements Captured</span>
+                        <span className="stat-value">{baselinesQuery.data.items[0].requirementRefs.length}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <p>No project information available.</p>
-        )}
-        {state.tenant && state.project && (
-          <div className="baseline-summary">
-            {baselinesQuery.isLoading ? (
-              <Spinner />
-            ) : baselinesQuery.isError ? (
-              <ErrorState message={(baselinesQuery.error as Error).message} />
-            ) : baselinesQuery.data ? (
-              <>
-                <div className="stat-card">
-                  <span className="stat-label">Baselines</span>
-                  <span className="stat-value">{baselinesQuery.data.items.length}</span>
-                </div>
-                {baselinesQuery.data.items[0] && (
-                  <div className="baseline-detail">
-                    <h3>Latest Baseline</h3>
-                    <p>
-                      <strong>{baselinesQuery.data.items[0].ref}</strong> · {formatDate(baselinesQuery.data.items[0].createdAt)}
-                    </p>
-                    <p>Requirements captured: {baselinesQuery.data.items[0].requirementRefs.length}</p>
-                  </div>
-                )}
-              </>
-            ) : null}
-          </div>
         )}
       </section>
 
