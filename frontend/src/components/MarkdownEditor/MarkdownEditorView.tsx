@@ -127,7 +127,8 @@ export function MarkdownEditorView({
   const { data: documentData, isLoading } = useQuery({
     queryKey: ["markdown-content", tenant, project, documentSlug],
     queryFn: () => api.getMarkdownContent(tenant, project, documentSlug),
-    staleTime: 0
+    staleTime: 0,
+    refetchOnMount: true
   });
 
   // Load diagrams for asset browser
@@ -554,7 +555,7 @@ Warning message
         <div className={`markdown-editor-split-view ${showAssetBrowser ? 'with-sidebar' : ''}`}>
           <div className="markdown-editor-pane">
             <Editor
-              height="calc(100vh - 200px)"
+              height="100%"
               defaultLanguage="markdown"
               language="markdown"
               value={content}
@@ -568,7 +569,7 @@ Warning message
                 wordWrap: "on",
                 wrappingIndent: "same",
                 automaticLayout: true,
-                scrollBeyondLastLine: false,
+                scrollBeyondLastLine: true,
                 renderWhitespace: "selection",
                 bracketPairColorization: { enabled: true },
                 suggest: {

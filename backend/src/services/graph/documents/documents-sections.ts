@@ -1,4 +1,4 @@
-import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
+import type { ManagedTransaction, Node as Neo4jNode, Relationship as Neo4jRelationship } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import type { RequirementRecord } from "../../workspace.js";
 import { getSession } from "../driver.js";
@@ -253,15 +253,15 @@ export async function listDocumentSectionsWithRelations(
 
       // Aggregate all related data per section
       WITH section,
-           COLLECT(DISTINCT req) as requirements,
-           COLLECT(DISTINCT info) as infos,
-           COLLECT(DISTINCT sur) as surrogates
+           COLLECT(DISTINCT {node: req, rel: reqRel}) as requirements,
+           COLLECT(DISTINCT {node: info, rel: infoRel}) as infos,
+           COLLECT(DISTINCT {node: sur, rel: surRel}) as surrogates
 
       // Return sections with sorted related data
       RETURN section,
-             [r IN requirements WHERE r IS NOT NULL] as requirements,
-             [i IN infos WHERE i IS NOT NULL] as infos,
-             [s IN surrogates WHERE s IS NOT NULL] as surrogates
+             [r IN requirements WHERE r.node IS NOT NULL] as requirements,
+             [i IN infos WHERE i.node IS NOT NULL] as infos,
+             [s IN surrogates WHERE s.node IS NOT NULL] as surrogates
     `;
 
     const result = await executeMonitoredQuery(
@@ -274,15 +274,30 @@ export async function listDocumentSectionsWithRelations(
     // Map the results
     return result.records.map(record => {
       const sectionNode = record.get('section') as Neo4jNode;
-      const requirementNodes = (record.get('requirements') || []) as Neo4jNode[];
-      const infoNodes = (record.get('infos') || []) as Neo4jNode[];
-      const surrogateNodes = (record.get('surrogates') || []) as Neo4jNode[];
+      const requirements = (record.get('requirements') || []) as Array<{node: Neo4jNode, rel: Neo4jRelationship}>;
+      const infos = (record.get('infos') || []) as Array<{node: Neo4jNode, rel: Neo4jRelationship}>;
+      const surrogates = (record.get('surrogates') || []) as Array<{node: Neo4jNode, rel: Neo4jRelationship}>;
 
       return {
         ...mapDocumentSection(sectionNode),
-        requirements: requirementNodes.filter(n => n !== null).map(node => mapRequirement(node)),
-        infos: infoNodes.filter(n => n !== null).map(node => mapInfo(node)),
-        surrogates: surrogateNodes.filter(n => n !== null).map(node => mapSurrogateReference(node))
+        requirements: requirements
+          .filter(item => item.node !== null)
+          .map(item => ({
+            ...mapRequirement(item.node),
+            order: item.rel?.properties?.order ?? 999999
+          })),
+        infos: infos
+          .filter(item => item.node !== null)
+          .map(item => ({
+            ...mapInfo(item.node),
+            order: item.rel?.properties?.order ?? 999999
+          })),
+        surrogates: surrogates
+          .filter(item => item.node !== null)
+          .map(item => ({
+            ...mapSurrogateReference(item.node),
+            order: item.rel?.properties?.order ?? 999999
+          }))
       };
     });
   } finally {
