@@ -6,11 +6,13 @@ AIRGen helps engineering teams move from stakeholder needs to compliant, testabl
 ## Components
 1. **Fastify API (`backend/`)** – HTTP interface for drafting, QA, baselines, storage, and link suggestions. Written in TypeScript.
 2. **Deterministic QA engine (`packages/req-qa`)** – pure TypeScript rules aligned to ISO/IEC/IEEE 29148 + EARS. Provides scoring/suggestions without hitting an LLM.
-3. **Markdown workspace** – requirements live under `workspace/<tenant>/<project>/requirements/`. Markdown remains the master copy for Git sync/export.
-4. **Neo4j graph database** – primary metadata store. Tenants, projects, requirements, and baselines are nodes with relationships for traceability queries (`Tenant-[:OWNS]->Project-[:CONTAINS]->Requirement`, `Baseline-[:SNAPSHOT_OF]->Requirement`).
-5. **PostgreSQL (optional)** – reserved for future analytics/reporting workloads that prefer relational schemas. The current code path uses Neo4j for operational metadata.
-6. **Redis** – rate-limiting cache and short-lived generation/session state.
-7. **Traefik** – reverse proxy + TLS termination. Routes `/api/*` traffic to the Fastify service and optionally exposes the dashboard at `/traefik`.
+3. **Background Workers (`backend/src/workers/`)** – Long-running background tasks for bulk operations:
+   - **QA Scorer Worker** – Automatically scores all requirements in a project. Runs as a singleton to prevent duplicate processing. Exposes status API for progress monitoring.
+4. **Markdown workspace** – requirements live under `workspace/<tenant>/<project>/requirements/`. Markdown remains the master copy for Git sync/export.
+5. **Neo4j graph database** – primary metadata store. Tenants, projects, requirements, and baselines are nodes with relationships for traceability queries (`Tenant-[:OWNS]->Project-[:CONTAINS]->Requirement`, `Baseline-[:SNAPSHOT_OF]->Requirement`).
+6. **PostgreSQL (optional)** – reserved for future analytics/reporting workloads that prefer relational schemas. The current code path uses Neo4j for operational metadata.
+7. **Redis** – rate-limiting cache and short-lived generation/session state.
+8. **Traefik** – reverse proxy + TLS termination. Routes `/api/*` traffic to the Fastify service and optionally exposes the dashboard at `/traefik`.
 
 ## Persistence & Data Flow
 1. Client calls `/draft`.
@@ -81,8 +83,69 @@ This structure allows future expansion for needs, risks, or test cases as additi
 - Multi-tenant scoping will align with Neo4j tenant slugs. Once account management lands, guarded routes can validate that `request.currentUser.tenantSlugs` contains the tenant in the request path before continuing.
 - Future work: add a `/auth/login` exchange (for password or device code flows if needed), persist users/roles/refresh tokens in Neo4j or Postgres, and emit audit events for requirement mutations.
 
+## Background Workers
+
+### QA Scorer Worker
+The QA scorer worker provides bulk quality analysis for all requirements in a project:
+
+**Architecture:**
+- Singleton pattern prevents duplicate scoring runs
+- Runs asynchronously in the API process (no separate worker process needed)
+- Tracks progress (processedCount, totalCount, currentRequirement)
+- Surfaces errors without blocking the entire batch
+
+**API Endpoints:**
+- `POST /api/workers/qa-scorer/start?tenant=X&project=Y` – Starts scoring all requirements
+- `POST /api/workers/qa-scorer/stop` – Stops the current run
+- `GET /api/workers/qa-scorer/status` – Returns real-time status
+
+**Status Response:**
+```json
+{
+  "isRunning": true,
+  "processedCount": 42,
+  "totalCount": 85,
+  "currentRequirement": "SRD-ARCH-017",
+  "lastError": null,
+  "startedAt": "2025-10-08T19:37:26.460Z",
+  "completedAt": null
+}
+```
+
+**Integration:**
+- Dashboard displays QA metrics (excellent, good, needs work, unscored counts)
+- Automatic query invalidation refreshes dashboard when worker completes
+- Each requirement update persists qaScore, qaVerdict, and suggestions to Neo4j
+- Manual refresh button available for immediate updates
+
+**Implementation Details:**
+- Worker code: `backend/src/workers/qa-scorer.ts`
+- Routes: `backend/src/routes/workers.ts`
+- Uses `@airgen/req-qa` package for deterministic scoring
+- Updates requirements via `updateRequirement()` from requirements-crud
+- Errors are logged but don't stop processing of remaining requirements
+
+## Requirements Change Tracking (Planned)
+
+The system currently tracks basic timestamps (createdAt, updatedAt) and soft-delete metadata (deletedAt, deletedBy, restoredAt), but lacks comprehensive version history. A detailed implementation plan for version history, change tracking, and diff capabilities is available:
+
+**See:** [Requirements History Implementation Plan](./requirements-history-implementation-plan.md)
+
+**Planned Features:**
+- RequirementVersion nodes in Neo4j for full version history
+- User tracking (createdBy, updatedBy) on all changes
+- Diff capabilities to compare versions
+- Restore previous versions
+- Audit trail for compliance
+
+**Current Capabilities:**
+- Content hash (SHA-256) detects drift between Neo4j and markdown files
+- Soft delete tracking (who deleted, when restored)
+- Basic timestamps on all mutations
+
 ## Roadmap Ideas
 - Add nodes for Needs/Tests and create automated `[:VERIFIES]` or `[:SATISFIES]` relationships.
 - Incorporate vector search (pgvector/Qdrant) for semantic linking.
 - Build a front-end client or CLI that consumes the API and renders Markdown + graph context.
 - Expand automated tests (`node --test`, `vitest`) covering graph persistence and LLM fallback flows.
+- Implement comprehensive version history and change tracking (see Requirements History Implementation Plan).

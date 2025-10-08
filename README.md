@@ -7,10 +7,13 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 ### Requirements Management
 - **Draft generation** – Produces 1–5 candidate requirements from a need. Enable `useLlm` to let OpenAI (or future providers) synthesize additional drafts.
 - **Deterministic QA** – Scores requirements against ISO/IEC/IEEE 29148 inspired checks.
+- **Background QA worker** – Automatically score all requirements in a project using the background QA scorer worker. Monitor progress in real-time from the dashboard.
+- **QA metrics dashboard** – View quality score distribution (excellent, good, needs work, unscored) for all requirements in your project.
 - **Archive management** – Archive/unarchive requirements to hide them from default views without deletion. Works for individual requirements and groups.
 - **Duplicate detection** – Identifies and helps fix duplicate requirements.
 - **Inline editing** – Edit requirement fields directly in the table view with double-click activation.
 - **Custom attributes** – Extensible attribute system for project-specific metadata (foundation in place, full schema management coming soon).
+- **Version history (planned)** – Track changes, diff versions, and restore previous states. See [Requirements History Implementation Plan](./docs/requirements-history-implementation-plan.md) for details.
 
 ### Document Management
 - **Document upload** – Support for Word, PDF, and other document formats.
@@ -81,6 +84,7 @@ See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 - [Observability](./OBSERVABILITY.md) – Metrics, health checks, and optional Sentry wiring.
 - [Troubleshooting](./TROUBLESHOOTING.md) – Quick fixes for the most common developer issues.
 - [Custom Attributes Implementation](./CUSTOM_ATTRIBUTES_IMPLEMENTATION.md) – Guide for implementing extensible custom attributes on requirements.
+- [Requirements History Implementation Plan](./docs/requirements-history-implementation-plan.md) – Comprehensive plan for version history, change tracking, and diff capabilities.
 - [Neo4j Improvements](./NEO4J_IMPROVEMENTS_SUMMARY.md) – Performance optimizations and security enhancements.
 
 ## Getting started (Docker)
@@ -154,6 +158,13 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 | DELETE | `/requirements/:tenant/:project/:id`      | Delete a requirement |
 | POST   | `/requirements/:tenant/:project/archive`  | Archive requirements (hide from default views) |
 | POST   | `/requirements/:tenant/:project/unarchive`| Unarchive requirements (restore to default views) |
+
+### Background Workers
+| Method | Path                                      | Purpose |
+| ------ | ----------------------------------------- | ------- |
+| POST   | `/workers/qa-scorer/start`                | Start background QA scoring for all requirements |
+| POST   | `/workers/qa-scorer/stop`                 | Stop the QA scoring worker |
+| GET    | `/workers/qa-scorer/status`               | Get worker status (running, progress, errors) |
 
 ### Documents & Sections
 | Method | Path                                      | Purpose |
