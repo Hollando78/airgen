@@ -66,8 +66,8 @@ export function mapRequirement(node: Neo4jNode, documentSlug?: string): Requirem
     updatedAt: String(props.updatedAt),
     deleted: props.deleted ? Boolean(props.deleted) : undefined,
     archived: props.archived ? Boolean(props.archived) : undefined,
-    attributes: props.attributes && typeof props.attributes === 'object'
-      ? (props.attributes as Record<string, string | number | boolean | null>)
+    attributes: props.attributes && typeof props.attributes === 'string'
+      ? JSON.parse(props.attributes as string) as Record<string, string | number | boolean | null>
       : undefined,
     // Data integrity fields
     contentHash: props.contentHash ? String(props.contentHash) : undefined,
@@ -182,6 +182,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
           qaVerdict: $qaVerdict,
           suggestions: $suggestions,
           tags: $tags,
+          attributes: $attributes,
           path: $tenantSlug + '/' + $projectSlug + '/requirements/' + finalRef + '.md',
           createdAt: $now,
           updatedAt: $now
@@ -214,6 +215,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
         qaVerdict: input.qaVerdict ?? null,
         suggestions: input.suggestions ?? [],
         tags: input.tags ?? [],
+        attributes: input.attributes ? JSON.stringify(input.attributes) : null,
         documentSlug: input.documentSlug ?? null,
         sectionId: input.sectionId ?? null,
         providedRef: input.ref ?? null,
@@ -307,6 +309,7 @@ export async function updateRequirement(
     pattern?: RequirementPattern;
     verification?: VerificationMethod;
     sectionId?: string | null;
+    attributes?: Record<string, string | number | boolean | null>;
   }
 ): Promise<RequirementRecord | null> {
   const tenantSlug = slugify(tenant);
@@ -371,10 +374,19 @@ export async function updateRequirement(
         projectSlug,
         requirementId
       };
+
+      // JSON-stringify attributes if present
+      const serializedUpdates = { ...allUpdates };
+      if (serializedUpdates.attributes !== undefined) {
+        serializedUpdates.attributes = serializedUpdates.attributes
+          ? JSON.stringify(serializedUpdates.attributes)
+          : null;
+      }
+
       const writeParams: Record<string, unknown> = {
         ...baseParams,
         now,
-        ...allUpdates
+        ...serializedUpdates
       };
 
       if (setClause) {
