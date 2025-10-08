@@ -243,24 +243,8 @@ export function DocumentView({
           // Mark sections as manually updated to prevent useEffect from overwriting
           sectionsToReload.forEach(id => manuallyUpdatedSectionsRef.current.add(id));
 
-          // Update all sections at once
-          console.log('[UPDATE REQUIREMENT] Updating sections state with fresh data');
-          setSections(prevSections =>
-            prevSections.map(section => {
-              const freshData = sectionDataMap.get(section.id);
-              if (freshData) {
-                console.log('[UPDATE REQUIREMENT] Updating section', section.id, 'with', freshData.requirements.length, 'requirements');
-                return {
-                  ...section,
-                  requirements: freshData.requirements,
-                  infos: freshData.infos,
-                  surrogates: freshData.surrogates
-                };
-              }
-              return section;
-            })
-          );
-          console.log('[UPDATE REQUIREMENT] Section update complete');
+          // Query will automatically refetch after mutation
+          console.log('[UPDATE REQUIREMENT] Sections will update from query invalidation');
 
           // Verify the state was updated by checking current sections
           setTimeout(() => {
@@ -279,16 +263,6 @@ export function DocumentView({
           }, 1000);
         }
       } else {
-        // Just update in place
-        setSections(prevSections =>
-          prevSections.map(section => ({
-            ...section,
-            requirements: section.requirements.map(req =>
-              req.id === variables.requirementId ? response.requirement : req
-            )
-          }))
-        );
-
         // Invalidate sections query to get fresh data
         await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
       }
@@ -303,14 +277,6 @@ export function DocumentView({
       // Invalidate sections query to get fresh data
       await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
 
-      // Remove the requirement from local state
-      setSections(prevSections =>
-        prevSections.map(section => ({
-          ...section,
-          requirements: section.requirements.filter(req => req.id !== requirementId)
-        }))
-      );
-
       setEditRequirementModal({ isOpen: false, requirement: null });
     }
   });
@@ -318,55 +284,66 @@ export function DocumentView({
   // Local reorder handler - handles reordering of all item types in a unified list
   const handleReorderItems = (sectionId: string, items: Array<{type: 'requirement' | 'info' | 'surrogate', id: string}>) => {
     console.log('[REORDER ITEMS] Called with:', { sectionId, items });
-    setSections(prevSections =>
-      prevSections.map(section => {
-        if (section.id === sectionId) {
-          console.log('[REORDER ITEMS] Found section');
 
-          // Assign order based on position in the reordered list
-          const itemsWithOrder = items.map((item, index) => ({ ...item, order: index }));
+    // Optimistically update the cached query data
+    queryClient.setQueryData(
+      ["sections", tenant, project, documentSlug],
+      (old: { sections: DocumentSectionWithRequirements[] } | undefined) => {
+        if (!old) return old;
 
-          // Separate items by type and assign the new order values
-          const requirements = itemsWithOrder
-            .filter(item => item.type === 'requirement')
-            .map(item => {
-              const req = section.requirements.find(r => r.id === item.id);
-              return req ? { ...req, order: item.order } : null;
-            })
-            .filter((r): r is NonNullable<typeof r> => r !== null);
+        return {
+          ...old,
+          sections: old.sections.map(section => {
+            if (section.id === sectionId) {
+              console.log('[REORDER ITEMS] Found section');
 
-          const infos = itemsWithOrder
-            .filter(item => item.type === 'info')
-            .map(item => {
-              const info = section.infos.find(i => i.id === item.id);
-              return info ? { ...info, order: item.order } : null;
-            })
-            .filter((i): i is NonNullable<typeof i> => i !== null);
+              // Assign order based on position in the reordered list
+              const itemsWithOrder = items.map((item, index) => ({ ...item, order: index }));
 
-          const surrogates = itemsWithOrder
-            .filter(item => item.type === 'surrogate')
-            .map(item => {
-              const surrogate = section.surrogates?.find(s => s.id === item.id);
-              return surrogate ? { ...surrogate, order: item.order } : null;
-            })
-            .filter((s): s is NonNullable<typeof s> => s !== null);
+              // Separate items by type and assign the new order values
+              const requirements = itemsWithOrder
+                .filter(item => item.type === 'requirement')
+                .map(item => {
+                  const req = section.requirements.find(r => r.id === item.id);
+                  return req ? { ...req, order: item.order } : null;
+                })
+                .filter((r): r is NonNullable<typeof r> => r !== null);
 
-          console.log('[REORDER ITEMS] Reordered:', {
-            requirements: requirements.map(r => ({ id: r.id, order: r.order })),
-            infos: infos.map(i => ({ id: i.id, order: i.order })),
-            surrogates: surrogates.map(s => ({ id: s.id, order: s.order }))
-          });
+              const infos = itemsWithOrder
+                .filter(item => item.type === 'info')
+                .map(item => {
+                  const info = section.infos.find(i => i.id === item.id);
+                  return info ? { ...info, order: item.order } : null;
+                })
+                .filter((i): i is NonNullable<typeof i> => i !== null);
 
-          return {
-            ...section,
-            requirements,
-            infos,
-            surrogates
-          };
-        }
-        return section;
-      })
+              const surrogates = itemsWithOrder
+                .filter(item => item.type === 'surrogate')
+                .map(item => {
+                  const surrogate = section.surrogates?.find(s => s.id === item.id);
+                  return surrogate ? { ...surrogate, order: item.order } : null;
+                })
+                .filter((s): s is NonNullable<typeof s> => s !== null);
+
+              console.log('[REORDER ITEMS] Reordered:', {
+                requirements: requirements.map(r => ({ id: r.id, order: r.order })),
+                infos: infos.map(i => ({ id: i.id, order: i.order })),
+                surrogates: surrogates.map(s => ({ id: s.id, order: s.order }))
+              });
+
+              return {
+                ...section,
+                requirements,
+                infos,
+                surrogates
+              };
+            }
+            return section;
+          })
+        };
+      }
     );
+
     setSectionsWithUnsavedChanges(prev => new Set(prev).add(sectionId));
   };
 
@@ -487,15 +464,8 @@ export function DocumentView({
   };
 
   const handleInlineEditRequirement = (updatedRequirement: RequirementRecord) => {
-    console.log('[INLINE EDIT HANDLER] Updating requirement in local state:', updatedRequirement.id);
-    setSections(prevSections =>
-      prevSections.map(section => ({
-        ...section,
-        requirements: section.requirements.map(req =>
-          req.id === updatedRequirement.id ? updatedRequirement : req
-        )
-      }))
-    );
+    console.log('[INLINE EDIT HANDLER] Requirement updated, query will refetch:', updatedRequirement.id);
+    // Query will automatically refetch after mutation
   };
 
   const handleUpdateRequirement = (updates: {

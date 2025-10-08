@@ -246,20 +246,22 @@ export async function listDocumentSectionsWithRelations(
       OPTIONAL MATCH (section)-[infoRel:CONTAINS_INFO]->(info:Info)
       OPTIONAL MATCH (section)-[surRel:CONTAINS_SURROGATE_REFERENCE]->(sur:SurrogateReference)
 
+      // Return each section with its requirements sorted by ref
+      WITH section,
+           req, reqRel, info, infoRel, sur, surRel
+      ORDER BY section.order, section.createdAt, req.ref
+
       // Aggregate all related data per section
       WITH section,
-           COLLECT(DISTINCT {node: req, order: reqRel.order, createdAt: req.createdAt}) as reqs,
-           COLLECT(DISTINCT {node: info, order: infoRel.order, createdAt: info.createdAt}) as infos,
-           COLLECT(DISTINCT {node: sur, order: surRel.order, createdAt: sur.createdAt}) as surs
-
-      // Sort sections
-      ORDER BY section.order, section.createdAt
+           COLLECT(DISTINCT req) as requirements,
+           COLLECT(DISTINCT info) as infos,
+           COLLECT(DISTINCT sur) as surrogates
 
       // Return sections with sorted related data
       RETURN section,
-             [r IN reqs WHERE r.node IS NOT NULL | r.node] as requirements,
-             [i IN infos WHERE i.node IS NOT NULL | i.node] as infos,
-             [s IN surs WHERE s.node IS NOT NULL | s.node] as surrogates
+             [r IN requirements WHERE r IS NOT NULL] as requirements,
+             [i IN infos WHERE i IS NOT NULL] as infos,
+             [s IN surrogates WHERE s IS NOT NULL] as surrogates
     `;
 
     const result = await executeMonitoredQuery(
