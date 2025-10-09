@@ -15,10 +15,14 @@ export type RequirementRecord = {
   text: string;
   pattern?: RequirementPattern;
   verification?: VerificationMethod;
+  rationale?: string;
+  complianceStatus?: string;
+  complianceRationale?: string;
   qaScore?: number;
   qaVerdict?: string;
   suggestions?: string[];
   tags?: string[];
+  attributes?: Record<string, string | number | boolean | null>;
   path: string;
   documentSlug?: string;
   order?: number;
@@ -31,6 +35,33 @@ export type RequirementRecord = {
   deletedAt?: string; // ISO timestamp when deleted
   deletedBy?: string; // User who deleted it
   restoredAt?: string; // ISO timestamp when restored from deletion
+  // Version tracking fields
+  createdBy?: string; // User who created the requirement
+  updatedBy?: string; // User who last updated the requirement
+  versionNumber?: number; // Current version number
+};
+
+export type RequirementVersionRecord = {
+  versionId: string;
+  requirementId: string;
+  versionNumber: number;
+  timestamp: string;
+  changedBy: string;
+  changeType: "created" | "updated" | "archived" | "restored" | "deleted";
+  changeDescription?: string;
+  // Snapshot of requirement state at this version
+  text: string;
+  pattern?: RequirementPattern;
+  verification?: VerificationMethod;
+  rationale?: string;
+  complianceStatus?: string;
+  complianceRationale?: string;
+  qaScore?: number;
+  qaVerdict?: string;
+  suggestions?: string[];
+  tags?: string[];
+  attributes?: Record<string, string | number | boolean | null>;
+  contentHash: string;
 };
 
 export type BaselineRecord = {
