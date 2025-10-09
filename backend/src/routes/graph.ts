@@ -33,6 +33,8 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
         OPTIONAL MATCH (section)-[:CONTAINS]->(info:Info)
         OPTIONAL MATCH (section)-[:CONTAINS]->(sur:SurrogateReference)
         OPTIONAL MATCH (project)-[:HAS_LINKSET]->(linkset:DocumentLinkset)
+        OPTIONAL MATCH (project)-[:HAS_TRACE_LINK]->(traceLink:TraceLink)
+        OPTIONAL MATCH (project)-[:HAS_CANDIDATE]->(candidate:RequirementCandidate)
 
         WITH tenant, project,
              collect(DISTINCT doc) as docs,
@@ -40,7 +42,9 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
              collect(DISTINCT req) as reqs,
              collect(DISTINCT info) as infos,
              collect(DISTINCT sur) as surs,
-             collect(DISTINCT linkset) as linksets
+             collect(DISTINCT linkset) as linksets,
+             collect(DISTINCT traceLink) as traceLinks,
+             collect(DISTINCT candidate) as candidates
 
         // Collect requirement relationships separately
         OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(d:Document)-[:HAS_SECTION]->(s:DocumentSection)-[:CONTAINS]->(r:Requirement)
@@ -50,9 +54,21 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
           AND (relatedReq.deleted IS NULL OR relatedReq.deleted = false)
           AND (relatedReq.archived IS NULL OR relatedReq.archived = false)
 
-        WITH tenant, project, docs, sections, reqs, infos, surs, linksets,
+        WITH tenant, project, docs, sections, reqs, infos, surs, linksets, traceLinks, candidates,
              collect(DISTINCT relatedReq) as relatedReqs,
              collect(DISTINCT {source: id(r), target: id(relatedReq), type: type(reqRel)}) as reqRels
+
+        // Collect architecture nodes in separate phase to avoid Cartesian product
+        OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram)
+        OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_BLOCK]->(blockDef:ArchitectureBlock)
+        OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_DIAGRAM]->(:ArchitectureDiagram)-[:HAS_BLOCK]->(placedBlock:ArchitectureBlock)
+        OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_DIAGRAM]->(:ArchitectureDiagram)-[:HAS_CONNECTOR]->(connector:ArchitectureConnector)
+
+        WITH tenant, project, docs, sections, reqs, infos, surs, linksets, traceLinks, candidates, relatedReqs, reqRels,
+             collect(DISTINCT diagram) as diagrams,
+             collect(DISTINCT blockDef) as blockDefs,
+             collect(DISTINCT placedBlock) as placedBlocks,
+             collect(DISTINCT connector) as connectors
 
         // Build all nodes
         WITH
@@ -64,9 +80,15 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
           [i IN infos WHERE i IS NOT NULL | {id: id(i), label: i.ref, type: 'Info', properties: properties(i)}] +
           [sr IN surs WHERE sr IS NOT NULL | {id: id(sr), label: sr.slug, type: 'SurrogateReference', properties: properties(sr)}] +
           [rr IN relatedReqs WHERE rr IS NOT NULL | {id: id(rr), label: rr.ref, type: 'Requirement', properties: properties(rr)}] +
-          [ls IN linksets WHERE ls IS NOT NULL | {id: id(ls), label: ls.sourceDocumentSlug + ' -> ' + ls.targetDocumentSlug, type: 'DocumentLinkset', properties: properties(ls)}]
+          [ls IN linksets WHERE ls IS NOT NULL | {id: id(ls), label: ls.sourceDocumentSlug + ' -> ' + ls.targetDocumentSlug, type: 'DocumentLinkset', properties: properties(ls)}] +
+          [tl IN traceLinks WHERE tl IS NOT NULL | {id: id(tl), label: tl.linkType + ': ' + tl.sourceRequirementId + ' -> ' + tl.targetRequirementId, type: 'TraceLink', properties: properties(tl)}] +
+          [c IN candidates WHERE c IS NOT NULL | {id: id(c), label: substring(c.text, 0, 50) + '...', type: 'RequirementCandidate', properties: properties(c)}] +
+          [dia IN diagrams WHERE dia IS NOT NULL | {id: id(dia), label: dia.name, type: 'ArchitectureDiagram', properties: properties(dia)}] +
+          [bd IN blockDefs WHERE bd IS NOT NULL | {id: id(bd), label: bd.name, type: 'ArchitectureBlock', properties: properties(bd)}] +
+          [pb IN placedBlocks WHERE pb IS NOT NULL | {id: id(pb), label: pb.name, type: 'ArchitectureBlock', properties: properties(pb)}] +
+          [conn IN connectors WHERE conn IS NOT NULL | {id: id(conn), label: COALESCE(conn.label, 'Connector'), type: 'ArchitectureConnector', properties: properties(conn)}]
           AS nodes,
-          tenant, project, docs, sections, reqs, infos, surs, linksets, reqRels
+          tenant, project, reqRels
 
         // Build all relationships
         // Tenant -> Project
@@ -101,9 +123,43 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
         OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(doc1:Document)-[r7:LINKED_TO]->(doc2:Document)<-[:HAS_DOCUMENT]-(project)
         WHERE doc1.deletedAt IS NULL AND doc2.deletedAt IS NULL
         WITH nodes, reqRels, tenantRels, docRels, secRels, contentRels, linksetRels, fromDocRels, toDocRels,
-             collect(DISTINCT {source: id(doc1), target: id(doc2), type: type(r7)}) as linkedToRels
+             collect(DISTINCT {source: id(doc1), target: id(doc2), type: type(r7)}) as linkedToRels,
+             project
 
-        RETURN nodes, tenantRels + docRels + secRels + contentRels + reqRels + linksetRels + fromDocRels + toDocRels + linkedToRels as relationships
+        // TraceLink relationships
+        OPTIONAL MATCH (project)-[r8:HAS_TRACE_LINK]->(traceLink:TraceLink)
+        OPTIONAL MATCH (traceLink)-[r9:FROM_REQUIREMENT]->(sourceReq:Requirement)
+        OPTIONAL MATCH (traceLink)-[r10:TO_REQUIREMENT]->(targetReq:Requirement)
+        OPTIONAL MATCH (linkset:DocumentLinkset)-[r11:CONTAINS_LINK]->(traceLink)
+        WITH nodes, reqRels, tenantRels, docRels, secRels, contentRels, linksetRels, fromDocRels, toDocRels, linkedToRels,
+             collect(DISTINCT {source: id(project), target: id(traceLink), type: type(r8)}) as traceLinkProjectRels,
+             collect(DISTINCT {source: id(traceLink), target: id(sourceReq), type: type(r9)}) as traceLinkFromRels,
+             collect(DISTINCT {source: id(traceLink), target: id(targetReq), type: type(r10)}) as traceLinkToRels,
+             collect(DISTINCT {source: id(linkset), target: id(traceLink), type: type(r11)}) as linksetContainsRels,
+             project
+
+        // Candidate relationships
+        OPTIONAL MATCH (project)-[r12:HAS_CANDIDATE]->(candidate:RequirementCandidate)
+        WITH nodes, reqRels, tenantRels, docRels, secRels, contentRels, linksetRels, fromDocRels, toDocRels, linkedToRels, traceLinkProjectRels, traceLinkFromRels, traceLinkToRels, linksetContainsRels,
+             collect(DISTINCT {source: id(project), target: id(candidate), type: type(r12)}) as candidateRels,
+             project
+
+        // Architecture relationships
+        OPTIONAL MATCH (project)-[r13:HAS_ARCHITECTURE_DIAGRAM]->(archDiagram:ArchitectureDiagram)
+        OPTIONAL MATCH (project)-[r14:HAS_ARCHITECTURE_BLOCK]->(archBlockDef:ArchitectureBlock)
+        OPTIONAL MATCH (archDiagram)-[r15:HAS_BLOCK]->(archPlacedBlock:ArchitectureBlock)
+        OPTIONAL MATCH (archDiagram)-[r16:HAS_CONNECTOR]->(archConnector:ArchitectureConnector)
+        OPTIONAL MATCH (archConnector)-[r17:FROM_BLOCK]->(fromBlock:ArchitectureBlock)
+        OPTIONAL MATCH (archConnector)-[r18:TO_BLOCK]->(toBlock:ArchitectureBlock)
+        WITH nodes, reqRels, tenantRels, docRels, secRels, contentRels, linksetRels, fromDocRels, toDocRels, linkedToRels, traceLinkProjectRels, traceLinkFromRels, traceLinkToRels, linksetContainsRels, candidateRels,
+             collect(DISTINCT {source: id(project), target: id(archDiagram), type: type(r13)}) as archDiagramRels,
+             collect(DISTINCT {source: id(project), target: id(archBlockDef), type: type(r14)}) as archBlockDefRels,
+             collect(DISTINCT {source: id(archDiagram), target: id(archPlacedBlock), type: type(r15)}) as archPlacedBlockRels,
+             collect(DISTINCT {source: id(archDiagram), target: id(archConnector), type: type(r16)}) as archConnectorRels,
+             collect(DISTINCT {source: id(archConnector), target: id(fromBlock), type: type(r17)}) as archFromBlockRels,
+             collect(DISTINCT {source: id(archConnector), target: id(toBlock), type: type(r18)}) as archToBlockRels
+
+        RETURN nodes, tenantRels + docRels + secRels + contentRels + reqRels + linksetRels + fromDocRels + toDocRels + linkedToRels + traceLinkProjectRels + traceLinkFromRels + traceLinkToRels + linksetContainsRels + candidateRels + archDiagramRels + archBlockDefRels + archPlacedBlockRels + archConnectorRels + archFromBlockRels + archToBlockRels as relationships
         `,
         { tenantSlug, projectSlug }
       );
@@ -123,7 +179,7 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
         }));
 
       // Create a Set of node IDs for fast lookup
-      const nodeIds = new Set(nodes.map(n => n.id));
+      const nodeIds = new Set(nodes.map((n: any) => n.id));
 
       const relationships = (record.get("relationships") || [])
         .flat()
