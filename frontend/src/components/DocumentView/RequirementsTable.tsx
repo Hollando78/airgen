@@ -13,6 +13,7 @@ import { ColumnSelector, type ColumnVisibility } from "./RequirementsTable/Colum
 import { TableFilterBar, type FilterState } from "./RequirementsTable/TableFilterBar";
 import { RequirementRow } from "./RequirementsTable/RequirementRow";
 import { AttributesEditor } from "./RequirementsTable/AttributesEditor";
+import { HistoryModal } from "../HistoryModal";
 import { useApiClient } from "../../lib/client";
 
 export interface RequirementsTableProps {
@@ -43,7 +44,7 @@ const DEFAULT_COLUMN_WIDTHS = {
   complianceRationale: 200,
   qaScore: 80,
   attributes: 200,
-  actions: 60
+  actions: 110
 };
 
 // Define types for sortable items
@@ -66,6 +67,7 @@ interface SortableRowProps {
   onEdit: (requirement: RequirementRecord) => void;
   onFieldUpdate?: (requirement: RequirementRecord, field: string, value: string) => void;
   onEditAttributes?: (requirement: RequirementRecord) => void;
+  onViewHistory?: (requirement: RequirementRecord) => void;
   visibleColumnCount: number;
 }
 
@@ -80,6 +82,7 @@ function SortableRow({
   onEdit,
   onFieldUpdate,
   onEditAttributes,
+  onViewHistory,
   visibleColumnCount
 }: SortableRowProps): JSX.Element {
   const {
@@ -678,21 +681,39 @@ function SortableRow({
             width: `${columnWidths.actions}px`,
             textAlign: "center"
           }}>
-            <button
-              onClick={() => onEdit(req)}
-              onContextMenu={(e) => onContextMenu(e, req)}
-              style={{
-                background: "none",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                padding: "4px 8px",
-                cursor: "pointer",
-                fontSize: "11px",
-                color: "#6b7280"
-              }}
-            >
-              Edit
-            </button>
+            <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+              <button
+                onClick={() => onEdit(req)}
+                onContextMenu={(e) => onContextMenu(e, req)}
+                style={{
+                  background: "none",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  padding: "4px 8px",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                  color: "#6b7280"
+                }}
+                title="Edit requirement"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => onViewHistory?.(req)}
+                style={{
+                  background: "none",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  padding: "4px 8px",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                  color: "#6b7280"
+                }}
+                title="View version history"
+              >
+                📜
+              </button>
+            </div>
           </td>
         )}
       </tr>
@@ -757,6 +778,9 @@ export function RequirementsTable({
   const [attributesEditor, setAttributesEditor] = useState<{
     requirement: RequirementRecord;
     attributes: Record<string, unknown>;
+  } | null>(null);
+  const [historyModal, setHistoryModal] = useState<{
+    requirement: RequirementRecord;
   } | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const api = useApiClient();
@@ -872,6 +896,16 @@ export function RequirementsTable({
       setAttributesEditor(null);
     }
   }, [attributesEditor, updateAttributesMutation]);
+
+  // Handler for opening version history modal
+  const handleViewHistory = useCallback((requirement: RequirementRecord) => {
+    setHistoryModal({ requirement });
+  }, []);
+
+  // Handler for restore callback - invalidate queries to refresh data
+  const handleHistoryRestore = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
+  }, [queryClient, tenant, project, documentSlug]);
 
   // Handler for saving view preferences (columns visibility and widths)
   const handleSaveView = useCallback(() => {
@@ -1575,6 +1609,7 @@ export function RequirementsTable({
                                 onEdit={onEditRequirement}
                                 onFieldUpdate={handleFieldUpdate}
                                 onEditAttributes={handleEditAttributes}
+                                onViewHistory={handleViewHistory}
                                 visibleColumnCount={visibleColumnCount}
                               />
                             ))}
@@ -1678,6 +1713,18 @@ export function RequirementsTable({
           attributes={attributesEditor.attributes}
           onSave={handleAttributesSave}
           onClose={() => setAttributesEditor(null)}
+        />
+      )}
+
+      {historyModal && (
+        <HistoryModal
+          isOpen={true}
+          onClose={() => setHistoryModal(null)}
+          tenant={tenant}
+          project={project}
+          requirementId={historyModal.requirement.id}
+          requirementRef={historyModal.requirement.ref}
+          onRestore={handleHistoryRestore}
         />
       )}
     </div>

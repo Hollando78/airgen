@@ -92,6 +92,48 @@ export type RequirementRecord = {
   attributes?: Record<string, string | number | boolean | null>;
 };
 
+export type RequirementVersionRecord = {
+  versionId: string;
+  requirementId: string;
+  versionNumber: number;
+  timestamp: string;
+  changedBy: string;
+  changeType: "created" | "updated" | "archived" | "restored" | "deleted";
+  changeDescription?: string;
+  text: string;
+  pattern?: RequirementPattern;
+  verification?: VerificationMethod;
+  rationale?: string;
+  complianceStatus?: string;
+  complianceRationale?: string;
+  qaScore?: number;
+  qaVerdict?: string;
+  suggestions?: string[];
+  tags?: string[];
+  attributes?: Record<string, string | number | boolean | null>;
+  contentHash: string;
+};
+
+export type RequirementDiff = {
+  field: string;
+  oldValue: any;
+  newValue: any;
+  changed: boolean;
+};
+
+export type RequirementHistoryResponse = {
+  history: RequirementVersionRecord[];
+};
+
+export type RequirementDiffResponse = {
+  diff: RequirementDiff[];
+};
+
+export type RestoreVersionResponse = {
+  requirement: RequirementRecord;
+  restoredFrom: number;
+};
+
 export type RequirementDetail = {
   record: RequirementRecord;
   markdown: string;
