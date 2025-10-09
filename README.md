@@ -12,8 +12,8 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Archive management** – Archive/unarchive requirements to hide them from default views without deletion. Works for individual requirements and groups.
 - **Duplicate detection** – Identifies and helps fix duplicate requirements.
 - **Inline editing** – Edit requirement fields directly in the table view with double-click activation.
-- **Custom attributes** – Extensible attribute system for project-specific metadata (foundation in place, full schema management coming soon).
-- **Version history (planned)** – Track changes, diff versions, and restore previous states. See [Requirements History Implementation Plan](./docs/requirements-history-implementation-plan.md) for details.
+- **Custom attributes** – Extensible attribute system for project-specific metadata (foundation in place for basic attributes).
+- **Version history** – Track changes, diff versions, and restore previous states with full audit trail.
 
 ### Document Management
 - **Document upload** – Support for Word, PDF, and other document formats.
@@ -50,7 +50,7 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Graph database** – Requirements, projects, tenants, and baselines live in Neo4j for rich traceability queries.
 - **Markdown-first storage** – Approved requirements stored as `workspace/<tenant>/<project>/requirements/*.md` with YAML front matter.
 - **Baselining** – Snapshot requirement sets for release audits and version control.
-- **Version history** – Track changes to all entities (requirements, documents, architecture blocks) with full audit trail and diff capabilities.
+- **Version history** – Track changes to requirements, documents, and architecture elements with full audit trail, diff capabilities, and rollback support.
 
 ### Deployment & Infrastructure
 - **Docker-native** – Traefik + Neo4j + Fastify API + Redis compose stack for quick VPS deployment.
@@ -89,7 +89,6 @@ See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 - [Observability](./OBSERVABILITY.md) – Metrics, health checks, and optional Sentry wiring.
 - [Troubleshooting](./TROUBLESHOOTING.md) – Quick fixes for the most common developer issues.
 - [Custom Attributes Implementation](./CUSTOM_ATTRIBUTES_IMPLEMENTATION.md) – Guide for implementing extensible custom attributes on requirements.
-- [Requirements History Implementation Plan](./docs/requirements-history-implementation-plan.md) – Comprehensive plan for version history, change tracking, and diff capabilities.
 - [Neo4j Improvements](./NEO4J_IMPROVEMENTS_SUMMARY.md) – Performance optimizations and security enhancements.
 
 ## Getting started (Docker)
