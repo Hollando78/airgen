@@ -49,7 +49,10 @@ import type {
   AddLinkToLinksetRequest,
   DevUserListResponse,
   DevUserResponse,
-  DiagramCandidate
+  DiagramCandidate,
+  RequirementHistoryResponse,
+  RequirementDiffResponse,
+  RestoreVersionResponse
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -180,6 +183,17 @@ export function useApiClient() {
         request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "PATCH", body: JSON.stringify(updates) }),
       deleteRequirement: (tenant: string, project: string, requirementId: string) =>
         request<{ requirement: RequirementRecord }>(`/requirements/${tenant}/${project}/${requirementId}`, { method: "DELETE" }),
+
+      // Version history API methods
+      getRequirementHistory: (tenant: string, project: string, requirementId: string) =>
+        request<RequirementHistoryResponse>(`/requirements/${tenant}/${project}/${requirementId}/history`),
+      getRequirementDiff: (tenant: string, project: string, requirementId: string, fromVersion: number, toVersion: number) => {
+        const params = new URLSearchParams({ from: fromVersion.toString(), to: toVersion.toString() });
+        return request<RequirementDiffResponse>(`/requirements/${tenant}/${project}/${requirementId}/diff?${params}`);
+      },
+      restoreRequirementVersion: (tenant: string, project: string, requirementId: string, versionNumber: number) =>
+        request<RestoreVersionResponse>(`/requirements/${tenant}/${project}/${requirementId}/restore/${versionNumber}`, { method: "POST" }),
+
       createInfo: (body: { tenant: string; projectKey: string; documentSlug: string; text: string; title?: string; sectionId?: string }) =>
         request<{ info: InfoRecord }>(`/infos`, {
           method: "POST",
