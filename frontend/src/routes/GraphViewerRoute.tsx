@@ -1068,7 +1068,7 @@ export function GraphViewerRoute() {
           <span>{item.label}</span>
           <span className="context-menu-arrow">▶</span>
           {showSubmenu && (
-            <div className="context-menu-submenu" style={{ left: '100%', top: 0 }}>
+            <div className="context-menu-submenu" style={{ left: '100%', top: 0, zIndex: 1001 + depth }}>
               {item.submenu.map((subitem, idx) => (
                 <ContextMenuItemComponent key={idx} item={subitem} depth={depth + 1} />
               ))}
