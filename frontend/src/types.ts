@@ -766,3 +766,60 @@ export type DevUserListResponse = {
 export type DevUserResponse = {
   user: DevUser;
 };
+
+// Admin Recovery / Backup Types
+export type BackupInfo = {
+  name: string;
+  path: string;
+  size: string;
+  modified: string;
+  files: number;
+};
+
+export type RemoteSnapshot = {
+  id: string;
+  time: string;
+  hostname: string;
+  tags: string[];
+  paths: string[];
+};
+
+export type BackupListResponse = {
+  daily: BackupInfo[];
+  weekly: BackupInfo[];
+};
+
+export type RemoteBackupListResponse = {
+  snapshots: RemoteSnapshot[];
+  configured: boolean;
+};
+
+export type BackupOperationResponse = {
+  success: boolean;
+  message: string;
+  output: string;
+};
+
+export type BackupStatusResponse = {
+  localBackups: {
+    dailyCount: number;
+    weeklyCount: number;
+    lastDaily: string;
+    lastWeekly: string;
+    totalSize: string;
+  };
+  remoteBackups: {
+    configured: boolean;
+    count: number;
+    lastSnapshot: string;
+  };
+  cronJobs: Array<{
+    schedule: string;
+    command: string;
+  }>;
+  diskSpace: {
+    available: string;
+    used: string;
+    percentage: string;
+  };
+};

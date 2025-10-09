@@ -52,7 +52,11 @@ import type {
   DiagramCandidate,
   RequirementHistoryResponse,
   RequirementDiffResponse,
-  RestoreVersionResponse
+  RestoreVersionResponse,
+  BackupListResponse,
+  RemoteBackupListResponse,
+  BackupOperationResponse,
+  BackupStatusResponse
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -503,7 +507,33 @@ export function useApiClient() {
       stopQAScorer: () =>
         request<{ message: string; status: QAScorerStatus }>(`/workers/qa-scorer/stop`, {
           method: "POST"
-        })
+        }),
+
+      // Admin Recovery / Backup Operations
+      triggerDailyBackup: () =>
+        request<BackupOperationResponse>(`/admin/recovery/backup/daily`, {
+          method: "POST"
+        }),
+      triggerWeeklyBackup: () =>
+        request<BackupOperationResponse>(`/admin/recovery/backup/weekly`, {
+          method: "POST"
+        }),
+      listBackups: () =>
+        request<BackupListResponse>(`/admin/recovery/backups`),
+      listRemoteBackups: () =>
+        request<RemoteBackupListResponse>(`/admin/recovery/backups/remote`),
+      verifyBackup: (backupPath: string) =>
+        request<BackupOperationResponse>(`/admin/recovery/verify`, {
+          method: "POST",
+          body: JSON.stringify({ backupPath })
+        }),
+      restoreBackupDryRun: (backupPath: string, component?: string) =>
+        request<BackupOperationResponse>(`/admin/recovery/restore/dry-run`, {
+          method: "POST",
+          body: JSON.stringify({ backupPath, component })
+        }),
+      getBackupStatus: () =>
+        request<BackupStatusResponse>(`/admin/recovery/status`)
     }),
     [request]
   );
