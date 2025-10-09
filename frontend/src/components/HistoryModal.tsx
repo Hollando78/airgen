@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { diffWords, diffChars } from "diff";
 import { useApiClient } from "../lib/client";
 import type { RequirementVersionRecord, RequirementDiff } from "../types";
 
@@ -113,6 +114,66 @@ export function HistoryModal({
     if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "(empty)";
     if (typeof value === "object") return JSON.stringify(value);
     return String(value);
+  };
+
+  // Render inline diff with word-level changes highlighted
+  const renderInlineDiff = (oldValue: any, newValue: any, fieldName: string) => {
+    const oldStr = formatValue(oldValue);
+    const newStr = formatValue(newValue);
+
+    // For long text fields (like requirement text), use word-level diff
+    // For shorter fields, use character-level diff for precision
+    const isLongText = fieldName === 'text' || fieldName === 'rationale' || fieldName === 'complianceRationale';
+    const changes = isLongText ? diffWords(oldStr, newStr) : diffChars(oldStr, newStr);
+
+    return (
+      <div style={{
+        padding: "8px 12px",
+        backgroundColor: "#f9fafb",
+        borderRadius: "4px",
+        fontFamily: "monospace",
+        fontSize: "12px",
+        lineHeight: "1.6",
+        wordWrap: "break-word",
+        whiteSpace: "pre-wrap"
+      }}>
+        {changes.map((part, index) => {
+          if (part.added) {
+            return (
+              <span
+                key={index}
+                style={{
+                  backgroundColor: "#d1fae5",
+                  color: "#065f46",
+                  fontWeight: "500",
+                  padding: "1px 2px",
+                  borderRadius: "2px"
+                }}
+              >
+                {part.value}
+              </span>
+            );
+          } else if (part.removed) {
+            return (
+              <span
+                key={index}
+                style={{
+                  backgroundColor: "#fee2e2",
+                  color: "#991b1b",
+                  textDecoration: "line-through",
+                  padding: "1px 2px",
+                  borderRadius: "2px"
+                }}
+              >
+                {part.value}
+              </span>
+            );
+          } else {
+            return <span key={index}>{part.value}</span>;
+          }
+        })}
+      </div>
+    );
   };
 
   if (!isOpen) return null;
@@ -319,17 +380,14 @@ export function HistoryModal({
                       {change.field}
                     </div>
                     <div style={{ fontSize: "12px" }}>
-                      <div style={{ marginBottom: "6px" }}>
-                        <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "2px" }}>Before:</div>
-                        <div style={{ padding: "6px 8px", backgroundColor: "#fee2e2", borderRadius: "4px", fontFamily: "monospace" }}>
-                          {formatValue(change.oldValue)}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "2px" }}>After:</div>
-                        <div style={{ padding: "6px 8px", backgroundColor: "#d1fae5", borderRadius: "4px", fontFamily: "monospace" }}>
-                          {formatValue(change.newValue)}
-                        </div>
+                      {renderInlineDiff(change.oldValue, change.newValue, change.field)}
+                      <div style={{ fontSize: "10px", color: "#6b7280", marginTop: "8px", fontStyle: "italic" }}>
+                        <span style={{ backgroundColor: "#fee2e2", color: "#991b1b", padding: "2px 4px", borderRadius: "2px", marginRight: "8px" }}>
+                          Removed
+                        </span>
+                        <span style={{ backgroundColor: "#d1fae5", color: "#065f46", padding: "2px 4px", borderRadius: "2px" }}>
+                          Added
+                        </span>
                       </div>
                     </div>
                   </div>
