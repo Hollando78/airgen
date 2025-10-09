@@ -16,6 +16,7 @@ import {
 } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { CacheInvalidation } from "../../../lib/cache.js";
+import { createRequirementVersion } from "./requirements-versions.js";
 
 export type ComplianceStatus = "N/A" | "Compliant" | "Compliance Risk" | "Non-Compliant";
 
@@ -36,6 +37,7 @@ export type RequirementInput = {
   suggestions?: string[];
   tags?: string[];
   attributes?: Record<string, string | number | boolean | null>;
+  userId?: string; // User making the change (for version tracking)
 };
 
 export function mapRequirement(node: Neo4jNode, documentSlug?: string): RequirementRecord {
@@ -241,7 +243,30 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
       }
 
       const node = res.records[0].get("requirement") as Neo4jNode;
-      return mapRequirement(node);
+      const requirement = mapRequirement(node);
+
+      // Create initial version (v1)
+      await createRequirementVersion(tx, {
+        requirementId: requirement.id,
+        tenantSlug,
+        projectSlug,
+        changedBy: input.userId || "system",
+        changeType: "created",
+        text: input.text,
+        pattern: input.pattern ?? null,
+        verification: input.verification ?? null,
+        rationale: input.rationale ?? null,
+        complianceStatus: input.complianceStatus ?? null,
+        complianceRationale: input.complianceRationale ?? null,
+        qaScore: input.qaScore ?? null,
+        qaVerdict: input.qaVerdict ?? null,
+        suggestions: input.suggestions ?? null,
+        tags: input.tags ?? null,
+        attributes: input.attributes ?? null,
+        contentHash
+      });
+
+      return requirement;
     });
 
     // Invalidate requirement cache
@@ -330,6 +355,8 @@ export async function updateRequirement(
     qaScore?: number;
     qaVerdict?: string;
     suggestions?: string[];
+    tags?: string[];
+    userId?: string; // User making the change
   }
 ): Promise<RequirementRecord | null> {
   const tenantSlug = slugify(tenant);
@@ -337,8 +364,15 @@ export async function updateRequirement(
   const session = getSession();
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
-      const { sectionId, ...propertyUpdates } = updates;
+      const { sectionId, userId, ...propertyUpdates } = updates;
       const hasSectionUpdate = Object.prototype.hasOwnProperty.call(updates, "sectionId");
+
+      // Check if this is a meaningful change (not just metadata)
+      const needsVersion = updates.text !== undefined ||
+                           updates.pattern !== undefined ||
+                           updates.verification !== undefined ||
+                           updates.complianceStatus !== undefined ||
+                           updates.rationale !== undefined;
 
       // If content fields are being updated, we need to fetch current values to compute hash
       const needsHashUpdate = updates.text !== undefined ||
@@ -346,28 +380,31 @@ export async function updateRequirement(
                                updates.verification !== undefined;
 
       let contentHash: string | undefined;
+      let currentRequirement: RequirementRecord | null = null;
+
+      // Fetch current state if we need hash update
       if (needsHashUpdate) {
-        // Fetch current requirement to get missing fields for hash computation
         const currentReq = await tx.run(
           `
             MATCH (requirement:Requirement {id: $requirementId})
             WHERE requirement.tenant = $tenantSlug AND requirement.projectKey = $projectSlug
-            RETURN requirement.text AS text,
-                   requirement.pattern AS pattern,
-                   requirement.verification AS verification
+            RETURN requirement
           `,
           { tenantSlug, projectSlug, requirementId }
         );
 
         if (currentReq.records.length > 0) {
-          const current = currentReq.records[0];
-          const finalText = updates.text ?? String(current.get("text"));
+          const node = currentReq.records[0].get("requirement") as Neo4jNode;
+          currentRequirement = mapRequirement(node);
+
+          // Compute new content hash
+          const finalText = updates.text ?? currentRequirement.text;
           const finalPattern = updates.pattern !== undefined
             ? updates.pattern
-            : (current.get("pattern") ? String(current.get("pattern")) : null);
+            : currentRequirement.pattern ?? null;
           const finalVerification = updates.verification !== undefined
             ? updates.verification
-            : (current.get("verification") ? String(current.get("verification")) : null);
+            : currentRequirement.verification ?? null;
 
           contentHash = computeRequirementHash({
             text: finalText,
@@ -386,16 +423,21 @@ export async function updateRequirement(
         requirementId
       };
 
-      // JSON-stringify attributes and suggestions BEFORE building setClause
-      const serializedUpdates = { ...allUpdates };
+      // JSON-stringify attributes, suggestions, and tags BEFORE building setClause
+      const serializedUpdates: Record<string, unknown> = { ...allUpdates };
       if (serializedUpdates.attributes !== undefined) {
-        serializedUpdates.attributes = serializedUpdates.attributes
+        serializedUpdates.attributes = (serializedUpdates.attributes as Record<string, string | number | boolean | null> | undefined)
           ? JSON.stringify(serializedUpdates.attributes)
           : null;
       }
       if (serializedUpdates.suggestions !== undefined) {
-        serializedUpdates.suggestions = serializedUpdates.suggestions
+        serializedUpdates.suggestions = (serializedUpdates.suggestions as string[] | undefined)
           ? JSON.stringify(serializedUpdates.suggestions)
+          : null;
+      }
+      if (serializedUpdates.tags !== undefined) {
+        serializedUpdates.tags = (serializedUpdates.tags as string[] | undefined)
+          ? JSON.stringify(serializedUpdates.tags)
           : null;
       }
 
@@ -492,6 +534,32 @@ export async function updateRequirement(
         `,
         baseParams
       );
+
+      // Create version snapshot AFTER applying update (if meaningful change)
+      if (needsVersion && finalResult.records.length > 0) {
+        const updatedNode = finalResult.records[0].get("requirement") as Neo4jNode;
+        const updatedReq = mapRequirement(updatedNode);
+
+        await createRequirementVersion(tx, {
+          requirementId,
+          tenantSlug,
+          projectSlug,
+          changedBy: userId || "system",
+          changeType: "updated",
+          text: updatedReq.text,
+          pattern: updatedReq.pattern ?? null,
+          verification: updatedReq.verification ?? null,
+          rationale: updatedReq.rationale ?? null,
+          complianceStatus: updatedReq.complianceStatus ?? null,
+          complianceRationale: updatedReq.complianceRationale ?? null,
+          qaScore: updatedReq.qaScore ?? null,
+          qaVerdict: updatedReq.qaVerdict ?? null,
+          suggestions: updatedReq.suggestions ?? null,
+          tags: updatedReq.tags ?? null,
+          attributes: updatedReq.attributes ?? null,
+          contentHash: updatedReq.contentHash || ""
+        });
+      }
 
       return finalResult.records[0]?.get("requirement") as Neo4jNode | undefined;
     });
