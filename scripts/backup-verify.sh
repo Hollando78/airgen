@@ -12,6 +12,61 @@ source "${SCRIPT_DIR}/backup-lib.sh"
 BACKUP_DIR="${1:-${BACKUP_DAILY_DIR}}"
 VERBOSE="${2:-false}"
 
+# Verify a single backup directory
+verify_single_backup() {
+    local backup_dir="$1"
+    local dir_verified=true
+    local total_size=0
+
+    log "Verifying backup: $(basename ${backup_dir})"
+
+    # Verify each backup file in the directory
+    while IFS= read -r -d '' backup_file; do
+        if [ "$VERBOSE" = "true" ]; then
+            log "  Checking: $(basename ${backup_file})"
+        fi
+
+        if verify_backup "${backup_file}"; then
+            local size=$(stat -f%z "${backup_file}" 2>/dev/null || stat -c%s "${backup_file}" 2>/dev/null)
+            ((total_size+=size))
+
+            if [ "$VERBOSE" = "true" ]; then
+                log "    ✓ OK ($(du -h ${backup_file} | cut -f1))"
+            fi
+        else
+            log_error "    ✗ FAILED: $(basename ${backup_file})"
+            dir_verified=false
+        fi
+    done < <(find "${backup_dir}" -type f \( -name "*.gz" -o -name "*.dump" -o -name "*.sql" \) -print0 2>/dev/null)
+
+    # Check manifest
+    local manifest="${backup_dir}/MANIFEST.txt"
+    if [ -f "${manifest}" ]; then
+        verify_manifest "${manifest}"
+    else
+        log "  Warning: No manifest found"
+    fi
+
+    # Print summary
+    local total_size_human=$(numfmt --to=iec --suffix=B $total_size 2>/dev/null || echo "${total_size} bytes")
+
+    log "\n========================================"
+    log "Verification Summary:"
+    log "  Total size: ${total_size_human}"
+
+    if [ "$dir_verified" = true ]; then
+        log "  ✓ Backup verified successfully"
+        log "========================================"
+        log_success "Backup verified successfully"
+        exit 0
+    else
+        log "  ✗ Backup verification failed"
+        log "========================================"
+        log_error "Backup verification failed"
+        exit 1
+    fi
+}
+
 # Main verification function
 main() {
     log "========================================"
@@ -28,6 +83,16 @@ main() {
     local verified_backups=0
     local failed_backups=0
     local total_size=0
+
+    # Check if this is a specific dated backup directory or a parent directory
+    # If there are backup files (*.gz, *.dump, *.sql) directly in this directory,
+    # treat it as a single backup to verify
+    if find "${BACKUP_DIR}" -maxdepth 1 -type f \( -name "*.gz" -o -name "*.dump" -o -name "*.sql" \) -print -quit 2>/dev/null | grep -q .; then
+        # This is a specific backup directory with files
+        log "Verifying single backup directory"
+        verify_single_backup "${BACKUP_DIR}"
+        return $?
+    fi
 
     # Find all backup directories
     while IFS= read -r -d '' backup_date_dir; do
