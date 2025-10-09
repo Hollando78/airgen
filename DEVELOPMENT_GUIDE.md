@@ -7,8 +7,9 @@
 4. [Common Tasks](#common-tasks)
 5. [Testing](#testing)
 6. [Debugging](#debugging)
-7. [Code Style](#code-style)
-8. [Contributing](#contributing)
+7. [Backup & Recovery](#backup--recovery)
+8. [Code Style](#code-style)
+9. [Contributing](#contributing)
 
 ## Quick Start
 
@@ -694,6 +695,158 @@ SHOW INDEXES;
 // Explain query plan
 EXPLAIN MATCH (r:Requirement {tenant: "test"}) RETURN r;
 ```
+
+## Backup & Recovery
+
+AIRGen includes a comprehensive automated backup system to protect development and production data.
+
+### Backup System Overview
+
+The backup system provides three layers of protection:
+1. **Daily incremental backups** (2 AM) - Fast, efficient backups with 7-day retention
+2. **Weekly full backups** (Sunday 3 AM) - Complete snapshots with remote upload, 12-week retention
+3. **Real-time git tracking** - Workspace files tracked in git for immediate recovery
+
+### Backup Scripts
+
+All backup scripts are located in `/root/airgen/scripts/`:
+
+- **backup-lib.sh** - Shared functions and utilities
+- **backup-daily.sh** - Daily automated backup
+- **backup-weekly.sh** - Weekly backup with remote upload
+- **backup-verify.sh** - Integrity verification
+- **backup-restore.sh** - Automated restore with safety checks
+- **setup-remote-backup.sh** - Interactive remote storage setup
+
+### Running Backups Manually
+
+```bash
+# Run daily backup
+/root/airgen/scripts/backup-daily.sh
+
+# Run weekly backup (includes remote upload if configured)
+/root/airgen/scripts/backup-weekly.sh
+
+# Verify backup integrity
+/root/airgen/scripts/backup-verify.sh /root/airgen/backups/daily/latest
+
+# Check remote backups
+restic snapshots
+```
+
+### Restoring from Backup
+
+The restore script includes safety checks and supports dry-run mode:
+
+```bash
+# Dry-run (shows what would be restored without making changes)
+/root/airgen/scripts/backup-restore.sh /root/airgen/backups/daily/latest --dry-run
+
+# Full restore (includes 10-second warning)
+/root/airgen/scripts/backup-restore.sh /root/airgen/backups/daily/latest
+
+# Restore specific component only
+/root/airgen/scripts/backup-restore.sh /path/to/backup --component neo4j
+# Options: neo4j, postgres, workspace, config, all
+```
+
+### Recovery Scenarios
+
+**Accidental deletion (< 24 hours ago)**:
+```bash
+# Restore from last night's backup
+/root/airgen/scripts/backup-restore.sh /root/airgen/backups/daily/latest
+# Recovery time: ~5 minutes
+```
+
+**Database corruption**:
+```bash
+# Stop services, restore database, restart
+docker stop airgen_dev_neo4j_1
+/root/airgen/scripts/backup-restore.sh /path/to/backup --component neo4j
+docker start airgen_dev_neo4j_1
+```
+
+**Complete disaster recovery from remote**:
+```bash
+# List remote snapshots
+restic snapshots
+
+# Restore from remote (example snapshot ID)
+restic restore abc123def --target /tmp/restore
+
+# Apply restored backup
+/root/airgen/scripts/backup-restore.sh /tmp/restore/backups/weekly/latest
+```
+
+### Configuring Remote Backup
+
+Remote backup provides off-site disaster recovery:
+
+```bash
+# Interactive setup
+/root/airgen/scripts/setup-remote-backup.sh
+
+# Or manually configure in /etc/environment
+RESTIC_REPOSITORY="s3:https://region.digitaloceanspaces.com/bucket-name"
+RESTIC_PASSWORD="your-encryption-password"
+AWS_ACCESS_KEY_ID="your-access-key"
+AWS_SECRET_ACCESS_KEY="your-secret-key"
+
+# Initialize repository
+restic init
+```
+
+### Backup Monitoring
+
+Check backup health:
+
+```bash
+# View recent backups
+ls -lh /root/airgen/backups/daily/
+ls -lh /root/airgen/backups/weekly/
+
+# Check cron logs
+tail -f /root/airgen/backups/logs/cron.log
+
+# Verify backup integrity
+/root/airgen/scripts/backup-verify.sh /root/airgen/backups/daily/latest
+
+# Check remote backup status
+restic check
+restic stats
+```
+
+### Development vs Production
+
+**Development environment**:
+- Uses `workspace/dev/` for isolation
+- Backup paths default to `/root/airgen/backups/`
+- Can test restore scripts safely
+
+**Production environment**:
+- Uses `workspace/` for production data
+- Ensure remote backup is configured
+- Test restore procedure monthly
+
+### Important Notes
+
+⚠️ **Before restoring**:
+- Always use `--dry-run` first to preview changes
+- Ensure services are stopped if restoring database
+- Keep backup encryption password secure
+
+✅ **Best practices**:
+- Test restore procedure regularly (monthly)
+- Monitor backup logs for errors
+- Verify remote backups are uploading successfully
+- Keep at least 2 weeks of local backups
+
+### Complete Documentation
+
+For comprehensive backup and recovery information:
+- **[Backup & Restore Guide](./docs/BACKUP_RESTORE.md)** - Complete procedures and troubleshooting
+- **[Remote Backup Setup](./docs/REMOTE_BACKUP_SETUP.md)** - Remote storage configuration
 
 ## Code Style
 
