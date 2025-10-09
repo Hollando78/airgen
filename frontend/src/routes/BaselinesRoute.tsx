@@ -227,133 +227,133 @@ export function BaselinesRoute(): JSX.Element {
                   <tbody>
                     <tr>
                       <td><strong>Requirements</strong></td>
-                      <td style={{ color: comparisonQuery.data.requirements.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.requirements.added.length}
+                      <td style={{ color: (comparisonQuery.data.requirements?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.requirements?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.requirements.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.requirements.modified.length}
+                      <td style={{ color: (comparisonQuery.data.requirements?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.requirements?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.requirements.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.requirements.removed.length}
+                      <td style={{ color: (comparisonQuery.data.requirements?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.requirements?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.requirements.unchanged.length}</td>
+                      <td>{comparisonQuery.data.requirements?.unchanged?.length ?? 0}</td>
                     </tr>
                     <tr>
                       <td>Documents</td>
-                      <td style={{ color: comparisonQuery.data.documents.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.documents.added.length}
+                      <td style={{ color: (comparisonQuery.data.documents?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.documents?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.documents.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.documents.modified.length}
+                      <td style={{ color: (comparisonQuery.data.documents?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.documents?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.documents.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.documents.removed.length}
+                      <td style={{ color: (comparisonQuery.data.documents?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.documents?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.documents.unchanged.length}</td>
+                      <td>{comparisonQuery.data.documents?.unchanged?.length ?? 0}</td>
                     </tr>
                     <tr>
                       <td>Sections</td>
-                      <td style={{ color: comparisonQuery.data.documentSections.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.documentSections.added.length}
+                      <td style={{ color: (comparisonQuery.data.documentSections?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.documentSections?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.documentSections.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.documentSections.modified.length}
+                      <td style={{ color: (comparisonQuery.data.documentSections?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.documentSections?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.documentSections.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.documentSections.removed.length}
+                      <td style={{ color: (comparisonQuery.data.documentSections?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.documentSections?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.documentSections.unchanged.length}</td>
+                      <td>{comparisonQuery.data.documentSections?.unchanged?.length ?? 0}</td>
                     </tr>
                     <tr>
                       <td>Infos</td>
-                      <td style={{ color: comparisonQuery.data.infos.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.infos.added.length}
+                      <td style={{ color: (comparisonQuery.data.infos?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.infos?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.infos.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.infos.modified.length}
+                      <td style={{ color: (comparisonQuery.data.infos?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.infos?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.infos.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.infos.removed.length}
+                      <td style={{ color: (comparisonQuery.data.infos?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.infos?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.infos.unchanged.length}</td>
+                      <td>{comparisonQuery.data.infos?.unchanged?.length ?? 0}</td>
                     </tr>
                     <tr>
                       <td>Surrogates</td>
-                      <td style={{ color: comparisonQuery.data.surrogateReferences.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.surrogateReferences.added.length}
+                      <td style={{ color: (comparisonQuery.data.surrogateReferences?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.surrogateReferences?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.surrogateReferences.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.surrogateReferences.modified.length}
+                      <td style={{ color: (comparisonQuery.data.surrogateReferences?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.surrogateReferences?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.surrogateReferences.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.surrogateReferences.removed.length}
+                      <td style={{ color: (comparisonQuery.data.surrogateReferences?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.surrogateReferences?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.surrogateReferences.unchanged.length}</td>
+                      <td>{comparisonQuery.data.surrogateReferences?.unchanged?.length ?? 0}</td>
                     </tr>
                     <tr>
                       <td>Trace Links</td>
-                      <td style={{ color: comparisonQuery.data.traceLinks.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.traceLinks.added.length}
+                      <td style={{ color: (comparisonQuery.data.traceLinks?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.traceLinks?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.traceLinks.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.traceLinks.modified.length}
+                      <td style={{ color: (comparisonQuery.data.traceLinks?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.traceLinks?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.traceLinks.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.traceLinks.removed.length}
+                      <td style={{ color: (comparisonQuery.data.traceLinks?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.traceLinks?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.traceLinks.unchanged.length}</td>
+                      <td>{comparisonQuery.data.traceLinks?.unchanged?.length ?? 0}</td>
                     </tr>
                     <tr>
                       <td>Linksets</td>
-                      <td style={{ color: comparisonQuery.data.linksets.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.linksets.added.length}
+                      <td style={{ color: (comparisonQuery.data.linksets?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.linksets?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.linksets.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.linksets.modified.length}
+                      <td style={{ color: (comparisonQuery.data.linksets?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.linksets?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.linksets.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.linksets.removed.length}
+                      <td style={{ color: (comparisonQuery.data.linksets?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.linksets?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.linksets.unchanged.length}</td>
+                      <td>{comparisonQuery.data.linksets?.unchanged?.length ?? 0}</td>
                     </tr>
                     <tr>
                       <td>Diagrams</td>
-                      <td style={{ color: comparisonQuery.data.diagrams.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.diagrams.added.length}
+                      <td style={{ color: (comparisonQuery.data.diagrams?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.diagrams?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.diagrams.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.diagrams.modified.length}
+                      <td style={{ color: (comparisonQuery.data.diagrams?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.diagrams?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.diagrams.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.diagrams.removed.length}
+                      <td style={{ color: (comparisonQuery.data.diagrams?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.diagrams?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.diagrams.unchanged.length}</td>
+                      <td>{comparisonQuery.data.diagrams?.unchanged?.length ?? 0}</td>
                     </tr>
                     <tr>
                       <td>Blocks</td>
-                      <td style={{ color: comparisonQuery.data.blocks.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.blocks.added.length}
+                      <td style={{ color: (comparisonQuery.data.blocks?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.blocks?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.blocks.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.blocks.modified.length}
+                      <td style={{ color: (comparisonQuery.data.blocks?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.blocks?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.blocks.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.blocks.removed.length}
+                      <td style={{ color: (comparisonQuery.data.blocks?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.blocks?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.blocks.unchanged.length}</td>
+                      <td>{comparisonQuery.data.blocks?.unchanged?.length ?? 0}</td>
                     </tr>
                     <tr>
                       <td>Connectors</td>
-                      <td style={{ color: comparisonQuery.data.connectors.added.length > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.connectors.added.length}
+                      <td style={{ color: (comparisonQuery.data.connectors?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
+                        {comparisonQuery.data.connectors?.added?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.connectors.modified.length > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.connectors.modified.length}
+                      <td style={{ color: (comparisonQuery.data.connectors?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
+                        {comparisonQuery.data.connectors?.modified?.length ?? 0}
                       </td>
-                      <td style={{ color: comparisonQuery.data.connectors.removed.length > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.connectors.removed.length}
+                      <td style={{ color: (comparisonQuery.data.connectors?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
+                        {comparisonQuery.data.connectors?.removed?.length ?? 0}
                       </td>
-                      <td>{comparisonQuery.data.connectors.unchanged.length}</td>
+                      <td>{comparisonQuery.data.connectors?.unchanged?.length ?? 0}</td>
                     </tr>
                   </tbody>
                 </table>
