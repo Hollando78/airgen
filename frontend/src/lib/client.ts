@@ -212,6 +212,12 @@ export function useApiClient() {
         request<BaselineResponse>(`/baseline`, { method: "POST", body: JSON.stringify(body) }),
       listBaselines: (tenant: string, project: string) =>
         request<BaselineListResponse>(`/baselines/${tenant}/${project}`),
+      getBaselineDetails: (tenant: string, project: string, baselineRef: string) =>
+        request<any>(`/baselines/${tenant}/${project}/${baselineRef}`),
+      compareBaselines: (tenant: string, project: string, fromRef: string, toRef: string) => {
+        const params = new URLSearchParams({ from: fromRef, to: toRef });
+        return request<any>(`/baselines/${tenant}/${project}/compare?${params}`);
+      },
       listDocuments: (tenant: string, project: string) =>
         request<DocumentsResponse>(`/documents/${tenant}/${project}`),
       getDocument: (tenant: string, project: string, documentSlug: string) =>

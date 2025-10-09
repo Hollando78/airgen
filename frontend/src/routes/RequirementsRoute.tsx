@@ -24,9 +24,9 @@ export function RequirementsRoute(): JSX.Element {
   const [search, setSearch] = useState("");
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
 
-  const requirementsQuery = useQuery({
-    queryKey: ["requirements", state.tenant, state.project],
-    queryFn: () => api.listRequirements(state.tenant ?? "", state.project ?? ""),
+  const graphDataQuery = useQuery({
+    queryKey: ["graph-data", state.tenant, state.project],
+    queryFn: () => api.getGraphData(state.tenant ?? "", state.project ?? ""),
     enabled: Boolean(state.tenant && state.project)
   });
 
@@ -36,7 +36,23 @@ export function RequirementsRoute(): JSX.Element {
     enabled: Boolean(state.tenant && state.project && selectedRef)
   });
 
-  const items = requirementsQuery.data?.data ?? [];
+  // Extract only Requirement nodes (not Info or SurrogateReference)
+  const items = useMemo(() => {
+    const nodes = graphDataQuery.data?.nodes ?? [];
+    return nodes
+      .filter(n => n.type === 'Requirement')
+      .map(n => ({
+        ref: n.properties?.ref || n.label,
+        title: n.properties?.text || '', // Use text as the title/description
+        text: n.properties?.text || '',
+        qaScore: n.properties?.qaScore,
+        updatedAt: n.properties?.updatedAt,
+        pattern: n.properties?.pattern,
+        verification: n.properties?.verification,
+        archived: n.properties?.archived
+      }))
+      .filter(r => !r.archived); // Exclude archived requirements
+  }, [graphDataQuery.data]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) {return items;}
@@ -105,15 +121,15 @@ export function RequirementsRoute(): JSX.Element {
               color: '#1f2937'
             }}
           />
-          <button type="button" onClick={() => requirementsQuery.refetch()}>
+          <button type="button" onClick={() => graphDataQuery.refetch()}>
             Refresh
           </button>
         </div>
 
-        {requirementsQuery.isLoading ? (
+        {graphDataQuery.isLoading ? (
           <Spinner />
-        ) : requirementsQuery.isError ? (
-          <ErrorState message={(requirementsQuery.error as Error).message} />
+        ) : graphDataQuery.isError ? (
+          <ErrorState message={(graphDataQuery.error as Error).message} />
         ) : filtered.length === 0 ? (
           <p className="hint">
             {search ? `No requirements match "${search}".` : "No requirements found."}
@@ -123,7 +139,7 @@ export function RequirementsRoute(): JSX.Element {
             <thead>
               <tr>
                 <th>Ref</th>
-                <th>Title</th>
+                <th>Description</th>
                 <th>QA Score</th>
                 <th>Updated</th>
               </tr>
@@ -153,11 +169,12 @@ export function RequirementsRoute(): JSX.Element {
           </table>
         )}
 
-        {requirementsQuery.data?.meta && (
+        {items.length > 0 && (
           <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-            Showing {filtered.length} of {requirementsQuery.data.meta.totalItems} requirements
-            {requirementsQuery.data.meta.totalPages > 1 && (
-              <span> (Page {requirementsQuery.data.meta.currentPage} of {requirementsQuery.data.meta.totalPages})</span>
+            {search ? (
+              <span>Showing {filtered.length} of {items.length} requirements</span>
+            ) : (
+              <span>Showing {items.length} requirement{items.length !== 1 ? 's' : ''}</span>
             )}
           </div>
         )}

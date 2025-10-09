@@ -70,3 +70,5 @@ services:
 volumes:
   pgdata_dev:
   neo4jdata_dev:
+    external: true
+    name: airgen_neo4jdata_dev

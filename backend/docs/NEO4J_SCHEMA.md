@@ -223,17 +223,27 @@ Reusable block/component definition.
 - `block_tenant_project` on `(tenant, projectKey)`
 
 ### Baseline
-Snapshot of requirements at a point in time.
+Snapshot of all entities at a point in time.
 
 ```cypher
 (:Baseline {
   id: String!,
-  ref: String!,           // BASE-XXX-NNN
+  ref: String!,           // BL-XXX-001
   tenant: String!,
   projectKey: String!,
   author: String?,
   label: String?,
-  requirementRefs: [String], // Array of REQ-XXX-NNN
+  requirementRefs: [String],        // Backward compatibility
+  requirementVersionCount: Integer,  // Count of requirement snapshots
+  documentVersionCount: Integer,     // Count of document snapshots
+  documentSectionVersionCount: Integer,
+  infoVersionCount: Integer,
+  surrogateVersionCount: Integer,
+  traceLinkVersionCount: Integer,
+  linksetVersionCount: Integer,
+  diagramVersionCount: Integer,
+  blockVersionCount: Integer,
+  connectorVersionCount: Integer,
   createdAt: DateTime!
 })
 ```
@@ -244,6 +254,268 @@ Snapshot of requirements at a point in time.
 
 **Constraints**:
 - `baseline_id_unique` - UNIQUE on `id`
+
+## Version History Node Types
+
+The system maintains immutable version history for all entity types. Each version captures a complete snapshot of the entity's state at a specific point in time, enabling audit trails, change tracking, and time-travel queries.
+
+### RequirementVersion
+Immutable snapshot of a requirement at a specific version.
+
+```cypher
+(:RequirementVersion {
+  versionId: String!,        // UUID for this version
+  requirementId: String!,    // Parent requirement ID
+  versionNumber: Integer!,   // Sequential version (1, 2, 3...)
+  timestamp: DateTime!,      // When this version was created
+  changedBy: String!,        // User who made the change
+  changeType: String!,       // created|updated|archived|restored|deleted
+  changeDescription: String?, // Optional change description
+  // Snapshot of requirement state
+  text: String!,
+  pattern: String?,
+  verification: String?,
+  rationale: String?,
+  complianceStatus: String?,
+  complianceRationale: String?,
+  qaScore: Float?,
+  qaVerdict: String?,
+  suggestions: [String],
+  tags: [String],
+  attributes: Object?,       // Custom attributes
+  contentHash: String!       // SHA-256 hash for change detection
+})
+```
+
+**Indexes**:
+- `requirement_version_id` on `versionId`
+- `requirement_version_requirement_id` on `requirementId`
+
+### DocumentVersion
+Immutable snapshot of a document at a specific version.
+
+```cypher
+(:DocumentVersion {
+  versionId: String!,
+  documentId: String!,
+  versionNumber: Integer!,
+  timestamp: DateTime!,
+  changedBy: String!,
+  changeType: String!,       // created|updated|deleted
+  changeDescription: String?,
+  // Snapshot of document state
+  slug: String!,
+  name: String!,
+  description: String?,
+  contentHash: String!
+})
+```
+
+**Indexes**:
+- `document_version_id` on `versionId`
+- `document_version_document_id` on `documentId`
+
+### DocumentSectionVersion
+Immutable snapshot of a document section at a specific version.
+
+```cypher
+(:DocumentSectionVersion {
+  versionId: String!,
+  sectionId: String!,
+  versionNumber: Integer!,
+  timestamp: DateTime!,
+  changedBy: String!,
+  changeType: String!,       // created|updated|deleted
+  changeDescription: String?,
+  // Snapshot of section state
+  name: String!,
+  description: String?,
+  order: Integer?,
+  contentHash: String!
+})
+```
+
+**Indexes**:
+- `section_version_id` on `versionId`
+- `section_version_section_id` on `sectionId`
+
+### InfoVersion
+Immutable snapshot of an info node at a specific version.
+
+```cypher
+(:InfoVersion {
+  versionId: String!,
+  infoId: String!,
+  versionNumber: Integer!,
+  timestamp: DateTime!,
+  changedBy: String!,
+  changeType: String!,       // created|updated|deleted
+  changeDescription: String?,
+  // Snapshot of info state
+  ref: String!,
+  text: String!,
+  title: String?,
+  sectionId: String?,
+  order: Integer?,
+  contentHash: String!
+})
+```
+
+**Indexes**:
+- `info_version_id` on `versionId`
+- `info_version_info_id` on `infoId`
+
+### SurrogateReferenceVersion
+Immutable snapshot of a surrogate reference at a specific version.
+
+```cypher
+(:SurrogateReferenceVersion {
+  versionId: String!,
+  surrogateId: String!,
+  versionNumber: Integer!,
+  timestamp: DateTime!,
+  changedBy: String!,
+  changeType: String!,       // created|updated|deleted
+  changeDescription: String?,
+  // Snapshot of surrogate state
+  slug: String!,
+  caption: String?,
+  sectionId: String?,
+  order: Integer?,
+  contentHash: String!
+})
+```
+
+**Indexes**:
+- `surrogate_version_id` on `versionId`
+- `surrogate_version_surrogate_id` on `surrogateId`
+
+### TraceLinkVersion
+Immutable snapshot of a trace link at a specific version.
+
+```cypher
+(:TraceLinkVersion {
+  versionId: String!,
+  traceLinkId: String!,
+  versionNumber: Integer!,
+  timestamp: DateTime!,
+  changedBy: String!,
+  changeType: String!,       // created|updated|deleted
+  changeDescription: String?,
+  // Snapshot of trace link state
+  fromRequirementId: String!,
+  toRequirementId: String!,
+  linkType: String!,         // satisfies|derives|verifies|implements|refines|conflicts
+  rationale: String?,
+  contentHash: String!
+})
+```
+
+**Indexes**:
+- `trace_link_version_id` on `versionId`
+- `trace_link_version_trace_link_id` on `traceLinkId`
+
+### DocumentLinksetVersion
+Immutable snapshot of a document linkset at a specific version.
+
+```cypher
+(:DocumentLinksetVersion {
+  versionId: String!,
+  linksetId: String!,
+  versionNumber: Integer!,
+  timestamp: DateTime!,
+  changedBy: String!,
+  changeType: String!,       // created|updated|deleted
+  changeDescription: String?,
+  // Snapshot of linkset state
+  fromDocumentSlug: String!,
+  toDocumentSlug: String!,
+  linkType: String!,
+  description: String?,
+  contentHash: String!
+})
+```
+
+**Indexes**:
+- `linkset_version_id` on `versionId`
+- `linkset_version_linkset_id` on `linksetId`
+
+### ArchitectureDiagramVersion
+Immutable snapshot of an architecture diagram at a specific version.
+
+```cypher
+(:ArchitectureDiagramVersion {
+  versionId: String!,
+  diagramId: String!,
+  versionNumber: Integer!,
+  timestamp: DateTime!,
+  changedBy: String!,
+  changeType: String!,       // created|updated|deleted
+  changeDescription: String?,
+  // Snapshot of diagram state
+  name: String!,
+  description: String?,
+  view: String!,             // block|internal|deployment|requirements_schema
+  contentHash: String!
+})
+```
+
+**Indexes**:
+- `diagram_version_id` on `versionId`
+- `diagram_version_diagram_id` on `diagramId`
+
+### ArchitectureBlockVersion
+Immutable snapshot of an architecture block at a specific version.
+
+```cypher
+(:ArchitectureBlockVersion {
+  versionId: String!,
+  blockId: String!,
+  versionNumber: Integer!,
+  timestamp: DateTime!,
+  changedBy: String!,
+  changeType: String!,       // created|updated|deleted
+  changeDescription: String?,
+  // Snapshot of block state
+  label: String!,
+  description: String?,
+  blockType: String?,
+  x: Float?,
+  y: Float?,
+  width: Float?,
+  height: Float?,
+  contentHash: String!
+})
+```
+
+**Indexes**:
+- `block_version_id` on `versionId`
+- `block_version_block_id` on `blockId`
+
+### ArchitectureConnectorVersion
+Immutable snapshot of an architecture connector at a specific version.
+
+```cypher
+(:ArchitectureConnectorVersion {
+  versionId: String!,
+  connectorId: String!,
+  versionNumber: Integer!,
+  timestamp: DateTime!,
+  changedBy: String!,
+  changeType: String!,       // created|updated|deleted
+  changeDescription: String?,
+  // Snapshot of connector state
+  fromBlockId: String!,
+  toBlockId: String!,
+  label: String?,
+  connectorType: String?,
+  contentHash: String!
+})
+```
+
+**Indexes**:
+- `connector_version_id` on `versionId`
+- `connector_version_connector_id` on `connectorId`
 
 ## Relationships
 
@@ -265,11 +537,52 @@ One project contains multiple requirements.
 ```
 One project can have multiple baselines.
 
-### Baseline → Requirement
+### Entity → EntityVersion (Version History)
+All versioned entities have HAS_VERSION relationships to their version snapshots:
+
 ```cypher
-(:Baseline)-[:SNAPSHOT_OF]->(:Requirement)
+(:Requirement)-[:HAS_VERSION]->(:RequirementVersion)
+(:Document)-[:HAS_VERSION]->(:DocumentVersion)
+(:DocumentSection)-[:HAS_VERSION]->(:DocumentSectionVersion)
+(:Info)-[:HAS_VERSION]->(:InfoVersion)
+(:SurrogateReference)-[:HAS_VERSION]->(:SurrogateReferenceVersion)
+(:TraceLink)-[:HAS_VERSION]->(:TraceLinkVersion)
+(:DocumentLinkset)-[:HAS_VERSION]->(:DocumentLinksetVersion)
+(:ArchitectureDiagram)-[:HAS_VERSION]->(:ArchitectureDiagramVersion)
+(:ArchitectureBlock)-[:HAS_VERSION]->(:ArchitectureBlockVersion)
+(:ArchitectureConnector)-[:HAS_VERSION]->(:ArchitectureConnectorVersion)
 ```
-One baseline captures many requirements.
+
+Each entity can have multiple versions, forming a complete history.
+
+### EntityVersion → EntityVersion (Version Chain)
+Version nodes link to their previous version, forming a chain:
+
+```cypher
+(:RequirementVersion)-[:PREVIOUS_VERSION]->(:RequirementVersion)
+(:DocumentVersion)-[:PREVIOUS_VERSION]->(:DocumentVersion)
+// ... same pattern for all version types
+```
+
+This creates a linked list of versions: v3 → v2 → v1
+
+### Baseline → EntityVersion (Snapshot Relationships)
+Baselines link to specific versions of all entities:
+
+```cypher
+(:Baseline)-[:SNAPSHOT_OF_REQUIREMENT]->(:RequirementVersion)
+(:Baseline)-[:SNAPSHOT_OF_DOCUMENT]->(:DocumentVersion)
+(:Baseline)-[:SNAPSHOT_OF_SECTION]->(:DocumentSectionVersion)
+(:Baseline)-[:SNAPSHOT_OF_INFO]->(:InfoVersion)
+(:Baseline)-[:SNAPSHOT_OF_SURROGATE]->(:SurrogateReferenceVersion)
+(:Baseline)-[:SNAPSHOT_OF_TRACE_LINK]->(:TraceLinkVersion)
+(:Baseline)-[:SNAPSHOT_OF_LINKSET]->(:DocumentLinksetVersion)
+(:Baseline)-[:SNAPSHOT_OF_DIAGRAM]->(:ArchitectureDiagramVersion)
+(:Baseline)-[:SNAPSHOT_OF_BLOCK]->(:ArchitectureBlockVersion)
+(:Baseline)-[:SNAPSHOT_OF_CONNECTOR]->(:ArchitectureConnectorVersion)
+```
+
+One baseline captures the latest version of all entities at baseline creation time.
 
 ### Requirement → Requirement (Trace Links)
 ```cypher
@@ -372,11 +685,41 @@ OPTIONAL MATCH (r)-[link:SATISFIES|DERIVES|VERIFIES|IMPLEMENTS|REFINES|CONFLICTS
 RETURN r, collect({type: type(link), target: target}) as links
 ```
 
-### Get Baseline with Requirements
+### Get Baseline with All Version Snapshots
 ```cypher
-MATCH (b:Baseline {id: $baselineId})-[:SNAPSHOT_OF]->(r:Requirement)
-RETURN b, collect(r) as requirements
+MATCH (baseline:Baseline {ref: $baselineRef})
+OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_REQUIREMENT]->(reqVer:RequirementVersion)
+OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_DOCUMENT]->(docVer:DocumentVersion)
+OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_SECTION]->(secVer:DocumentSectionVersion)
+// ... other SNAPSHOT_OF relationships
+RETURN baseline,
+       collect(DISTINCT reqVer) AS requirementVersions,
+       collect(DISTINCT docVer) AS documentVersions,
+       collect(DISTINCT secVer) AS sectionVersions
 ```
+
+### Get Version History for an Entity
+```cypher
+MATCH (req:Requirement {id: $requirementId})-[:HAS_VERSION]->(ver:RequirementVersion)
+RETURN ver
+ORDER BY ver.versionNumber DESC
+```
+
+### Get Specific Version of an Entity
+```cypher
+MATCH (req:Requirement {id: $requirementId})-[:HAS_VERSION]->(ver:RequirementVersion {versionNumber: $versionNumber})
+RETURN ver
+```
+
+### Compare Two Versions (Version Chain)
+```cypher
+MATCH (current:RequirementVersion {versionId: $currentVersionId})
+MATCH (current)-[:PREVIOUS_VERSION]->(previous:RequirementVersion)
+RETURN current, previous
+```
+
+### Compare Two Baselines
+Uses the `compareBaselines()` function which retrieves both baselines and compares all entity versions by content hash, returning added, removed, modified, and unchanged entities for each type.
 
 ### Search Requirements by Text
 ```cypher

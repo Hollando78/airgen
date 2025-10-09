@@ -4,6 +4,7 @@ import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
 import { toast } from "sonner";
+import type { RequirementCandidate } from "../types";
 
 type Requirement = {
   id: string;
@@ -25,7 +26,7 @@ type Requirement = {
   brokenLinksMetadata?: Array<{ linkId: string; type: 'broken' | 'duplicate' }>;
 };
 
-type Tab = "deleted" | "archived" | "drift" | "badlinks";
+type Tab = "deleted" | "archived" | "drift" | "badlinks" | "candidates";
 
 function formatDate(timestamp?: string): string {
   if (!timestamp) return "N/A";
@@ -46,6 +47,8 @@ export function AdminRequirementsRoute(): JSX.Element {
   const [selectedTenant, setSelectedTenant] = useState<string>("hollando");
   const [selectedProject, setSelectedProject] = useState<string>("main-battle-tank");
   const [selectedRequirements, setSelectedRequirements] = useState<Set<string>>(new Set());
+  const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
+  const [candidateStatusFilter, setCandidateStatusFilter] = useState<string>("");
 
   // Fetch tenants
   const { data: tenantsData } = useQuery({
@@ -94,6 +97,13 @@ export function AdminRequirementsRoute(): JSX.Element {
     queryKey: ["admin", "requirements", "badlinks", selectedTenant, selectedProject],
     queryFn: () => api.listBadLinksRequirements(selectedTenant, selectedProject),
     enabled: activeTab === "badlinks" && !!selectedTenant && !!selectedProject
+  });
+
+  // Fetch candidates
+  const { data: candidatesData, isLoading: isLoadingCandidates, error: candidatesError } = useQuery({
+    queryKey: ["admin", "requirements", "candidates", selectedTenant, selectedProject, candidateStatusFilter],
+    queryFn: () => api.listCandidatesAdmin(selectedTenant, selectedProject, candidateStatusFilter || undefined),
+    enabled: activeTab === "candidates" && !!selectedTenant && !!selectedProject
   });
 
   // Restore mutation
@@ -183,6 +193,32 @@ export function AdminRequirementsRoute(): JSX.Element {
     }
   });
 
+  // Bulk delete candidates mutation
+  const bulkDeleteCandidatesMutation = useMutation({
+    mutationFn: (candidateIds: string[]) => api.bulkDeleteCandidates(candidateIds),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "requirements", "candidates"] });
+      toast.success(`Deleted ${data.deleted} candidate${data.deleted > 1 ? 's' : ''}`);
+      setSelectedCandidates(new Set());
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to delete candidates");
+    }
+  });
+
+  // Bulk reset candidates mutation
+  const bulkResetCandidatesMutation = useMutation({
+    mutationFn: (candidateIds: string[]) => api.bulkResetCandidates(candidateIds),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "requirements", "candidates"] });
+      toast.success(`Reset ${data.reset} candidate${data.reset > 1 ? 's' : ''} to pending status`);
+      setSelectedCandidates(new Set());
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to reset candidates");
+    }
+  });
+
   const handleToggleSelect = (requirementId: string) => {
     const newSelection = new Set(selectedRequirements);
     if (newSelection.has(requirementId)) {
@@ -207,6 +243,40 @@ export function AdminRequirementsRoute(): JSX.Element {
       return;
     }
     bulkRestoreMutation.mutate(Array.from(selectedRequirements));
+  };
+
+  const handleToggleCandidateSelect = (candidateId: string) => {
+    const newSelection = new Set(selectedCandidates);
+    if (newSelection.has(candidateId)) {
+      newSelection.delete(candidateId);
+    } else {
+      newSelection.add(candidateId);
+    }
+    setSelectedCandidates(newSelection);
+  };
+
+  const handleSelectAllCandidates = (candidates: RequirementCandidate[]) => {
+    if (selectedCandidates.size === candidates.length) {
+      setSelectedCandidates(new Set());
+    } else {
+      setSelectedCandidates(new Set(candidates.map(c => c.id)));
+    }
+  };
+
+  const handleBulkDeleteCandidates = () => {
+    if (selectedCandidates.size === 0) {
+      toast.error("No candidates selected");
+      return;
+    }
+    bulkDeleteCandidatesMutation.mutate(Array.from(selectedCandidates));
+  };
+
+  const handleBulkResetCandidates = () => {
+    if (selectedCandidates.size === 0) {
+      toast.error("No candidates selected");
+      return;
+    }
+    bulkResetCandidatesMutation.mutate(Array.from(selectedCandidates));
   };
 
   const renderRequirementsTable = (requirements: Requirement[], showActions: "restore" | "sync" | "viewlinks") => {
@@ -462,6 +532,140 @@ export function AdminRequirementsRoute(): JSX.Element {
     );
   };
 
+  const renderCandidatesTable = (candidates: RequirementCandidate[]) => {
+    if (!candidates || candidates.length === 0) {
+      return (
+        <div style={{ textAlign: 'center', padding: '3rem 0', color: '#6b7280' }}>
+          No candidates found
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ minWidth: '100%', borderCollapse: 'collapse' }}>
+          <thead style={{ backgroundColor: '#f9fafb' }}>
+            <tr>
+              <th style={{
+                padding: '0.75rem 1.5rem',
+                textAlign: 'left',
+                borderBottom: '1px solid #e5e7eb'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={selectedCandidates.size === candidates.length}
+                  onChange={() => handleSelectAllCandidates(candidates)}
+                  style={{ cursor: 'pointer' }}
+                />
+              </th>
+              <th style={{
+                padding: '0.75rem 1.5rem',
+                textAlign: 'left',
+                fontSize: '0.75rem',
+                fontWeight: '500',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                borderBottom: '1px solid #e5e7eb'
+              }}>
+                Text
+              </th>
+              <th style={{
+                padding: '0.75rem 1.5rem',
+                textAlign: 'left',
+                fontSize: '0.75rem',
+                fontWeight: '500',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                borderBottom: '1px solid #e5e7eb'
+              }}>
+                Status
+              </th>
+              <th style={{
+                padding: '0.75rem 1.5rem',
+                textAlign: 'left',
+                fontSize: '0.75rem',
+                fontWeight: '500',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                borderBottom: '1px solid #e5e7eb'
+              }}>
+                QA Score
+              </th>
+              <th style={{
+                padding: '0.75rem 1.5rem',
+                textAlign: 'left',
+                fontSize: '0.75rem',
+                fontWeight: '500',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                borderBottom: '1px solid #e5e7eb'
+              }}>
+                Created
+              </th>
+            </tr>
+          </thead>
+          <tbody style={{ backgroundColor: 'white' }}>
+            {candidates.map((cand) => (
+              <tr key={cand.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <td style={{ padding: '1rem 1.5rem', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCandidates.has(cand.id)}
+                    onChange={() => handleToggleCandidateSelect(cand.id)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </td>
+                <td style={{
+                  padding: '1rem 1.5rem',
+                  fontSize: '0.875rem',
+                  color: '#111827',
+                  maxWidth: '500px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {cand.text}
+                </td>
+                <td style={{ padding: '1rem 1.5rem', whiteSpace: 'nowrap', fontSize: '0.875rem' }}>
+                  <span style={{
+                    fontSize: '0.75rem',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '0.25rem',
+                    backgroundColor: cand.status === 'pending' ? '#fef3c7' : cand.status === 'accepted' ? '#d1fae5' : '#fee2e2',
+                    color: cand.status === 'pending' ? '#92400e' : cand.status === 'accepted' ? '#065f46' : '#991b1b',
+                    fontWeight: '500'
+                  }}>
+                    {cand.status}
+                  </span>
+                </td>
+                <td style={{
+                  padding: '1rem 1.5rem',
+                  whiteSpace: 'nowrap',
+                  fontSize: '0.875rem',
+                  color: '#6b7280'
+                }}>
+                  {cand.qaScore != null ? cand.qaScore.toFixed(1) : 'N/A'}
+                </td>
+                <td style={{
+                  padding: '1rem 1.5rem',
+                  whiteSpace: 'nowrap',
+                  fontSize: '0.875rem',
+                  color: '#6b7280'
+                }}>
+                  {formatDate(cand.createdAt)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   const currentData =
     activeTab === "deleted"
       ? deletedData?.requirements
@@ -469,6 +673,8 @@ export function AdminRequirementsRoute(): JSX.Element {
       ? archivedData?.requirements
       : activeTab === "badlinks"
       ? badLinksData?.requirements
+      : activeTab === "candidates"
+      ? candidatesData?.candidates
       : driftData?.drifted;
 
   const isLoading =
@@ -478,6 +684,8 @@ export function AdminRequirementsRoute(): JSX.Element {
       ? isLoadingArchived
       : activeTab === "badlinks"
       ? isLoadingBadLinks
+      : activeTab === "candidates"
+      ? isLoadingCandidates
       : isLoadingDrift;
 
   const error =
@@ -487,6 +695,8 @@ export function AdminRequirementsRoute(): JSX.Element {
       ? archivedError
       : activeTab === "badlinks"
       ? badLinksError
+      : activeTab === "candidates"
+      ? candidatesError
       : driftError;
 
   return (
@@ -712,6 +922,34 @@ export function AdminRequirementsRoute(): JSX.Element {
                     </span>
                   )}
                 </button>
+                <button
+                  onClick={() => setActiveTab("candidates")}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    borderTop: 'none',
+                    borderLeft: 'none',
+                    borderRight: 'none',
+                    borderBottom: activeTab === "candidates" ? '2px solid #6366f1' : '2px solid transparent',
+                    color: activeTab === "candidates" ? '#6366f1' : '#6b7280',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Candidates
+                  {candidatesData?.count !== undefined && (
+                    <span style={{
+                      marginLeft: '0.5rem',
+                      fontSize: '0.75rem',
+                      backgroundColor: '#f3f4f6',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '9999px'
+                    }}>
+                      {candidatesData.count}
+                    </span>
+                  )}
+                </button>
               </nav>
             </div>
 
@@ -747,6 +985,56 @@ export function AdminRequirementsRoute(): JSX.Element {
               </div>
             )}
 
+            {activeTab === "candidates" && selectedCandidates.size > 0 && (
+              <div style={{
+                padding: '1rem',
+                backgroundColor: '#eef2ff',
+                borderBottom: '1px solid #c7d2fe'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.875rem', color: '#4338ca' }}>
+                    {selectedCandidates.size} candidate(s) selected
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={handleBulkResetCandidates}
+                      disabled={bulkResetCandidatesMutation.isPending}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#f59e0b',
+                        color: 'white',
+                        borderRadius: '0.375rem',
+                        border: 'none',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        cursor: bulkResetCandidatesMutation.isPending ? 'not-allowed' : 'pointer',
+                        opacity: bulkResetCandidatesMutation.isPending ? 0.5 : 1
+                      }}
+                    >
+                      {bulkResetCandidatesMutation.isPending ? "Resetting..." : "Reset to Pending"}
+                    </button>
+                    <button
+                      onClick={handleBulkDeleteCandidates}
+                      disabled={bulkDeleteCandidatesMutation.isPending}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#dc2626',
+                        color: 'white',
+                        borderRadius: '0.375rem',
+                        border: 'none',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        cursor: bulkDeleteCandidatesMutation.isPending ? 'not-allowed' : 'pointer',
+                        opacity: bulkDeleteCandidatesMutation.isPending ? 0.5 : 1
+                      }}
+                    >
+                      {bulkDeleteCandidatesMutation.isPending ? "Deleting..." : "Delete Selected"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Content */}
             <div style={{ padding: '1.5rem' }}>
               {isLoading && (
@@ -771,6 +1059,35 @@ export function AdminRequirementsRoute(): JSX.Element {
 
               {!isLoading && !error && currentData && (
                 <>
+                  {activeTab === "candidates" && (
+                    <div style={{ marginBottom: '1rem' }}>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        color: '#374151',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Filter by Status
+                      </label>
+                      <select
+                        value={candidateStatusFilter}
+                        onChange={(e) => setCandidateStatusFilter(e.target.value)}
+                        style={{
+                          padding: '0.5rem',
+                          borderRadius: '0.375rem',
+                          border: '1px solid #d1d5db',
+                          fontSize: '0.875rem',
+                          minWidth: '200px'
+                        }}
+                      >
+                        <option value="">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </div>
+                  )}
                   {activeTab === "drift" && (
                     <div style={{
                       marginBottom: '1rem',
@@ -785,10 +1102,13 @@ export function AdminRequirementsRoute(): JSX.Element {
                       </p>
                     </div>
                   )}
-                  {renderRequirementsTable(
-                    currentData,
-                    activeTab === "drift" ? "sync" : activeTab === "badlinks" ? "viewlinks" : "restore"
-                  )}
+                  {activeTab === "candidates"
+                    ? renderCandidatesTable(currentData as RequirementCandidate[])
+                    : renderRequirementsTable(
+                        currentData as Requirement[],
+                        activeTab === "drift" ? "sync" : activeTab === "badlinks" ? "viewlinks" : "restore"
+                      )
+                  }
                 </>
               )}
             </div>

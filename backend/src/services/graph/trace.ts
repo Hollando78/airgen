@@ -3,6 +3,7 @@ import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
 import { mapRequirement } from "./requirements/index.js";
 import { getLinkset, addLinkToLinkset } from "./linksets.js";
+import { createTraceLinkVersion, generateTraceLinkContentHash } from "./trace-versions.js";
 
 export type TraceLinkRecord = {
   id: string;
@@ -72,8 +73,8 @@ export async function createTraceLink(params: {
     const query = `
       MATCH (source:Requirement {id: $sourceRequirementId})
       MATCH (target:Requirement {id: $targetRequirementId})
-      OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(source)
-      OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(target)
+      OPTIONAL MATCH (sourceDoc:Document)-[:HAS_SECTION]->(sourceSection:DocumentSection)-[:CONTAINS]->(source)
+      OPTIONAL MATCH (targetDoc:Document)-[:HAS_SECTION]->(targetSection:DocumentSection)-[:CONTAINS]->(target)
       RETURN sourceDoc.slug AS sourceDocSlug, targetDoc.slug AS targetDocSlug
     `;
 
@@ -125,8 +126,8 @@ export async function createTraceLink(params: {
           MATCH (linkset:DocumentLinkset {id: $linksetId})
           MATCH (source:Requirement {id: $sourceRequirementId})
           MATCH (target:Requirement {id: $targetRequirementId})
-          OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(source)
-          OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(target)
+          OPTIONAL MATCH (sourceDoc:Document)-[:HAS_SECTION]->(sourceSection:DocumentSection)-[:CONTAINS]->(source)
+          OPTIONAL MATCH (targetDoc:Document)-[:HAS_SECTION]->(targetSection:DocumentSection)-[:CONTAINS]->(target)
           CREATE (link:TraceLink {
             id: $linkId,
             sourceRequirementId: $sourceRequirementId,
@@ -149,8 +150,8 @@ export async function createTraceLink(params: {
           MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
           MATCH (source:Requirement {id: $sourceRequirementId})
           MATCH (target:Requirement {id: $targetRequirementId})
-          OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(source)
-          OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(target)
+          OPTIONAL MATCH (sourceDoc:Document)-[:HAS_SECTION]->(sourceSection:DocumentSection)-[:CONTAINS]->(source)
+          OPTIONAL MATCH (targetDoc:Document)-[:HAS_SECTION]->(targetSection:DocumentSection)-[:CONTAINS]->(target)
           CREATE (link:TraceLink {
             id: $linkId,
             sourceRequirementId: $sourceRequirementId,
@@ -189,13 +190,38 @@ export async function createTraceLink(params: {
     const record = result.records[0];
     const link = record.get("link");
 
-    return mapTraceLink(
+    // Create version 1 for the new trace link
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      const contentHash = generateTraceLinkContentHash({
+        sourceRequirementId: params.sourceRequirementId,
+        targetRequirementId: params.targetRequirementId,
+        linkType: params.linkType,
+        description: params.description
+      });
+
+      await createTraceLinkVersion(tx, {
+        traceLinkId: linkId,
+        tenantSlug,
+        projectSlug,
+        changedBy: 'system', // TODO: Get from auth context
+        changeType: 'created',
+        sourceRequirementId: params.sourceRequirementId,
+        targetRequirementId: params.targetRequirementId,
+        linkType: params.linkType,
+        description: params.description,
+        contentHash
+      });
+    });
+
+    const mappedLink = mapTraceLink(
       link,
       mapRequirement(record.get("source")),
       mapRequirement(record.get("target")),
       record.get("sourceDoc"),
       record.get("targetDoc")
     );
+
+    return mappedLink;
   } finally {
     await session.close();
   }
@@ -216,8 +242,8 @@ export async function listTraceLinks(params: {
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink)
         OPTIONAL MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement WHERE sourceReq.archived IS NULL OR sourceReq.archived = false)
         OPTIONAL MATCH (link)-[:TO_REQUIREMENT]->(targetReq:Requirement WHERE targetReq.archived IS NULL OR targetReq.archived = false)
-        OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(sourceReq)
-        OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(targetReq)
+        OPTIONAL MATCH (sourceDoc:Document)-[:HAS_SECTION]->(sourceSection:DocumentSection)-[:CONTAINS]->(sourceReq)
+        OPTIONAL MATCH (targetDoc:Document)-[:HAS_SECTION]->(targetSection:DocumentSection)-[:CONTAINS]->(targetReq)
         RETURN link, sourceReq, targetReq, sourceDoc, targetDoc
         ORDER BY link.createdAt DESC
       `;
@@ -258,8 +284,8 @@ export async function listTraceLinksByRequirement(params: {
         WHERE link.sourceRequirementId = $requirementId OR link.targetRequirementId = $requirementId
         OPTIONAL MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement WHERE sourceReq.archived IS NULL OR sourceReq.archived = false)
         OPTIONAL MATCH (link)-[:TO_REQUIREMENT]->(targetReq:Requirement WHERE targetReq.archived IS NULL OR targetReq.archived = false)
-        OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(sourceReq)
-        OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(targetReq)
+        OPTIONAL MATCH (sourceDoc:Document)-[:HAS_SECTION]->(sourceSection:DocumentSection)-[:CONTAINS]->(sourceReq)
+        OPTIONAL MATCH (targetDoc:Document)-[:HAS_SECTION]->(targetSection:DocumentSection)-[:CONTAINS]->(targetReq)
         RETURN link, sourceReq, targetReq, sourceDoc, targetDoc
         ORDER BY link.createdAt DESC
       `;
@@ -298,6 +324,39 @@ export async function deleteTraceLink(params: {
 
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state to create a deletion version
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink {id: $linkId})
+        RETURN link
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, linkId: params.linkId });
+
+      if (currentResult.records.length > 0) {
+        const currentLink = currentResult.records[0].get("link");
+        const currentProps = currentLink.properties;
+
+        // Create deletion version
+        const contentHash = generateTraceLinkContentHash({
+          sourceRequirementId: String(currentProps.sourceRequirementId),
+          targetRequirementId: String(currentProps.targetRequirementId),
+          linkType: String(currentProps.linkType),
+          description: currentProps.description ? String(currentProps.description) : undefined
+        });
+
+        await createTraceLinkVersion(tx, {
+          traceLinkId: params.linkId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'deleted',
+          sourceRequirementId: String(currentProps.sourceRequirementId),
+          targetRequirementId: String(currentProps.targetRequirementId),
+          linkType: String(currentProps.linkType) as TraceLinkVersionRecord["linkType"],
+          description: currentProps.description ? String(currentProps.description) : undefined,
+          contentHash
+        });
+      }
+
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink {id: $linkId})
         MATCH (link)-[:FROM_REQUIREMENT]->(sourceReq:Requirement)

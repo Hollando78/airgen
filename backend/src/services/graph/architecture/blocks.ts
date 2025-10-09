@@ -12,6 +12,7 @@ import type {
 import { mapBlockWithPlacement, mapBlockLibraryEntry, sanitizePortOverrides } from "./mappers.js";
 import { getCached, CacheKeys, CacheInvalidation } from "../../../lib/cache.js";
 import { toNumber } from "../../../lib/neo4j-utils.js";
+import { createArchitectureBlockVersion, generateArchitectureBlockContentHash } from "./blocks-versions.js";
 
 export async function createArchitectureBlock(params: {
   tenant: string;
@@ -161,6 +162,83 @@ export async function createArchitectureBlock(params: {
     const rel = record.get("rel") as Neo4jRelationship | undefined;
     const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
 
+    // Create version 1 for the new block placement
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      const blockProps = blockNode.properties;
+      const relProps = rel?.properties;
+
+      // Parse ports if they exist
+      let ports: BlockPortRecord[] | undefined;
+      if (blockProps.ports) {
+        try {
+          ports = JSON.parse(String(blockProps.ports));
+        } catch {
+          ports = undefined;
+        }
+      }
+
+      // Parse portOverrides if they exist
+      let portOverrides: Record<string, BlockPortOverrideRecord> | undefined;
+      if (relProps?.portOverrides) {
+        try {
+          portOverrides = JSON.parse(String(relProps.portOverrides));
+        } catch {
+          portOverrides = undefined;
+        }
+      }
+
+      const contentHash = generateArchitectureBlockContentHash({
+        name: String(blockProps.name),
+        kind: String(blockProps.kind),
+        stereotype: blockProps.stereotype ? String(blockProps.stereotype) : undefined,
+        description: blockProps.description ? String(blockProps.description) : undefined,
+        ports,
+        documentIds,
+        positionX: typeof relProps?.positionX === 'number' ? relProps.positionX : relProps?.positionX?.toNumber() ?? positionX,
+        positionY: typeof relProps?.positionY === 'number' ? relProps.positionY : relProps?.positionY?.toNumber() ?? positionY,
+        sizeWidth: typeof relProps?.sizeWidth === 'number' ? relProps.sizeWidth : relProps?.sizeWidth?.toNumber() ?? sizeWidth,
+        sizeHeight: typeof relProps?.sizeHeight === 'number' ? relProps.sizeHeight : relProps?.sizeHeight?.toNumber() ?? sizeHeight,
+        backgroundColor: relProps?.backgroundColor ? String(relProps.backgroundColor) : undefined,
+        borderColor: relProps?.borderColor ? String(relProps.borderColor) : undefined,
+        borderWidth: relProps?.borderWidth ? (typeof relProps.borderWidth === 'number' ? relProps.borderWidth : relProps.borderWidth.toNumber()) : undefined,
+        borderStyle: relProps?.borderStyle ? String(relProps.borderStyle) : undefined,
+        textColor: relProps?.textColor ? String(relProps.textColor) : undefined,
+        fontSize: relProps?.fontSize ? (typeof relProps.fontSize === 'number' ? relProps.fontSize : relProps.fontSize.toNumber()) : undefined,
+        fontWeight: relProps?.fontWeight ? String(relProps.fontWeight) : undefined,
+        borderRadius: relProps?.borderRadius ? (typeof relProps.borderRadius === 'number' ? relProps.borderRadius : relProps.borderRadius.toNumber()) : undefined,
+        portOverrides
+      });
+
+      await createArchitectureBlockVersion(tx, {
+        blockId: String(blockProps.id),
+        diagramId: params.diagramId,
+        tenantSlug,
+        projectSlug,
+        changedBy: 'system', // TODO: Get from auth context
+        changeType: 'created',
+        name: String(blockProps.name),
+        kind: String(blockProps.kind) as BlockKind,
+        stereotype: blockProps.stereotype ? String(blockProps.stereotype) : undefined,
+        description: blockProps.description ? String(blockProps.description) : undefined,
+        ports,
+        documentIds,
+        positionX: typeof relProps?.positionX === 'number' ? relProps.positionX : relProps?.positionX?.toNumber() ?? positionX,
+        positionY: typeof relProps?.positionY === 'number' ? relProps.positionY : relProps?.positionY?.toNumber() ?? positionY,
+        sizeWidth: typeof relProps?.sizeWidth === 'number' ? relProps.sizeWidth : relProps?.sizeWidth?.toNumber() ?? sizeWidth,
+        sizeHeight: typeof relProps?.sizeHeight === 'number' ? relProps.sizeHeight : relProps?.sizeHeight?.toNumber() ?? sizeHeight,
+        backgroundColor: relProps?.backgroundColor ? String(relProps.backgroundColor) : undefined,
+        borderColor: relProps?.borderColor ? String(relProps.borderColor) : undefined,
+        borderWidth: relProps?.borderWidth ? (typeof relProps.borderWidth === 'number' ? relProps.borderWidth : relProps.borderWidth.toNumber()) : undefined,
+        borderStyle: relProps?.borderStyle ? String(relProps.borderStyle) : undefined,
+        textColor: relProps?.textColor ? String(relProps.textColor) : undefined,
+        fontSize: relProps?.fontSize ? (typeof relProps.fontSize === 'number' ? relProps.fontSize : relProps.fontSize.toNumber()) : undefined,
+        fontWeight: relProps?.fontWeight ? String(relProps.fontWeight) : undefined,
+        borderRadius: relProps?.borderRadius ? (typeof relProps.borderRadius === 'number' ? relProps.borderRadius : relProps.borderRadius.toNumber()) : undefined,
+        portOverrides,
+        contentHash
+      });
+    });
+
     // Invalidate architecture cache
     await CacheInvalidation.invalidateArchitecture(tenantSlug, projectSlug, params.diagramId);
 
@@ -299,6 +377,70 @@ export async function updateArchitectureBlock(params: {
   const session = getSession();
   try {
     const record = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state for version comparison
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})-[rel:HAS_BLOCK]->(block:ArchitectureBlock {id: $blockId})
+        OPTIONAL MATCH (block)-[:LINKED_DOCUMENT]->(doc:Document)
+        RETURN block, rel, collect(DISTINCT doc.id) AS documentIds
+      `;
+      const currentResult = await tx.run(getCurrentQuery, {
+        tenantSlug,
+        projectSlug,
+        diagramId: params.diagramId,
+        blockId: params.blockId
+      });
+
+      let oldContentHash: string | null = null;
+      if (currentResult.records.length > 0) {
+        const currentBlock = currentResult.records[0].get("block");
+        const currentRel = currentResult.records[0].get("rel");
+        const currentDocIds = (currentResult.records[0].get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
+        const currentBlockProps = currentBlock.properties;
+        const currentRelProps = currentRel?.properties;
+
+        // Parse current ports
+        let currentPorts: BlockPortRecord[] | undefined;
+        if (currentBlockProps.ports) {
+          try {
+            currentPorts = JSON.parse(String(currentBlockProps.ports));
+          } catch {
+            currentPorts = undefined;
+          }
+        }
+
+        // Parse current portOverrides
+        let currentPortOverrides: Record<string, BlockPortOverrideRecord> | undefined;
+        if (currentRelProps?.portOverrides) {
+          try {
+            currentPortOverrides = JSON.parse(String(currentRelProps.portOverrides));
+          } catch {
+            currentPortOverrides = undefined;
+          }
+        }
+
+        oldContentHash = generateArchitectureBlockContentHash({
+          name: String(currentBlockProps.name),
+          kind: String(currentBlockProps.kind),
+          stereotype: currentBlockProps.stereotype ? String(currentBlockProps.stereotype) : undefined,
+          description: currentBlockProps.description ? String(currentBlockProps.description) : undefined,
+          ports: currentPorts,
+          documentIds: currentDocIds,
+          positionX: typeof currentRelProps?.positionX === 'number' ? currentRelProps.positionX : currentRelProps?.positionX?.toNumber() ?? 0,
+          positionY: typeof currentRelProps?.positionY === 'number' ? currentRelProps.positionY : currentRelProps?.positionY?.toNumber() ?? 0,
+          sizeWidth: typeof currentRelProps?.sizeWidth === 'number' ? currentRelProps.sizeWidth : currentRelProps?.sizeWidth?.toNumber() ?? 220,
+          sizeHeight: typeof currentRelProps?.sizeHeight === 'number' ? currentRelProps.sizeHeight : currentRelProps?.sizeHeight?.toNumber() ?? 140,
+          backgroundColor: currentRelProps?.backgroundColor ? String(currentRelProps.backgroundColor) : undefined,
+          borderColor: currentRelProps?.borderColor ? String(currentRelProps.borderColor) : undefined,
+          borderWidth: currentRelProps?.borderWidth ? (typeof currentRelProps.borderWidth === 'number' ? currentRelProps.borderWidth : currentRelProps.borderWidth.toNumber()) : undefined,
+          borderStyle: currentRelProps?.borderStyle ? String(currentRelProps.borderStyle) : undefined,
+          textColor: currentRelProps?.textColor ? String(currentRelProps.textColor) : undefined,
+          fontSize: currentRelProps?.fontSize ? (typeof currentRelProps.fontSize === 'number' ? currentRelProps.fontSize : currentRelProps.fontSize.toNumber()) : undefined,
+          fontWeight: currentRelProps?.fontWeight ? String(currentRelProps.fontWeight) : undefined,
+          borderRadius: currentRelProps?.borderRadius ? (typeof currentRelProps.borderRadius === 'number' ? currentRelProps.borderRadius : currentRelProps.borderRadius.toNumber()) : undefined,
+          portOverrides: currentPortOverrides
+        });
+      }
+
       const nodeUpdates: string[] = [];
       const nodeParams: Record<string, unknown> = {
         tenantSlug,
@@ -464,6 +606,89 @@ export async function updateArchitectureBlock(params: {
         throw new Error("Architecture block not found");
       }
 
+      // Calculate new content hash and create version if changed
+      const finalBlock = finalResult.records[0].get("block");
+      const finalRel = finalResult.records[0].get("rel");
+      const finalDocIds = (finalResult.records[0].get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
+      const finalBlockProps = finalBlock.properties;
+      const finalRelProps = finalRel?.properties;
+
+      // Parse final ports
+      let finalPorts: BlockPortRecord[] | undefined;
+      if (finalBlockProps.ports) {
+        try {
+          finalPorts = JSON.parse(String(finalBlockProps.ports));
+        } catch {
+          finalPorts = undefined;
+        }
+      }
+
+      // Parse final portOverrides
+      let finalPortOverrides: Record<string, BlockPortOverrideRecord> | undefined;
+      if (finalRelProps?.portOverrides) {
+        try {
+          finalPortOverrides = JSON.parse(String(finalRelProps.portOverrides));
+        } catch {
+          finalPortOverrides = undefined;
+        }
+      }
+
+      const newContentHash = generateArchitectureBlockContentHash({
+        name: String(finalBlockProps.name),
+        kind: String(finalBlockProps.kind),
+        stereotype: finalBlockProps.stereotype ? String(finalBlockProps.stereotype) : undefined,
+        description: finalBlockProps.description ? String(finalBlockProps.description) : undefined,
+        ports: finalPorts,
+        documentIds: finalDocIds,
+        positionX: typeof finalRelProps?.positionX === 'number' ? finalRelProps.positionX : finalRelProps?.positionX?.toNumber() ?? 0,
+        positionY: typeof finalRelProps?.positionY === 'number' ? finalRelProps.positionY : finalRelProps?.positionY?.toNumber() ?? 0,
+        sizeWidth: typeof finalRelProps?.sizeWidth === 'number' ? finalRelProps.sizeWidth : finalRelProps?.sizeWidth?.toNumber() ?? 220,
+        sizeHeight: typeof finalRelProps?.sizeHeight === 'number' ? finalRelProps.sizeHeight : finalRelProps?.sizeHeight?.toNumber() ?? 140,
+        backgroundColor: finalRelProps?.backgroundColor ? String(finalRelProps.backgroundColor) : undefined,
+        borderColor: finalRelProps?.borderColor ? String(finalRelProps.borderColor) : undefined,
+        borderWidth: finalRelProps?.borderWidth ? (typeof finalRelProps.borderWidth === 'number' ? finalRelProps.borderWidth : finalRelProps.borderWidth.toNumber()) : undefined,
+        borderStyle: finalRelProps?.borderStyle ? String(finalRelProps.borderStyle) : undefined,
+        textColor: finalRelProps?.textColor ? String(finalRelProps.textColor) : undefined,
+        fontSize: finalRelProps?.fontSize ? (typeof finalRelProps.fontSize === 'number' ? finalRelProps.fontSize : finalRelProps.fontSize.toNumber()) : undefined,
+        fontWeight: finalRelProps?.fontWeight ? String(finalRelProps.fontWeight) : undefined,
+        borderRadius: finalRelProps?.borderRadius ? (typeof finalRelProps.borderRadius === 'number' ? finalRelProps.borderRadius : finalRelProps.borderRadius.toNumber()) : undefined,
+        portOverrides: finalPortOverrides
+      });
+
+      const contentChanged = oldContentHash !== null && oldContentHash !== newContentHash;
+
+      // Create new version only if content changed
+      if (contentChanged) {
+        await createArchitectureBlockVersion(tx, {
+          blockId: params.blockId,
+          diagramId: params.diagramId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'updated',
+          name: String(finalBlockProps.name),
+          kind: String(finalBlockProps.kind) as BlockKind,
+          stereotype: finalBlockProps.stereotype ? String(finalBlockProps.stereotype) : undefined,
+          description: finalBlockProps.description ? String(finalBlockProps.description) : undefined,
+          ports: finalPorts,
+          documentIds: finalDocIds,
+          positionX: typeof finalRelProps?.positionX === 'number' ? finalRelProps.positionX : finalRelProps?.positionX?.toNumber() ?? 0,
+          positionY: typeof finalRelProps?.positionY === 'number' ? finalRelProps.positionY : finalRelProps?.positionY?.toNumber() ?? 0,
+          sizeWidth: typeof finalRelProps?.sizeWidth === 'number' ? finalRelProps.sizeWidth : finalRelProps?.sizeWidth?.toNumber() ?? 220,
+          sizeHeight: typeof finalRelProps?.sizeHeight === 'number' ? finalRelProps.sizeHeight : finalRelProps?.sizeHeight?.toNumber() ?? 140,
+          backgroundColor: finalRelProps?.backgroundColor ? String(finalRelProps.backgroundColor) : undefined,
+          borderColor: finalRelProps?.borderColor ? String(finalRelProps.borderColor) : undefined,
+          borderWidth: finalRelProps?.borderWidth ? (typeof finalRelProps.borderWidth === 'number' ? finalRelProps.borderWidth : finalRelProps.borderWidth.toNumber()) : undefined,
+          borderStyle: finalRelProps?.borderStyle ? String(finalRelProps.borderStyle) : undefined,
+          textColor: finalRelProps?.textColor ? String(finalRelProps.textColor) : undefined,
+          fontSize: finalRelProps?.fontSize ? (typeof finalRelProps.fontSize === 'number' ? finalRelProps.fontSize : finalRelProps.fontSize.toNumber()) : undefined,
+          fontWeight: finalRelProps?.fontWeight ? String(finalRelProps.fontWeight) : undefined,
+          borderRadius: finalRelProps?.borderRadius ? (typeof finalRelProps.borderRadius === 'number' ? finalRelProps.borderRadius : finalRelProps.borderRadius.toNumber()) : undefined,
+          portOverrides: finalPortOverrides,
+          contentHash: newContentHash
+        });
+      }
+
       return finalResult.records[0];
     });
 
@@ -493,6 +718,99 @@ export async function deleteArchitectureBlock(params: {
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
       if (params.diagramId) {
+        // Get the current state to create a deletion version
+        const getCurrentQuery = `
+          MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})-[rel:HAS_BLOCK]->(block:ArchitectureBlock {id: $blockId})
+          OPTIONAL MATCH (block)-[:LINKED_DOCUMENT]->(doc:Document)
+          RETURN block, rel, collect(DISTINCT doc.id) AS documentIds
+        `;
+        const currentResult = await tx.run(getCurrentQuery, {
+          tenantSlug,
+          projectSlug,
+          diagramId: params.diagramId,
+          blockId: params.blockId
+        });
+
+        if (currentResult.records.length > 0) {
+          const currentBlock = currentResult.records[0].get("block");
+          const currentRel = currentResult.records[0].get("rel");
+          const currentDocIds = (currentResult.records[0].get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
+          const currentBlockProps = currentBlock.properties;
+          const currentRelProps = currentRel?.properties;
+
+          // Parse current ports
+          let currentPorts: BlockPortRecord[] | undefined;
+          if (currentBlockProps.ports) {
+            try {
+              currentPorts = JSON.parse(String(currentBlockProps.ports));
+            } catch {
+              currentPorts = undefined;
+            }
+          }
+
+          // Parse current portOverrides
+          let currentPortOverrides: Record<string, BlockPortOverrideRecord> | undefined;
+          if (currentRelProps?.portOverrides) {
+            try {
+              currentPortOverrides = JSON.parse(String(currentRelProps.portOverrides));
+            } catch {
+              currentPortOverrides = undefined;
+            }
+          }
+
+          const contentHash = generateArchitectureBlockContentHash({
+            name: String(currentBlockProps.name),
+            kind: String(currentBlockProps.kind),
+            stereotype: currentBlockProps.stereotype ? String(currentBlockProps.stereotype) : undefined,
+            description: currentBlockProps.description ? String(currentBlockProps.description) : undefined,
+            ports: currentPorts,
+            documentIds: currentDocIds,
+            positionX: typeof currentRelProps?.positionX === 'number' ? currentRelProps.positionX : currentRelProps?.positionX?.toNumber() ?? 0,
+            positionY: typeof currentRelProps?.positionY === 'number' ? currentRelProps.positionY : currentRelProps?.positionY?.toNumber() ?? 0,
+            sizeWidth: typeof currentRelProps?.sizeWidth === 'number' ? currentRelProps.sizeWidth : currentRelProps?.sizeWidth?.toNumber() ?? 220,
+            sizeHeight: typeof currentRelProps?.sizeHeight === 'number' ? currentRelProps.sizeHeight : currentRelProps?.sizeHeight?.toNumber() ?? 140,
+            backgroundColor: currentRelProps?.backgroundColor ? String(currentRelProps.backgroundColor) : undefined,
+            borderColor: currentRelProps?.borderColor ? String(currentRelProps.borderColor) : undefined,
+            borderWidth: currentRelProps?.borderWidth ? (typeof currentRelProps.borderWidth === 'number' ? currentRelProps.borderWidth : currentRelProps.borderWidth.toNumber()) : undefined,
+            borderStyle: currentRelProps?.borderStyle ? String(currentRelProps.borderStyle) : undefined,
+            textColor: currentRelProps?.textColor ? String(currentRelProps.textColor) : undefined,
+            fontSize: currentRelProps?.fontSize ? (typeof currentRelProps.fontSize === 'number' ? currentRelProps.fontSize : currentRelProps.fontSize.toNumber()) : undefined,
+            fontWeight: currentRelProps?.fontWeight ? String(currentRelProps.fontWeight) : undefined,
+            borderRadius: currentRelProps?.borderRadius ? (typeof currentRelProps.borderRadius === 'number' ? currentRelProps.borderRadius : currentRelProps.borderRadius.toNumber()) : undefined,
+            portOverrides: currentPortOverrides
+          });
+
+          // Create deletion version for this specific placement
+          await createArchitectureBlockVersion(tx, {
+            blockId: params.blockId,
+            diagramId: params.diagramId,
+            tenantSlug,
+            projectSlug,
+            changedBy: 'system', // TODO: Get from auth context
+            changeType: 'deleted',
+            name: String(currentBlockProps.name),
+            kind: String(currentBlockProps.kind) as BlockKind,
+            stereotype: currentBlockProps.stereotype ? String(currentBlockProps.stereotype) : undefined,
+            description: currentBlockProps.description ? String(currentBlockProps.description) : undefined,
+            ports: currentPorts,
+            documentIds: currentDocIds,
+            positionX: typeof currentRelProps?.positionX === 'number' ? currentRelProps.positionX : currentRelProps?.positionX?.toNumber() ?? 0,
+            positionY: typeof currentRelProps?.positionY === 'number' ? currentRelProps.positionY : currentRelProps?.positionY?.toNumber() ?? 0,
+            sizeWidth: typeof currentRelProps?.sizeWidth === 'number' ? currentRelProps.sizeWidth : currentRelProps?.sizeWidth?.toNumber() ?? 220,
+            sizeHeight: typeof currentRelProps?.sizeHeight === 'number' ? currentRelProps.sizeHeight : currentRelProps?.sizeHeight?.toNumber() ?? 140,
+            backgroundColor: currentRelProps?.backgroundColor ? String(currentRelProps.backgroundColor) : undefined,
+            borderColor: currentRelProps?.borderColor ? String(currentRelProps.borderColor) : undefined,
+            borderWidth: currentRelProps?.borderWidth ? (typeof currentRelProps.borderWidth === 'number' ? currentRelProps.borderWidth : currentRelProps.borderWidth.toNumber()) : undefined,
+            borderStyle: currentRelProps?.borderStyle ? String(currentRelProps.borderStyle) : undefined,
+            textColor: currentRelProps?.textColor ? String(currentRelProps.textColor) : undefined,
+            fontSize: currentRelProps?.fontSize ? (typeof currentRelProps.fontSize === 'number' ? currentRelProps.fontSize : currentRelProps.fontSize.toNumber()) : undefined,
+            fontWeight: currentRelProps?.fontWeight ? String(currentRelProps.fontWeight) : undefined,
+            borderRadius: currentRelProps?.borderRadius ? (typeof currentRelProps.borderRadius === 'number' ? currentRelProps.borderRadius : currentRelProps.borderRadius.toNumber()) : undefined,
+            portOverrides: currentPortOverrides,
+            contentHash
+          });
+        }
+
         const res = await tx.run(
           `
             MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})-[rel:HAS_BLOCK]->(block:ArchitectureBlock {id: $blockId})

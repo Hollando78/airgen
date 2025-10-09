@@ -4,6 +4,54 @@ import { getSession } from "../driver.js";
 import type { ArchitectureConnectorRecord, ConnectorKind } from "./types.js";
 import { mapArchitectureConnector } from "./mappers.js";
 import { toNumber } from "../../../lib/neo4j-utils.js";
+import { createLinkset, getLinkset } from "../linksets.js";
+import { createArchitectureConnectorVersion, generateArchitectureConnectorContentHash } from "./connectors-versions.js";
+
+/**
+ * Syncs connector documentIds to DocumentLinkset nodes.
+ * For requirements schema view, connectors between document blocks should
+ * create/ensure linksets exist in the graph database.
+ */
+async function syncConnectorLinksets(params: {
+  tenant: string;
+  projectKey: string;
+  documentIds: string[];
+}): Promise<void> {
+  const { tenant, projectKey, documentIds } = params;
+
+  // If we have 2 or more documents, create pairwise linksets
+  if (documentIds.length >= 2) {
+    for (let i = 0; i < documentIds.length - 1; i++) {
+      for (let j = i + 1; j < documentIds.length; j++) {
+        const sourceDocSlug = documentIds[i];
+        const targetDocSlug = documentIds[j];
+
+        try {
+          // Check if linkset already exists
+          const existingLinkset = await getLinkset({
+            tenant,
+            projectKey,
+            sourceDocumentSlug: sourceDocSlug,
+            targetDocumentSlug: targetDocSlug
+          });
+
+          // If it doesn't exist, create it
+          if (!existingLinkset) {
+            await createLinkset({
+              tenant,
+              projectKey,
+              sourceDocumentSlug: sourceDocSlug,
+              targetDocumentSlug: targetDocSlug
+            });
+          }
+        } catch (error) {
+          // Log but don't fail - linkset creation is best-effort
+          console.warn(`Failed to sync linkset ${sourceDocSlug} -> ${targetDocSlug}:`, error);
+        }
+      }
+    }
+  }
+}
 
 export async function createArchitectureConnector(params: {
   tenant: string;
@@ -100,7 +148,76 @@ export async function createArchitectureConnector(params: {
       return queryResult.records[0].get("connector") as Neo4jNode;
     });
 
-    return mapArchitectureConnector(result);
+    const mappedConnector = mapArchitectureConnector(result);
+
+    // Create version 1 for the new connector
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      const props = result.properties;
+
+      // Parse documentIds if they exist
+      let documentIds: string[] | undefined;
+      if (props.documentIds) {
+        try {
+          documentIds = JSON.parse(String(props.documentIds));
+        } catch {
+          documentIds = undefined;
+        }
+      }
+
+      const contentHash = generateArchitectureConnectorContentHash({
+        source: String(props.source),
+        target: String(props.target),
+        kind: String(props.kind),
+        label: props.label ? String(props.label) : undefined,
+        sourcePortId: props.sourcePortId ? String(props.sourcePortId) : undefined,
+        targetPortId: props.targetPortId ? String(props.targetPortId) : undefined,
+        documentIds,
+        lineStyle: props.lineStyle ? String(props.lineStyle) : undefined,
+        markerStart: props.markerStart ? String(props.markerStart) : undefined,
+        markerEnd: props.markerEnd ? String(props.markerEnd) : undefined,
+        linePattern: props.linePattern ? String(props.linePattern) : undefined,
+        color: props.color ? String(props.color) : undefined,
+        strokeWidth: props.strokeWidth ? (typeof props.strokeWidth === 'number' ? props.strokeWidth : props.strokeWidth.toNumber()) : undefined,
+        labelOffsetX: props.labelOffsetX ? (typeof props.labelOffsetX === 'number' ? props.labelOffsetX : props.labelOffsetX.toNumber()) : undefined,
+        labelOffsetY: props.labelOffsetY ? (typeof props.labelOffsetY === 'number' ? props.labelOffsetY : props.labelOffsetY.toNumber()) : undefined
+      });
+
+      await createArchitectureConnectorVersion(tx, {
+        connectorId: connectorId,
+        tenantSlug,
+        projectSlug,
+        changedBy: 'system', // TODO: Get from auth context
+        changeType: 'created',
+        source: String(props.source),
+        target: String(props.target),
+        kind: String(props.kind) as ConnectorKind,
+        label: props.label ? String(props.label) : undefined,
+        sourcePortId: props.sourcePortId ? String(props.sourcePortId) : undefined,
+        targetPortId: props.targetPortId ? String(props.targetPortId) : undefined,
+        diagramId: params.diagramId,
+        documentIds,
+        lineStyle: props.lineStyle ? String(props.lineStyle) : undefined,
+        markerStart: props.markerStart ? String(props.markerStart) : undefined,
+        markerEnd: props.markerEnd ? String(props.markerEnd) : undefined,
+        linePattern: props.linePattern ? String(props.linePattern) : undefined,
+        color: props.color ? String(props.color) : undefined,
+        strokeWidth: props.strokeWidth ? (typeof props.strokeWidth === 'number' ? props.strokeWidth : props.strokeWidth.toNumber()) : undefined,
+        labelOffsetX: props.labelOffsetX ? (typeof props.labelOffsetX === 'number' ? props.labelOffsetX : props.labelOffsetX.toNumber()) : undefined,
+        labelOffsetY: props.labelOffsetY ? (typeof props.labelOffsetY === 'number' ? props.labelOffsetY : props.labelOffsetY.toNumber()) : undefined,
+        contentHash
+      });
+    });
+
+    // Sync linksets if documents are provided
+    if (params.documentIds && params.documentIds.length >= 2) {
+      await syncConnectorLinksets({
+        tenant: params.tenant,
+        projectKey: params.projectKey,
+        documentIds: params.documentIds
+      });
+    }
+
+    return mappedConnector;
   } finally {
     await session.close();
   }
@@ -163,6 +280,52 @@ export async function updateArchitectureConnector(params: {
   const session = getSession();
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state for version comparison
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})-[:HAS_CONNECTOR]->(connector:ArchitectureConnector {id: $connectorId})
+        RETURN connector
+      `;
+      const currentResult = await tx.run(getCurrentQuery, {
+        tenantSlug,
+        projectSlug,
+        diagramId: params.diagramId,
+        connectorId: params.connectorId
+      });
+
+      let oldContentHash: string | null = null;
+      if (currentResult.records.length > 0) {
+        const currentConnector = currentResult.records[0].get("connector");
+        const currentProps = currentConnector.properties;
+
+        // Parse current documentIds
+        let currentDocumentIds: string[] | undefined;
+        if (currentProps.documentIds) {
+          try {
+            currentDocumentIds = JSON.parse(String(currentProps.documentIds));
+          } catch {
+            currentDocumentIds = undefined;
+          }
+        }
+
+        oldContentHash = generateArchitectureConnectorContentHash({
+          source: String(currentProps.source),
+          target: String(currentProps.target),
+          kind: String(currentProps.kind),
+          label: currentProps.label ? String(currentProps.label) : undefined,
+          sourcePortId: currentProps.sourcePortId ? String(currentProps.sourcePortId) : undefined,
+          targetPortId: currentProps.targetPortId ? String(currentProps.targetPortId) : undefined,
+          documentIds: currentDocumentIds,
+          lineStyle: currentProps.lineStyle ? String(currentProps.lineStyle) : undefined,
+          markerStart: currentProps.markerStart ? String(currentProps.markerStart) : undefined,
+          markerEnd: currentProps.markerEnd ? String(currentProps.markerEnd) : undefined,
+          linePattern: currentProps.linePattern ? String(currentProps.linePattern) : undefined,
+          color: currentProps.color ? String(currentProps.color) : undefined,
+          strokeWidth: currentProps.strokeWidth ? (typeof currentProps.strokeWidth === 'number' ? currentProps.strokeWidth : currentProps.strokeWidth.toNumber()) : undefined,
+          labelOffsetX: currentProps.labelOffsetX ? (typeof currentProps.labelOffsetX === 'number' ? currentProps.labelOffsetX : currentProps.labelOffsetX.toNumber()) : undefined,
+          labelOffsetY: currentProps.labelOffsetY ? (typeof currentProps.labelOffsetY === 'number' ? currentProps.labelOffsetY : currentProps.labelOffsetY.toNumber()) : undefined
+        });
+      }
+
       // Build the SET clause dynamically based on provided parameters
       const setFields: string[] = [];
       const setParams: Record<string, any> = {
@@ -247,10 +410,83 @@ export async function updateArchitectureConnector(params: {
         throw new Error("Architecture connector not found");
       }
 
-      return queryResult.records[0].get("connector") as Neo4jNode;
+      const updatedConnector = queryResult.records[0].get("connector") as Neo4jNode;
+      const updatedProps = updatedConnector.properties;
+
+      // Parse updated documentIds
+      let updatedDocumentIds: string[] | undefined;
+      if (updatedProps.documentIds) {
+        try {
+          updatedDocumentIds = JSON.parse(String(updatedProps.documentIds));
+        } catch {
+          updatedDocumentIds = undefined;
+        }
+      }
+
+      // Calculate new content hash
+      const newContentHash = generateArchitectureConnectorContentHash({
+        source: String(updatedProps.source),
+        target: String(updatedProps.target),
+        kind: String(updatedProps.kind),
+        label: updatedProps.label ? String(updatedProps.label) : undefined,
+        sourcePortId: updatedProps.sourcePortId ? String(updatedProps.sourcePortId) : undefined,
+        targetPortId: updatedProps.targetPortId ? String(updatedProps.targetPortId) : undefined,
+        documentIds: updatedDocumentIds,
+        lineStyle: updatedProps.lineStyle ? String(updatedProps.lineStyle) : undefined,
+        markerStart: updatedProps.markerStart ? String(updatedProps.markerStart) : undefined,
+        markerEnd: updatedProps.markerEnd ? String(updatedProps.markerEnd) : undefined,
+        linePattern: updatedProps.linePattern ? String(updatedProps.linePattern) : undefined,
+        color: updatedProps.color ? String(updatedProps.color) : undefined,
+        strokeWidth: updatedProps.strokeWidth ? (typeof updatedProps.strokeWidth === 'number' ? updatedProps.strokeWidth : updatedProps.strokeWidth.toNumber()) : undefined,
+        labelOffsetX: updatedProps.labelOffsetX ? (typeof updatedProps.labelOffsetX === 'number' ? updatedProps.labelOffsetX : updatedProps.labelOffsetX.toNumber()) : undefined,
+        labelOffsetY: updatedProps.labelOffsetY ? (typeof updatedProps.labelOffsetY === 'number' ? updatedProps.labelOffsetY : updatedProps.labelOffsetY.toNumber()) : undefined
+      });
+
+      const contentChanged = oldContentHash !== null && oldContentHash !== newContentHash;
+
+      // Create new version only if content changed
+      if (contentChanged) {
+        await createArchitectureConnectorVersion(tx, {
+          connectorId: params.connectorId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'updated',
+          source: String(updatedProps.source),
+          target: String(updatedProps.target),
+          kind: String(updatedProps.kind) as ConnectorKind,
+          label: updatedProps.label ? String(updatedProps.label) : undefined,
+          sourcePortId: updatedProps.sourcePortId ? String(updatedProps.sourcePortId) : undefined,
+          targetPortId: updatedProps.targetPortId ? String(updatedProps.targetPortId) : undefined,
+          diagramId: params.diagramId,
+          documentIds: updatedDocumentIds,
+          lineStyle: updatedProps.lineStyle ? String(updatedProps.lineStyle) : undefined,
+          markerStart: updatedProps.markerStart ? String(updatedProps.markerStart) : undefined,
+          markerEnd: updatedProps.markerEnd ? String(updatedProps.markerEnd) : undefined,
+          linePattern: updatedProps.linePattern ? String(updatedProps.linePattern) : undefined,
+          color: updatedProps.color ? String(updatedProps.color) : undefined,
+          strokeWidth: updatedProps.strokeWidth ? (typeof updatedProps.strokeWidth === 'number' ? updatedProps.strokeWidth : updatedProps.strokeWidth.toNumber()) : undefined,
+          labelOffsetX: updatedProps.labelOffsetX ? (typeof updatedProps.labelOffsetX === 'number' ? updatedProps.labelOffsetX : updatedProps.labelOffsetX.toNumber()) : undefined,
+          labelOffsetY: updatedProps.labelOffsetY ? (typeof updatedProps.labelOffsetY === 'number' ? updatedProps.labelOffsetY : updatedProps.labelOffsetY.toNumber()) : undefined,
+          contentHash: newContentHash
+        });
+      }
+
+      return updatedConnector;
     });
 
-    return mapArchitectureConnector(result);
+    const mappedConnector = mapArchitectureConnector(result);
+
+    // Sync linksets if documents are being updated
+    if (params.documentIds && params.documentIds.length >= 2) {
+      await syncConnectorLinksets({
+        tenant: params.tenant,
+        projectKey: params.projectKey,
+        documentIds: params.documentIds
+      });
+    }
+
+    return mappedConnector;
   } finally {
     await session.close();
   }
@@ -268,6 +504,77 @@ export async function deleteArchitectureConnector(params: {
 
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state to create a deletion version
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})-[:HAS_CONNECTOR]->(connector:ArchitectureConnector {id: $connectorId})
+        RETURN connector
+      `;
+      const currentResult = await tx.run(getCurrentQuery, {
+        tenantSlug,
+        projectSlug,
+        diagramId: params.diagramId,
+        connectorId: params.connectorId
+      });
+
+      if (currentResult.records.length > 0) {
+        const currentConnector = currentResult.records[0].get("connector");
+        const currentProps = currentConnector.properties;
+
+        // Parse current documentIds
+        let currentDocumentIds: string[] | undefined;
+        if (currentProps.documentIds) {
+          try {
+            currentDocumentIds = JSON.parse(String(currentProps.documentIds));
+          } catch {
+            currentDocumentIds = undefined;
+          }
+        }
+
+        // Create deletion version
+        const contentHash = generateArchitectureConnectorContentHash({
+          source: String(currentProps.source),
+          target: String(currentProps.target),
+          kind: String(currentProps.kind),
+          label: currentProps.label ? String(currentProps.label) : undefined,
+          sourcePortId: currentProps.sourcePortId ? String(currentProps.sourcePortId) : undefined,
+          targetPortId: currentProps.targetPortId ? String(currentProps.targetPortId) : undefined,
+          documentIds: currentDocumentIds,
+          lineStyle: currentProps.lineStyle ? String(currentProps.lineStyle) : undefined,
+          markerStart: currentProps.markerStart ? String(currentProps.markerStart) : undefined,
+          markerEnd: currentProps.markerEnd ? String(currentProps.markerEnd) : undefined,
+          linePattern: currentProps.linePattern ? String(currentProps.linePattern) : undefined,
+          color: currentProps.color ? String(currentProps.color) : undefined,
+          strokeWidth: currentProps.strokeWidth ? (typeof currentProps.strokeWidth === 'number' ? currentProps.strokeWidth : currentProps.strokeWidth.toNumber()) : undefined,
+          labelOffsetX: currentProps.labelOffsetX ? (typeof currentProps.labelOffsetX === 'number' ? currentProps.labelOffsetX : currentProps.labelOffsetX.toNumber()) : undefined,
+          labelOffsetY: currentProps.labelOffsetY ? (typeof currentProps.labelOffsetY === 'number' ? currentProps.labelOffsetY : currentProps.labelOffsetY.toNumber()) : undefined
+        });
+
+        await createArchitectureConnectorVersion(tx, {
+          connectorId: params.connectorId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'deleted',
+          source: String(currentProps.source),
+          target: String(currentProps.target),
+          kind: String(currentProps.kind) as ConnectorKind,
+          label: currentProps.label ? String(currentProps.label) : undefined,
+          sourcePortId: currentProps.sourcePortId ? String(currentProps.sourcePortId) : undefined,
+          targetPortId: currentProps.targetPortId ? String(currentProps.targetPortId) : undefined,
+          diagramId: params.diagramId,
+          documentIds: currentDocumentIds,
+          lineStyle: currentProps.lineStyle ? String(currentProps.lineStyle) : undefined,
+          markerStart: currentProps.markerStart ? String(currentProps.markerStart) : undefined,
+          markerEnd: currentProps.markerEnd ? String(currentProps.markerEnd) : undefined,
+          linePattern: currentProps.linePattern ? String(currentProps.linePattern) : undefined,
+          color: currentProps.color ? String(currentProps.color) : undefined,
+          strokeWidth: currentProps.strokeWidth ? (typeof currentProps.strokeWidth === 'number' ? currentProps.strokeWidth : currentProps.strokeWidth.toNumber()) : undefined,
+          labelOffsetX: currentProps.labelOffsetX ? (typeof currentProps.labelOffsetX === 'number' ? currentProps.labelOffsetX : currentProps.labelOffsetX.toNumber()) : undefined,
+          labelOffsetY: currentProps.labelOffsetY ? (typeof currentProps.labelOffsetY === 'number' ? currentProps.labelOffsetY : currentProps.labelOffsetY.toNumber()) : undefined,
+          contentHash
+        });
+      }
+
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})-[:HAS_CONNECTOR]->(connector:ArchitectureConnector {id: $connectorId})
         DETACH DELETE connector

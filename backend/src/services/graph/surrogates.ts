@@ -1,6 +1,7 @@
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { getSession } from "./driver.js";
 import { slugify } from "../workspace.js";
+import { createSurrogateReferenceVersion, generateSurrogateContentHash } from "./surrogates-versions.js";
 
 export type SurrogateReferenceRecord = {
   id: string;
@@ -85,6 +86,25 @@ export async function createSurrogateReference(params: {
         now
       });
 
+      // Create version 1 for the new surrogate reference
+      const contentHash = generateSurrogateContentHash({
+        slug: params.slug,
+        caption: params.caption
+      });
+
+      await createSurrogateReferenceVersion(tx, {
+        surrogateId,
+        tenantSlug,
+        projectSlug,
+        changedBy: 'system', // TODO: Get from auth context
+        changeType: 'created',
+        slug: params.slug,
+        caption: params.caption,
+        sectionId: params.sectionId,
+        order: params.order,
+        contentHash
+      });
+
       return res.records[0].get("surrogate") as Neo4jNode;
     });
 
@@ -101,6 +121,39 @@ export async function deleteSurrogateReference(tenant: string, project: string, 
   const session = getSession();
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state to create a deletion version
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(doc:Document)-[:HAS_SURROGATE_REFERENCE]->(surrogate:SurrogateReference {id: $surrogateId})
+        RETURN surrogate
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, surrogateId });
+      if (currentResult.records.length > 0) {
+        const currentSurrogate = currentResult.records[0].get("surrogate");
+        const currentProps = currentSurrogate.properties;
+
+        // Create deletion version
+        const contentHash = generateSurrogateContentHash({
+          slug: String(currentProps.slug),
+          caption: currentProps.caption ? String(currentProps.caption) : undefined
+        });
+
+        await createSurrogateReferenceVersion(tx, {
+          surrogateId: String(currentProps.id),
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'deleted',
+          slug: String(currentProps.slug),
+          caption: currentProps.caption ? String(currentProps.caption) : undefined,
+          sectionId: currentProps.sectionId ? String(currentProps.sectionId) : undefined,
+          order: currentProps.order !== undefined && currentProps.order !== null
+            ? (typeof currentProps.order === 'number' ? currentProps.order : currentProps.order.toNumber())
+            : undefined,
+          contentHash
+        });
+      }
+
+      // Now delete the surrogate reference
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(doc:Document)-[:HAS_SURROGATE_REFERENCE]->(surrogate:SurrogateReference {id: $surrogateId})
         DETACH DELETE surrogate

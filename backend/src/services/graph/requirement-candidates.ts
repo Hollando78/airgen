@@ -229,3 +229,59 @@ export async function updateRequirementCandidate(
     await session.close();
   }
 }
+
+export async function bulkDeleteCandidates(ids: string[]): Promise<{ deleted: number }> {
+  if (ids.length === 0) {
+    return { deleted: 0 };
+  }
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async tx => {
+      const query = `
+        MATCH (candidate:RequirementCandidate)
+        WHERE candidate.id IN $ids
+        DETACH DELETE candidate
+        RETURN count(candidate) AS deleted
+      `;
+
+      const res = await tx.run(query, { ids });
+      return res.records[0] ? Number(res.records[0].get("deleted").toInt()) : 0;
+    });
+
+    return { deleted: result };
+  } finally {
+    await session.close();
+  }
+}
+
+export async function bulkResetCandidates(ids: string[]): Promise<{ reset: number }> {
+  if (ids.length === 0) {
+    return { reset: 0 };
+  }
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async tx => {
+      const now = new Date().toISOString();
+      const query = `
+        MATCH (candidate:RequirementCandidate)
+        WHERE candidate.id IN $ids
+        SET candidate.status = 'pending',
+            candidate.requirementId = null,
+            candidate.requirementRef = null,
+            candidate.documentSlug = null,
+            candidate.sectionId = null,
+            candidate.updatedAt = $now
+        RETURN count(candidate) AS reset
+      `;
+
+      const res = await tx.run(query, { ids, now });
+      return res.records[0] ? Number(res.records[0].get("reset").toInt()) : 0;
+    });
+
+    return { reset: result };
+  } finally {
+    await session.close();
+  }
+}

@@ -61,6 +61,12 @@ export function DashboardRoute(): JSX.Element {
     enabled: Boolean(state.tenant && state.project)
   });
 
+  const latestBaseline = baselinesQuery.data?.items?.[0];
+  const latestBaselineRequirementCount =
+    latestBaseline?.requirementRefs?.length ??
+    latestBaseline?.requirementVersionCount ??
+    0;
+
   // QA Scorer worker status
   const qaScorerStatusQuery = useQuery({
     queryKey: ["qa-scorer-status"],
@@ -725,20 +731,20 @@ export function DashboardRoute(): JSX.Element {
                 <div className="grid grid-cols-3">
                   <div className="stat-card">
                     <span className="stat-label">Total Baselines</span>
-                    <span className="stat-value">{baselinesQuery.data.items.length}</span>
+                    <span className="stat-value">{baselinesQuery.data.items?.length ?? 0}</span>
                   </div>
-                  {baselinesQuery.data.items[0] && (
+                  {latestBaseline && (
                     <>
                       <div className="stat-card">
                         <span className="stat-label">Latest Baseline</span>
-                        <span className="stat-value" style={{ fontSize: '0.9rem' }}>{baselinesQuery.data.items[0].ref}</span>
+                        <span className="stat-value" style={{ fontSize: '0.9rem' }}>{latestBaseline.ref}</span>
                         <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                          {formatDate(baselinesQuery.data.items[0].createdAt)}
+                          {formatDate(latestBaseline.createdAt)}
                         </div>
                       </div>
                       <div className="stat-card">
                         <span className="stat-label">Requirements Captured</span>
-                        <span className="stat-value">{baselinesQuery.data.items[0].requirementRefs.length}</span>
+                        <span className="stat-value">{latestBaselineRequirementCount}</span>
                       </div>
                     </>
                   )}

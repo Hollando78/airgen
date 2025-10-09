@@ -1,0 +1,54 @@
+[
+  {
+    "id": "e16a25a4-fcad-4d62-81a8-6f76d91d6a96",
+    "email": "steven.holland@outlook.com",
+    "name": "Steven Holland",
+    "roles": [
+      "admin"
+    ],
+    "tenantSlugs": [
+      "admin-dev"
+    ],
+    "createdAt": "2025-09-25T20:18:14.063Z",
+    "updatedAt": "2025-09-25T20:18:14.063Z"
+  },
+  {
+    "id": "98e6826a-fc83-4367-ba94-218811003be1",
+    "email": "test@example.com",
+    "name": "Test User",
+    "password": "eaaa4a79c43019473cc37be32ede6ea36c962bdf821fafbecc573c6931f63ea7",
+    "roles": [
+      "user"
+    ],
+    "tenantSlugs": [],
+    "createdAt": "2025-09-25T20:23:13.921Z",
+    "updatedAt": "2025-09-25T20:24:11.473Z"
+  },
+  {
+    "id": "96f3550f-a45b-45b6-821e-73b687019cd6",
+    "email": "ui-test@example.com",
+    "name": "UI Test User",
+    "password": "8acf3001ebef5b77bc672aea9cdb5014ea478db5bff2c08f91bf703868ab9671",
+    "roles": [
+      "user"
+    ],
+    "tenantSlugs": [],
+    "createdAt": "2025-09-25T20:29:17.103Z",
+    "updatedAt": "2025-09-25T20:29:31.905Z"
+  },
+  {
+    "id": "37058687-cbd7-415b-bcf1-d2c21b65379a",
+    "email": "admin@airgen.studio",
+    "name": "Admin User",
+    "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "roles": [
+      "admin",
+      "user"
+    ],
+    "tenantSlugs": [
+      "admin-dev"
+    ],
+    "createdAt": "2025-09-25T20:48:03.325Z",
+    "updatedAt": "2025-09-25T20:48:03.325Z"
+  }
+]

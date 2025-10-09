@@ -8,6 +8,8 @@
 import { migration001 } from "./001-unify-containment-relationships.js";
 import { migration002 } from "./002-remove-redundant-denormalization.js";
 import { migration003 } from "./003-simplify-document-hierarchy.js";
+import { migration004 } from "./004-version-history-indexes.js";
+import { migration005 } from "./005-upgrade-existing-baselines.js";
 
 export interface Migration {
   id: string;
@@ -20,7 +22,9 @@ export interface Migration {
 const migrations: Migration[] = [
   migration001,
   migration002,
-  migration003
+  migration003,
+  migration004,
+  migration005
 ];
 
 /**
