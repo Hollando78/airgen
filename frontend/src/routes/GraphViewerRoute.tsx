@@ -62,6 +62,34 @@ export function GraphViewerRoute() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const cyRef = useRef<HTMLDivElement>(null);
 
+  // Edge styling customization
+  type EdgeStyle = {
+    color: string;
+    width: number;
+    lineStyle: 'solid' | 'dashed' | 'dotted';
+    dashPattern?: number[];
+  };
+
+  const [edgeStyles, setEdgeStyles] = useState<Map<string, EdgeStyle>>(() => {
+    // Load saved edge styles from localStorage
+    const saved = localStorage.getItem(`graph-edge-styles-${tenant}-${project}`);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return new Map(Object.entries(parsed));
+    }
+    return new Map();
+  });
+
+  // Edge context menu state
+  const [edgeContextMenu, setEdgeContextMenu] = useState<{
+    x: number;
+    y: number;
+    edgeId: string;
+    edgeLabel: string;
+    sourceLabel: string;
+    targetLabel: string;
+  } | null>(null);
+
   // Fetch graph data from Neo4j
   const { data: graphData, isLoading } = useQuery({
     queryKey: ["graph-data", tenant, project],
@@ -97,6 +125,36 @@ export function GraphViewerRoute() {
         }))
       ]
     : [];
+
+  // Build dynamic edge styles from customizations
+  const buildEdgeStylesheets = () => {
+    const dynamicStyles: any[] = [];
+
+    edgeStyles.forEach((style, edgeType) => {
+      const dashPattern = style.lineStyle === 'dashed' ? [10, 5] :
+                         style.lineStyle === 'dotted' ? [2, 4] : undefined;
+
+      dynamicStyles.push({
+        selector: `edge[label='${edgeType}']`,
+        style: {
+          width: style.width,
+          "line-color": style.color,
+          "target-arrow-color": style.color,
+          "line-style": style.lineStyle === 'solid' ? 'solid' : style.lineStyle === 'dashed' ? 'dashed' : 'dotted',
+          ...(dashPattern && { "line-dash-pattern": dashPattern }),
+          "curve-style": "bezier",
+          "font-size": "11px",
+          "font-weight": "600",
+          color: style.color,
+          "text-background-color": "#ffffff",
+          "text-background-opacity": 0.8,
+          "text-background-padding": "3px"
+        }
+      });
+    });
+
+    return dynamicStyles;
+  };
 
   // Cytoscape stylesheet
   const stylesheet = [
@@ -217,39 +275,8 @@ export function GraphViewerRoute() {
         "text-margin-y": -10
       }
     },
-    {
-      selector: "edge[label='LINKED_TO']",
-      style: {
-        width: 4,
-        "line-color": "#ec4899",
-        "target-arrow-color": "#ec4899",
-        "line-style": "dashed",
-        "line-dash-pattern": [10, 5],
-        "curve-style": "bezier",
-        "font-size": "11px",
-        "font-weight": "bold",
-        color: "#be185d",
-        "text-background-color": "#ffffff",
-        "text-background-opacity": 0.8,
-        "text-background-padding": "3px"
-      }
-    },
-    {
-      selector: "edge[label='LINKED_DOCUMENT']",
-      style: {
-        width: 3,
-        "line-color": "#14b8a6",
-        "target-arrow-color": "#14b8a6",
-        "line-style": "dotted",
-        "curve-style": "bezier",
-        "font-size": "11px",
-        "font-weight": "600",
-        color: "#0d9488",
-        "text-background-color": "#ffffff",
-        "text-background-opacity": 0.8,
-        "text-background-padding": "3px"
-      }
-    },
+    // Dynamic edge styles from customizations
+    ...buildEdgeStylesheets(),
     {
       selector: "edge:selected",
       style: {
@@ -470,6 +497,7 @@ export function GraphViewerRoute() {
         if (event.target === cyInstance) {
           setSelectedNodeInfo(null);
           setContextMenu(null);
+          setEdgeContextMenu(null);
         }
       };
 
@@ -497,14 +525,40 @@ export function GraphViewerRoute() {
         });
       };
 
+      const handleEdgeRightClick = (event: any) => {
+        const edge = event.target;
+        const originalEvent = event.originalEvent;
+
+        if (originalEvent) {
+          originalEvent.preventDefault();
+          originalEvent.stopPropagation();
+        }
+
+        const edgeId = edge.data("id");
+        const edgeLabel = edge.data("label");
+        const sourceNode = edge.source();
+        const targetNode = edge.target();
+
+        setEdgeContextMenu({
+          x: originalEvent ? originalEvent.clientX : 0,
+          y: originalEvent ? originalEvent.clientY : 0,
+          edgeId,
+          edgeLabel,
+          sourceLabel: sourceNode.data("label"),
+          targetLabel: targetNode.data("label")
+        });
+      };
+
       cyInstance.on("tap", "node", handleNodeTap);
       cyInstance.on("tap", handleBackgroundTap);
       cyInstance.on("cxttap", "node", handleNodeRightClick);
+      cyInstance.on("cxttap", "edge", handleEdgeRightClick);
 
       return () => {
         cyInstance.off("tap", "node", handleNodeTap);
         cyInstance.off("tap", handleBackgroundTap);
         cyInstance.off("cxttap", "node", handleNodeRightClick);
+        cyInstance.off("cxttap", "edge", handleEdgeRightClick);
       };
     }
   }, [cyInstance]);
@@ -520,7 +574,10 @@ export function GraphViewerRoute() {
 
   // Close context menu when clicking anywhere
   useEffect(() => {
-    const handleClick = () => setContextMenu(null);
+    const handleClick = () => {
+      setContextMenu(null);
+      setEdgeContextMenu(null);
+    };
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, []);
@@ -902,6 +959,95 @@ export function GraphViewerRoute() {
     // Re-run the layout algorithm
     cyInstance.layout(layout as any).run();
     setContextMenu(null);
+  };
+
+  // Edge styling functions
+  const applyEdgeStyle = (edgeLabel: string, style: EdgeStyle) => {
+    const newEdgeStyles = new Map(edgeStyles);
+    newEdgeStyles.set(edgeLabel, style);
+    setEdgeStyles(newEdgeStyles);
+
+    // Save to localStorage
+    const stylesObj: any = {};
+    newEdgeStyles.forEach((value, key) => {
+      stylesObj[key] = value;
+    });
+    localStorage.setItem(`graph-edge-styles-${tenant}-${project}`, JSON.stringify(stylesObj));
+
+    setEdgeContextMenu(null);
+  };
+
+  const resetEdgeStyle = (edgeLabel: string) => {
+    const newEdgeStyles = new Map(edgeStyles);
+    newEdgeStyles.delete(edgeLabel);
+    setEdgeStyles(newEdgeStyles);
+
+    // Save to localStorage
+    const stylesObj: any = {};
+    newEdgeStyles.forEach((value, key) => {
+      stylesObj[key] = value;
+    });
+    localStorage.setItem(`graph-edge-styles-${tenant}-${project}`, JSON.stringify(stylesObj));
+
+    setEdgeContextMenu(null);
+  };
+
+  const resetAllEdgeStyles = () => {
+    setEdgeStyles(new Map());
+    localStorage.removeItem(`graph-edge-styles-${tenant}-${project}`);
+  };
+
+  // Generate edge context menu items
+  const generateEdgeContextMenuItems = (edgeLabel: string, sourceLabel: string, targetLabel: string): ContextMenuItem[] => {
+    const items: ContextMenuItem[] = [];
+    const currentStyle = edgeStyles.get(edgeLabel);
+
+    items.push({
+      label: `🎨 Style "${edgeLabel}" Edges`,
+      submenu: [
+        {
+          label: 'Color',
+          submenu: [
+            { label: '🔴 Red', action: () => applyEdgeStyle(edgeLabel, { color: '#ef4444', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🟠 Orange', action: () => applyEdgeStyle(edgeLabel, { color: '#f97316', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🟡 Yellow', action: () => applyEdgeStyle(edgeLabel, { color: '#eab308', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🟢 Green', action: () => applyEdgeStyle(edgeLabel, { color: '#22c55e', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🔵 Blue', action: () => applyEdgeStyle(edgeLabel, { color: '#3b82f6', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🟣 Purple', action: () => applyEdgeStyle(edgeLabel, { color: '#a855f7', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🩷 Pink', action: () => applyEdgeStyle(edgeLabel, { color: '#ec4899', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🩵 Teal', action: () => applyEdgeStyle(edgeLabel, { color: '#14b8a6', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) }
+          ]
+        },
+        {
+          label: 'Line Style',
+          submenu: [
+            { label: '━ Solid', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: currentStyle?.width || 3, lineStyle: 'solid' }) },
+            { label: '╌ Dashed', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: currentStyle?.width || 3, lineStyle: 'dashed' }) },
+            { label: '┈ Dotted', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: currentStyle?.width || 3, lineStyle: 'dotted' }) }
+          ]
+        },
+        {
+          label: 'Width',
+          submenu: [
+            { label: 'Thin (2px)', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 2, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: 'Normal (3px)', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: 'Thick (4px)', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 4, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: 'Extra Thick (5px)', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 5, lineStyle: currentStyle?.lineStyle || 'solid' }) }
+          ]
+        },
+        { separator: true },
+        { label: '🔄 Reset Style', action: () => resetEdgeStyle(edgeLabel), disabled: !currentStyle }
+      ]
+    });
+
+    items.push({ separator: true });
+
+    items.push({
+      label: `📍 ${sourceLabel} → ${targetLabel}`,
+      disabled: true
+    });
+
+    return items;
   };
 
   // Recursive context menu item renderer
@@ -1453,29 +1599,60 @@ export function GraphViewerRoute() {
             <span className="legend-color" style={{ background: "#84cc16" }}></span>
             <span>Connector</span>
           </div>
-          <div className="legend-item" style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px", paddingTop: "8px" }}>
-            <span className="legend-edge" style={{
-              display: "inline-block",
-              width: "20px",
-              height: "4px",
-              background: "linear-gradient(to right, #ec4899 50%, transparent 50%)",
-              backgroundSize: "10px 100%",
-              marginRight: "8px",
-              verticalAlign: "middle"
-            }}></span>
-            <span style={{ fontSize: "11px", fontWeight: "600" }}>Doc Links (LINKED_TO)</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-edge" style={{
-              display: "inline-block",
-              width: "20px",
-              height: "3px",
-              background: "repeating-linear-gradient(to right, #14b8a6 0px, #14b8a6 2px, transparent 2px, transparent 4px)",
-              marginRight: "8px",
-              verticalAlign: "middle"
-            }}></span>
-            <span style={{ fontSize: "11px", fontWeight: "600" }}>Block ↔ Doc (LINKED_DOCUMENT)</span>
-          </div>
+          {edgeStyles.size > 0 && (
+            <div className="legend-item" style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px", paddingTop: "8px" }}>
+              <span style={{ fontSize: "12px", fontWeight: "700", display: "block", marginBottom: "8px" }}>Custom Edge Styles</span>
+            </div>
+          )}
+          {Array.from(edgeStyles.entries()).map(([edgeType, style]) => {
+            const linePattern =
+              style.lineStyle === 'dashed'
+                ? `linear-gradient(to right, ${style.color} 50%, transparent 50%)`
+                : style.lineStyle === 'dotted'
+                ? `repeating-linear-gradient(to right, ${style.color} 0px, ${style.color} 2px, transparent 2px, transparent 4px)`
+                : style.color;
+
+            const backgroundSize = style.lineStyle === 'dashed' ? '10px 100%' : undefined;
+
+            return (
+              <div key={edgeType} className="legend-item">
+                <span className="legend-edge" style={{
+                  display: "inline-block",
+                  width: "20px",
+                  height: `${style.width}px`,
+                  background: linePattern,
+                  backgroundSize,
+                  marginRight: "8px",
+                  verticalAlign: "middle"
+                }}></span>
+                <span style={{ fontSize: "11px", fontWeight: "600" }}>{edgeType}</span>
+              </div>
+            );
+          })}
+          {edgeStyles.size > 0 && (
+            <div className="legend-item" style={{ marginTop: "8px" }}>
+              <button
+                onClick={() => {
+                  if (confirm('Reset all edge styles?')) {
+                    resetAllEdgeStyles();
+                  }
+                }}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontWeight: '500',
+                  width: '100%'
+                }}
+              >
+                Reset All Edge Styles
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1536,6 +1713,31 @@ export function GraphViewerRoute() {
             style={{
               left: `${contextMenu.x}px`,
               top: `${contextMenu.y}px`
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            {menuItems.map((item, idx) => (
+              <ContextMenuItemComponent key={idx} item={item} />
+            ))}
+          </div>
+        );
+      })()}
+
+      {edgeContextMenu && (() => {
+        const menuItems = generateEdgeContextMenuItems(edgeContextMenu.edgeLabel, edgeContextMenu.sourceLabel, edgeContextMenu.targetLabel);
+        return (
+          <div
+            className="context-menu"
+            style={{
+              left: `${edgeContextMenu.x}px`,
+              top: `${edgeContextMenu.y}px`
             }}
             onClick={(e) => {
               e.preventDefault();
