@@ -2,9 +2,16 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import CytoscapeComponent from "react-cytoscapejs";
 import type { Core, ElementDefinition } from "cytoscape";
+import cytoscape from "cytoscape";
+import cytoscapeDagre from "cytoscape-dagre";
+import cytoscapeFcose from "cytoscape-fcose";
 import { useApiClient } from "../lib/client";
 import { useTenantProject } from "../hooks/useTenantProject";
 import "./graphViewer.css";
+
+// Register layout extensions
+cytoscape.use(cytoscapeDagre);
+cytoscape.use(cytoscapeFcose);
 
 export function GraphViewerRoute() {
   const api = useApiClient();
@@ -13,10 +20,11 @@ export function GraphViewerRoute() {
   const [cyInstance, setCyInstance] = useState<Core | null>(null);
   const [selectedNodeInfo, setSelectedNodeInfo] = useState<any>(null);
   const [visibleNodeTypes, setVisibleNodeTypes] = useState<Set<string>>(new Set([
-    'Tenant', 'Project', 'Document', 'DocumentSection', 'Requirement', 'Info', 'SurrogateReference', 'DocumentLinkset'
+    'Tenant', 'Project', 'Document', 'DocumentSection', 'Requirement', 'Info', 'SurrogateReference', 'DocumentLinkset', 'TraceLink', 'RequirementCandidate', 'ArchitectureDiagram', 'ArchitectureBlock', 'ArchitectureConnector'
   ]));
   const [searchTerm, setSearchTerm] = useState('');
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
+  const [selectedLayout, setSelectedLayout] = useState('cose');
   const [savedViews, setSavedViews] = useState<Array<{
     name: string;
     visibleNodeTypes: string[];
@@ -50,6 +58,8 @@ export function GraphViewerRoute() {
   } | null>(null);
   const [pinnedNodes, setPinnedNodes] = useState<Set<string>>(new Set());
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const cyRef = useRef<HTMLDivElement>(null);
 
   // Fetch graph data from Neo4j
@@ -151,6 +161,40 @@ export function GraphViewerRoute() {
       }
     },
     {
+      selector: "node[type='TraceLink']",
+      style: {
+        "background-color": "#a855f7",
+        "border-color": "#9333ea",
+        width: "40px",
+        height: "40px",
+        "font-size": "10px"
+      }
+    },
+    {
+      selector: "node[type='ArchitectureDiagram']",
+      style: {
+        "background-color": "#14b8a6",
+        "border-color": "#0d9488"
+      }
+    },
+    {
+      selector: "node[type='ArchitectureBlock']",
+      style: {
+        "background-color": "#6366f1",
+        "border-color": "#4f46e5"
+      }
+    },
+    {
+      selector: "node[type='ArchitectureConnector']",
+      style: {
+        "background-color": "#84cc16",
+        "border-color": "#65a30d",
+        width: "40px",
+        height: "40px",
+        "font-size": "10px"
+      }
+    },
+    {
       selector: "node:selected",
       style: {
         "border-width": "4px",
@@ -195,24 +239,125 @@ export function GraphViewerRoute() {
     }
   ];
 
-  // Layout configuration
-  const layout = {
-    name: "cose",
-    idealEdgeLength: 100,
-    nodeOverlap: 20,
-    refresh: 20,
-    fit: true,
-    padding: 30,
-    randomize: false,
-    componentSpacing: 100,
-    nodeRepulsion: 400000,
-    edgeElasticity: 100,
-    nestingFactor: 5,
-    gravity: 80,
-    numIter: 1000,
-    initialTemp: 200,
-    coolingFactor: 0.95,
-    minTemp: 1.0
+  // Layout configurations
+  const getLayoutConfig = (layoutName: string) => {
+    const baseConfig = {
+      fit: true,
+      padding: 30,
+      animate: true,
+      animationDuration: 500
+    };
+
+    switch (layoutName) {
+      case 'cose':
+        return {
+          ...baseConfig,
+          name: 'cose',
+          idealEdgeLength: 100,
+          nodeOverlap: 20,
+          refresh: 20,
+          randomize: false,
+          componentSpacing: 100,
+          nodeRepulsion: 400000,
+          edgeElasticity: 100,
+          nestingFactor: 5,
+          gravity: 80,
+          numIter: 1000,
+          initialTemp: 200,
+          coolingFactor: 0.95,
+          minTemp: 1.0
+        };
+      case 'dagre':
+        return {
+          ...baseConfig,
+          name: 'dagre',
+          rankDir: 'TB', // Top to bottom
+          ranker: 'network-simplex',
+          nodeSep: 50,
+          edgeSep: 10,
+          rankSep: 75
+        };
+      case 'fcose':
+        return {
+          ...baseConfig,
+          name: 'fcose',
+          quality: 'default',
+          randomize: false,
+          animate: 'end',
+          nodeSeparation: 75,
+          idealEdgeLength: 100,
+          edgeElasticity: 0.45,
+          nestingFactor: 0.1,
+          gravity: 0.25,
+          numIter: 2500,
+          initialTemp: 200,
+          coolingFactor: 0.95,
+          minTemp: 1.0
+        };
+      case 'circle':
+        return {
+          ...baseConfig,
+          name: 'circle',
+          radius: 300,
+          startAngle: 0,
+          sweep: undefined,
+          clockwise: true,
+          spacingFactor: 1.75
+        };
+      case 'grid':
+        return {
+          ...baseConfig,
+          name: 'grid',
+          rows: undefined,
+          cols: undefined,
+          position: (node: any) => ({ row: 0, col: 0 }),
+          condense: false,
+          avoidOverlap: true,
+          avoidOverlapPadding: 10
+        };
+      case 'breadthfirst':
+        return {
+          ...baseConfig,
+          name: 'breadthfirst',
+          directed: true,
+          spacingFactor: 1.5,
+          avoidOverlap: true,
+          nodeDimensionsIncludeLabels: true
+        };
+      case 'concentric':
+        return {
+          ...baseConfig,
+          name: 'concentric',
+          minNodeSpacing: 50,
+          levelWidth: (nodes: any) => nodes.maxDegree() / 4,
+          concentric: (node: any) => node.degree(),
+          equidistant: false,
+          startAngle: 0,
+          clockwise: true
+        };
+      default:
+        return {
+          ...baseConfig,
+          name: 'cose'
+        };
+    }
+  };
+
+  const layout = getLayoutConfig(selectedLayout);
+
+  // Function to apply a new layout
+  const applyLayout = (layoutName: string) => {
+    if (cyInstance) {
+      setSelectedLayout(layoutName);
+      const layoutConfig = getLayoutConfig(layoutName);
+
+      // Apply layout only to visible nodes
+      const visibleNodes = cyInstance.nodes().filter((node: any) => {
+        return node.style('display') !== 'none';
+      });
+
+      visibleNodes.layout(layoutConfig).run();
+    }
   };
 
   // Apply filters and search
@@ -232,8 +377,18 @@ export function GraphViewerRoute() {
           node.style('display', 'none');
         }
       });
+
+      // Re-apply layout to visible nodes only
+      const layoutConfig = getLayoutConfig(selectedLayout);
+      const visibleNodes = cyInstance.nodes().filter((node: any) => {
+        return node.style('display') !== 'none';
+      });
+
+      if (visibleNodes.length > 0) {
+        visibleNodes.layout(layoutConfig).run();
+      }
     }
-  }, [cyInstance, visibleNodeTypes, searchTerm, hiddenNodeIds]);
+  }, [cyInstance, visibleNodeTypes, searchTerm, hiddenNodeIds, selectedLayout]);
 
   // Apply visual highlighting styles
   useEffect(() => {
@@ -382,7 +537,16 @@ export function GraphViewerRoute() {
     );
   }
 
-  const nodeTypes = ['Tenant', 'Project', 'Document', 'DocumentSection', 'Requirement', 'Info', 'SurrogateReference', 'DocumentLinkset'];
+  // Node type categories
+  const nodeTypeCategories = {
+    'System': ['Tenant', 'Project'],
+    'Document Structure': ['Document', 'DocumentSection', 'Info', 'SurrogateReference'],
+    'Requirements': ['Requirement', 'RequirementCandidate'],
+    'Architecture': ['ArchitectureDiagram', 'ArchitectureBlock', 'ArchitectureConnector'],
+    'Traceability': ['DocumentLinkset', 'TraceLink']
+  };
+
+  const nodeTypes = Object.values(nodeTypeCategories).flat();
 
   const toggleNodeType = (type: string) => {
     const newVisible = new Set(visibleNodeTypes);
@@ -392,6 +556,28 @@ export function GraphViewerRoute() {
       newVisible.add(type);
     }
     setVisibleNodeTypes(newVisible);
+  };
+
+  const selectAllInCategory = (types: string[]) => {
+    const newVisible = new Set(visibleNodeTypes);
+    types.forEach(type => newVisible.add(type));
+    setVisibleNodeTypes(newVisible);
+  };
+
+  const deselectAllInCategory = (types: string[]) => {
+    const newVisible = new Set(visibleNodeTypes);
+    types.forEach(type => newVisible.delete(type));
+    setVisibleNodeTypes(newVisible);
+  };
+
+  const toggleCategory = (category: string) => {
+    const newCollapsed = new Set(collapsedCategories);
+    if (newCollapsed.has(category)) {
+      newCollapsed.delete(category);
+    } else {
+      newCollapsed.add(category);
+    }
+    setCollapsedCategories(newCollapsed);
   };
 
   const saveCurrentView = () => {
@@ -784,6 +970,31 @@ export function GraphViewerRoute() {
           { label: 'Show Parent Document', action: () => showNeighbors(nodeId) }
         ]
       });
+    } else if (nodeType === 'ArchitectureDiagram') {
+      items.push({
+        label: '🏗️ Diagram Actions',
+        submenu: [
+          { label: 'Show All Blocks', action: () => showNeighbors(nodeId) },
+          { label: 'Show Connectors', action: () => showNeighbors(nodeId) },
+          { label: 'Show Full Diagram', action: () => expandNeighborhood(nodeId, 2) }
+        ]
+      });
+    } else if (nodeType === 'ArchitectureBlock') {
+      items.push({
+        label: '🧱 Block Actions',
+        submenu: [
+          { label: 'Show Diagrams Using This Block', action: () => showNeighbors(nodeId) },
+          { label: 'Show Connected Blocks', action: () => expandNeighborhood(nodeId, 2) }
+        ]
+      });
+    } else if (nodeType === 'ArchitectureConnector') {
+      items.push({
+        label: '🔗 Connector Actions',
+        submenu: [
+          { label: 'Show Source & Target', action: () => showNeighbors(nodeId) },
+          { label: 'Show Parent Diagram', action: () => showNeighbors(nodeId) }
+        ]
+      });
     }
 
     items.push({ separator: true });
@@ -846,6 +1057,25 @@ export function GraphViewerRoute() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="graph-search-input"
           />
+          <select
+            value={selectedLayout}
+            onChange={(e) => applyLayout(e.target.value)}
+            className="graph-control-btn"
+            style={{
+              padding: '0.5rem 0.75rem',
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              minWidth: '180px'
+            }}
+          >
+            <option value="cose">CoSE (Force-Directed)</option>
+            <option value="fcose">fCoSE (Fast)</option>
+            <option value="dagre">Dagre (Hierarchical)</option>
+            <option value="breadthfirst">Breadth-First</option>
+            <option value="circle">Circle</option>
+            <option value="concentric">Concentric</option>
+            <option value="grid">Grid</option>
+          </select>
           <button onClick={handleResetLayout} className="graph-control-btn">
             Reset Layout
           </button>
@@ -861,55 +1091,14 @@ export function GraphViewerRoute() {
           <button onClick={() => setShowSaveDialog(true)} className="graph-control-btn">
             Save View
           </button>
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="graph-control-btn">
+            {sidebarOpen ? 'Hide Filters' : 'Show Filters'}
+          </button>
         </div>
       </div>
 
-      <div className="graph-filters">
-        <div className="filter-section">
-          <h3>Filter Node Types:</h3>
-          <div className="filter-checkboxes">
-            {nodeTypes.map(type => (
-              <label key={type} className="filter-checkbox">
-                <input
-                  type="checkbox"
-                  checked={visibleNodeTypes.has(type)}
-                  onChange={() => toggleNodeType(type)}
-                />
-                <span>{type}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {savedViews.length > 0 && (
-          <div className="saved-views-section">
-            <h3>Saved Views:</h3>
-            <div className="saved-views-list">
-              {savedViews.map(view => (
-                <div key={view.name} className="saved-view-item">
-                  <button
-                    onClick={() => loadView(view.name)}
-                    className="saved-view-load-btn"
-                    title={`Load view: ${view.name}`}
-                  >
-                    {view.name}
-                  </button>
-                  <button
-                    onClick={() => deleteView(view.name)}
-                    className="saved-view-delete-btn"
-                    title="Delete view"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="graph-viewer-content">
-        <div className="graph-canvas-container">
+      <div style={{ display: 'flex', flex: 1, position: 'relative', overflow: 'hidden' }}>
+        <div className="graph-viewer-content" style={{ flex: 1 }}>
           <CytoscapeComponent
             elements={elements}
             stylesheet={stylesheet as any}
@@ -917,43 +1106,275 @@ export function GraphViewerRoute() {
             style={{ width: "100%", height: "100%" }}
             cy={(cy) => setCyInstance(cy)}
           />
+
+          {selectedNodeInfo && (
+            <div className="graph-inspector-panel">
+              <div className="inspector-header">
+                <h3>Node Details</h3>
+                <button
+                  onClick={() => setSelectedNodeInfo(null)}
+                  className="inspector-close"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="inspector-content">
+                <div className="inspector-field">
+                  <label>ID:</label>
+                  <span>{selectedNodeInfo.id}</span>
+                </div>
+                <div className="inspector-field">
+                  <label>Label:</label>
+                  <span>{selectedNodeInfo.label}</span>
+                </div>
+                <div className="inspector-field">
+                  <label>Type:</label>
+                  <span className="node-type-badge">{selectedNodeInfo.type}</span>
+                </div>
+                {selectedNodeInfo.properties && (
+                  <div className="inspector-field">
+                    <label>Properties:</label>
+                    <pre className="properties-json">
+                      {JSON.stringify(selectedNodeInfo.properties, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {selectedNodeInfo && (
-          <div className="graph-inspector-panel">
-            <div className="inspector-header">
-              <h3>Node Details</h3>
+        {/* Sidebar for filters */}
+        <div style={{
+          position: 'absolute',
+          right: sidebarOpen ? 0 : '-320px',
+          top: 0,
+          bottom: 0,
+          width: '320px',
+          backgroundColor: 'white',
+          boxShadow: '-2px 0 8px rgba(0,0,0,0.1)',
+          transition: 'right 0.3s ease-in-out',
+          zIndex: 100,
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'auto'
+        }}>
+          <div style={{
+            padding: '16px',
+            borderBottom: '2px solid #e5e7eb',
+            backgroundColor: '#f9fafb',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Filters & Controls</h2>
               <button
-                onClick={() => setSelectedNodeInfo(null)}
-                className="inspector-close"
+                onClick={() => setSidebarOpen(false)}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: '#6b7280'
+                }}
+                title="Close sidebar"
               >
                 ×
               </button>
             </div>
-            <div className="inspector-content">
-              <div className="inspector-field">
-                <label>ID:</label>
-                <span>{selectedNodeInfo.id}</span>
-              </div>
-              <div className="inspector-field">
-                <label>Label:</label>
-                <span>{selectedNodeInfo.label}</span>
-              </div>
-              <div className="inspector-field">
-                <label>Type:</label>
-                <span className="node-type-badge">{selectedNodeInfo.type}</span>
-              </div>
-              {selectedNodeInfo.properties && (
-                <div className="inspector-field">
-                  <label>Properties:</label>
-                  <pre className="properties-json">
-                    {JSON.stringify(selectedNodeInfo.properties, null, 2)}
-                  </pre>
-                </div>
-              )}
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                onClick={() => setVisibleNodeTypes(new Set(nodeTypes))}
+                style={{
+                  flex: 1,
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  backgroundColor: '#6366f1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontWeight: '500'
+                }}
+              >
+                Select All
+              </button>
+              <button
+                onClick={() => setVisibleNodeTypes(new Set())}
+                style={{
+                  flex: 1,
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  backgroundColor: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontWeight: '500'
+                }}
+              >
+                Clear All
+              </button>
             </div>
           </div>
-        )}
+
+          <div style={{ flex: 1, padding: '16px' }}>
+            {Object.entries(nodeTypeCategories).map(([category, types]) => {
+              const isCollapsed = collapsedCategories.has(category);
+              const allSelected = types.every(t => visibleNodeTypes.has(t));
+              const someSelected = types.some(t => visibleNodeTypes.has(t)) && !allSelected;
+
+              return (
+                <div key={category} style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e5e7eb' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <button
+                      onClick={() => toggleCategory(category)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#111827',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '4px 0'
+                      }}
+                    >
+                      <span style={{ fontSize: '12px' }}>{isCollapsed ? '▶' : '▼'}</span>
+                      <span>{category}</span>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        backgroundColor: allSelected ? '#dcfce7' : someSelected ? '#fef3c7' : '#f3f4f6',
+                        color: allSelected ? '#166534' : someSelected ? '#92400e' : '#6b7280',
+                        fontWeight: '600'
+                      }}>
+                        {types.filter(t => visibleNodeTypes.has(t)).length}/{types.length}
+                      </span>
+                    </button>
+                    {!isCollapsed && (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={() => selectAllInCategory(types)}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            fontWeight: '500'
+                          }}
+                          title={`Select all ${category}`}
+                        >
+                          All
+                        </button>
+                        <button
+                          onClick={() => deselectAllInCategory(types)}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            fontWeight: '500'
+                          }}
+                          title={`Deselect all ${category}`}
+                        >
+                          None
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {!isCollapsed && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr',
+                      gap: '6px',
+                      marginTop: '8px'
+                    }}>
+                      {types.map(type => (
+                        <label key={type} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          padding: '6px 8px',
+                          backgroundColor: visibleNodeTypes.has(type) ? '#eff6ff' : '#f9fafb',
+                          border: `1px solid ${visibleNodeTypes.has(type) ? '#3b82f6' : '#e5e7eb'}`,
+                          borderRadius: '6px',
+                          transition: 'all 0.15s'
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={visibleNodeTypes.has(type)}
+                            onChange={() => toggleNodeType(type)}
+                            style={{ marginRight: '8px', cursor: 'pointer', width: '16px', height: '16px' }}
+                          />
+                          <span style={{ fontSize: '13px', fontWeight: visibleNodeTypes.has(type) ? '500' : '400' }}>{type}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {savedViews.length > 0 && (
+            <div style={{ padding: '16px', borderTop: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+              <h3 style={{ fontSize: '14px', margin: '0 0 12px 0', fontWeight: '600' }}>Saved Views</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {savedViews.map(view => (
+                  <div key={view.name} style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => loadView(view.name)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        backgroundColor: 'white',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        textAlign: 'left',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontWeight: '500'
+                      }}
+                      title={view.name}
+                    >
+                      {view.name}
+                    </button>
+                    <button
+                      onClick={() => deleteView(view.name)}
+                      style={{
+                        padding: '8px 12px',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        backgroundColor: '#ef4444',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px'
+                      }}
+                      title="Delete view"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="graph-legend">
@@ -982,6 +1403,22 @@ export function GraphViewerRoute() {
           <div className="legend-item">
             <span className="legend-color" style={{ background: "#ec4899" }}></span>
             <span>LinkSet</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-color" style={{ background: "#a855f7" }}></span>
+            <span>TraceLink</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-color" style={{ background: "#14b8a6" }}></span>
+            <span>Arch Diagram</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-color" style={{ background: "#6366f1" }}></span>
+            <span>Arch Block</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-color" style={{ background: "#84cc16" }}></span>
+            <span>Connector</span>
           </div>
         </div>
       </div>

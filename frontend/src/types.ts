@@ -41,6 +41,16 @@ export type DraftRequest = {
 
 export type QaRuleHit = { rule: string; ok: boolean; message?: string };
 
+export type QAScorerStatus = {
+  isRunning: boolean;
+  processedCount: number;
+  totalCount: number;
+  currentRequirement: string | null;
+  lastError: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
 export type QaResponse = {
   score: number;
   hits: QaRuleHit[];
@@ -456,6 +466,7 @@ export type DocumentLinkset = {
   targetDocument: DocumentRecord;
   linkCount: number;
   links: TraceLinkItem[];
+  defaultLinkType?: TraceLinkType;
   createdAt: string;
   updatedAt: string;
 };
@@ -463,6 +474,7 @@ export type DocumentLinkset = {
 export type CreateLinksetRequest = {
   sourceDocumentSlug: string;
   targetDocumentSlug: string;
+  defaultLinkType?: TraceLinkType;
   links?: TraceLinkItem[];
 };
 

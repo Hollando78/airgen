@@ -5,6 +5,7 @@ import type {
   DraftResponse,
   DraftRequest,
   QaResponse,
+  QAScorerStatus,
   ApplyFixResponse,
   RequirementRecord,
   RequirementPattern,
@@ -446,13 +447,43 @@ export function useApiClient() {
         if (offset !== undefined) params.append("offset", offset.toString());
         return request<{ requirements: (RequirementRecord & { brokenLinkCount?: number })[]; count: number }>(`/admin/requirements/bad-links?${params}`);
       },
+      listCandidatesAdmin: (tenant: string, project: string, status?: string, limit?: number, offset?: number) => {
+        const params = new URLSearchParams({ tenant, project });
+        if (status) params.append("status", status);
+        if (limit !== undefined) params.append("limit", limit.toString());
+        if (offset !== undefined) params.append("offset", offset.toString());
+        return request<{ candidates: RequirementCandidate[]; count: number }>(`/admin/requirements/candidates?${params}`);
+      },
+      bulkDeleteCandidates: (candidateIds: string[]) =>
+        request<{ message: string; deleted: number }>(`/admin/requirements/candidates/bulk-delete`, {
+          method: "POST",
+          body: JSON.stringify({ candidateIds })
+        }),
+      bulkResetCandidates: (candidateIds: string[]) =>
+        request<{ message: string; reset: number }>(`/admin/requirements/candidates/bulk-reset`, {
+          method: "POST",
+          body: JSON.stringify({ candidateIds })
+        }),
       getGraphData: (tenant: string, project: string) => {
         const params = new URLSearchParams({ tenant, project });
         return request<{
           nodes: Array<{ id: string; label: string; type: string; properties: Record<string, any> }>;
           relationships: Array<{ id: string; source: string; target: string; type: string; properties: Record<string, any> }>;
         }>(`/graph/data?${params}`);
-      }
+      },
+
+      // QA Scorer Worker
+      startQAScorer: (tenant: string, project: string) =>
+        request<{ message: string; status: QAScorerStatus }>(`/workers/qa-scorer/start`, {
+          method: "POST",
+          body: JSON.stringify({ tenant, project })
+        }),
+      getQAScorerStatus: () =>
+        request<QAScorerStatus>(`/workers/qa-scorer/status`),
+      stopQAScorer: () =>
+        request<{ message: string; status: QAScorerStatus }>(`/workers/qa-scorer/stop`, {
+          method: "POST"
+        })
     }),
     [request]
   );
