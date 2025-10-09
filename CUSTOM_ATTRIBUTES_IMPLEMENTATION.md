@@ -1,8 +1,11 @@
 # Custom Attributes Implementation Guide
 
-## Status: PARTIAL - Types Updated, Implementation Incomplete
+## Status: PARTIAL - Foundation Complete, Schema Management Pending
 
-This document outlines the full implementation plan for custom attributes on requirements.
+This document outlines the implementation status and remaining work for custom attributes on requirements.
+
+**What's Working:** Basic custom attributes can be stored and retrieved on requirements.
+**What's Pending:** Dynamic schema configuration and UI for defining project-specific attribute types.
 
 ## Completed Steps
 

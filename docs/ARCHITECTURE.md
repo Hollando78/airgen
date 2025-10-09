@@ -125,27 +125,28 @@ The QA scorer worker provides bulk quality analysis for all requirements in a pr
 - Updates requirements via `updateRequirement()` from requirements-crud
 - Errors are logged but don't stop processing of remaining requirements
 
-## Requirements Change Tracking (Planned)
+## Requirements Change Tracking
 
-The system currently tracks basic timestamps (createdAt, updatedAt) and soft-delete metadata (deletedAt, deletedBy, restoredAt), but lacks comprehensive version history. A detailed implementation plan for version history, change tracking, and diff capabilities is available:
+The system provides comprehensive version history and change tracking for all requirements and related entities:
 
-**See:** [Requirements History Implementation Plan](./requirements-history-implementation-plan.md)
+**Implemented Features:**
+- **RequirementVersion nodes** in Neo4j for complete version history
+- **User tracking** (createdBy, updatedBy, changedBy) on all changes
+- **Diff capabilities** to compare any two versions via API endpoints
+- **Restore previous versions** with rollback support
+- **Complete audit trail** for compliance and traceability
+- **Content hash** (SHA-256) to detect drift between Neo4j and markdown files
+- **Soft delete tracking** (deletedAt, deletedBy, restoredAt)
+- **Version history** for documents, architecture blocks, connectors, diagrams, linksets, trace links, and document sections
 
-**Planned Features:**
-- RequirementVersion nodes in Neo4j for full version history
-- User tracking (createdBy, updatedBy) on all changes
-- Diff capabilities to compare versions
-- Restore previous versions
-- Audit trail for compliance
-
-**Current Capabilities:**
-- Content hash (SHA-256) detects drift between Neo4j and markdown files
-- Soft delete tracking (who deleted, when restored)
-- Basic timestamps on all mutations
+**API Endpoints:**
+- `GET /api/requirements/:tenant/:project/:id/history` - Get version history
+- `GET /api/requirements/:tenant/:project/:id/diff?from=N&to=M` - Get diff between versions
+- `POST /api/requirements/:tenant/:project/:id/restore/:versionNumber` - Restore to previous version
 
 ## Roadmap Ideas
 - Add nodes for Needs/Tests and create automated `[:VERIFIES]` or `[:SATISFIES]` relationships.
 - Incorporate vector search (pgvector/Qdrant) for semantic linking.
 - Build a front-end client or CLI that consumes the API and renders Markdown + graph context.
 - Expand automated tests (`node --test`, `vitest`) covering graph persistence and LLM fallback flows.
-- Implement comprehensive version history and change tracking (see Requirements History Implementation Plan).
+- Complete custom attributes schema management UI for project-specific metadata fields.
