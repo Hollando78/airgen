@@ -157,9 +157,16 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
              collect(DISTINCT {source: id(archDiagram), target: id(archPlacedBlock), type: type(r15)}) as archPlacedBlockRels,
              collect(DISTINCT {source: id(archDiagram), target: id(archConnector), type: type(r16)}) as archConnectorRels,
              collect(DISTINCT {source: id(archConnector), target: id(fromBlock), type: type(r17)}) as archFromBlockRels,
-             collect(DISTINCT {source: id(archConnector), target: id(toBlock), type: type(r18)}) as archToBlockRels
+             collect(DISTINCT {source: id(archConnector), target: id(toBlock), type: type(r18)}) as archToBlockRels,
+             project
 
-        RETURN nodes, tenantRels + docRels + secRels + contentRels + reqRels + linksetRels + fromDocRels + toDocRels + linkedToRels + traceLinkProjectRels + traceLinkFromRels + traceLinkToRels + linksetContainsRels + candidateRels + archDiagramRels + archBlockDefRels + archPlacedBlockRels + archConnectorRels + archFromBlockRels + archToBlockRels as relationships
+        // Block -> Document relationships
+        OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_BLOCK]->(block:ArchitectureBlock)-[r19:LINKED_DOCUMENT]->(linkedDoc:Document)
+        WHERE linkedDoc.deletedAt IS NULL
+        WITH nodes, reqRels, tenantRels, docRels, secRels, contentRels, linksetRels, fromDocRels, toDocRels, linkedToRels, traceLinkProjectRels, traceLinkFromRels, traceLinkToRels, linksetContainsRels, candidateRels, archDiagramRels, archBlockDefRels, archPlacedBlockRels, archConnectorRels, archFromBlockRels, archToBlockRels,
+             collect(DISTINCT {source: id(block), target: id(linkedDoc), type: type(r19)}) as blockDocRels
+
+        RETURN nodes, tenantRels + docRels + secRels + contentRels + reqRels + linksetRels + fromDocRels + toDocRels + linkedToRels + traceLinkProjectRels + traceLinkFromRels + traceLinkToRels + linksetContainsRels + candidateRels + archDiagramRels + archBlockDefRels + archPlacedBlockRels + archConnectorRels + archFromBlockRels + archToBlockRels + blockDocRels as relationships
         `,
         { tenantSlug, projectSlug }
       );

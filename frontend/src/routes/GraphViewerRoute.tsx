@@ -235,6 +235,22 @@ export function GraphViewerRoute() {
       }
     },
     {
+      selector: "edge[label='LINKED_DOCUMENT']",
+      style: {
+        width: 3,
+        "line-color": "#14b8a6",
+        "target-arrow-color": "#14b8a6",
+        "line-style": "dotted",
+        "curve-style": "bezier",
+        "font-size": "11px",
+        "font-weight": "600",
+        color: "#0d9488",
+        "text-background-color": "#ffffff",
+        "text-background-opacity": 0.8,
+        "text-background-padding": "3px"
+      }
+    },
+    {
       selector: "edge:selected",
       style: {
         "line-color": "#dc2626",
@@ -1448,6 +1464,17 @@ export function GraphViewerRoute() {
               verticalAlign: "middle"
             }}></span>
             <span style={{ fontSize: "11px", fontWeight: "600" }}>Doc Links (LINKED_TO)</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-edge" style={{
+              display: "inline-block",
+              width: "20px",
+              height: "3px",
+              background: "repeating-linear-gradient(to right, #14b8a6 0px, #14b8a6 2px, transparent 2px, transparent 4px)",
+              marginRight: "8px",
+              verticalAlign: "middle"
+            }}></span>
+            <span style={{ fontSize: "11px", fontWeight: "600" }}>Block ↔ Doc (LINKED_DOCUMENT)</span>
           </div>
         </div>
       </div>
