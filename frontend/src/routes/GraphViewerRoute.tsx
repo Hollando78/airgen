@@ -218,6 +218,23 @@ export function GraphViewerRoute() {
       }
     },
     {
+      selector: "edge[label='LINKED_TO']",
+      style: {
+        width: 4,
+        "line-color": "#ec4899",
+        "target-arrow-color": "#ec4899",
+        "line-style": "dashed",
+        "line-dash-pattern": [10, 5],
+        "curve-style": "bezier",
+        "font-size": "11px",
+        "font-weight": "bold",
+        color: "#be185d",
+        "text-background-color": "#ffffff",
+        "text-background-opacity": 0.8,
+        "text-background-padding": "3px"
+      }
+    },
+    {
       selector: "edge:selected",
       style: {
         "line-color": "#dc2626",
@@ -1419,6 +1436,18 @@ export function GraphViewerRoute() {
           <div className="legend-item">
             <span className="legend-color" style={{ background: "#84cc16" }}></span>
             <span>Connector</span>
+          </div>
+          <div className="legend-item" style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px", paddingTop: "8px" }}>
+            <span className="legend-edge" style={{
+              display: "inline-block",
+              width: "20px",
+              height: "4px",
+              background: "linear-gradient(to right, #ec4899 50%, transparent 50%)",
+              backgroundSize: "10px 100%",
+              marginRight: "8px",
+              verticalAlign: "middle"
+            }}></span>
+            <span style={{ fontSize: "11px", fontWeight: "600" }}>Doc Links (LINKED_TO)</span>
           </div>
         </div>
       </div>
