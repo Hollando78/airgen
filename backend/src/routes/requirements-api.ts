@@ -526,15 +526,8 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
           tenant: { type: "string", description: "Tenant slug" },
           project: { type: "string", description: "Project slug" }
         }
-      },
-      response: {
-        200: {
-          type: "object",
-          properties: {
-            items: { type: "array", items: { type: "object" } }
-          }
-        }
       }
+      // Response schema removed - let Fastify infer from actual data
     }
   }, async (req) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });

@@ -26,17 +26,17 @@ function mapBaseline(node: Neo4jNode): BaselineRecord {
     requirementRefs: Array.isArray(props.requirementRefs)
       ? (props.requirementRefs as string[])
       : [],
-    // Version snapshot counts (using != null to handle 0 values correctly)
-    requirementVersionCount: props.requirementVersionCount != null ? (typeof props.requirementVersionCount === 'number' ? props.requirementVersionCount : (props.requirementVersionCount as any).toNumber()) : undefined,
-    documentVersionCount: props.documentVersionCount != null ? (typeof props.documentVersionCount === 'number' ? props.documentVersionCount : (props.documentVersionCount as any).toNumber()) : undefined,
-    documentSectionVersionCount: props.documentSectionVersionCount != null ? (typeof props.documentSectionVersionCount === 'number' ? props.documentSectionVersionCount : (props.documentSectionVersionCount as any).toNumber()) : undefined,
-    infoVersionCount: props.infoVersionCount != null ? (typeof props.infoVersionCount === 'number' ? props.infoVersionCount : (props.infoVersionCount as any).toNumber()) : undefined,
-    surrogateVersionCount: props.surrogateVersionCount != null ? (typeof props.surrogateVersionCount === 'number' ? props.surrogateVersionCount : (props.surrogateVersionCount as any).toNumber()) : undefined,
-    traceLinkVersionCount: props.traceLinkVersionCount != null ? (typeof props.traceLinkVersionCount === 'number' ? props.traceLinkVersionCount : (props.traceLinkVersionCount as any).toNumber()) : undefined,
-    linksetVersionCount: props.linksetVersionCount != null ? (typeof props.linksetVersionCount === 'number' ? props.linksetVersionCount : (props.linksetVersionCount as any).toNumber()) : undefined,
-    diagramVersionCount: props.diagramVersionCount != null ? (typeof props.diagramVersionCount === 'number' ? props.diagramVersionCount : (props.diagramVersionCount as any).toNumber()) : undefined,
-    blockVersionCount: props.blockVersionCount != null ? (typeof props.blockVersionCount === 'number' ? props.blockVersionCount : (props.blockVersionCount as any).toNumber()) : undefined,
-    connectorVersionCount: props.connectorVersionCount != null ? (typeof props.connectorVersionCount === 'number' ? props.connectorVersionCount : (props.connectorVersionCount as any).toNumber()) : undefined
+    // Version snapshot counts - use toNumber helper for consistent Neo4j Integer handling
+    requirementVersionCount: props.requirementVersionCount !== null && props.requirementVersionCount !== undefined ? toNumber(props.requirementVersionCount, 0) : undefined,
+    documentVersionCount: props.documentVersionCount !== null && props.documentVersionCount !== undefined ? toNumber(props.documentVersionCount, 0) : undefined,
+    documentSectionVersionCount: props.documentSectionVersionCount !== null && props.documentSectionVersionCount !== undefined ? toNumber(props.documentSectionVersionCount, 0) : undefined,
+    infoVersionCount: props.infoVersionCount !== null && props.infoVersionCount !== undefined ? toNumber(props.infoVersionCount, 0) : undefined,
+    surrogateVersionCount: props.surrogateVersionCount !== null && props.surrogateVersionCount !== undefined ? toNumber(props.surrogateVersionCount, 0) : undefined,
+    traceLinkVersionCount: props.traceLinkVersionCount !== null && props.traceLinkVersionCount !== undefined ? toNumber(props.traceLinkVersionCount, 0) : undefined,
+    linksetVersionCount: props.linksetVersionCount !== null && props.linksetVersionCount !== undefined ? toNumber(props.linksetVersionCount, 0) : undefined,
+    diagramVersionCount: props.diagramVersionCount !== null && props.diagramVersionCount !== undefined ? toNumber(props.diagramVersionCount, 0) : undefined,
+    blockVersionCount: props.blockVersionCount !== null && props.blockVersionCount !== undefined ? toNumber(props.blockVersionCount, 0) : undefined,
+    connectorVersionCount: props.connectorVersionCount !== null && props.connectorVersionCount !== undefined ? toNumber(props.connectorVersionCount, 0) : undefined
   };
 }
 
@@ -307,7 +307,8 @@ export async function createBaseline(params: {
       MATCH (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})
       OPTIONAL MATCH (project)-[:CONTAINS]->(directReq:Requirement)
       OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
-      WITH collect(DISTINCT directReq) + collect(DISTINCT docReq) AS reqs
+      OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:HAS_SECTION]->(:DocumentSection)-[:CONTAINS]->(sectionReq:Requirement)
+      WITH collect(DISTINCT directReq) + collect(DISTINCT docReq) + collect(DISTINCT sectionReq) AS reqs
     RETURN [req IN reqs WHERE req IS NOT NULL] AS requirements
   `;
 
@@ -318,7 +319,17 @@ export async function createBaseline(params: {
   let diagVers: any[], blockVers: any[], connVers: any[];
 
   const reqRes = await runQueryWithOwnSession(reqQuery, { tenantSlug, projectSlug });
-  requirements = reqRes.records[0]?.get("requirements") || [];
+  const allRequirements = reqRes.records[0]?.get("requirements") || [];
+
+  // Deduplicate requirements by ID (they may appear in both Document and Section paths)
+  const reqMap = new Map();
+  allRequirements.forEach((req: any) => {
+    const reqId = String(req.properties.id);
+    if (!reqMap.has(reqId)) {
+      reqMap.set(reqId, req);
+    }
+  });
+  requirements = Array.from(reqMap.values());
 
   // Query 3a: Get latest requirement versions (direct project requirements) - using MAX aggregation
   const reqVersDirectQuery = `
@@ -332,6 +343,15 @@ export async function createBaseline(params: {
   // Query 3b: Get latest requirement versions (document requirements) - using MAX aggregation
   const reqVersDocQuery = `
     MATCH (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(req:Requirement)-[:HAS_VERSION]->(ver:RequirementVersion)
+    WITH req, max(ver.versionNumber) AS maxVer
+    MATCH (req)-[:HAS_VERSION]->(latestVer:RequirementVersion)
+    WHERE latestVer.versionNumber = maxVer
+    RETURN collect(latestVer) AS versions
+  `;
+
+  // Query 3c: Get latest requirement versions (section requirements) - using MAX aggregation
+  const reqVersSectionQuery = `
+    MATCH (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})-[:HAS_DOCUMENT]->(:Document)-[:HAS_SECTION]->(:DocumentSection)-[:CONTAINS]->(req:Requirement)-[:HAS_VERSION]->(ver:RequirementVersion)
     WITH req, max(ver.versionNumber) AS maxVer
     MATCH (req)-[:HAS_VERSION]->(latestVer:RequirementVersion)
     WHERE latestVer.versionNumber = maxVer
@@ -414,6 +434,7 @@ export async function createBaseline(params: {
   // Run version queries sequentially
   const reqVersDirectRes = await runQueryWithOwnSession(reqVersDirectQuery, { tenantSlug, projectSlug });
   const reqVersDocRes = await runQueryWithOwnSession(reqVersDocQuery, { tenantSlug, projectSlug });
+  const reqVersSectionRes = await runQueryWithOwnSession(reqVersSectionQuery, { tenantSlug, projectSlug });
   const docVersRes = await runQueryWithOwnSession(docVersQuery, { tenantSlug, projectSlug });
   const secVersRes = await runQueryWithOwnSession(secVersQuery, { tenantSlug, projectSlug });
   const infoVersRes = await runQueryWithOwnSession(infoVersQuery, { tenantSlug, projectSlug });
@@ -426,10 +447,11 @@ export async function createBaseline(params: {
 
   const reqVersDirect = reqVersDirectRes.records[0]?.get("versions") || [];
   const reqVersDoc = reqVersDocRes.records[0]?.get("versions") || [];
+  const reqVersSection = reqVersSectionRes.records[0]?.get("versions") || [];
 
   // Combine and deduplicate requirement versions by versionId
   const reqVersMap = new Map();
-  [...reqVersDirect, ...reqVersDoc].forEach((v: any) => {
+  [...reqVersDirect, ...reqVersDoc, ...reqVersSection].forEach((v: any) => {
     const versionId = v.properties.versionId;
     if (!reqVersMap.has(versionId)) {
       reqVersMap.set(versionId, v);
