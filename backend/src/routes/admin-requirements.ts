@@ -369,10 +369,14 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
 
             // Find duplicate links (multiple links to the same target with same link type)
             WITH requirement, links,
-                 [l IN links WHERE l.isBroken] AS brokenLinks,
-                 // Group by targetId + linkType to find true duplicates (same target AND same link type)
-                 [combo IN [l IN links | l.targetId + '::' + l.linkType]
-                  WHERE size([l2 IN links WHERE l2.targetId + '::' + l2.linkType = combo]) > 1] AS duplicateCombos
+                 [l IN links WHERE l.isBroken] AS brokenLinks
+
+            // Get all unique target+linkType combinations
+            UNWIND links AS link
+            WITH requirement, links, brokenLinks, link.targetId + '::' + link.linkType AS combo
+            WITH requirement, links, brokenLinks, combo, count(*) AS comboCount
+            WHERE comboCount > 1
+            WITH requirement, links, brokenLinks, collect(combo) AS duplicateCombos
 
             // Get the IDs of duplicate links (keep first, mark rest as bad)
             WITH requirement, links, brokenLinks, duplicateCombos,
@@ -523,6 +527,149 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
         message: `Restored ${results.restored.length} of ${requirementIds.length} requirements`,
         results
       });
+    }
+  );
+
+  /**
+   * List all requirement candidates (admin view)
+   */
+  app.get(
+    "/admin/requirements/candidates",
+    async (
+      req: FastifyRequest<{
+        Querystring: {
+          tenant: string;
+          project: string;
+          status?: string;
+          limit?: string;
+          offset?: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { tenant, project, status, limit, offset } = req.query;
+
+      if (!tenant || !project) {
+        return reply.code(400).send({
+          error: "tenant and project are required"
+        });
+      }
+
+      const tenantSlug = tenant.toLowerCase().replace(/\s+/g, "-");
+      const projectSlug = project.toLowerCase().replace(/\s+/g, "-");
+
+      const session = (await import("../services/graph/driver.js")).getSession();
+      try {
+        const statusFilter = status ? `AND candidate.status = $status` : "";
+
+        const result = await session.run(
+          `
+            MATCH (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})-[:HAS_CANDIDATE]->(candidate:RequirementCandidate)
+            WHERE 1=1 ${statusFilter}
+            OPTIONAL MATCH (candidate)-[:LINKED_TO]->(req:Requirement)
+            RETURN candidate, req
+            ORDER BY candidate.createdAt DESC
+            SKIP $offset
+            LIMIT $limit
+          `,
+          {
+            tenantSlug,
+            projectSlug,
+            status: status || null,
+            offset: (await import("neo4j-driver")).int(offset ? parseInt(offset, 10) : 0),
+            limit: (await import("neo4j-driver")).int(limit ? parseInt(limit, 10) : 100)
+          }
+        );
+
+        const { mapRequirementCandidate } = await import("../services/graph/requirement-candidates.js");
+        const candidates = result.records.map(record => {
+          const node = record.get("candidate");
+          return mapRequirementCandidate(node);
+        });
+
+        return reply.send({
+          candidates,
+          count: candidates.length
+        });
+      } finally {
+        await session.close();
+      }
+    }
+  );
+
+  /**
+   * Bulk delete requirement candidates
+   */
+  app.post(
+    "/admin/requirements/candidates/bulk-delete",
+    async (
+      req: FastifyRequest<{
+        Body: {
+          candidateIds: string[];
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { candidateIds } = req.body;
+
+      if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
+        return reply.code(400).send({
+          error: "candidateIds array is required and must not be empty"
+        });
+      }
+
+      try {
+        const { bulkDeleteCandidates } = await import("../services/graph/requirement-candidates.js");
+        const result = await bulkDeleteCandidates(candidateIds);
+
+        return reply.send({
+          message: `Deleted ${result.deleted} of ${candidateIds.length} candidates`,
+          deleted: result.deleted
+        });
+      } catch (error) {
+        logger.error({ error, candidateIds }, "Failed to bulk delete candidates");
+        return reply.code(500).send({
+          error: "Failed to delete candidates"
+        });
+      }
+    }
+  );
+
+  /**
+   * Bulk reset requirement candidates to pending status
+   */
+  app.post(
+    "/admin/requirements/candidates/bulk-reset",
+    async (
+      req: FastifyRequest<{
+        Body: {
+          candidateIds: string[];
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { candidateIds } = req.body;
+
+      if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
+        return reply.code(400).send({
+          error: "candidateIds array is required and must not be empty"
+        });
+      }
+
+      try {
+        const { bulkResetCandidates } = await import("../services/graph/requirement-candidates.js");
+        const result = await bulkResetCandidates(candidateIds);
+
+        return reply.send({
+          message: `Reset ${result.reset} of ${candidateIds.length} candidates to pending status`,
+          reset: result.reset
+        });
+      } catch (error) {
+        logger.error({ error, candidateIds }, "Failed to bulk reset candidates");
+        return reply.code(500).send({
+          error: "Failed to reset candidates"
+        });
+      }
     }
   );
 }

@@ -27,8 +27,28 @@ yarn-error.log*
 .DS_Store
 .idea
 .vscode
-workspace/**
+
+# Workspace - Track structure but exclude large/temp files
+# Track workspace directory structure and important data files
+!workspace/
+!workspace/**/*.md
+!workspace/**/*.json
+!workspace/**/*.yaml
+!workspace/**/*.yml
+!workspace/**/requirements/
+!workspace/**/requirements/**/*.md
+!workspace/**/documents/
+!workspace/**/documents/**/*.md
+
+# Exclude temp/cache files in workspace
+workspace/**/*.tmp
+workspace/**/*.cache
+workspace/**/*.log
+workspace/**/.DS_Store
+
+# Keep gitkeep files
 !workspace/.gitkeep
+!workspace/**/.gitkeep
 
 # Credentials and sensitive files
 **/login.json

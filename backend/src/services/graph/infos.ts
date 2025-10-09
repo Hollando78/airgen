@@ -1,6 +1,7 @@
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { getSession } from "./driver.js";
 import { slugify } from "../workspace.js";
+import { createInfoVersion, generateInfoContentHash } from "./infos-versions.js";
 
 export type InfoRecord = {
   id: string;
@@ -90,6 +91,26 @@ export async function createInfo(params: {
         now
       });
 
+      // Create version 1 for the new info
+      const contentHash = generateInfoContentHash({
+        text: params.text,
+        title: params.title
+      });
+
+      await createInfoVersion(tx, {
+        infoId,
+        tenantSlug,
+        projectSlug,
+        changedBy: 'system', // TODO: Get from auth context
+        changeType: 'created',
+        ref: params.ref,
+        text: params.text,
+        title: params.title,
+        sectionId: params.sectionId,
+        order: params.order,
+        contentHash
+      });
+
       return res.records[0].get("info") as Neo4jNode;
     });
 
@@ -117,6 +138,38 @@ export async function updateInfo(
   const session = getSession();
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(doc:Document)-[:HAS_INFO]->(info:Info {ref: $ref})
+        RETURN info
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, ref });
+      if (currentResult.records.length === 0) {
+        throw new Error("Info not found");
+      }
+
+      const currentInfo = currentResult.records[0].get("info");
+      const currentProps = currentInfo.properties;
+
+      // Determine new values (merge updates with current values)
+      const newText = updates.text !== undefined ? updates.text : String(currentProps.text);
+      const newTitle = updates.title !== undefined ? updates.title : (currentProps.title ? String(currentProps.title) : undefined);
+      const newSectionId = updates.sectionId !== undefined ? updates.sectionId : (currentProps.sectionId ? String(currentProps.sectionId) : undefined);
+      const newOrder = updates.order !== undefined ? updates.order : (currentProps.order !== undefined && currentProps.order !== null ? (typeof currentProps.order === 'number' ? currentProps.order : currentProps.order.toNumber()) : undefined);
+
+      // Check if content changed
+      const oldContentHash = generateInfoContentHash({
+        text: String(currentProps.text),
+        title: currentProps.title ? String(currentProps.title) : undefined
+      });
+      const newContentHash = generateInfoContentHash({
+        text: newText,
+        title: newTitle
+      });
+
+      const contentChanged = oldContentHash !== newContentHash;
+
+      // Update the info node
       const setClauses: string[] = ["info.updatedAt = $now"];
       const params: Record<string, unknown> = { tenantSlug, projectSlug, ref, now };
 
@@ -156,6 +209,23 @@ export async function updateInfo(
         throw new Error("Info not found");
       }
 
+      // Create new version only if content changed
+      if (contentChanged) {
+        await createInfoVersion(tx, {
+          infoId: String(currentProps.id),
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'updated',
+          ref: String(currentProps.ref),
+          text: newText,
+          title: newTitle,
+          sectionId: newSectionId,
+          order: newOrder,
+          contentHash: newContentHash
+        });
+      }
+
       return res.records[0].get("info") as Neo4jNode;
     });
 
@@ -172,6 +242,40 @@ export async function deleteInfo(tenant: string, project: string, ref: string): 
   const session = getSession();
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state to create a deletion version
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(doc:Document)-[:HAS_INFO]->(info:Info {ref: $ref})
+        RETURN info
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, ref });
+      if (currentResult.records.length > 0) {
+        const currentInfo = currentResult.records[0].get("info");
+        const currentProps = currentInfo.properties;
+
+        // Create deletion version
+        const contentHash = generateInfoContentHash({
+          text: String(currentProps.text),
+          title: currentProps.title ? String(currentProps.title) : undefined
+        });
+
+        await createInfoVersion(tx, {
+          infoId: String(currentProps.id),
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'deleted',
+          ref: String(currentProps.ref),
+          text: String(currentProps.text),
+          title: currentProps.title ? String(currentProps.title) : undefined,
+          sectionId: currentProps.sectionId ? String(currentProps.sectionId) : undefined,
+          order: currentProps.order !== undefined && currentProps.order !== null
+            ? (typeof currentProps.order === 'number' ? currentProps.order : currentProps.order.toNumber())
+            : undefined,
+          contentHash
+        });
+      }
+
+      // Now delete the info node
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(doc:Document)-[:HAS_INFO]->(info:Info {ref: $ref})
         DETACH DELETE info

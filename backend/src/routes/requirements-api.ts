@@ -20,6 +20,10 @@ import {
   suggestLinks
 } from "../services/graph.js";
 import {
+  getBaselineDetails,
+  compareBaselines
+} from "../services/graph/requirement-baselines.js";
+import {
   getRequirementHistory,
   getRequirementDiff
 } from "../services/graph/requirements/requirements-versions.js";
@@ -537,6 +541,145 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const params = paramsSchema.parse(req.params);
     const items = await listBaselines(params.tenant, params.project);
     return { items };
+  });
+
+  app.get("/baselines/:tenant/:project/:baselineRef", {
+    schema: {
+      tags: ["baselines"],
+      summary: "Get baseline details with version snapshots",
+      description: "Retrieves complete baseline snapshot including all version data",
+      params: {
+        type: "object",
+        required: ["tenant", "project", "baselineRef"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" },
+          baselineRef: { type: "string", description: "Baseline reference" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            baseline: { type: "object" },
+            requirementVersions: { type: "array", items: { type: "object" } },
+            documentVersions: { type: "array", items: { type: "object" } },
+            documentSectionVersions: { type: "array", items: { type: "object" } },
+            infoVersions: { type: "array", items: { type: "object" } },
+            surrogateReferenceVersions: { type: "array", items: { type: "object" } },
+            traceLinkVersions: { type: "array", items: { type: "object" } },
+            linksetVersions: { type: "array", items: { type: "object" } },
+            diagramVersions: { type: "array", items: { type: "object" } },
+            blockVersions: { type: "array", items: { type: "object" } },
+            connectorVersions: { type: "array", items: { type: "object" } }
+          }
+        },
+        404: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      baselineRef: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+
+    try {
+      const snapshot = await getBaselineDetails(params.tenant, params.project, params.baselineRef);
+      return snapshot;
+    } catch (error: any) {
+      if (error.message?.includes("not found")) {
+        return reply.status(404).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
+
+  app.get("/baselines/:tenant/:project/compare", {
+    schema: {
+      tags: ["baselines"],
+      summary: "Compare two baselines",
+      description: "Compares two baselines and returns differences across all entity types",
+      params: {
+        type: "object",
+        required: ["tenant", "project"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" }
+        }
+      },
+      querystring: {
+        type: "object",
+        required: ["from", "to"],
+        properties: {
+          from: { type: "string", description: "Source baseline reference" },
+          to: { type: "string", description: "Target baseline reference" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            fromBaseline: { type: "object" },
+            toBaseline: { type: "object" },
+            requirements: { type: "object" },
+            documents: { type: "object" },
+            documentSections: { type: "object" },
+            infos: { type: "object" },
+            surrogateReferences: { type: "object" },
+            traceLinks: { type: "object" },
+            linksets: { type: "object" },
+            diagrams: { type: "object" },
+            blocks: { type: "object" },
+            connectors: { type: "object" }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        404: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1)
+    });
+    const querySchema = z.object({
+      from: z.string().min(1),
+      to: z.string().min(1)
+    });
+
+    try {
+      const params = paramsSchema.parse(req.params);
+      const query = querySchema.parse(req.query);
+
+      if (query.from === query.to) {
+        return reply.status(400).send({ error: "Source and target baselines must be different" });
+      }
+
+      const comparison = await compareBaselines(params.tenant, params.project, query.from, query.to);
+      return comparison;
+    } catch (error: any) {
+      if (error.message?.includes("not found")) {
+        return reply.status(404).send({ error: error.message });
+      }
+      throw error;
+    }
   });
 
   app.post("/link/suggest", {

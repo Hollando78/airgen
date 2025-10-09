@@ -4,6 +4,7 @@ import { getSession } from "../driver.js";
 import type { ArchitectureDiagramRecord } from "./types.js";
 import { mapArchitectureDiagram } from "./mappers.js";
 import { toNumber } from "../../../lib/neo4j-utils.js";
+import { createArchitectureDiagramVersion, generateArchitectureDiagramContentHash } from "./diagrams-versions.js";
 
 export async function createArchitectureDiagram(params: {
   tenant: string;
@@ -61,6 +62,27 @@ export async function createArchitectureDiagram(params: {
       return mapArchitectureDiagram(node);
     });
 
+    // Create version 1 for the new diagram
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      const contentHash = generateArchitectureDiagramContentHash({
+        name: params.name,
+        description: params.description,
+        view: params.view ?? "block"
+      });
+
+      await createArchitectureDiagramVersion(tx, {
+        diagramId,
+        tenantSlug,
+        projectSlug,
+        changedBy: 'system', // TODO: Get from auth context
+        changeType: 'created',
+        name: params.name,
+        description: params.description,
+        view: params.view ?? "block",
+        contentHash
+      });
+    });
+
     return result;
   } finally {
     await session.close();
@@ -109,6 +131,38 @@ export async function updateArchitectureDiagram(params: {
 
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})
+        RETURN diagram
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, diagramId: params.diagramId });
+      if (currentResult.records.length === 0) {
+        throw new Error("Architecture diagram not found");
+      }
+
+      const currentDiagram = currentResult.records[0].get("diagram");
+      const currentProps = currentDiagram.properties;
+
+      // Determine new values
+      const newName = params.name !== undefined ? params.name : String(currentProps.name);
+      const newDescription = params.description !== undefined ? params.description : (currentProps.description ? String(currentProps.description) : undefined);
+      const newView = params.view !== undefined ? params.view : String(currentProps.view);
+
+      // Check if content changed
+      const oldContentHash = generateArchitectureDiagramContentHash({
+        name: String(currentProps.name),
+        description: currentProps.description ? String(currentProps.description) : undefined,
+        view: String(currentProps.view)
+      });
+      const newContentHash = generateArchitectureDiagramContentHash({
+        name: newName,
+        description: newDescription,
+        view: newView
+      });
+
+      const contentChanged = oldContentHash !== newContentHash;
+
       const updates: string[] = ["diagram.updatedAt = $now"];
       const queryParams: Record<string, unknown> = {
         tenantSlug,
@@ -146,6 +200,21 @@ export async function updateArchitectureDiagram(params: {
         throw new Error("Architecture diagram not found");
       }
 
+      // Create new version only if content changed
+      if (contentChanged) {
+        await createArchitectureDiagramVersion(tx, {
+          diagramId: params.diagramId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'updated',
+          name: newName,
+          description: newDescription,
+          view: newView as ArchitectureDiagramRecord["view"],
+          contentHash: newContentHash
+        });
+      }
+
       return mapArchitectureDiagram(res.records[0].get("diagram") as Neo4jNode);
     });
 
@@ -167,6 +236,37 @@ export async function deleteArchitectureDiagram(params: {
 
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state to create a deletion version
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})
+        RETURN diagram
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, diagramId: params.diagramId });
+
+      if (currentResult.records.length > 0) {
+        const currentDiagram = currentResult.records[0].get("diagram");
+        const currentProps = currentDiagram.properties;
+
+        // Create deletion version
+        const contentHash = generateArchitectureDiagramContentHash({
+          name: String(currentProps.name),
+          description: currentProps.description ? String(currentProps.description) : undefined,
+          view: String(currentProps.view)
+        });
+
+        await createArchitectureDiagramVersion(tx, {
+          diagramId: params.diagramId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'deleted',
+          name: String(currentProps.name),
+          description: currentProps.description ? String(currentProps.description) : undefined,
+          view: String(currentProps.view) as ArchitectureDiagramRecord["view"],
+          contentHash
+        });
+      }
+
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})
         OPTIONAL MATCH (diagram)-[:HAS_CONNECTOR]->(connector:ArchitectureConnector)

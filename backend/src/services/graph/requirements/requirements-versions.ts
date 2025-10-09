@@ -1,7 +1,39 @@
 import type { ManagedTransaction } from "neo4j-driver";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { getSession } from "../driver.js";
 import type { RequirementVersionRecord, RequirementPattern, VerificationMethod } from "../../workspace.js";
+
+/**
+ * Generate content hash for Requirement to detect changes
+ */
+export function generateRequirementContentHash(params: {
+  text: string;
+  pattern?: RequirementPattern | string | null;
+  verification?: VerificationMethod | string | null;
+  rationale?: string | null;
+  complianceStatus?: string | null;
+  complianceRationale?: string | null;
+  qaScore?: number | null;
+  qaVerdict?: string | null;
+  suggestions?: string[] | null;
+  tags?: string[] | null;
+  attributes?: Record<string, any> | null;
+}): string {
+  const content = JSON.stringify({
+    text: params.text,
+    pattern: params.pattern || null,
+    verification: params.verification || null,
+    rationale: params.rationale || null,
+    complianceStatus: params.complianceStatus || null,
+    complianceRationale: params.complianceRationale || null,
+    qaScore: params.qaScore || null,
+    qaVerdict: params.qaVerdict || null,
+    suggestions: params.suggestions || null,
+    tags: params.tags || null,
+    attributes: params.attributes || null
+  });
+  return createHash("sha256").update(content).digest("hex");
+}
 
 export async function createRequirementVersion(
   tx: ManagedTransaction,

@@ -9,6 +9,7 @@ import { mapInfo } from "../infos.js";
 import { mapSurrogateReference } from "../surrogates.js";
 import type { InfoRecord } from "../infos.js";
 import type { SurrogateReferenceRecord } from "../surrogates.js";
+import { createDocumentSectionVersion, generateDocumentSectionContentHash } from "./sections-versions.js";
 
 export type DocumentSectionRecord = {
   id: string;
@@ -88,6 +89,27 @@ export async function createDocumentSection(params: {
         now
       });
 
+      // Create version 1 for the new section
+      const contentHash = generateDocumentSectionContentHash({
+        name: params.name,
+        description: params.description,
+        shortCode: params.shortCode,
+        order: params.order
+      });
+
+      await createDocumentSectionVersion(tx, {
+        sectionId,
+        tenantSlug,
+        projectSlug,
+        changedBy: 'system', // TODO: Get from auth context
+        changeType: 'created',
+        name: params.name,
+        description: params.description,
+        shortCode: params.shortCode,
+        order: params.order,
+        contentHash
+      });
+
       return res.records[0].get("section") as Neo4jNode;
     });
 
@@ -136,6 +158,42 @@ export async function updateDocumentSection(
 
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state
+      const getCurrentQuery = `
+        MATCH (section:DocumentSection {id: $sectionId})
+        RETURN section
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { sectionId });
+      if (currentResult.records.length === 0) {
+        throw new Error("Section not found");
+      }
+
+      const currentSection = currentResult.records[0].get("section");
+      const currentProps = currentSection.properties;
+
+      // Determine new values (merge updates with current values)
+      const newName = params.name !== undefined ? params.name : String(currentProps.name);
+      const newDescription = params.description !== undefined ? params.description : (currentProps.description ? String(currentProps.description) : undefined);
+      const newShortCode = params.shortCode !== undefined ? params.shortCode : (currentProps.shortCode ? String(currentProps.shortCode) : undefined);
+      const newOrder = params.order !== undefined ? params.order : (typeof currentProps.order === 'number' ? currentProps.order : currentProps.order.toNumber());
+
+      // Check if content changed
+      const oldContentHash = generateDocumentSectionContentHash({
+        name: String(currentProps.name),
+        description: currentProps.description ? String(currentProps.description) : undefined,
+        shortCode: currentProps.shortCode ? String(currentProps.shortCode) : undefined,
+        order: typeof currentProps.order === 'number' ? currentProps.order : currentProps.order.toNumber()
+      });
+      const newContentHash = generateDocumentSectionContentHash({
+        name: newName,
+        description: newDescription,
+        shortCode: newShortCode,
+        order: newOrder
+      });
+
+      const contentChanged = oldContentHash !== newContentHash;
+
+      // Update the section node
       const updateClauses: string[] = [];
       const queryParams: Record<string, unknown> = { sectionId, now };
 
@@ -176,6 +234,31 @@ export async function updateDocumentSection(
         await updateRequirementRefsForSection(tx, sectionId);
       }
 
+      // Create new version only if content changed
+      if (contentChanged) {
+        // Get tenant/project from section's document
+        const getContextQuery = `
+          MATCH (section:DocumentSection {id: $sectionId})
+          RETURN section.tenant as tenant, section.projectKey as projectKey
+        `;
+        const contextResult = await tx.run(getContextQuery, { sectionId });
+        const tenantSlug = slugify(String(contextResult.records[0].get("tenant")));
+        const projectSlug = slugify(String(contextResult.records[0].get("projectKey")));
+
+        await createDocumentSectionVersion(tx, {
+          sectionId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'updated',
+          name: newName,
+          description: newDescription,
+          shortCode: newShortCode,
+          order: newOrder,
+          contentHash: newContentHash
+        });
+      }
+
       return res.records[0].get("section") as Neo4jNode;
     });
 
@@ -190,6 +273,42 @@ export async function deleteDocumentSection(sectionId: string): Promise<void> {
 
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state to create a deletion version
+      const getCurrentQuery = `
+        MATCH (section:DocumentSection {id: $sectionId})
+        RETURN section
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { sectionId });
+      if (currentResult.records.length > 0) {
+        const currentSection = currentResult.records[0].get("section");
+        const currentProps = currentSection.properties;
+
+        // Get tenant/project from section
+        const tenantSlug = slugify(String(currentProps.tenant));
+        const projectSlug = slugify(String(currentProps.projectKey));
+
+        // Create deletion version
+        const contentHash = generateDocumentSectionContentHash({
+          name: String(currentProps.name),
+          description: currentProps.description ? String(currentProps.description) : undefined,
+          shortCode: currentProps.shortCode ? String(currentProps.shortCode) : undefined,
+          order: typeof currentProps.order === 'number' ? currentProps.order : currentProps.order.toNumber()
+        });
+
+        await createDocumentSectionVersion(tx, {
+          sectionId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'deleted',
+          name: String(currentProps.name),
+          description: currentProps.description ? String(currentProps.description) : undefined,
+          shortCode: currentProps.shortCode ? String(currentProps.shortCode) : undefined,
+          order: typeof currentProps.order === 'number' ? currentProps.order : currentProps.order.toNumber(),
+          contentHash
+        });
+      }
+
       const query = `
         MATCH (section:DocumentSection {id: $sectionId})
         DETACH DELETE section

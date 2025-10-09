@@ -290,6 +290,17 @@ export type BaselineRecord = {
   author?: string | null;
   label?: string | null;
   requirementRefs: string[];
+  // Version snapshot counts
+  requirementVersionCount?: number;
+  documentVersionCount?: number;
+  documentSectionVersionCount?: number;
+  infoVersionCount?: number;
+  surrogateVersionCount?: number;
+  traceLinkVersionCount?: number;
+  linksetVersionCount?: number;
+  diagramVersionCount?: number;
+  blockVersionCount?: number;
+  connectorVersionCount?: number;
 };
 
 export type BaselineResponse = {

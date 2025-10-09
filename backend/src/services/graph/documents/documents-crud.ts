@@ -4,6 +4,7 @@ import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { updateRequirementRefsForDocument } from "../requirements/index.js";
 import { getCached, CacheKeys, CacheInvalidation } from "../../../lib/cache.js";
+import { createDocumentVersion, generateDocumentContentHash } from "./documents-versions.js";
 
 export type DocumentKind = "structured" | "surrogate";
 
@@ -180,6 +181,37 @@ export async function createDocument(params: {
       }
 
       const node = res.records[0].get("document") as Neo4jNode;
+
+      // Create version 1 for the new document
+      const documentId = `${tenantSlug}:${projectSlug}:${resolvedSlug}`;
+      const contentHash = generateDocumentContentHash({
+        name: params.name,
+        description: params.description,
+        shortCode: params.shortCode,
+        kind: params.kind || "structured"
+      });
+
+      await createDocumentVersion(tx, {
+        documentId,
+        tenantSlug,
+        projectSlug,
+        changedBy: 'system', // TODO: Get from auth context
+        changeType: 'created',
+        slug: resolvedSlug,
+        name: params.name,
+        description: params.description,
+        shortCode: params.shortCode,
+        kind: params.kind || "structured",
+        originalFileName: params.originalFileName,
+        storedFileName: params.storedFileName,
+        mimeType: params.mimeType,
+        fileSize: params.fileSize,
+        storagePath: params.storagePath,
+        previewPath: params.previewPath,
+        previewMimeType: params.previewMimeType,
+        contentHash
+      });
+
       return mapDocument(node);
     });
 
@@ -295,6 +327,42 @@ export async function updateDocument(
 
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
+        RETURN document
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, documentSlug });
+      if (currentResult.records.length === 0) {
+        return null;
+      }
+
+      const currentDoc = currentResult.records[0].get("document");
+      const currentProps = currentDoc.properties;
+
+      // Determine new values (merge updates with current values)
+      const newName = updates.name !== undefined ? updates.name : String(currentProps.name);
+      const newDescription = updates.description !== undefined ? updates.description : (currentProps.description ? String(currentProps.description) : undefined);
+      const newShortCode = updates.shortCode !== undefined ? updates.shortCode : (currentProps.shortCode ? String(currentProps.shortCode) : undefined);
+      const kind = String(currentProps.kind) as DocumentKind;
+
+      // Check if content changed
+      const oldContentHash = generateDocumentContentHash({
+        name: String(currentProps.name),
+        description: currentProps.description ? String(currentProps.description) : undefined,
+        shortCode: currentProps.shortCode ? String(currentProps.shortCode) : undefined,
+        kind
+      });
+      const newContentHash = generateDocumentContentHash({
+        name: newName,
+        description: newDescription,
+        shortCode: newShortCode,
+        kind
+      });
+
+      const contentChanged = oldContentHash !== newContentHash;
+
+      // Update the document node
       const setClause = Object.entries(updates)
         .filter(([_, value]) => value !== undefined)
         .map(([key]) => `document.${key} = $${key}`)
@@ -320,6 +388,32 @@ export async function updateDocument(
 
       if (updates.shortCode !== undefined) {
         await updateRequirementRefsForDocument(tx, tenantSlug, projectSlug, documentSlug);
+      }
+
+      // Create new version only if content changed
+      if (contentChanged && res.records.length > 0) {
+        await createDocumentVersion(tx, {
+          documentId: String(currentProps.id),
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'updated',
+          slug: String(currentProps.slug),
+          name: newName,
+          description: newDescription,
+          shortCode: newShortCode,
+          kind,
+          originalFileName: currentProps.originalFileName ? String(currentProps.originalFileName) : undefined,
+          storedFileName: currentProps.storedFileName ? String(currentProps.storedFileName) : undefined,
+          mimeType: currentProps.mimeType ? String(currentProps.mimeType) : undefined,
+          fileSize: currentProps.fileSize !== undefined && currentProps.fileSize !== null
+            ? (typeof currentProps.fileSize === 'number' ? currentProps.fileSize : currentProps.fileSize.toNumber())
+            : undefined,
+          storagePath: currentProps.storagePath ? String(currentProps.storagePath) : undefined,
+          previewPath: currentProps.previewPath ? String(currentProps.previewPath) : undefined,
+          previewMimeType: currentProps.previewMimeType ? String(currentProps.previewMimeType) : undefined,
+          contentHash: newContentHash
+        });
       }
 
       return res.records.length > 0 ? res.records[0].get("document") : null;
@@ -420,6 +514,49 @@ export async function softDeleteDocument(
 
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state to create a deletion version
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
+        RETURN document
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, documentSlug });
+
+      if (currentResult.records.length > 0) {
+        const currentDoc = currentResult.records[0].get("document");
+        const currentProps = currentDoc.properties;
+
+        // Create deletion version
+        const contentHash = generateDocumentContentHash({
+          name: String(currentProps.name),
+          description: currentProps.description ? String(currentProps.description) : undefined,
+          shortCode: currentProps.shortCode ? String(currentProps.shortCode) : undefined,
+          kind: String(currentProps.kind) as DocumentKind
+        });
+
+        await createDocumentVersion(tx, {
+          documentId: String(currentProps.id),
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'deleted',
+          slug: String(currentProps.slug),
+          name: String(currentProps.name),
+          description: currentProps.description ? String(currentProps.description) : undefined,
+          shortCode: currentProps.shortCode ? String(currentProps.shortCode) : undefined,
+          kind: String(currentProps.kind) as DocumentKind,
+          originalFileName: currentProps.originalFileName ? String(currentProps.originalFileName) : undefined,
+          storedFileName: currentProps.storedFileName ? String(currentProps.storedFileName) : undefined,
+          mimeType: currentProps.mimeType ? String(currentProps.mimeType) : undefined,
+          fileSize: currentProps.fileSize !== undefined && currentProps.fileSize !== null
+            ? (typeof currentProps.fileSize === 'number' ? currentProps.fileSize : currentProps.fileSize.toNumber())
+            : undefined,
+          storagePath: currentProps.storagePath ? String(currentProps.storagePath) : undefined,
+          previewPath: currentProps.previewPath ? String(currentProps.previewPath) : undefined,
+          previewMimeType: currentProps.previewMimeType ? String(currentProps.previewMimeType) : undefined,
+          contentHash
+        });
+      }
+
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
         SET document.deletedAt = $now, document.updatedAt = $now

@@ -2,6 +2,7 @@ import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
 import { mapDocument } from "./documents/index.js";
+import { createDocumentLinksetVersion, generateDocumentLinksetContentHash } from "./linksets-versions.js";
 
 export type TraceLinkItem = {
   id: string;
@@ -74,6 +75,8 @@ export async function createLinkset(params: {
   const session = getSession();
 
   try {
+    const linksetId = `linkset-${Date.now()}`;
+
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
@@ -101,7 +104,7 @@ export async function createLinkset(params: {
       const res = await tx.run(query, {
         tenantSlug,
         projectSlug,
-        id: `linkset-${Date.now()}`,
+        id: linksetId,
         sourceDocumentSlug: params.sourceDocumentSlug,
         targetDocumentSlug: params.targetDocumentSlug,
         linkCount: links.length,
@@ -128,6 +131,27 @@ export async function createLinkset(params: {
         mapDocument(record.get("sourceDoc")),
         mapDocument(record.get("targetDoc"))
       );
+    });
+
+    // Create version 1 for the new linkset
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      const contentHash = generateDocumentLinksetContentHash({
+        sourceDocumentSlug: params.sourceDocumentSlug,
+        targetDocumentSlug: params.targetDocumentSlug,
+        defaultLinkType: params.defaultLinkType
+      });
+
+      await createDocumentLinksetVersion(tx, {
+        linksetId,
+        tenantSlug,
+        projectSlug,
+        changedBy: 'system', // TODO: Get from auth context
+        changeType: 'created',
+        sourceDocumentSlug: params.sourceDocumentSlug,
+        targetDocumentSlug: params.targetDocumentSlug,
+        defaultLinkType: params.defaultLinkType,
+        contentHash
+      });
     });
 
     return result;
@@ -437,6 +461,33 @@ export async function updateLinkset(params: {
 
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_LINKSET]->(linkset:DocumentLinkset {id: $linksetId})
+        RETURN linkset
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, linksetId: params.linksetId });
+      if (currentResult.records.length === 0) {
+        throw new Error("Linkset not found");
+      }
+
+      const currentLinkset = currentResult.records[0].get("linkset");
+      const currentProps = currentLinkset.properties;
+
+      // Check if content changed
+      const oldContentHash = generateDocumentLinksetContentHash({
+        sourceDocumentSlug: String(currentProps.sourceDocumentSlug),
+        targetDocumentSlug: String(currentProps.targetDocumentSlug),
+        defaultLinkType: currentProps.defaultLinkType ? String(currentProps.defaultLinkType) : undefined
+      });
+      const newContentHash = generateDocumentLinksetContentHash({
+        sourceDocumentSlug: String(currentProps.sourceDocumentSlug),
+        targetDocumentSlug: String(currentProps.targetDocumentSlug),
+        defaultLinkType: params.defaultLinkType
+      });
+
+      const contentChanged = oldContentHash !== newContentHash;
+
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_LINKSET]->(linkset:DocumentLinkset {id: $linksetId})
         MATCH (linkset)-[:FROM_DOCUMENT]->(sourceDoc:Document)
@@ -456,6 +507,21 @@ export async function updateLinkset(params: {
 
       if (res.records.length === 0) {
         throw new Error("Linkset not found");
+      }
+
+      // Create new version only if content changed
+      if (contentChanged) {
+        await createDocumentLinksetVersion(tx, {
+          linksetId: params.linksetId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'updated',
+          sourceDocumentSlug: String(currentProps.sourceDocumentSlug),
+          targetDocumentSlug: String(currentProps.targetDocumentSlug),
+          defaultLinkType: params.defaultLinkType,
+          contentHash: newContentHash
+        });
       }
 
       const record = res.records[0];
@@ -483,6 +549,37 @@ export async function deleteLinkset(params: {
 
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
+      // First, get the current state to create a deletion version
+      const getCurrentQuery = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_LINKSET]->(linkset:DocumentLinkset {id: $linksetId})
+        RETURN linkset
+      `;
+      const currentResult = await tx.run(getCurrentQuery, { tenantSlug, projectSlug, linksetId: params.linksetId });
+
+      if (currentResult.records.length > 0) {
+        const currentLinkset = currentResult.records[0].get("linkset");
+        const currentProps = currentLinkset.properties;
+
+        // Create deletion version
+        const contentHash = generateDocumentLinksetContentHash({
+          sourceDocumentSlug: String(currentProps.sourceDocumentSlug),
+          targetDocumentSlug: String(currentProps.targetDocumentSlug),
+          defaultLinkType: currentProps.defaultLinkType ? String(currentProps.defaultLinkType) : undefined
+        });
+
+        await createDocumentLinksetVersion(tx, {
+          linksetId: params.linksetId,
+          tenantSlug,
+          projectSlug,
+          changedBy: 'system', // TODO: Get from auth context
+          changeType: 'deleted',
+          sourceDocumentSlug: String(currentProps.sourceDocumentSlug),
+          targetDocumentSlug: String(currentProps.targetDocumentSlug),
+          defaultLinkType: currentProps.defaultLinkType ? String(currentProps.defaultLinkType) : undefined,
+          contentHash
+        });
+      }
+
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_LINKSET]->(linkset:DocumentLinkset {id: $linksetId})
         MATCH (linkset)-[:FROM_DOCUMENT]->(sourceDoc:Document)
