@@ -50,11 +50,13 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Graph database** – Requirements, projects, tenants, and baselines live in Neo4j for rich traceability queries.
 - **Markdown-first storage** – Approved requirements stored as `workspace/<tenant>/<project>/requirements/*.md` with YAML front matter.
 - **Baselining** – Snapshot requirement sets for release audits and version control.
+- **Version history** – Track changes to all entities (requirements, documents, architecture blocks) with full audit trail and diff capabilities.
 
 ### Deployment & Infrastructure
 - **Docker-native** – Traefik + Neo4j + Fastify API + Redis compose stack for quick VPS deployment.
 - **Multi-tenant** – Full tenant and project isolation with RBAC.
 - **Authentication** – JWT-based authentication with role-based access control.
+- **Automated backups** – Daily incremental and weekly full backups with encrypted remote storage, 12-week retention, and one-command restore.
 
 ## Repository layout
 ```
@@ -63,8 +65,9 @@ airgen/
 ├─ packages/
 │  └─ req-qa/                # Deterministic QA rules engine
 ├─ docs/                     # Architecture and ops guidance
+├─ scripts/                  # Automated backup and maintenance scripts
 ├─ examples/                 # Sample braking-domain artifacts
-├─ workspace/                # Runtime Markdown workspace (gitignored)
+├─ workspace/                # Runtime Markdown workspace (now tracked in git)
 ├─ docker-compose.dev.yml
 ├─ docker-compose.prod.yml
 ├─ pnpm-workspace.yaml
@@ -78,6 +81,8 @@ See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 - **[Design Description Document](./DESIGN_DESCRIPTION.md)** – Comprehensive system design, architecture, and technical specifications.
 - [Development guide](./DEVELOPMENT_GUIDE.md) – Local setup, contributor workflow, and day-to-day tasks.
 - [Architecture](./docs/ARCHITECTURE.md) – Core services, data flow, and deployment topology.
+- **[Backup & Restore](./docs/BACKUP_RESTORE.md)** – Complete backup strategy, recovery procedures, and disaster recovery guide.
+- **[Remote Backup Setup](./docs/REMOTE_BACKUP_SETUP.md)** – Step-by-step guide for configuring encrypted remote backup storage.
 - [Testing overview](./TEST_SUMMARY.md) – Current automated coverage and outstanding gaps.
 - [Test infrastructure](./TEST_INFRASTRUCTURE.md) – How integration and E2E test harnesses are wired.
 - [E2E testing](./E2E_TESTING.md) – End-to-end testing with Playwright.
@@ -270,6 +275,43 @@ LLM_MODEL=gpt-4o-mini
 LLM_TEMPERATURE=0.2
 ```
 Optional: override `LLM_BASE_URL` for Azure/OpenAI-compatible gateways. Requests that set `"useLlm": true` will prepend LLM-generated drafts to the output while always preserving heuristic fallbacks.
+
+## Backup & Recovery
+
+AIRGen includes a comprehensive automated backup system to protect your critical data:
+
+### Automated Backup Schedule
+- **Daily backups** (2:00 AM) - Incremental backups with 7-day local retention
+- **Weekly backups** (Sunday 3:00 AM) - Full backups with remote upload, 12-week retention
+- **Automated verification** (2:30 AM) - Integrity checks and health monitoring
+
+### What's Backed Up
+- Neo4j graph database (complete)
+- Docker volumes (full snapshots)
+- Workspace files (requirements, documents)
+- Configuration files
+
+### Quick Commands
+```bash
+# Manual backup
+/root/airgen/scripts/backup-weekly.sh
+
+# Restore from backup (with safety checks)
+/root/airgen/scripts/backup-restore.sh /path/to/backup
+
+# Verify backup integrity
+/root/airgen/scripts/backup-verify.sh /path/to/backup
+
+# Check remote backups
+restic snapshots
+```
+
+### Remote Storage
+Backups are encrypted and uploaded to remote storage (DigitalOcean Spaces, AWS S3, Backblaze B2, or SFTP) for disaster recovery. See **[Remote Backup Setup Guide](./docs/REMOTE_BACKUP_SETUP.md)** for configuration.
+
+### Complete Documentation
+- **[Backup & Restore Guide](./docs/BACKUP_RESTORE.md)** - Detailed recovery procedures, monitoring, and troubleshooting
+- **[Remote Backup Setup](./docs/REMOTE_BACKUP_SETUP.md)** - Step-by-step remote storage configuration
 
 ## Troubleshooting
 

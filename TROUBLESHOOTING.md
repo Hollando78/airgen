@@ -9,6 +9,7 @@ This guide documents common issues and their solutions for the AIRGen developmen
 - [TypeScript Build Errors](#typescript-build-errors)
 - [Starting Services](#starting-services)
 - [Common Errors](#common-errors)
+- [Backup and Recovery Issues](#backup-and-recovery-issues)
 
 ---
 
@@ -411,6 +412,179 @@ Rate limit exceeded
 
 ---
 
+## Backup and Recovery Issues
+
+### Backup Script Fails to Run
+
+**Error:**
+```
+Permission denied: /root/airgen/scripts/backup-daily.sh
+```
+
+**Solution:**
+```bash
+# Make scripts executable
+chmod +x /root/airgen/scripts/*.sh
+
+# Verify permissions
+ls -l /root/airgen/scripts/
+```
+
+---
+
+### Neo4j Backup Creates Small Files (107 bytes)
+
+**Symptoms:**
+- Neo4j backup files are only 107 bytes instead of several MB
+- Backup appears to complete but database is not actually backed up
+
+**Root Cause:**
+The neo4j-admin dump command was failing silently.
+
+**Solution:**
+This was fixed in the backup system implementation. The scripts now use tar-based backups:
+- Stop Neo4j container completely
+- Use Alpine container to tar the entire /data directory
+- Restart and verify Neo4j is healthy
+
+**Verify fix:**
+```bash
+# Run backup manually
+/root/airgen/scripts/backup-weekly.sh
+
+# Check backup size (should be >500KB)
+ls -lh /root/airgen/backups/weekly/week-*/neo4j-*.tar.gz
+```
+
+---
+
+### Remote Backup Not Uploading
+
+**Symptoms:**
+- Weekly backup completes but says "Remote backup not configured"
+- Remote repository exists but backups don't upload
+
+**Root Cause:**
+Environment variables not loaded in cron jobs.
+
+**Solution:**
+Backup scripts now automatically source `/etc/environment`:
+```bash
+# Verify environment variables are set
+cat /etc/environment | grep RESTIC
+
+# Should show:
+# RESTIC_REPOSITORY="s3://..."
+# RESTIC_PASSWORD="..."
+# AWS_ACCESS_KEY_ID="..."
+# AWS_SECRET_ACCESS_KEY="..."
+```
+
+**Manual test:**
+```bash
+# Source environment and test
+source /etc/environment
+restic snapshots
+
+# Should show existing snapshots, not error
+```
+
+---
+
+### Restore Script Fails with "Container not found"
+
+**Error:**
+```
+Error: No such container: airgen_dev_neo4j_1
+```
+
+**Root Cause:**
+Container name mismatch between dev and production environments.
+
+**Solution:**
+Check actual container names:
+```bash
+# List running containers
+docker ps --format "table {{.Names}}\t{{.Status}}"
+
+# Update script if needed or use correct COMPOSE_PROJECT_NAME
+COMPOSE_PROJECT_NAME=airgen_dev docker ps
+```
+
+---
+
+### Backup Directory Fills Up Disk
+
+**Symptoms:**
+- Disk space warnings
+- Backups folder growing too large
+
+**Solution:**
+Verify cleanup is working:
+```bash
+# Check backup sizes
+du -sh /root/airgen/backups/*
+
+# Manual cleanup (keeps last 7 days daily, 4 weeks weekly)
+find /root/airgen/backups/daily/ -type d -mtime +7 -exec rm -rf {} +
+find /root/airgen/backups/weekly/ -type d -mtime +28 -exec rm -rf {} +
+
+# Check remote cleanup
+restic forget --prune --keep-weekly 12 --dry-run
+```
+
+---
+
+### Cron Jobs Not Running
+
+**Symptoms:**
+- No new backups being created
+- Cron logs show no activity
+
+**Solution:**
+```bash
+# Check cron jobs are configured
+crontab -l | grep backup
+
+# Should show:
+# 0 2 * * * /root/airgen/scripts/backup-daily.sh
+# 0 3 * * 0 /root/airgen/scripts/backup-weekly.sh
+# 30 2 * * * /root/airgen/scripts/backup-verify.sh
+
+# Check cron logs
+tail -f /root/airgen/backups/logs/cron.log
+
+# Verify cron service is running
+systemctl status cron
+```
+
+---
+
+### Restore Fails with "Checksum Mismatch"
+
+**Error:**
+```
+ERROR: Checksum verification failed for neo4j-*.tar.gz
+```
+
+**Root Cause:**
+Backup file was corrupted during write or storage.
+
+**Solution:**
+```bash
+# Use a different backup
+ls -lt /root/airgen/backups/daily/ | head -5
+
+# Try older backup
+/root/airgen/scripts/backup-restore.sh /root/airgen/backups/daily/20251008-020000 --dry-run
+
+# If all local backups corrupt, restore from remote
+restic snapshots
+restic restore <snapshot-id> --target /tmp/restore
+```
+
+---
+
 ## Quick Diagnostic Commands
 
 ```bash
@@ -459,6 +633,7 @@ If you encounter issues not covered here:
 
 4. **Check documentation:**
    - `backend/docs/NEO4J_SCHEMA.md` - Database schema
+   - `docs/BACKUP_RESTORE.md` - Backup and recovery procedures
    - `E2E_TESTING.md` - End-to-end testing guide
    - `OBSERVABILITY.md` - Monitoring and metrics
    - `DEVELOPMENT_GUIDE.md` - Development best practices
