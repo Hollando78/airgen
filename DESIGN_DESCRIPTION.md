@@ -1,7 +1,7 @@
 # AIRGen Design Description Document
 
-**Version:** 1.0
-**Last Updated:** 2025-10-06
+**Version:** 1.1
+**Last Updated:** 2025-10-09
 **Status:** Living Document
 
 ## Table of Contents
@@ -74,14 +74,17 @@ AIRGen follows a **three-tier architecture** with clear separation of concerns:
 - **OpenAI API**: LLM-based requirement generation (optional)
 - **Sentry**: Error tracking and performance monitoring (optional)
 - **Prometheus/Grafana**: Metrics collection and visualization (optional)
+- **Remote Backup Storage**: S3-compatible storage for encrypted backups (DigitalOcean Spaces, AWS S3, Backblaze B2)
 
 ### 2.3 Core Capabilities
 
 1. **Requirements Management**
    - CRUD operations for requirements
+   - Complete version history with audit trail and diff capabilities
    - Versioning through baselines
    - Archive/unarchive workflows
    - Duplicate detection
+   - Background QA scorer worker for bulk quality analysis
 
 2. **AI-Assisted Generation**
    - Template-based heuristic drafts (EARS patterns)
@@ -529,12 +532,42 @@ class APIClient {
   qaVerdict: String?,
   suggestions: [String],
   tags: [String],
+  attributes: Object?,     // Custom project-specific attributes
   path: String!,           // Markdown file path
   documentSlug: String?,
   archived: Boolean,       // Soft archive flag
   deleted: Boolean,        // Soft delete flag
+  createdBy: String?,      // User who created
+  updatedBy: String?,      // User who last updated
   createdAt: DateTime!,
-  updatedAt: DateTime!
+  updatedAt: DateTime!,
+  contentHash: String!     // SHA-256 hash for drift detection
+})
+```
+
+**RequirementVersion**
+```cypher
+(:RequirementVersion {
+  versionId: String!,      // UUID for this version
+  requirementId: String!,  // Link to parent Requirement.id
+  versionNumber: Integer!, // Auto-incremented (1, 2, 3...)
+  timestamp: DateTime!,    // When this version was created
+  changedBy: String!,      // User who made the change
+  changeType: String!,     // created|updated|archived|restored|deleted
+  changeDescription: String?, // Optional description
+  // Snapshot of requirement state at this version
+  text: String!,
+  pattern: String?,
+  verification: String?,
+  rationale: String?,
+  complianceStatus: String?,
+  complianceRationale: String?,
+  qaScore: Float?,
+  qaVerdict: String?,
+  suggestions: String?,    // JSON stringified
+  tags: String?,           // JSON stringified
+  attributes: String?,     // JSON stringified
+  contentHash: String!
 })
 ```
 
@@ -661,6 +694,12 @@ class APIClient {
 (:Baseline)-[:SNAPSHOT_OF]->(:Requirement)
 ```
 
+**Version History**
+```cypher
+(:Requirement)-[:HAS_VERSION]->(:RequirementVersion)
+(:RequirementVersion)-[:PREVIOUS_VERSION]->(:RequirementVersion)
+```
+
 #### 5.1.3 Indexes and Constraints
 
 **Indexes:**
@@ -754,13 +793,16 @@ POST   /api/auth/logout        - Logout (optional, stateless JWT)
 
 **Requirements** (`/api/requirements/*`)
 ```
-GET    /api/requirements/:tenant/:project           - List requirements
-POST   /api/requirements                            - Create requirement
-GET    /api/requirements/:tenant/:project/:ref      - Get requirement
-PATCH  /api/requirements/:tenant/:project/:id       - Update requirement
-DELETE /api/requirements/:tenant/:project/:id       - Delete requirement
-POST   /api/requirements/:tenant/:project/archive   - Archive requirements
-POST   /api/requirements/:tenant/:project/unarchive - Unarchive requirements
+GET    /api/requirements/:tenant/:project                      - List requirements
+POST   /api/requirements                                       - Create requirement
+GET    /api/requirements/:tenant/:project/:ref                 - Get requirement
+PATCH  /api/requirements/:tenant/:project/:id                  - Update requirement
+DELETE /api/requirements/:tenant/:project/:id                  - Delete requirement
+POST   /api/requirements/:tenant/:project/archive              - Archive requirements
+POST   /api/requirements/:tenant/:project/unarchive            - Unarchive requirements
+GET    /api/requirements/:tenant/:project/:id/history          - Get version history
+GET    /api/requirements/:tenant/:project/:id/diff?from=N&to=M - Get diff between versions
+POST   /api/requirements/:tenant/:project/:id/restore/:version - Restore to previous version
 ```
 
 **Drafting** (`/api/draft`, `/api/qa`)
@@ -818,6 +860,19 @@ POST   /api/documents/upload                                - Upload surrogate d
 GET    /api/documents/:tenant/:project/:slug                - Get document metadata
 PATCH  /api/documents/:tenant/:project/:slug                - Update document
 DELETE /api/documents/:tenant/:project/:slug                - Delete document
+```
+
+**Workers** (`/api/workers/*`)
+```
+POST   /api/workers/qa-scorer/start  - Start background QA scorer
+POST   /api/workers/qa-scorer/stop   - Stop QA scorer
+GET    /api/workers/qa-scorer/status - Get QA scorer status
+```
+
+**Admin** (`/api/admin/*`)
+```
+POST   /api/admin/recovery/backup    - Trigger manual backup
+GET    /api/admin/recovery/status    - Get backup system status
 ```
 
 **System** (`/api/*`)
@@ -1112,29 +1167,45 @@ docker compose --env-file env/production.env -f docker-compose.prod.yml up -d --
 
 ### 8.5 Backup Strategy
 
-**Neo4j Backups:**
-```bash
-# Automated daily backup
-docker exec airgen_neo4j neo4j-admin database dump neo4j \
-  --to-path=/backups/neo4j-$(date +%Y%m%d).dump
+AIRGen implements a comprehensive 3-tier backup strategy:
 
-# Restore
-docker exec airgen_neo4j neo4j-admin database load neo4j \
-  --from-path=/backups/neo4j-20251006.dump
+**1. Daily Incremental Backups (2:00 AM)**
+- Fast recovery with 7-day local retention
+- Neo4j database dumps
+- PostgreSQL database dumps
+- Workspace file archives
+- Configuration backups
+
+**2. Weekly Full Backups (Sunday 3:00 AM)**
+- Complete Docker volume snapshots
+- Remote upload to S3-compatible storage (encrypted)
+- 4 weeks local retention, 12 weeks remote retention
+
+**3. Real-Time Protection**
+- Workspace files tracked in git for immediate recovery
+- Content hash validation for drift detection
+
+**Automated Scripts:**
+```bash
+# Manual backup
+/root/airgen/scripts/backup-weekly.sh
+
+# Restore with safety checks
+/root/airgen/scripts/backup-restore.sh /path/to/backup --dry-run
+/root/airgen/scripts/backup-restore.sh /path/to/backup
+
+# Verify backup integrity
+/root/airgen/scripts/backup-verify.sh /path/to/backup
 ```
 
-**Markdown Workspace:**
-```bash
-# Automated Git commits
-cd workspace
-git add .
-git commit -m "Daily backup $(date +%Y-%m-%d)"
-git push origin main
-```
+**Remote Storage Support:**
+- DigitalOcean Spaces
+- AWS S3
+- Backblaze B2
+- SFTP to remote server
+- Encryption via restic
 
-**Configuration Backups:**
-- Environment files: Encrypted in secret manager
-- Docker Compose configs: Version controlled in Git
+**See:** `docs/BACKUP_RESTORE.md` and `docs/REMOTE_BACKUP_SETUP.md` for complete documentation.
 
 ### 8.6 Monitoring & Observability
 
@@ -1347,18 +1418,19 @@ airgen/
 ### 10.1 Planned Features
 
 **Short-Term (3-6 months):**
-1. **Vector Search**: Semantic similarity for trace link suggestions (pgvector or Qdrant)
-2. **Collaborative Editing**: WebSocket-based real-time editing
-3. **Comment System**: Inline comments on requirements
-4. **Notification System**: Email/Slack notifications for requirement changes
-5. **Advanced Baselines**: Baseline comparisons and diffs
+1. **Custom Attributes Schema UI**: Complete project-specific attribute configuration interface
+2. **Vector Search**: Semantic similarity for trace link suggestions (pgvector or Qdrant)
+3. **Collaborative Editing**: WebSocket-based real-time editing
+4. **Comment System**: Inline comments on requirements
+5. **Notification System**: Email/Slack notifications for requirement changes
+6. **Advanced Baselines**: Baseline comparisons and diffs
 
 **Medium-Term (6-12 months):**
 1. **Full OIDC Integration**: Replace dev users with Auth0/Keycloak
-2. **Audit Logs**: Comprehensive change tracking
-3. **Export Capabilities**: Generate Word/PDF reports from requirements
-4. **Needs/Tests/Risks**: Additional node types with automatic linking
-5. **Mobile App**: React Native companion app
+2. **Export Capabilities**: Generate Word/PDF reports from requirements
+3. **Needs/Tests/Risks**: Additional node types with automatic linking
+4. **Mobile App**: React Native companion app
+5. **Enhanced Graph Viewer**: Interactive visualization of full requirement network
 
 **Long-Term (12+ months):**
 1. **AI Traceability**: Automatic trace link creation based on semantic analysis
@@ -1490,6 +1562,7 @@ airgen/
 | Version | Date       | Author              | Changes                          |
 |---------|------------|---------------------|----------------------------------|
 | 1.0     | 2025-10-06 | AI Assistant        | Initial comprehensive DDD        |
+| 1.1     | 2025-10-09 | AI Assistant        | Updated with version history, backup system, QA worker, and custom attributes implementation status |
 
 **Approval**
 
