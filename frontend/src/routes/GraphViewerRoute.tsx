@@ -559,7 +559,10 @@ export function GraphViewerRoute() {
 
   // Apply filters and search
   useEffect(() => {
-    if (cyInstance) {
+    if (!cyInstance) return;
+
+    // Check if cyInstance is valid (not destroyed)
+    try {
       cyInstance.nodes().forEach((node: any) => {
         const nodeId = node.data('id');
         const nodeType = node.data('type');
@@ -584,8 +587,11 @@ export function GraphViewerRoute() {
       if (visibleNodes.length > 0) {
         visibleNodes.layout(layoutConfig).run();
       }
+    } catch (error) {
+      // Ignore errors from destroyed instances
+      console.warn('Error applying layout:', error);
     }
-  }, [cyInstance, visibleNodeTypes, searchTerm, hiddenNodeIds, selectedLayout, showOnlyHierarchy]);
+  }, [cyInstance, visibleNodeTypes, searchTerm, hiddenNodeIds, selectedLayout]);
 
   // Apply visual highlighting styles
   useEffect(() => {
