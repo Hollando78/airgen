@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { toast } from "sonner";
 import { BlockDetailsPanel } from "../../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../../components/architecture/ConnectorDetailsPanel";
 import { ArchitectureTreeBrowser } from "../../components/architecture/ArchitectureTreeBrowser";
@@ -22,6 +23,8 @@ import { BLOCK_PRESETS } from "./constants";
 import { computeBlockPlacement, mapConnectorToEdge } from "./utils/diagram";
 import type { BlockPreset } from "./types";
 import { useFloatingDocuments } from "../../contexts/FloatingDocumentsContext";
+import { PromptDialog } from "../../components/ui/prompt-dialog";
+import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 
 interface ArchitectureWorkspaceProps {
   tenant: string;
@@ -111,6 +114,20 @@ export function ArchitectureWorkspace({
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [diagramViewports, setDiagramViewports] = useState<Record<string, { x: number; y: number; zoom: number }>>({});
   const canvasRef = useRef<DiagramCanvasHandle>(null);
+
+  // Dialog states
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [renameDialog, setRenameDialog] = useState<{ open: boolean; diagramId: string | null; currentName: string }>({
+    open: false,
+    diagramId: null,
+    currentName: '',
+  });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; diagramId: string | null; diagramName: string }>({
+    open: false,
+    diagramId: null,
+    diagramName: '',
+  });
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
   const { openFloatingDocument } = useFloatingDocuments();
 
@@ -262,45 +279,63 @@ export function ArchitectureWorkspace({
   const documents = useMemo(() => documentList, [documentList]);
   const blocksInDiagram = useMemo(() => new Set(architecture.blocks.map(block => block.id)), [architecture.blocks]);
 
-  const handleCreateDiagram = useCallback(async () => {
-    const baseName = `View ${diagrams.length + 1}`;
-    const name = window.prompt("Name for the new diagram", baseName);
-    if (!name || !name.trim()) {return;}
+  const handleCreateDiagram = useCallback(() => {
+    setCreateDialogOpen(true);
+  }, []);
 
+  const handleConfirmCreateDiagram = useCallback(async (name: string) => {
     try {
-      await createDiagram({ name: name.trim() });
+      await createDiagram({ name });
+      toast.success('Diagram created successfully');
     } catch (error) {
-      window.alert((error as Error).message);
+      toast.error((error as Error).message);
     }
-  }, [createDiagram, diagrams.length]);
+  }, [createDiagram]);
 
   const handleRenameDiagram = useCallback((diagramId: string) => {
     const diagram = diagrams.find(item => item.id === diagramId);
     if (!diagram) {return;}
+    setRenameDialog({ open: true, diagramId, currentName: diagram.name });
+  }, [diagrams]);
 
-    const nextName = window.prompt("Rename diagram", diagram.name);
-    if (!nextName || !nextName.trim() || nextName.trim() === diagram.name) {return;}
-
-    renameDiagram(diagramId, { name: nextName.trim() }).catch(error => {
-      window.alert((error as Error).message);
-    });
-  }, [diagrams, renameDiagram]);
+  const handleConfirmRenameDiagram = useCallback(async (name: string) => {
+    if (!renameDialog.diagramId) {return;}
+    try {
+      await renameDiagram(renameDialog.diagramId, { name });
+      toast.success('Diagram renamed successfully');
+      setRenameDialog({ open: false, diagramId: null, currentName: '' });
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  }, [renameDialog.diagramId, renameDiagram]);
 
   const handleDeleteDiagram = useCallback((diagramId: string) => {
     const diagram = diagrams.find(item => item.id === diagramId);
     if (!diagram) {return;}
-    const confirmed = window.confirm(`Delete diagram "${diagram.name}"? This removes its blocks and connectors.`);
-    if (!confirmed) {return;}
-    deleteDiagram(diagramId).catch(error => {
-      window.alert((error as Error).message);
-    });
-  }, [deleteDiagram, diagrams]);
+    setDeleteDialog({ open: true, diagramId, diagramName: diagram.name });
+  }, [diagrams]);
+
+  const handleConfirmDeleteDiagram = useCallback(async () => {
+    if (!deleteDialog.diagramId) {return;}
+    try {
+      await deleteDiagram(deleteDialog.diagramId);
+      toast.success('Diagram deleted successfully');
+      setDeleteDialog({ open: false, diagramId: null, diagramName: '' });
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  }, [deleteDialog.diagramId, deleteDiagram]);
 
   const handleClearDiagram = useCallback(() => {
     if (!activeDiagramId || !hasChanges) {return;}
-    if (!window.confirm("Remove all blocks and connectors from this diagram?")) {return;}
+    setClearDialogOpen(true);
+  }, [activeDiagramId, hasChanges]);
+
+  const handleConfirmClearDiagram = useCallback(() => {
     clearArchitecture();
-  }, [activeDiagramId, clearArchitecture, hasChanges]);
+    setClearDialogOpen(false);
+    toast.success('Diagram cleared successfully');
+  }, [clearArchitecture]);
 
   const handlePaletteAdd = useCallback((preset: BlockPreset) => {
     canvasRef.current?.addBlockFromPreset(preset);
@@ -437,6 +472,47 @@ export function ArchitectureWorkspace({
         </aside>
       </div>
 
+      {/* Dialogs */}
+      <PromptDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onConfirm={handleConfirmCreateDiagram}
+        title="Create New Diagram"
+        label="Diagram Name"
+        placeholder={`View ${diagrams.length + 1}`}
+        defaultValue={`View ${diagrams.length + 1}`}
+        confirmText="Create"
+      />
+
+      <PromptDialog
+        open={renameDialog.open}
+        onOpenChange={(open) => setRenameDialog({ ...renameDialog, open })}
+        onConfirm={handleConfirmRenameDiagram}
+        title="Rename Diagram"
+        label="New Name"
+        defaultValue={renameDialog.currentName}
+        confirmText="Rename"
+      />
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}
+        onConfirm={handleConfirmDeleteDiagram}
+        title="Delete Diagram"
+        description={`Delete diagram "${deleteDialog.diagramName}"? This removes its blocks and connectors.`}
+        confirmText="Delete"
+        variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={clearDialogOpen}
+        onOpenChange={setClearDialogOpen}
+        onConfirm={handleConfirmClearDiagram}
+        title="Clear Diagram"
+        description="Remove all blocks and connectors from this diagram?"
+        confirmText="Clear"
+        variant="destructive"
+      />
     </div>
   );
 }

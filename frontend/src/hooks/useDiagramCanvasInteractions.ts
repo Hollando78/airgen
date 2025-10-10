@@ -19,6 +19,7 @@ import {
   useEdgesState,
   useNodesState
 } from "@xyflow/react";
+import { toast } from "sonner";
 import type { ArchitectureDiagramRecord, DocumentRecord } from "../types";
 import type {
   ArchitectureState,
@@ -451,7 +452,7 @@ export function useDiagramCanvasInteractions({
   const handleAddBlock = useCallback(
     (preset: DiagramBlockPreset, position?: XYPosition) => {
       if (!activeDiagramId) {
-        window.alert("Create or select a diagram before adding blocks.");
+        toast.warning("Create or select a diagram before adding blocks.");
         return;
       }
 
@@ -484,7 +485,7 @@ export function useDiagramCanvasInteractions({
   const handleReuseExistingBlock = useCallback(
     (blockId: string) => {
       if (!activeDiagramId) {
-        window.alert("Create or select a diagram before adding blocks.");
+        toast.warning("Create or select a diagram before adding blocks.");
         return;
       }
 
