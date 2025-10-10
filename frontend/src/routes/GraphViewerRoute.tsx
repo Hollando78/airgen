@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import CytoscapeComponent from "react-cytoscapejs";
 import type { Core, ElementDefinition } from "cytoscape";
@@ -128,6 +128,8 @@ export function GraphViewerRoute() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showOnlyHierarchy, setShowOnlyHierarchy] = useState(false);
+  const [hasInitialLayout, setHasInitialLayout] = useState(false);
+  const [autoFitEnabled, setAutoFitEnabled] = useState(true);
   const cyRef = useRef<HTMLDivElement>(null);
 
   // Edge styling customization
@@ -170,38 +172,42 @@ export function GraphViewerRoute() {
   });
 
   // Transform Neo4j data to Cytoscape format WITH edge metadata for hierarchy
-  const elements: ElementDefinition[] = graphData
-    ? [
-        // Nodes
-        ...graphData.nodes.map((node: any) => ({
-          data: {
-            id: node.id,
-            label: node.label,
-            type: node.type,
-            properties: node.properties
-          }
-        })),
-        // Edges WITH weight and hierarchy metadata
-        ...graphData.relationships.map((rel: any) => ({
-          data: {
-            id: rel.id,
-            source: rel.source,
-            target: rel.target,
-            label: rel.type,
-            properties: rel.properties,
-            // NEW: Add edge metadata for layout algorithms
-            weight: getEdgeWeight(rel.type),
-            isHierarchical: isHierarchicalEdge(rel.type)
-          }
-        })).filter((edge: any) => {
-          // Filter edges based on hierarchy toggle
-          if (showOnlyHierarchy) {
-            return edge.data.isHierarchical;
-          }
-          return true;
-        })
-      ]
-    : [];
+  // Memoized to prevent unnecessary re-creation that could trigger layout reapplication
+  const elements: ElementDefinition[] = useMemo(() =>
+    graphData
+      ? [
+          // Nodes
+          ...graphData.nodes.map((node: any) => ({
+            data: {
+              id: node.id,
+              label: node.label,
+              type: node.type,
+              properties: node.properties
+            }
+          })),
+          // Edges WITH weight and hierarchy metadata
+          ...graphData.relationships.map((rel: any) => ({
+            data: {
+              id: rel.id,
+              source: rel.source,
+              target: rel.target,
+              label: rel.type,
+              properties: rel.properties,
+              // NEW: Add edge metadata for layout algorithms
+              weight: getEdgeWeight(rel.type),
+              isHierarchical: isHierarchicalEdge(rel.type)
+            }
+          })).filter((edge: any) => {
+            // Filter edges based on hierarchy toggle
+            if (showOnlyHierarchy) {
+              return edge.data.isHierarchical;
+            }
+            return true;
+          })
+        ]
+      : [],
+    [graphData, showOnlyHierarchy]
+  );
 
   // Build dynamic edge styles from customizations
   const buildEdgeStylesheets = () => {
@@ -221,7 +227,7 @@ export function GraphViewerRoute() {
           ...(dashPattern && { "line-dash-pattern": dashPattern }),
           "curve-style": "bezier",
           "font-size": "11px",
-          "font-weight": "600",
+          "font-weight": "bold",
           color: style.color,
           "text-background-color": "#ffffff",
           "text-background-opacity": 0.8,
@@ -234,7 +240,8 @@ export function GraphViewerRoute() {
   };
 
   // Cytoscape stylesheet
-  const stylesheet = [
+  // Memoized to prevent unnecessary recreation
+  const stylesheet = useMemo(() => [
     {
       selector: "node",
       style: {
@@ -361,7 +368,7 @@ export function GraphViewerRoute() {
         "target-arrow-color": "#334155",
         "target-arrow-shape": "triangle",
         "curve-style": "bezier",
-        "font-weight": "600",
+        "font-weight": "bold",
         "font-size": "11px",
         color: "#1e293b"
       }
@@ -374,7 +381,7 @@ export function GraphViewerRoute() {
         "line-color": "#1e40af",
         "target-arrow-color": "#1e40af",
         "target-arrow-shape": "triangle",
-        "font-weight": "700",
+        "font-weight": "bold",
         color: "#1e293b"
       }
     },
@@ -421,12 +428,12 @@ export function GraphViewerRoute() {
         "z-index": 999
       }
     }
-  ];
+  ], [edgeStyles]);
 
   // Layout configurations
   const getLayoutConfig = (layoutName: string) => {
     const baseConfig = {
-      fit: true,
+      fit: hasInitialLayout ? autoFitEnabled : true, // Auto-fit on initial layout, then respect user preference
       padding: 20, // Reduced from 30 for more compact view
       animate: true,
       animationDuration: 500
@@ -540,29 +547,44 @@ export function GraphViewerRoute() {
     }
   };
 
-  const layout = getLayoutConfig(selectedLayout);
+  // Memoize layout to prevent unnecessary recreation causing node position resets
+  const layout = useMemo(() => getLayoutConfig(selectedLayout), [selectedLayout, hasInitialLayout, autoFitEnabled]);
 
   // Function to apply a new layout
   const applyLayout = (layoutName: string) => {
-    if (cyInstance) {
+    if (!cyInstance) return;
+
+    try {
+      // Check if cyInstance is valid
+      const container = cyInstance.container();
+      if (!container) return;
+
       setSelectedLayout(layoutName);
       const layoutConfig = getLayoutConfig(layoutName);
 
       // Apply layout only to visible nodes
-      const visibleNodes = cyInstance.nodes().filter((node: any) => {
+      const allNodes = cyInstance.nodes();
+      if (!allNodes || allNodes.length === 0) return;
+
+      const visibleNodes = allNodes.filter((node: any) => {
         return node.style('display') !== 'none';
       });
 
-      visibleNodes.layout(layoutConfig).run();
+      if (visibleNodes.length > 0) {
+        visibleNodes.layout(layoutConfig).run();
+        setHasInitialLayout(true);
+      }
+    } catch (error) {
+      console.warn('Error applying layout:', error);
     }
   };
 
-  // Apply filters and search
+  // Apply filters and search (without auto-layout to prevent constant refocusing)
   useEffect(() => {
     if (!cyInstance) return;
 
-    // Check if cyInstance is valid (not destroyed)
     try {
+      // Apply visibility filters only - layout is now opt-in via buttons
       cyInstance.nodes().forEach((node: any) => {
         const nodeId = node.data('id');
         const nodeType = node.data('type');
@@ -577,21 +599,10 @@ export function GraphViewerRoute() {
           node.style('display', 'none');
         }
       });
-
-      // Re-apply layout to visible nodes only
-      const layoutConfig = getLayoutConfig(selectedLayout);
-      const visibleNodes = cyInstance.nodes().filter((node: any) => {
-        return node.style('display') !== 'none';
-      });
-
-      if (visibleNodes.length > 0) {
-        visibleNodes.layout(layoutConfig).run();
-      }
     } catch (error) {
-      // Ignore errors from destroyed instances
-      console.warn('Error applying layout:', error);
+      console.warn('Error applying filters:', error);
     }
-  }, [cyInstance, visibleNodeTypes, searchTerm, hiddenNodeIds, selectedLayout]);
+  }, [cyInstance, visibleNodeTypes, searchTerm, hiddenNodeIds]);
 
   // Apply visual highlighting styles
   useEffect(() => {
@@ -604,18 +615,20 @@ export function GraphViewerRoute() {
           node.style({
             'border-width': '5px',
             'border-color': '#facc15',
-            'shadow-blur': '20',
+            'shadow-blur': '20px',
             'shadow-color': '#facc15',
             'shadow-opacity': 0.8
           });
         } else {
           // Reset to default if not highlighted and not selected
           if (!node.selected()) {
-            // Reset only border styles, remove shadow entirely
+            // Reset border and shadow styles by setting to null (removes inline styles, falls back to stylesheet)
             node.style({
-              'border-width': '',
-              'border-color': '',
-              'shadow-opacity': 0
+              'border-width': null,
+              'border-color': null,
+              'shadow-blur': null,
+              'shadow-color': null,
+              'shadow-opacity': null
             });
           }
         }
@@ -706,6 +719,16 @@ export function GraphViewerRoute() {
     }
   }, [cyInstance]);
 
+  // Mark initial layout as complete after Cytoscape initialization
+  useEffect(() => {
+    if (cyInstance && !hasInitialLayout) {
+      // Wait for initial layout to complete
+      setTimeout(() => {
+        setHasInitialLayout(true);
+      }, 1000);
+    }
+  }, [cyInstance, hasInitialLayout]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -727,28 +750,57 @@ export function GraphViewerRoute() {
 
   // Layout controls
   const handleResetLayout = () => {
-    if (cyInstance) {
+    if (!cyInstance) return;
+
+    try {
+      const container = cyInstance.container();
+      if (!container) return;
+
       cyInstance.layout(layout as any).run();
+      setHasInitialLayout(true);
+    } catch (error) {
+      console.warn('Error resetting layout:', error);
     }
   };
 
   const handleFitView = () => {
-    if (cyInstance) {
+    if (!cyInstance) return;
+
+    try {
+      const container = cyInstance.container();
+      if (!container) return;
+
       cyInstance.fit();
+    } catch (error) {
+      console.warn('Error fitting view:', error);
     }
   };
 
   const handleZoomIn = () => {
-    if (cyInstance) {
+    if (!cyInstance) return;
+
+    try {
+      const container = cyInstance.container();
+      if (!container) return;
+
       cyInstance.zoom(cyInstance.zoom() * 1.2);
       cyInstance.center();
+    } catch (error) {
+      console.warn('Error zooming in:', error);
     }
   };
 
   const handleZoomOut = () => {
-    if (cyInstance) {
+    if (!cyInstance) return;
+
+    try {
+      const container = cyInstance.container();
+      if (!container) return;
+
       cyInstance.zoom(cyInstance.zoom() * 0.8);
       cyInstance.center();
+    } catch (error) {
+      console.warn('Error zooming out:', error);
     }
   };
 
@@ -1099,8 +1151,17 @@ export function GraphViewerRoute() {
 
   const resetNodePosition = (nodeId: string) => {
     if (!cyInstance) return;
-    // Re-run the layout algorithm
-    cyInstance.layout(layout as any).run();
+
+    try {
+      const container = cyInstance.container();
+      if (!container) return;
+
+      // Re-run the layout algorithm
+      cyInstance.layout(layout as any).run();
+    } catch (error) {
+      console.warn('Error resetting node position:', error);
+    }
+
     setContextMenu(null);
   };
 
@@ -1554,6 +1615,22 @@ export function GraphViewerRoute() {
               </label>
               <p style={{ margin: '6px 0 0 24px', fontSize: '11px', color: '#1e40af', lineHeight: '1.4' }}>
                 Hide peer relationships (SATISFIES, RELATED_TO, etc.) to see only the structural hierarchy.
+              </p>
+            </div>
+
+            {/* Auto-Fit Toggle */}
+            <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '6px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+                <input
+                  type="checkbox"
+                  checked={autoFitEnabled}
+                  onChange={(e) => setAutoFitEnabled(e.target.checked)}
+                  style={{ marginRight: '8px', cursor: 'pointer', width: '16px', height: '16px' }}
+                />
+                <span>Auto-Fit on Layout</span>
+              </label>
+              <p style={{ margin: '6px 0 0 24px', fontSize: '11px', color: '#92400e', lineHeight: '1.4' }}>
+                Automatically zoom and pan to fit the graph when applying layouts. Disable to preserve your viewport position.
               </p>
             </div>
           </div>
