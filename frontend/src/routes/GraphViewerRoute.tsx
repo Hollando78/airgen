@@ -13,6 +13,73 @@ import "./graphViewer.css";
 cytoscape.use(cytoscapeDagre);
 cytoscape.use(cytoscapeFcose);
 
+/**
+ * Classify relationship types by their hierarchical nature
+ * Strong hierarchy = true containment/ownership (parent-child)
+ * Medium hierarchy = ownership but not strict containment
+ * Weak/No hierarchy = peer relationships and references
+ */
+const RELATIONSHIP_HIERARCHY = {
+  // Strong hierarchy (weight: 100) - true containment/ownership
+  strong: new Set([
+    'OWNS',           // Tenant → Project
+    'HAS_DOCUMENT',   // Project → Document
+    'HAS_SECTION',    // Document → Section
+    'CONTAINS',       // Section → Requirement/Info/SurrogateReference
+    'HAS_BLOCK',      // Diagram → Block
+    'HAS_CONNECTOR',  // Diagram → Connector
+  ]),
+
+  // Medium hierarchy (weight: 50) - ownership but not containment
+  medium: new Set([
+    'HAS_LINKSET',              // Project → DocumentLinkset
+    'HAS_TRACE_LINK',           // Project → TraceLink
+    'HAS_CANDIDATE',            // Project → RequirementCandidate
+    'HAS_ARCHITECTURE_DIAGRAM', // Project → ArchitectureDiagram
+    'HAS_ARCHITECTURE_BLOCK',   // Project → ArchitectureBlock (definition)
+    'CONTAINS_LINK',            // Linkset → TraceLink
+  ]),
+
+  // Weak/No hierarchy (weight: 1) - peer relationships and references
+  weak: new Set([
+    'SATISFIES',
+    'DERIVES_FROM',
+    'RELATED_TO',
+    'VERIFIES',
+    'DEPENDS_ON',
+    'LINKED_TO',
+    'FROM_DOCUMENT',
+    'TO_DOCUMENT',
+    'FROM_REQUIREMENT',
+    'TO_REQUIREMENT',
+    'FROM_BLOCK',
+    'TO_BLOCK',
+    'LINKED_DOCUMENT',
+  ]),
+};
+
+/**
+ * Get hierarchical weight for a relationship type
+ * Higher weight = stronger hierarchical preference in layout
+ */
+function getEdgeWeight(relationshipType: string): number {
+  if (RELATIONSHIP_HIERARCHY.strong.has(relationshipType)) {
+    return 100; // Strong hierarchy
+  } else if (RELATIONSHIP_HIERARCHY.medium.has(relationshipType)) {
+    return 50;  // Medium hierarchy
+  } else {
+    return 1;   // Weak/no hierarchy
+  }
+}
+
+/**
+ * Check if relationship is hierarchical (parent → child direction matters)
+ */
+function isHierarchicalEdge(relationshipType: string): boolean {
+  return RELATIONSHIP_HIERARCHY.strong.has(relationshipType) ||
+         RELATIONSHIP_HIERARCHY.medium.has(relationshipType);
+}
+
 export function GraphViewerRoute() {
   const api = useApiClient();
   const { state } = useTenantProject();
@@ -60,6 +127,7 @@ export function GraphViewerRoute() {
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showOnlyHierarchy, setShowOnlyHierarchy] = useState(false);
   const cyRef = useRef<HTMLDivElement>(null);
 
   // Edge styling customization
@@ -101,7 +169,7 @@ export function GraphViewerRoute() {
     enabled: !!(tenant && project)
   });
 
-  // Transform Neo4j data to Cytoscape format
+  // Transform Neo4j data to Cytoscape format WITH edge metadata for hierarchy
   const elements: ElementDefinition[] = graphData
     ? [
         // Nodes
@@ -113,16 +181,25 @@ export function GraphViewerRoute() {
             properties: node.properties
           }
         })),
-        // Edges
+        // Edges WITH weight and hierarchy metadata
         ...graphData.relationships.map((rel: any) => ({
           data: {
             id: rel.id,
             source: rel.source,
             target: rel.target,
             label: rel.type,
-            properties: rel.properties
+            properties: rel.properties,
+            // NEW: Add edge metadata for layout algorithms
+            weight: getEdgeWeight(rel.type),
+            isHierarchical: isHierarchicalEdge(rel.type)
           }
-        }))
+        })).filter((edge: any) => {
+          // Filter edges based on hierarchy toggle
+          if (showOnlyHierarchy) {
+            return edge.data.isHierarchical;
+          }
+          return true;
+        })
       ]
     : [];
 
@@ -275,7 +352,54 @@ export function GraphViewerRoute() {
         "text-margin-y": -10
       }
     },
-    // Dynamic edge styles from customizations
+    // NEW: Hierarchical edges (stronger, darker) - applies to all hierarchical edges
+    {
+      selector: "edge[isHierarchical]",
+      style: {
+        width: 3,
+        "line-color": "#334155",
+        "target-arrow-color": "#334155",
+        "target-arrow-shape": "triangle",
+        "curve-style": "bezier",
+        "font-weight": "600",
+        "font-size": "11px",
+        color: "#1e293b"
+      }
+    },
+    // NEW: Strong hierarchy edges (OWNS, HAS_DOCUMENT, HAS_SECTION, CONTAINS)
+    {
+      selector: "edge[weight >= 100]",
+      style: {
+        width: 4,
+        "line-color": "#1e40af",
+        "target-arrow-color": "#1e40af",
+        "target-arrow-shape": "triangle",
+        "font-weight": "700",
+        color: "#1e293b"
+      }
+    },
+    // NEW: Medium hierarchy edges (HAS_LINKSET, HAS_ARCHITECTURE_DIAGRAM, etc.)
+    {
+      selector: "edge[weight >= 50][weight < 100]",
+      style: {
+        width: 3,
+        "line-color": "#4b5563",
+        "target-arrow-color": "#4b5563",
+        "target-arrow-shape": "triangle"
+      }
+    },
+    // NEW: Peer relationship edges (SATISFIES, RELATED_TO, etc.) - dashed to show non-hierarchy
+    {
+      selector: "edge[weight < 50]",
+      style: {
+        width: 2,
+        "line-color": "#94a3b8",
+        "target-arrow-color": "#94a3b8",
+        "target-arrow-shape": "triangle",
+        "line-style": "dashed"
+      }
+    },
+    // Dynamic edge styles from customizations (these override the above)
     ...buildEdgeStylesheets(),
     {
       selector: "edge:selected",
@@ -332,10 +456,14 @@ export function GraphViewerRoute() {
           ...baseConfig,
           name: 'dagre',
           rankDir: 'TB', // Top to bottom
-          ranker: 'network-simplex',
+          ranker: 'tight-tree', // Better for hierarchies than network-simplex
           nodeSep: 50,
           edgeSep: 10,
-          rankSep: 75
+          rankSep: 100, // Increased for better hierarchy separation
+          // NEW: Use edge weights for ranking - hierarchical edges will be prioritized
+          edgeWeight: (edge: any) => {
+            return edge.data('weight') || 1;
+          }
         };
       case 'fcose':
         return {
@@ -345,8 +473,16 @@ export function GraphViewerRoute() {
           randomize: false,
           animate: 'end',
           nodeSeparation: 75,
-          idealEdgeLength: 100,
-          edgeElasticity: 0.45,
+          // NEW: Variable edge length - hierarchical edges are shorter (pulls parents/children closer)
+          idealEdgeLength: (edge: any) => {
+            const isHier = edge.data('isHierarchical');
+            return isHier ? 80 : 150;
+          },
+          // NEW: Variable elasticity - hierarchical edges are stiffer (stronger pull)
+          edgeElasticity: (edge: any) => {
+            const isHier = edge.data('isHierarchical');
+            return isHier ? 0.8 : 0.45;
+          },
           nestingFactor: 0.1,
           gravity: 0.25,
           numIter: 2500,
@@ -448,7 +584,7 @@ export function GraphViewerRoute() {
         visibleNodes.layout(layoutConfig).run();
       }
     }
-  }, [cyInstance, visibleNodeTypes, searchTerm, hiddenNodeIds, selectedLayout]);
+  }, [cyInstance, visibleNodeTypes, searchTerm, hiddenNodeIds, selectedLayout, showOnlyHierarchy]);
 
   // Apply visual highlighting styles
   useEffect(() => {
@@ -1397,6 +1533,22 @@ export function GraphViewerRoute() {
                 Clear All
               </button>
             </div>
+
+            {/* NEW: Hierarchy Filter Toggle */}
+            <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+                <input
+                  type="checkbox"
+                  checked={showOnlyHierarchy}
+                  onChange={(e) => setShowOnlyHierarchy(e.target.checked)}
+                  style={{ marginRight: '8px', cursor: 'pointer', width: '16px', height: '16px' }}
+                />
+                <span>Show Only Hierarchical Relationships</span>
+              </label>
+              <p style={{ margin: '6px 0 0 24px', fontSize: '11px', color: '#1e40af', lineHeight: '1.4' }}>
+                Hide peer relationships (SATISFIES, RELATED_TO, etc.) to see only the structural hierarchy.
+              </p>
+            </div>
           </div>
 
           <div style={{ flex: 1, padding: '16px' }}>
@@ -1559,6 +1711,7 @@ export function GraphViewerRoute() {
       <div className="graph-legend">
         <h4>Legend</h4>
         <div className="legend-items">
+          {/* Node Types */}
           <div className="legend-item">
             <span className="legend-color" style={{ background: "#8b5cf6" }}></span>
             <span>Tenant</span>
@@ -1598,6 +1751,46 @@ export function GraphViewerRoute() {
           <div className="legend-item">
             <span className="legend-color" style={{ background: "#84cc16" }}></span>
             <span>Connector</span>
+          </div>
+
+          {/* NEW: Relationship Hierarchy */}
+          <div className="legend-item" style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px", paddingTop: "8px" }}>
+            <span style={{ fontSize: "12px", fontWeight: "700", display: "block", marginBottom: "8px" }}>Relationship Types</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-edge" style={{
+              display: "inline-block",
+              width: "20px",
+              height: "4px",
+              background: "#1e40af",
+              marginRight: "8px",
+              verticalAlign: "middle"
+            }}></span>
+            <span style={{ fontSize: "11px", fontWeight: "600" }}>Strong Hierarchy (CONTAINS, HAS_SECTION)</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-edge" style={{
+              display: "inline-block",
+              width: "20px",
+              height: "3px",
+              background: "#4b5563",
+              marginRight: "8px",
+              verticalAlign: "middle"
+            }}></span>
+            <span style={{ fontSize: "11px", fontWeight: "600" }}>Medium Hierarchy (HAS_LINKSET)</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-edge" style={{
+              display: "inline-block",
+              width: "20px",
+              height: "2px",
+              background: "#94a3b8",
+              backgroundImage: "linear-gradient(to right, #94a3b8 50%, transparent 50%)",
+              backgroundSize: "10px 100%",
+              marginRight: "8px",
+              verticalAlign: "middle"
+            }}></span>
+            <span style={{ fontSize: "11px", fontWeight: "600" }}>Peer Relationships (SATISFIES, RELATED_TO)</span>
           </div>
           {edgeStyles.size > 0 && (
             <div className="legend-item" style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px", paddingTop: "8px" }}>
