@@ -1,9 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import {
-  readRequirementMarkdown,
-  writeRequirementMarkdown
-} from "../services/workspace.js";
+// Workspace markdown functions removed as part of Neo4j single-source migration (Phase 2)
 import {
   createRequirement,
   listRequirements,
@@ -102,8 +99,6 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       tags: payload.tags
     });
 
-    await writeRequirementMarkdown(record);
-
     return { requirement: record };
   });
 
@@ -178,19 +173,10 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const params = paramsSchema.parse(req.params);
     const record = await getRequirement(params.tenant, params.project, params.ref);
     if (!record) {return reply.status(404).send({ error: "Requirement not found" });}
-    let markdown: string;
-    try {
-      markdown = await readRequirementMarkdown({
-        tenant: record.tenant,
-        projectKey: record.projectKey,
-        ref: record.ref
-      });
-    } catch (error) {
-      markdown = record.text;
-      (app.log as any).info?.({ err: error, ref: record.ref }, "Markdown file missing; returning raw text");
-    }
 
-    return { record, markdown };
+    // Markdown read removed - Neo4j single-source migration (Phase 2)
+    // Clients should use record.text directly
+    return { record, markdown: record.text };
   });
 
   app.patch("/requirements/:tenant/:project/:requirementId", {
@@ -307,7 +293,10 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     });
     const params = paramsSchema.parse(req.params);
 
-    const requirement = await softDeleteRequirement(params.tenant, params.project, params.requirementId);
+    // Extract user context for version history
+    const deletedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
+
+    const requirement = await softDeleteRequirement(params.tenant, params.project, params.requirementId, deletedBy);
     if (!requirement) {return reply.status(404).send({ error: "Requirement not found" });}
     return { requirement };
   });
@@ -358,7 +347,10 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
 
-    const requirements = await archiveRequirements(params.tenant, params.project, body.requirementIds);
+    // Extract user context for version history
+    const archivedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
+
+    const requirements = await archiveRequirements(params.tenant, params.project, body.requirementIds, archivedBy);
     return { requirements, count: requirements.length };
   });
 
@@ -408,7 +400,10 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
 
-    const requirements = await unarchiveRequirements(params.tenant, params.project, body.requirementIds);
+    // Extract user context for version history
+    const unarchivedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
+
+    const requirements = await unarchiveRequirements(params.tenant, params.project, body.requirementIds, unarchivedBy);
     return { requirements, count: requirements.length };
   });
 

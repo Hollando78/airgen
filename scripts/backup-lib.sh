@@ -193,23 +193,22 @@ backup_workspace() {
     local backup_dir="$1"
     local backup_file="${backup_dir}/workspace-${TIMESTAMP}.tar.gz"
 
-    log "Backing up workspace files..."
+    # DEPRECATED: Workspace backups are no longer needed after Neo4j single-source migration (Phase 2).
+    # Neo4j is now the single source of truth. Markdown files are no longer written to workspace.
+    # Export service (src/services/export-service.ts) generates markdown on-demand.
+    # See: docs/NEO4J-MIGRATION-PHASE-1-COMPLETE.md and docs/EXPORT-SYSTEM-DESIGN.md
 
-    if [ ! -d "${WORKSPACE_DIR}" ]; then
-        log_error "Workspace directory not found: ${WORKSPACE_DIR}"
-        return 1
-    fi
+    log "⚠ Workspace backup is deprecated (workspace no longer used)"
+    log "   Neo4j is the single source of truth"
+    log "   Skipping workspace backup..."
 
-    # Create compressed archive
-    if tar -czf "${backup_file}" -C "$(dirname ${WORKSPACE_DIR})" "$(basename ${WORKSPACE_DIR})"; then
-        local size=$(du -h "${backup_file}" | cut -f1)
-        log_success "Workspace backup completed: ${backup_file} (${size})"
-        echo "${backup_file}"
-        return 0
-    else
-        log_error "Workspace backup failed"
-        return 1
-    fi
+    # Create empty placeholder file to maintain backup structure
+    touch "${backup_file}"
+    echo "# Workspace backup deprecated - Neo4j is single source of truth" > "${backup_file}.txt"
+
+    log "Workspace backup skipped (deprecated)"
+    echo "${backup_file}.txt"
+    return 0
 }
 
 backup_config() {
@@ -314,8 +313,9 @@ restore_postgres() {
 
 restore_workspace() {
     local backup_file="$1"
-    log "Restore function called for workspace: ${backup_file}"
-    # Implementation in backup-restore.sh
+    log "⚠ Workspace restore is deprecated (workspace no longer used)"
+    log "   Neo4j is the single source of truth - restore Neo4j instead"
+    # DEPRECATED: See backup-restore.sh::restore_workspace_component() for details
 }
 
 # Export functions

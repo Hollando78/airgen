@@ -89,12 +89,14 @@ main() {
         fi
     fi
 
-    # Step 4: Backup Workspace
-    log "Step 4/5: Backing up workspace..."
+    # Step 4: Backup Workspace (DEPRECATED - Phase 2 migration complete)
+    # Workspace is no longer written to; Neo4j is single source of truth
+    log "Step 4/5: Workspace backup (deprecated)..."
     if workspace_file=$(backup_workspace "${backup_week_dir}"); then
         backup_files+=("${workspace_file}")
+        # Skip verification for deprecated workspace backup
     else
-        backup_success=false
+        log "Workspace backup skipped (non-critical)"
     fi
 
     # Step 5: Backup Configuration

@@ -52,13 +52,14 @@ main() {
         log "PostgreSQL backup skipped or failed (non-critical)"
     fi
 
-    # Backup Workspace
-    log "Step 3/4: Backing up workspace..."
+    # Backup Workspace (DEPRECATED - Phase 2 migration complete)
+    # Workspace is no longer written to; Neo4j is single source of truth
+    log "Step 3/4: Workspace backup (deprecated)..."
     if workspace_file=$(backup_workspace "${backup_date_dir}"); then
         backup_files+=("${workspace_file}")
-        verify_backup "${workspace_file}" || backup_success=false
+        # Skip verification for deprecated workspace backup
     else
-        backup_success=false
+        log "Workspace backup skipped (non-critical)"
     fi
 
     # Backup Configuration
