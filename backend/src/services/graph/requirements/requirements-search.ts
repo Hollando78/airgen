@@ -1,6 +1,6 @@
 import type { Node as Neo4jNode, ManagedTransaction } from "neo4j-driver";
 import { int as neo4jInt } from "neo4j-driver";
-import { slugify, writeRequirementMarkdown } from "../../workspace.js";
+import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { mapRequirement } from "./requirements-crud.js";
 import type { RequirementRecord } from "../../workspace.js";
@@ -363,13 +363,7 @@ export async function fixDuplicateRequirementRefs(
       return { changes, updatedRequirements };
     });
 
-    for (const requirement of result.updatedRequirements) {
-      try {
-        await writeRequirementMarkdown(requirement);
-      } catch (error) {
-        logger.warn({ err: error, requirementId: requirement.id, ref: requirement.ref }, "Failed to persist requirement markdown after ref renumber");
-      }
-    }
+    // Markdown writes removed as part of Neo4j single-source migration (Phase 2)
 
     await CacheInvalidation.invalidateRequirements(tenantSlug, projectSlug);
     await CacheInvalidation.invalidateDocuments(tenantSlug, projectSlug);

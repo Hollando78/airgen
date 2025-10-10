@@ -163,12 +163,22 @@ export function requirementFile(record: { tenant: string; projectKey: string; re
   return join(config.workspaceRoot, record.tenant, record.projectKey, "requirements", `${record.ref}.md`);
 }
 
+/**
+ * @deprecated This function is deprecated as part of Neo4j single-source migration (Phase 2).
+ * Requirements are now stored exclusively in Neo4j. Use the export service for markdown generation.
+ * See: docs/EXPORT-SYSTEM-DESIGN.md and src/services/export-service.ts
+ */
 export async function writeRequirementMarkdown(record: RequirementRecord): Promise<void> {
   const file = requirementFile(record);
   await fs.mkdir(dirname(file), { recursive: true });
   await fs.writeFile(file, requirementMarkdown(record), "utf8");
 }
 
+/**
+ * @deprecated This function is deprecated as part of Neo4j single-source migration (Phase 2).
+ * Requirements are now stored exclusively in Neo4j. Read directly from Neo4j using getRequirement().
+ * See: src/services/graph/requirements/requirements-crud.ts
+ */
 export async function readRequirementMarkdown(record: { tenant: string; projectKey: string; ref: string }): Promise<string> {
   const file = requirementFile(record);
   return fs.readFile(file, "utf8");
@@ -216,6 +226,11 @@ export function infoFile(record: { tenant: string; projectKey: string; ref: stri
   return join(config.workspaceRoot, record.tenant, record.projectKey, "infos", `${record.ref}.md`);
 }
 
+/**
+ * @deprecated This function is deprecated as part of Neo4j single-source migration (Phase 2).
+ * Info items are now stored exclusively in Neo4j. Use the export service for markdown generation.
+ * See: docs/EXPORT-SYSTEM-DESIGN.md and src/services/export-service.ts
+ */
 export async function writeInfoMarkdown(record: InfoRecord): Promise<void> {
   const file = infoFile(record);
   await fs.mkdir(dirname(file), { recursive: true });
@@ -259,6 +274,11 @@ export function surrogateFile(record: { tenant: string; projectKey: string; slug
   return join(config.workspaceRoot, record.tenant, record.projectKey, "surrogates", `${record.slug}.md`);
 }
 
+/**
+ * @deprecated This function is deprecated as part of Neo4j single-source migration (Phase 2).
+ * Surrogate references are now stored exclusively in Neo4j. Use the export service for markdown generation.
+ * See: docs/EXPORT-SYSTEM-DESIGN.md and src/services/export-service.ts
+ */
 export async function writeSurrogateMarkdown(record: SurrogateReferenceRecord): Promise<void> {
   const file = surrogateFile(record);
   await fs.mkdir(dirname(file), { recursive: true });

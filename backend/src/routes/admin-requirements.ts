@@ -6,7 +6,7 @@ import {
   softDeleteRequirement,
   getRequirement
 } from "../services/graph/requirements/index.js";
-import { writeRequirementMarkdown, readRequirementMarkdown } from "../services/workspace.js";
+// Workspace markdown functions removed as part of Neo4j single-source migration (Phase 2)
 import { logger } from "../lib/logger.js";
 
 /**
@@ -485,16 +485,17 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
           });
         }
 
-        await writeRequirementMarkdown(requirement);
+        // NOTE: Markdown write removed as part of Neo4j single-source migration (Phase 2)
+        // This endpoint is deprecated and will be removed in a future release
 
         return reply.send({
-          message: "Requirement synced to markdown successfully",
+          message: "Requirement data retrieved (markdown sync deprecated)",
           requirement
         });
       } catch (error) {
-        logger.error({ error, tenant, project, requirementId }, "Failed to sync to markdown");
+        logger.error({ error, tenant, project, requirementId }, "Failed to retrieve requirement");
         return reply.code(500).send({
-          error: "Failed to sync to markdown"
+          error: "Failed to retrieve requirement"
         });
       }
     }

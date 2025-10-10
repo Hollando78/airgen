@@ -26,7 +26,7 @@ import {
   createArchitectureBlock,
   createArchitectureConnector
 } from "../services/graph.js";
-import { writeRequirementMarkdown, slugify } from "../services/workspace.js";
+import { slugify } from "../services/workspace.js";
 import { extractDocumentContent } from "../services/document-content.js";
 import { extractDiagramContent } from "../services/diagram-content.js";
 
@@ -300,12 +300,6 @@ export default async function airgenRoutes(app: FastifyInstance) {
         suggestions: candidate.suggestions
       });
 
-      try {
-        await writeRequirementMarkdown(requirement);
-      } catch (error) {
-        req.log.error({ err: error, requirementId: requirement.id }, "Failed to write requirement markdown");
-      }
-
       const updated = await updateRequirementCandidate(candidate.id, {
         status: "rejected",
         requirementId: requirement.id,
@@ -389,12 +383,6 @@ export default async function airgenRoutes(app: FastifyInstance) {
         suggestions: candidate.suggestions,
         tags: body.tags
       });
-
-      try {
-        await writeRequirementMarkdown(requirement);
-      } catch (error) {
-        req.log.error({ err: error, requirementId: requirement.id }, "Failed to write requirement markdown");
-      }
 
       const updated = await updateRequirementCandidate(candidate.id, {
         status: "accepted",

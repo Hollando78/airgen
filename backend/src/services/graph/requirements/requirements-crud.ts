@@ -9,10 +9,7 @@ import type {
   RequirementPattern,
   VerificationMethod} from "../../workspace.js";
 import {
-  slugify,
-  writeRequirementMarkdown,
-  requirementMarkdown,
-  requirementFile
+  slugify
 } from "../../workspace.js";
 import { getSession } from "../driver.js";
 import { CacheInvalidation } from "../../../lib/cache.js";
@@ -570,17 +567,6 @@ export async function updateRequirement(
 
     const requirement = mapRequirement(result);
 
-    const { hashId, ...rest } = requirement;
-    const normalizedRequirement = {
-      ...rest,
-      ...(hashId ? { hashId } : {}),
-      title: requirement.title || requirement.text,
-      suggestions: requirement.suggestions ?? [],
-      tags: requirement.tags ?? []
-    };
-
-    await writeRequirementMarkdown(normalizedRequirement as RequirementRecord);
-
     // Invalidate requirement cache
     await CacheInvalidation.invalidateRequirements(tenantSlug, projectSlug);
 
@@ -679,9 +665,6 @@ export async function restoreRequirement(
     const record = result.records[0];
     const node = record.get("requirement") as Neo4jNode;
     const requirement = mapRequirement(node);
-
-    // Write restored requirement back to markdown
-    await writeRequirementMarkdown(requirement);
 
     // Invalidate caches
     await CacheInvalidation.invalidateRequirements(tenantSlug, projectSlug);

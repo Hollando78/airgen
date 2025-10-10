@@ -28,7 +28,7 @@ import {
 import { listSectionInfos, createInfo, reorderInfos, reorderInfosWithOrder } from "../services/graph/infos.js";
 import { listSectionSurrogateReferences, createSurrogateReference, reorderSurrogateReferences, reorderSurrogateReferencesWithOrder } from "../services/graph/surrogates.js";
 import { config } from "../config.js";
-import { slugify, writeInfoMarkdown, writeSurrogateMarkdown } from "../services/workspace.js";
+import { slugify } from "../services/workspace.js";
 
 const documentSchema = z.object({
   tenant: z.string().min(1),
@@ -895,8 +895,6 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
       sectionId: payload.sectionId
     });
 
-    await writeInfoMarkdown(record);
-
     return { info: record };
   });
 
@@ -946,8 +944,6 @@ export default async function registerDocumentRoutes(app: FastifyInstance): Prom
       caption: payload.caption,
       sectionId: payload.sectionId
     });
-
-    await writeSurrogateMarkdown(record);
 
     return { surrogate: record };
   });
