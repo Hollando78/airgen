@@ -1,5 +1,5 @@
 import type { FormEvent} from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { useTenantProjectDocument } from "../components/TenantProjectDocumentSelector";
@@ -8,6 +8,15 @@ import { REQUIREMENT_PATTERNS, VERIFICATION_METHODS } from "../constants";
 import type { DraftRequest, RequirementRecord, RequirementPattern, VerificationMethod } from "../types";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
+import { PageLayout } from "../components/PageLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Label } from "../components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Checkbox } from "../components/ui/checkbox";
+import { AlertCircle, FileText, Sparkles } from "lucide-react";
 
 const DEFAULT_COUNT = 3;
 
@@ -76,133 +85,222 @@ export function DraftsRoute(): JSX.Element {
   const missingSelection = !tenant || !project;
 
   return (
-    <div className="panel-stack">
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h1>Draft Generator</h1>
-            <p>Capture the stakeholder need and generate requirement candidates.</p>
-          </div>
-        </div>
-        <form className="draft-form" onSubmit={handleSubmit}>
-          <label className="field">
-            <span>Need / context</span>
-            <textarea
-              value={need}
-              onChange={event => setNeed(event.target.value)}
-              rows={4}
-              placeholder="As a driver..."
-              required
-            />
-          </label>
+    <PageLayout
+      title="Draft Generator"
+      description="Capture the stakeholder need and generate requirement candidates."
+    >
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              Generate Requirements
+            </CardTitle>
+            <CardDescription>
+              Enter a need or user story to generate requirement drafts using templates and AI.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="need">Need / Context *</Label>
+                <Textarea
+                  id="need"
+                  value={need}
+                  onChange={event => setNeed(event.target.value)}
+                  rows={4}
+                  placeholder="As a driver, I need to..."
+                  required
+                />
+                <p className="text-sm text-muted-foreground">
+                  Describe the stakeholder need or user story (minimum 12 characters)
+                </p>
+              </div>
 
-          <div className="field-grid">
-            <label className="field">
-              <span>Pattern</span>
-              <select value={pattern} onChange={event => setPattern(event.target.value)}>
-                <option value="">Auto</option>
-                {REQUIREMENT_PATTERNS.map(option => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pattern">Pattern</Label>
+                  <Select value={pattern} onValueChange={setPattern}>
+                    <SelectTrigger id="pattern">
+                      <SelectValue placeholder="Auto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Auto</SelectItem>
+                      {REQUIREMENT_PATTERNS.map(option => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <label className="field">
-              <span>Verification</span>
-              <select value={verification} onChange={event => setVerification(event.target.value)}>
-                {VERIFICATION_METHODS.map(option => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <div className="space-y-2">
+                  <Label htmlFor="verification">Verification</Label>
+                  <Select value={verification} onValueChange={setVerification}>
+                    <SelectTrigger id="verification">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VERIFICATION_METHODS.map(option => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <label className="field">
-              <span>Draft count</span>
-              <input
-                type="number"
-                min={1}
-                max={5}
-                value={count}
-                onChange={event => setCount(Number(event.target.value))}
-              />
-            </label>
+                <div className="space-y-2">
+                  <Label htmlFor="count">Draft Count</Label>
+                  <Input
+                    id="count"
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={count}
+                    onChange={event => setCount(Number(event.target.value))}
+                  />
+                </div>
 
-            <label className="checkbox">
-              <input type="checkbox" checked={useLlm} onChange={event => setUseLlm(event.target.checked)} />
-              <span>Include LLM drafts</span>
-            </label>
-          </div>
+                <div className="flex items-center space-x-2 pt-8">
+                  <Checkbox
+                    id="useLlm"
+                    checked={useLlm}
+                    onCheckedChange={checked => setUseLlm(checked as boolean)}
+                  />
+                  <Label htmlFor="useLlm" className="cursor-pointer">
+                    Include LLM drafts
+                  </Label>
+                </div>
+              </div>
 
-          <div className="field-grid">
-            <label className="field">
-              <span>Actor</span>
-              <input value={actor} onChange={event => setActor(event.target.value)} placeholder="e.g., user, admin, customer" />
-            </label>
-            <label className="field">
-              <span>System</span>
-              <input value={system} onChange={event => setSystem(event.target.value)} placeholder="e.g., user interface, payment system" />
-            </label>
-            <label className="field">
-              <span>Trigger</span>
-              <input value={trigger} onChange={event => setTrigger(event.target.value)} placeholder="e.g., user clicks button, timeout occurs" />
-            </label>
-            <label className="field">
-              <span>Response</span>
-              <input value={response} onChange={event => setResponse(event.target.value)} placeholder="e.g., display confirmation, send notification" />
-            </label>
-            <label className="field">
-              <span>Constraint</span>
-              <input value={constraint} onChange={event => setConstraint(event.target.value)} placeholder="e.g., within 3 seconds, under 100ms" />
-            </label>
-          </div>
+              <div className="border-t pt-6">
+                <h3 className="text-sm font-semibold mb-4">Optional Pattern Parameters</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="actor">Actor</Label>
+                    <Input
+                      id="actor"
+                      value={actor}
+                      onChange={event => setActor(event.target.value)}
+                      placeholder="e.g., user, admin, customer"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="system">System</Label>
+                    <Input
+                      id="system"
+                      value={system}
+                      onChange={event => setSystem(event.target.value)}
+                      placeholder="e.g., user interface, payment system"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="trigger">Trigger</Label>
+                    <Input
+                      id="trigger"
+                      value={trigger}
+                      onChange={event => setTrigger(event.target.value)}
+                      placeholder="e.g., user clicks button, timeout occurs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="response">Response</Label>
+                    <Input
+                      id="response"
+                      value={response}
+                      onChange={event => setResponse(event.target.value)}
+                      placeholder="e.g., display confirmation, send notification"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="constraint">Constraint</Label>
+                    <Input
+                      id="constraint"
+                      value={constraint}
+                      onChange={event => setConstraint(event.target.value)}
+                      placeholder="e.g., within 3 seconds, under 100ms"
+                    />
+                  </div>
+                </div>
+              </div>
 
-          <div className="form-actions">
-            <button type="submit" disabled={!canGenerate || draftMutation.isPending}>
-              {draftMutation.isPending ? "Generating..." : "Generate drafts"}
-            </button>
-            {missingSelection && (
-              <span className="hint">Select tenant and project to enable saving.</span>
+              <div className="flex items-center gap-4 pt-4 border-t">
+                <Button type="submit" disabled={!canGenerate || draftMutation.isPending}>
+                  {draftMutation.isPending ? "Generating..." : "Generate drafts"}
+                </Button>
+                {missingSelection && (
+                  <p className="text-sm text-muted-foreground">
+                    Select tenant and project to enable saving drafts.
+                  </p>
+                )}
+              </div>
+            </form>
+
+            {draftMutation.isError && (
+              <div className="mt-4">
+                <ErrorState message={(draftMutation.error as Error).message} />
+              </div>
             )}
-          </div>
-        </form>
-        {draftMutation.isError && <ErrorState message={(draftMutation.error as Error).message} />}
-        {llmError && <div className="alert alert-warn">LLM error: {llmError}</div>}
-      </section>
+            {llmError && (
+              <div className="mt-4 flex items-start gap-2 p-4 bg-warning/10 border border-warning rounded-lg">
+                <AlertCircle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-warning">LLM Error</p>
+                  <p className="text-sm text-muted-foreground mt-1">{llmError}</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {draftMutation.isPending && <Spinner />}
-
-      {drafts.length > 0 && tenant && project && (
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Drafts</h2>
-              <p>Review, adjust, run QA, and persist requirements.</p>
-            </div>
+        {draftMutation.isPending && (
+          <div className="flex justify-center py-8">
+            <Spinner />
           </div>
-          <div className="draft-grid">
-            {drafts.map((draft, index) => (
-              <DraftCard
-                key={`${draft.source}-${index}`}
-                draft={draft}
-                tenant={tenant!}
-                project={project!}
-                documentSlug={documentSlug}
-                onPersist={async payload => persistRequirement.mutateAsync(payload)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+        )}
 
-      {drafts.length === 0 && draftMutation.isSuccess && (
-        <section className="panel">
-          <p>No drafts generated. Try refining the need or parameters.</p>
-        </section>
-      )}
-    </div>
+        {drafts.length > 0 && tenant && project && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Generated Drafts
+              </CardTitle>
+              <CardDescription>
+                Review, adjust, run QA checks, and save requirements to your project.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                {drafts.map((draft, index) => (
+                  <DraftCard
+                    key={`${draft.source}-${index}`}
+                    draft={draft}
+                    tenant={tenant!}
+                    project={project!}
+                    documentSlug={documentSlug}
+                    onPersist={async payload => persistRequirement.mutateAsync(payload)}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {drafts.length === 0 && draftMutation.isSuccess && (
+          <Card>
+            <CardContent className="py-8">
+              <div className="text-center text-muted-foreground">
+                <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p className="font-medium">No drafts generated</p>
+                <p className="text-sm mt-1">Try refining the need or adjusting the parameters above.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </PageLayout>
   );
 }

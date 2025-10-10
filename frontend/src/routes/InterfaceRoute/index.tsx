@@ -4,6 +4,8 @@ import { useTenantProjectDocument } from "../../components/TenantProjectDocument
 import { useApiClient } from "../../lib/client";
 import { useInterface } from "../../hooks/useInterfaceApi";
 import { InterfaceWorkspaceV2 } from "./InterfaceWorkspaceV2";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Network } from "lucide-react";
 
 export function InterfaceRoute(): JSX.Element {
   const { tenant, project } = useTenantProjectDocument();
@@ -23,9 +25,18 @@ export function InterfaceRoute(): JSX.Element {
 
   if (!tenant || !project) {
     return (
-      <div className="architecture-empty-state">
-        <h1>Interfaces</h1>
-        <p>Select a tenant and project to manage interface diagrams.</p>
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Network className="h-6 w-6" />
+              Interfaces
+            </CardTitle>
+            <CardDescription>
+              Select a tenant and project to manage interface diagrams.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       </div>
     );
   }

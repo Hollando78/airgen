@@ -5,6 +5,14 @@ import { useApiClient } from "../lib/client";
 import { useTenantProject } from "../hooks/useTenantProject";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
+import { PageLayout } from "../components/layout/PageLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { FormField } from "../components/ui/form-field";
+import { EmptyState } from "../components/ui/empty-state";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../components/ui/table";
+import { GitBranch, GitCompare } from "lucide-react";
 
 import type { BaselineRecord } from "../types";
 
@@ -72,298 +80,368 @@ export function BaselinesRoute(): JSX.Element {
 
   if (!state.tenant || !state.project) {
     return (
-      <div className="panel">
-        <h1>Baselines</h1>
-        <p>Select a tenant and project to manage baselines.</p>
-      </div>
+      <PageLayout
+        title="Baselines"
+        description="Select a tenant and project to manage baselines."
+      >
+        <Card>
+          <CardContent className="py-8">
+            <EmptyState
+              icon={GitBranch}
+              title="No Project Selected"
+              description="Select a tenant and project to manage baselines."
+            />
+          </CardContent>
+        </Card>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="panel-stack">
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h1>Baselines</h1>
-            <p>
-              {state.tenant} / {state.project}
-            </p>
-          </div>
-        </div>
-
-        <form className="baseline-form" onSubmit={handleSubmit}>
-          <label className="field">
-            <span>Label</span>
-            <input value={label} onChange={event => setLabel(event.target.value)} placeholder="Release 1.0" />
-          </label>
-          <label className="field">
-            <span>Author</span>
-            <input value={author} onChange={event => setAuthor(event.target.value)} placeholder="Jane Doe" />
-          </label>
-          <div className="form-actions">
-            <button type="submit" disabled={createBaselineMutation.isPending}>
-              {createBaselineMutation.isPending ? "Creating..." : "Create baseline"}
-            </button>
-          </div>
-        </form>
-        {createBaselineMutation.isError && <ErrorState message={(createBaselineMutation.error as Error).message} />}
-        {createBaselineMutation.isSuccess && (
-          <div className="alert alert-success">Baseline {createBaselineMutation.data.ref} created.</div>
-        )}
-      </section>
-
-      <section className="panel">
-        <div className="panel-header">
-          <h2>History</h2>
-        </div>
-        {baselinesQuery.isLoading ? (
-          <Spinner />
-        ) : baselinesQuery.isError ? (
-          <ErrorState message={(baselinesQuery.error as Error).message} />
-        ) : baselinesQuery.data?.items.length ? (
-          <div className="baseline-table-container">
-            <table className="data-table baseline-table">
-              <thead>
-                <tr>
-                  <th rowSpan={2}>Ref</th>
-                  <th rowSpan={2}>Created</th>
-                  <th rowSpan={2}>Author</th>
-                  <th rowSpan={2}>Label</th>
-                  <th colSpan={10} style={{ textAlign: 'center', borderBottom: '1px solid var(--border-color)' }}>Version Snapshot Counts</th>
-                </tr>
-                <tr>
-                  <th>Req</th>
-                  <th>Doc</th>
-                  <th>Sec</th>
-                  <th>Info</th>
-                  <th>Sur</th>
-                  <th>Link</th>
-                  <th>LSet</th>
-                  <th>Diag</th>
-                  <th>Blk</th>
-                  <th>Conn</th>
-                </tr>
-              </thead>
-              <tbody>
-                {baselinesQuery.data.items.map((item, index) => (
-                  <tr key={buildBaselineKey(item, index)}>
-                    <td><strong>{item.ref}</strong></td>
-                    <td>{formatDate(item.createdAt)}</td>
-                    <td>{item.author ?? "—"}</td>
-                    <td>{item.label ?? "—"}</td>
-                    <td>{item.requirementVersionCount ?? 0}</td>
-                    <td>{item.documentVersionCount ?? 0}</td>
-                    <td>{item.documentSectionVersionCount ?? 0}</td>
-                    <td>{item.infoVersionCount ?? 0}</td>
-                    <td>{item.surrogateVersionCount ?? 0}</td>
-                    <td>{item.traceLinkVersionCount ?? 0}</td>
-                    <td>{item.linksetVersionCount ?? 0}</td>
-                    <td>{item.diagramVersionCount ?? 0}</td>
-                    <td>{item.blockVersionCount ?? 0}</td>
-                    <td>{item.connectorVersionCount ?? 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p>No baselines created yet.</p>
-        )}
-      </section>
-
-      <section className="panel">
-        <div className="panel-header">
-          <h2>Compare Baselines</h2>
-        </div>
-        {baselinesQuery.data?.items.length && baselinesQuery.data.items.length >= 2 ? (
-          <div>
-            <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "end" }}>
-              <label className="field" style={{ flex: 1 }}>
-                <span>From Baseline</span>
-                <select value={fromBaseline} onChange={e => setFromBaseline(e.target.value)}>
-                  <option value="">Select baseline...</option>
-                  {baselinesQuery.data.items.map((item, index) => (
-                    <option key={buildBaselineKey(item, index)} value={item.ref}>
-                      {item.ref} - {item.label || formatDate(item.createdAt)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field" style={{ flex: 1 }}>
-                <span>To Baseline</span>
-                <select value={toBaseline} onChange={e => setToBaseline(e.target.value)}>
-                  <option value="">Select baseline...</option>
-                  {baselinesQuery.data.items.map((item, index) => (
-                    <option key={buildBaselineKey(item, index)} value={item.ref}>
-                      {item.ref} - {item.label || formatDate(item.createdAt)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                onClick={() => setShowComparison(true)}
-                disabled={!fromBaseline || !toBaseline || fromBaseline === toBaseline}
-              >
-                Compare
-              </button>
-            </div>
-
-            {showComparison && comparisonQuery.isLoading && <Spinner />}
-            {showComparison && comparisonQuery.isError && <ErrorState message={(comparisonQuery.error as Error).message} />}
-            {showComparison && comparisonQuery.data && (
-              <div className="comparison-results">
-                <h3>Comparison: {comparisonQuery.data.fromBaseline.ref} → {comparisonQuery.data.toBaseline.ref}</h3>
-
-                <table className="data-table" style={{ marginTop: "1rem" }}>
-                  <thead>
-                    <tr>
-                      <th>Entity Type</th>
-                      <th>Added</th>
-                      <th>Modified</th>
-                      <th>Removed</th>
-                      <th>Unchanged</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><strong>Requirements</strong></td>
-                      <td style={{ color: (comparisonQuery.data.requirements?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.requirements?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.requirements?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.requirements?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.requirements?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.requirements?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.requirements?.unchanged?.length ?? 0}</td>
-                    </tr>
-                    <tr>
-                      <td>Documents</td>
-                      <td style={{ color: (comparisonQuery.data.documents?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.documents?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.documents?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.documents?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.documents?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.documents?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.documents?.unchanged?.length ?? 0}</td>
-                    </tr>
-                    <tr>
-                      <td>Sections</td>
-                      <td style={{ color: (comparisonQuery.data.documentSections?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.documentSections?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.documentSections?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.documentSections?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.documentSections?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.documentSections?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.documentSections?.unchanged?.length ?? 0}</td>
-                    </tr>
-                    <tr>
-                      <td>Infos</td>
-                      <td style={{ color: (comparisonQuery.data.infos?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.infos?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.infos?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.infos?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.infos?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.infos?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.infos?.unchanged?.length ?? 0}</td>
-                    </tr>
-                    <tr>
-                      <td>Surrogates</td>
-                      <td style={{ color: (comparisonQuery.data.surrogateReferences?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.surrogateReferences?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.surrogateReferences?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.surrogateReferences?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.surrogateReferences?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.surrogateReferences?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.surrogateReferences?.unchanged?.length ?? 0}</td>
-                    </tr>
-                    <tr>
-                      <td>Trace Links</td>
-                      <td style={{ color: (comparisonQuery.data.traceLinks?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.traceLinks?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.traceLinks?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.traceLinks?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.traceLinks?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.traceLinks?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.traceLinks?.unchanged?.length ?? 0}</td>
-                    </tr>
-                    <tr>
-                      <td>Linksets</td>
-                      <td style={{ color: (comparisonQuery.data.linksets?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.linksets?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.linksets?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.linksets?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.linksets?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.linksets?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.linksets?.unchanged?.length ?? 0}</td>
-                    </tr>
-                    <tr>
-                      <td>Diagrams</td>
-                      <td style={{ color: (comparisonQuery.data.diagrams?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.diagrams?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.diagrams?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.diagrams?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.diagrams?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.diagrams?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.diagrams?.unchanged?.length ?? 0}</td>
-                    </tr>
-                    <tr>
-                      <td>Blocks</td>
-                      <td style={{ color: (comparisonQuery.data.blocks?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.blocks?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.blocks?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.blocks?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.blocks?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.blocks?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.blocks?.unchanged?.length ?? 0}</td>
-                    </tr>
-                    <tr>
-                      <td>Connectors</td>
-                      <td style={{ color: (comparisonQuery.data.connectors?.added?.length ?? 0) > 0 ? 'green' : 'inherit' }}>
-                        {comparisonQuery.data.connectors?.added?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.connectors?.modified?.length ?? 0) > 0 ? 'orange' : 'inherit' }}>
-                        {comparisonQuery.data.connectors?.modified?.length ?? 0}
-                      </td>
-                      <td style={{ color: (comparisonQuery.data.connectors?.removed?.length ?? 0) > 0 ? 'red' : 'inherit' }}>
-                        {comparisonQuery.data.connectors?.removed?.length ?? 0}
-                      </td>
-                      <td>{comparisonQuery.data.connectors?.unchanged?.length ?? 0}</td>
-                    </tr>
-                  </tbody>
-                </table>
+    <PageLayout
+      title="Baselines"
+      description={`${state.tenant} / ${state.project}`}
+    >
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Create Baseline</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  label="Label"
+                  htmlFor="label"
+                  hint="Optional: e.g., Release 1.0"
+                >
+                  <Input
+                    id="label"
+                    value={label}
+                    onChange={event => setLabel(event.target.value)}
+                    placeholder="Release 1.0"
+                  />
+                </FormField>
+                <FormField
+                  label="Author"
+                  htmlFor="author"
+                  hint="Optional"
+                >
+                  <Input
+                    id="author"
+                    value={author}
+                    onChange={event => setAuthor(event.target.value)}
+                    placeholder="Jane Doe"
+                  />
+                </FormField>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button type="submit" disabled={createBaselineMutation.isPending}>
+                  {createBaselineMutation.isPending ? "Creating..." : "Create Baseline"}
+                </Button>
+              </div>
+            </form>
+            {createBaselineMutation.isError && (
+              <div className="mt-4">
+                <ErrorState message={(createBaselineMutation.error as Error).message} />
               </div>
             )}
-          </div>
-        ) : (
-          <p>At least two baselines are required for comparison.</p>
-        )}
-      </section>
-    </div>
+            {createBaselineMutation.isSuccess && (
+              <div className="mt-4 p-3 bg-success/10 border border-success/20 rounded-md text-sm text-success">
+                Baseline {createBaselineMutation.data.ref} created successfully.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Baseline History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {baselinesQuery.isLoading ? (
+              <div className="flex justify-center py-8">
+                <Spinner />
+              </div>
+            ) : baselinesQuery.isError ? (
+              <ErrorState message={(baselinesQuery.error as Error).message} />
+            ) : baselinesQuery.data?.items.length ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead rowSpan={2}>Ref</TableHead>
+                      <TableHead rowSpan={2}>Created</TableHead>
+                      <TableHead rowSpan={2}>Author</TableHead>
+                      <TableHead rowSpan={2}>Label</TableHead>
+                      <TableHead colSpan={10} className="text-center border-b">Version Snapshot Counts</TableHead>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>Req</TableHead>
+                      <TableHead>Doc</TableHead>
+                      <TableHead>Sec</TableHead>
+                      <TableHead>Info</TableHead>
+                      <TableHead>Sur</TableHead>
+                      <TableHead>Link</TableHead>
+                      <TableHead>LSet</TableHead>
+                      <TableHead>Diag</TableHead>
+                      <TableHead>Blk</TableHead>
+                      <TableHead>Conn</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {baselinesQuery.data.items.map((item, index) => (
+                      <TableRow key={buildBaselineKey(item, index)}>
+                        <TableCell className="font-semibold">{item.ref}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{formatDate(item.createdAt)}</TableCell>
+                        <TableCell>{item.author ?? "—"}</TableCell>
+                        <TableCell>{item.label ?? "—"}</TableCell>
+                        <TableCell className="text-center">{item.requirementVersionCount ?? 0}</TableCell>
+                        <TableCell className="text-center">{item.documentVersionCount ?? 0}</TableCell>
+                        <TableCell className="text-center">{item.documentSectionVersionCount ?? 0}</TableCell>
+                        <TableCell className="text-center">{item.infoVersionCount ?? 0}</TableCell>
+                        <TableCell className="text-center">{item.surrogateVersionCount ?? 0}</TableCell>
+                        <TableCell className="text-center">{item.traceLinkVersionCount ?? 0}</TableCell>
+                        <TableCell className="text-center">{item.linksetVersionCount ?? 0}</TableCell>
+                        <TableCell className="text-center">{item.diagramVersionCount ?? 0}</TableCell>
+                        <TableCell className="text-center">{item.blockVersionCount ?? 0}</TableCell>
+                        <TableCell className="text-center">{item.connectorVersionCount ?? 0}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <EmptyState
+                icon={GitBranch}
+                title="No baselines yet"
+                description="Create your first baseline using the form above."
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Compare Baselines</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {baselinesQuery.data?.items.length && baselinesQuery.data.items.length >= 2 ? (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <FormField label="From Baseline" htmlFor="from-baseline" className="flex-1">
+                    <select
+                      id="from-baseline"
+                      value={fromBaseline}
+                      onChange={e => setFromBaseline(e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">Select baseline...</option>
+                      {baselinesQuery.data.items.map((item, index) => (
+                        <option key={buildBaselineKey(item, index)} value={item.ref}>
+                          {item.ref} - {item.label || formatDate(item.createdAt)}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  <FormField label="To Baseline" htmlFor="to-baseline" className="flex-1">
+                    <select
+                      id="to-baseline"
+                      value={toBaseline}
+                      onChange={e => setToBaseline(e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">Select baseline...</option>
+                      {baselinesQuery.data.items.map((item, index) => (
+                        <option key={buildBaselineKey(item, index)} value={item.ref}>
+                          {item.ref} - {item.label || formatDate(item.createdAt)}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  <div className="flex items-end">
+                    <Button
+                      onClick={() => setShowComparison(true)}
+                      disabled={!fromBaseline || !toBaseline || fromBaseline === toBaseline}
+                    >
+                      <GitCompare className="h-4 w-4 mr-2" />
+                      Compare
+                    </Button>
+                  </div>
+                </div>
+
+                {showComparison && comparisonQuery.isLoading && (
+                  <div className="flex justify-center py-8">
+                    <Spinner />
+                  </div>
+                )}
+                {showComparison && comparisonQuery.isError && (
+                  <ErrorState message={(comparisonQuery.error as Error).message} />
+                )}
+                {showComparison && comparisonQuery.data && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">
+                      Comparison: {comparisonQuery.data.fromBaseline.ref} → {comparisonQuery.data.toBaseline.ref}
+                    </h3>
+
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Entity Type</TableHead>
+                            <TableHead className="text-center">Added</TableHead>
+                            <TableHead className="text-center">Modified</TableHead>
+                            <TableHead className="text-center">Removed</TableHead>
+                            <TableHead className="text-center">Unchanged</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="font-semibold">Requirements</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.requirements?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.requirements?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.requirements?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.requirements?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.requirements?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.requirements?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.requirements?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Documents</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.documents?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.documents?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.documents?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.documents?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.documents?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.documents?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.documents?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Sections</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.documentSections?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.documentSections?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.documentSections?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.documentSections?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.documentSections?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.documentSections?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.documentSections?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Infos</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.infos?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.infos?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.infos?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.infos?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.infos?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.infos?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.infos?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Surrogates</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.surrogateReferences?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.surrogateReferences?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.surrogateReferences?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.surrogateReferences?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.surrogateReferences?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.surrogateReferences?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.surrogateReferences?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Trace Links</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.traceLinks?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.traceLinks?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.traceLinks?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.traceLinks?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.traceLinks?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.traceLinks?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.traceLinks?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Linksets</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.linksets?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.linksets?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.linksets?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.linksets?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.linksets?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.linksets?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.linksets?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Diagrams</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.diagrams?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.diagrams?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.diagrams?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.diagrams?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.diagrams?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.diagrams?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.diagrams?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Blocks</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.blocks?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.blocks?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.blocks?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.blocks?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.blocks?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.blocks?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.blocks?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Connectors</TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.connectors?.added?.length ?? 0) > 0 ? 'text-success font-medium' : ''}`}>
+                              {comparisonQuery.data.connectors?.added?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.connectors?.modified?.length ?? 0) > 0 ? 'text-warning font-medium' : ''}`}>
+                              {comparisonQuery.data.connectors?.modified?.length ?? 0}
+                            </TableCell>
+                            <TableCell className={`text-center ${(comparisonQuery.data.connectors?.removed?.length ?? 0) > 0 ? 'text-error font-medium' : ''}`}>
+                              {comparisonQuery.data.connectors?.removed?.length ?? 0}
+                            </TableCell>
+                            <TableCell className="text-center">{comparisonQuery.data.connectors?.unchanged?.length ?? 0}</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <EmptyState
+                icon={GitCompare}
+                title="Not enough baselines"
+                description="At least two baselines are required for comparison."
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </PageLayout>
   );
 }

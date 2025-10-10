@@ -216,6 +216,32 @@ restore_neo4j_component() {
         while [ $retries -lt 30 ]; do
             if docker exec ${NEO4J_CONTAINER} wget -qO- http://localhost:7474 >/dev/null 2>&1; then
                 log_success "Neo4j is ready"
+
+                # Run post-restore cleanup to fix any duplicate nodes
+                log "Running post-restore cleanup..."
+                if command -v npx &> /dev/null; then
+                    cd "${PROJECT_ROOT}/backend" && npx tsx ../scripts/post-restore-cleanup.ts
+                    if [ $? -eq 0 ]; then
+                        log_success "Post-restore cleanup completed"
+                    else
+                        log "Warning: Post-restore cleanup encountered issues (check logs)"
+                    fi
+
+                    # Run data verification to check for missing node types
+                    log "Running post-restore data verification..."
+                    cd "${PROJECT_ROOT}" && npx tsx scripts/verify-restore-data.ts
+                    if [ $? -eq 0 ]; then
+                        log_success "Data verification passed"
+                    else
+                        log "Warning: Data verification found issues (check logs)"
+                        log "Some node types or relationships may be missing"
+                    fi
+                else
+                    log "Warning: npx not found, skipping post-restore cleanup and verification"
+                    log "Run manually: cd backend && npx tsx ../scripts/post-restore-cleanup.ts"
+                    log "              npx tsx scripts/verify-restore-data.ts"
+                fi
+
                 return 0
             fi
             sleep 2

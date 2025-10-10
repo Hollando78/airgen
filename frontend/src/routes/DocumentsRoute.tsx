@@ -12,6 +12,9 @@ import { ErrorState } from "../components/ErrorState";
 import "../components/FileManager/FileManager.css";
 import { UploadSurrogateModal } from "../components/UploadSurrogateModal";
 import { useFloatingDocuments } from "../contexts/FloatingDocumentsContext";
+import { PageLayout } from "../components/layout/PageLayout";
+import { EmptyState } from "../components/ui/empty-state";
+import { FileText } from "lucide-react";
 
 export function DocumentsRoute(): JSX.Element {
   const api = useApiClient();
@@ -45,12 +48,16 @@ export function DocumentsRoute(): JSX.Element {
 
   if (!tenant || !project) {
     return (
-      <div className="panel">
-        <div className="panel-header">
-          <h1>Documents</h1>
-          <p>Select a tenant and project to view documents.</p>
-        </div>
-      </div>
+      <PageLayout
+        title="Documents"
+        description="Organize requirements into structured documents"
+      >
+        <EmptyState
+          icon={FileText}
+          title="No Project Selected"
+          description="Select a tenant and project to view and manage documents."
+        />
+      </PageLayout>
     );
   }
 
@@ -71,16 +78,15 @@ export function DocumentsRoute(): JSX.Element {
 
   return (
     <>
-      <div className="panel-stack">
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <h1>Documents</h1>
-              <p>Organize requirements into structured documents for {project}.</p>
-            </div>
-          </div>
-
-          <DocumentManager
+      <PageLayout
+        title="Documents"
+        description={`Organize requirements into structured documents for ${project}`}
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Documents' }
+        ]}
+      >
+        <DocumentManager
             tenant={tenant}
             project={project}
             folders={folders}
@@ -117,8 +123,7 @@ export function DocumentsRoute(): JSX.Element {
               });
             }}
           />
-        </div>
-      </div>
+      </PageLayout>
 
       <CreateDocumentModal
         isOpen={showCreateModal}

@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { useApiClient } from "../lib/client";
 import { toast } from "sonner";
+import { PageLayout } from "../components/layout/PageLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { EmptyState } from "../components/ui/empty-state";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../components/ui/table";
+import { Database, HardDrive, Cloud, Calendar, RefreshCw, Shield, AlertTriangle } from "lucide-react";
 import type {
   BackupInfo,
   RemoteSnapshot,
@@ -180,401 +186,346 @@ export default function AdminRecoveryRoute() {
   };
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "1400px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>Admin Recovery</h1>
-        <p style={{ color: "#64748b" }}>
-          Manage backups, verify integrity, and restore from backups
-        </p>
-      </div>
-
-      {/* System Status */}
-      {status && (
-        <div
-          style={{
-            padding: "1.5rem",
-            backgroundColor: "#f8fafc",
-            borderRadius: "8px",
-            marginBottom: "2rem",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>Backup System Status</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1rem" }}>
-            <div>
-              <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>Local Backups</div>
-              <div style={{ fontSize: "0.875rem", color: "#64748b" }}>
-                <div>Daily: {status.localBackups.dailyCount} backups</div>
-                <div>Weekly: {status.localBackups.weeklyCount} backups</div>
-                <div>Last daily: {status.localBackups.lastDaily}</div>
-                <div>Last weekly: {status.localBackups.lastWeekly}</div>
-                <div>Total size: {status.localBackups.totalSize}</div>
-              </div>
-            </div>
-            <div>
-              <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>Remote Backups</div>
-              <div style={{ fontSize: "0.875rem", color: "#64748b" }}>
+    <PageLayout
+      title="Admin Recovery"
+      description="Manage backups, verify integrity, and restore from backups"
+      maxWidth="7xl"
+    >
+      <div className="space-y-6">
+        {/* System Status */}
+        {status && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Backup System Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
-                  Status: {status.remoteBackups.configured ? (
-                    <span style={{ color: "#10b981" }}>✓ Configured</span>
-                  ) : (
-                    <span style={{ color: "#f59e0b" }}>Not configured</span>
-                  )}
+                  <div className="flex items-center gap-2 font-semibold mb-3">
+                    <HardDrive className="h-4 w-4 text-muted-foreground" />
+                    Local Backups
+                  </div>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <div>Daily: {status.localBackups.dailyCount} backups</div>
+                    <div>Weekly: {status.localBackups.weeklyCount} backups</div>
+                    <div>Last daily: {status.localBackups.lastDaily}</div>
+                    <div>Last weekly: {status.localBackups.lastWeekly}</div>
+                    <div>Total size: {status.localBackups.totalSize}</div>
+                  </div>
                 </div>
-                {status.remoteBackups.configured && (
-                  <>
-                    <div>Count: {status.remoteBackups.count} snapshots</div>
-                    <div>Last upload: {status.remoteBackups.lastSnapshot}</div>
-                  </>
-                )}
+                <div>
+                  <div className="flex items-center gap-2 font-semibold mb-3">
+                    <Cloud className="h-4 w-4 text-muted-foreground" />
+                    Remote Backups
+                  </div>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      Status:{" "}
+                      {status.remoteBackups.configured ? (
+                        <span className="text-success font-medium">✓ Configured</span>
+                      ) : (
+                        <span className="text-warning font-medium">Not configured</span>
+                      )}
+                    </div>
+                    {status.remoteBackups.configured && (
+                      <>
+                        <div>Count: {status.remoteBackups.count} snapshots</div>
+                        <div>Last upload: {status.remoteBackups.lastSnapshot}</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 font-semibold mb-3">
+                    <HardDrive className="h-4 w-4 text-muted-foreground" />
+                    Disk Space
+                  </div>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <div>Available: {status.diskSpace.available}</div>
+                    <div>Used: {status.diskSpace.used}</div>
+                    <div>Usage: {status.diskSpace.percentage}</div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 font-semibold mb-3">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    Scheduled Jobs
+                  </div>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    {status.cronJobs.length > 0 ? (
+                      status.cronJobs.map((job, idx) => (
+                        <div key={idx}>{job.schedule} - Backup</div>
+                      ))
+                    ) : (
+                      <div>No cron jobs configured</div>
+                    )}
+                  </div>
+                </div>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Manual Backup Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Manual Backup</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3 mb-4">
+              <Button
+                onClick={handleTriggerDaily}
+                disabled={isOperationRunning}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Database className="h-4 w-4 mr-2" />
+                Trigger Daily Backup (Local)
+              </Button>
+              <Button
+                onClick={handleTriggerWeekly}
+                disabled={isOperationRunning}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Cloud className="h-4 w-4 mr-2" />
+                Trigger Weekly Backup (Local + Remote)
+              </Button>
+              <Button
+                onClick={loadData}
+                disabled={isOperationRunning}
+                variant="secondary"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Status
+              </Button>
             </div>
-            <div>
-              <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>Disk Space</div>
-              <div style={{ fontSize: "0.875rem", color: "#64748b" }}>
-                <div>Available: {status.diskSpace.available}</div>
-                <div>Used: {status.diskSpace.used}</div>
-                <div>Usage: {status.diskSpace.percentage}</div>
-              </div>
+            <div className="text-sm text-muted-foreground p-3 bg-muted rounded-md">
+              <strong>Note:</strong> Daily backups are incremental (faster). Weekly backups include full volume snapshots and remote upload.
             </div>
-            <div>
-              <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>Scheduled Jobs</div>
-              <div style={{ fontSize: "0.875rem", color: "#64748b" }}>
-                {status.cronJobs.length > 0 ? (
-                  status.cronJobs.map((job, idx) => (
-                    <div key={idx}>{job.schedule} - Backup</div>
-                  ))
+          </CardContent>
+        </Card>
+
+        {/* Local Backups List */}
+        {localBackups && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Local Backups</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <h3 className="text-base font-semibold mb-3">Daily Backups</h3>
+                {localBackups.daily.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">Select</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Size</TableHead>
+                          <TableHead>Files</TableHead>
+                          <TableHead>Modified</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {localBackups.daily.map((backup) => (
+                          <TableRow key={backup.path}>
+                            <TableCell>
+                              <input
+                                type="radio"
+                                name="selectedBackup"
+                                value={backup.path}
+                                checked={selectedBackup === backup.path}
+                                onChange={(e) => setSelectedBackup(e.target.value)}
+                                className="cursor-pointer"
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{backup.name}</TableCell>
+                            <TableCell>{backup.size}</TableCell>
+                            <TableCell>{backup.files}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{formatDate(backup.modified)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 ) : (
-                  <div>No cron jobs configured</div>
+                  <p className="text-sm text-muted-foreground p-4">No daily backups found</p>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Manual Backup Actions */}
-      <div
-        style={{
-          padding: "1.5rem",
-          backgroundColor: "#ffffff",
-          borderRadius: "8px",
-          marginBottom: "2rem",
-          border: "1px solid #e2e8f0",
-        }}
-      >
-        <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>Manual Backup</h2>
-        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-          <button
-            onClick={handleTriggerDaily}
-            disabled={isOperationRunning}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#3b82f6",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              cursor: isOperationRunning ? "not-allowed" : "pointer",
-              opacity: isOperationRunning ? 0.5 : 1,
-            }}
-          >
-            Trigger Daily Backup (Local)
-          </button>
-          <button
-            onClick={handleTriggerWeekly}
-            disabled={isOperationRunning}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#8b5cf6",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              cursor: isOperationRunning ? "not-allowed" : "pointer",
-              opacity: isOperationRunning ? 0.5 : 1,
-            }}
-          >
-            Trigger Weekly Backup (Local + Remote)
-          </button>
-          <button
-            onClick={loadData}
-            disabled={isOperationRunning}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#10b981",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              cursor: isOperationRunning ? "not-allowed" : "pointer",
-              opacity: isOperationRunning ? 0.5 : 1,
-            }}
-          >
-            Refresh Status
-          </button>
-        </div>
-        <div style={{ marginTop: "1rem", fontSize: "0.875rem", color: "#64748b" }}>
-          <strong>Note:</strong> Daily backups are incremental (faster). Weekly backups include full volume snapshots and remote upload.
-        </div>
+              <div>
+                <h3 className="text-base font-semibold mb-3">Weekly Backups</h3>
+                {localBackups.weekly.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">Select</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Size</TableHead>
+                          <TableHead>Files</TableHead>
+                          <TableHead>Modified</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {localBackups.weekly.map((backup) => (
+                          <TableRow key={backup.path}>
+                            <TableCell>
+                              <input
+                                type="radio"
+                                name="selectedBackup"
+                                value={backup.path}
+                                checked={selectedBackup === backup.path}
+                                onChange={(e) => setSelectedBackup(e.target.value)}
+                                className="cursor-pointer"
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{backup.name}</TableCell>
+                            <TableCell>{backup.size}</TableCell>
+                            <TableCell>{backup.files}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{formatDate(backup.modified)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground p-4">No weekly backups found</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Remote Backups List */}
+        {remoteBackups && remoteBackups.configured && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Cloud className="h-5 w-5" />
+                Remote Backups
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {remoteBackups.snapshots.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Snapshot ID</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Hostname</TableHead>
+                        <TableHead>Tags</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {remoteBackups.snapshots.map((snapshot) => (
+                        <TableRow key={snapshot.id}>
+                          <TableCell className="font-mono text-xs">{snapshot.id}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{formatDate(snapshot.time)}</TableCell>
+                          <TableCell>{snapshot.hostname}</TableCell>
+                          <TableCell className="text-sm">{snapshot.tags.join(", ")}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <EmptyState
+                  icon={Cloud}
+                  title="No remote snapshots found"
+                  description="Remote backups will appear here after weekly backup runs."
+                />
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Backup Operations */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Backup Operations
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Selected Backup:
+              </label>
+              <div className="text-sm text-muted-foreground font-mono bg-muted p-2 rounded-md">
+                {selectedBackup || "No backup selected"}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Restore Component:
+              </label>
+              <select
+                value={restoreComponent}
+                onChange={(e) => setRestoreComponent(e.target.value)}
+                className="w-full md:w-64 px-3 py-2 text-sm border border-input rounded-md bg-background"
+              >
+                <option value="all">All Components</option>
+                <option value="neo4j">Neo4j Only</option>
+                <option value="postgres">PostgreSQL Only</option>
+                <option value="workspace">Workspace Only</option>
+                <option value="config">Config Only</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={handleVerifyBackup}
+                disabled={isOperationRunning || !selectedBackup}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Shield className="h-4 w-4 mr-2" />
+                Verify Backup Integrity
+              </Button>
+              <Button
+                onClick={handleRestoreDryRun}
+                disabled={isOperationRunning || !selectedBackup}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Restore (Dry-Run Only)
+              </Button>
+            </div>
+
+            <div className="text-sm text-muted-foreground p-3 bg-muted rounded-md">
+              <strong>Note:</strong> Dry-run shows what would be restored without making any changes.
+              For actual restoration, use the CLI: <code className="bg-background px-1 rounded">/root/airgen/scripts/backup-restore.sh [path]</code>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Operation Output */}
+        {showOutput && (
+          <Card className="bg-slate-900 border-slate-700">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-slate-200">Operation Output</CardTitle>
+                <button
+                  onClick={() => setShowOutput(false)}
+                  className="text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <pre className="text-slate-200 font-mono text-xs whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+                {operationOutput || "No output yet..."}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
       </div>
-
-      {/* Local Backups List */}
-      {localBackups && (
-        <div
-          style={{
-            padding: "1.5rem",
-            backgroundColor: "#ffffff",
-            borderRadius: "8px",
-            marginBottom: "2rem",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>Local Backups</h2>
-
-          <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem", fontWeight: "600" }}>Daily Backups</h3>
-          {localBackups.daily.length > 0 ? (
-            <div style={{ overflowX: "auto", marginBottom: "1.5rem" }}>
-              <table style={{ width: "100%", fontSize: "0.875rem", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Select</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Name</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Size</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Files</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Modified</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {localBackups.daily.map((backup) => (
-                    <tr key={backup.path} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "0.75rem" }}>
-                        <input
-                          type="radio"
-                          name="selectedBackup"
-                          value={backup.path}
-                          checked={selectedBackup === backup.path}
-                          onChange={(e) => setSelectedBackup(e.target.value)}
-                        />
-                      </td>
-                      <td style={{ padding: "0.75rem" }}>{backup.name}</td>
-                      <td style={{ padding: "0.75rem" }}>{backup.size}</td>
-                      <td style={{ padding: "0.75rem" }}>{backup.files}</td>
-                      <td style={{ padding: "0.75rem" }}>{formatDate(backup.modified)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div style={{ padding: "1rem", color: "#64748b", marginBottom: "1.5rem" }}>No daily backups found</div>
-          )}
-
-          <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem", fontWeight: "600" }}>Weekly Backups</h3>
-          {localBackups.weekly.length > 0 ? (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", fontSize: "0.875rem", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Select</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Name</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Size</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Files</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Modified</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {localBackups.weekly.map((backup) => (
-                    <tr key={backup.path} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "0.75rem" }}>
-                        <input
-                          type="radio"
-                          name="selectedBackup"
-                          value={backup.path}
-                          checked={selectedBackup === backup.path}
-                          onChange={(e) => setSelectedBackup(e.target.value)}
-                        />
-                      </td>
-                      <td style={{ padding: "0.75rem" }}>{backup.name}</td>
-                      <td style={{ padding: "0.75rem" }}>{backup.size}</td>
-                      <td style={{ padding: "0.75rem" }}>{backup.files}</td>
-                      <td style={{ padding: "0.75rem" }}>{formatDate(backup.modified)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div style={{ padding: "1rem", color: "#64748b" }}>No weekly backups found</div>
-          )}
-        </div>
-      )}
-
-      {/* Remote Backups List */}
-      {remoteBackups && remoteBackups.configured && (
-        <div
-          style={{
-            padding: "1.5rem",
-            backgroundColor: "#ffffff",
-            borderRadius: "8px",
-            marginBottom: "2rem",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>Remote Backups</h2>
-          {remoteBackups.snapshots.length > 0 ? (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", fontSize: "0.875rem", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Snapshot ID</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Time</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Hostname</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left" }}>Tags</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {remoteBackups.snapshots.map((snapshot) => (
-                    <tr key={snapshot.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "0.75rem", fontFamily: "monospace" }}>{snapshot.id}</td>
-                      <td style={{ padding: "0.75rem" }}>{formatDate(snapshot.time)}</td>
-                      <td style={{ padding: "0.75rem" }}>{snapshot.hostname}</td>
-                      <td style={{ padding: "0.75rem" }}>{snapshot.tags.join(", ")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div style={{ padding: "1rem", color: "#64748b" }}>No remote snapshots found</div>
-          )}
-        </div>
-      )}
-
-      {/* Backup Operations */}
-      <div
-        style={{
-          padding: "1.5rem",
-          backgroundColor: "#ffffff",
-          borderRadius: "8px",
-          marginBottom: "2rem",
-          border: "1px solid #e2e8f0",
-        }}
-      >
-        <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>Backup Operations</h2>
-
-        <div style={{ marginBottom: "1rem" }}>
-          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>
-            Selected Backup:
-          </label>
-          <div style={{ fontSize: "0.875rem", color: "#64748b", fontFamily: "monospace" }}>
-            {selectedBackup || "No backup selected"}
-          </div>
-        </div>
-
-        <div style={{ marginBottom: "1.5rem" }}>
-          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>
-            Restore Component:
-          </label>
-          <select
-            value={restoreComponent}
-            onChange={(e) => setRestoreComponent(e.target.value)}
-            style={{
-              padding: "0.5rem",
-              border: "1px solid #e2e8f0",
-              borderRadius: "6px",
-              fontSize: "0.875rem",
-              width: "200px",
-            }}
-          >
-            <option value="all">All Components</option>
-            <option value="neo4j">Neo4j Only</option>
-            <option value="postgres">PostgreSQL Only</option>
-            <option value="workspace">Workspace Only</option>
-            <option value="config">Config Only</option>
-          </select>
-        </div>
-
-        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-          <button
-            onClick={handleVerifyBackup}
-            disabled={isOperationRunning || !selectedBackup}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#10b981",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              cursor: isOperationRunning || !selectedBackup ? "not-allowed" : "pointer",
-              opacity: isOperationRunning || !selectedBackup ? 0.5 : 1,
-            }}
-          >
-            Verify Backup Integrity
-          </button>
-          <button
-            onClick={handleRestoreDryRun}
-            disabled={isOperationRunning || !selectedBackup}
-            style={{
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#f59e0b",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              cursor: isOperationRunning || !selectedBackup ? "not-allowed" : "pointer",
-              opacity: isOperationRunning || !selectedBackup ? 0.5 : 1,
-            }}
-          >
-            Restore (Dry-Run Only)
-          </button>
-        </div>
-        <div style={{ marginTop: "1rem", fontSize: "0.875rem", color: "#64748b" }}>
-          <strong>Note:</strong> Dry-run shows what would be restored without making any changes.
-          For actual restoration, use the CLI: <code>/root/airgen/scripts/backup-restore.sh [path]</code>
-        </div>
-      </div>
-
-      {/* Operation Output */}
-      {showOutput && (
-        <div
-          style={{
-            padding: "1.5rem",
-            backgroundColor: "#1e293b",
-            borderRadius: "8px",
-            border: "1px solid #334155",
-            color: "#e2e8f0",
-            fontFamily: "monospace",
-            fontSize: "0.875rem",
-            whiteSpace: "pre-wrap",
-            overflowX: "auto",
-            maxHeight: "400px",
-            overflowY: "auto",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
-            <strong>Operation Output:</strong>
-            <button
-              onClick={() => setShowOutput(false)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#94a3b8",
-                cursor: "pointer",
-                fontSize: "1rem",
-              }}
-            >
-              ✕
-            </button>
-          </div>
-          {operationOutput || "No output yet..."}
-        </div>
-      )}
-    </div>
+    </PageLayout>
   );
 }
