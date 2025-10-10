@@ -212,6 +212,8 @@ export function useApiClient() {
         request<{ requirements: RequirementRecord[]; count: number }>(`/requirements/${tenant}/${project}/archive`, { method: "POST", body: JSON.stringify({ requirementIds }) }),
       unarchiveRequirements: (tenant: string, project: string, requirementIds: string[]) =>
         request<{ requirements: RequirementRecord[]; count: number }>(`/requirements/${tenant}/${project}/unarchive`, { method: "POST", body: JSON.stringify({ requirementIds }) }),
+      archiveCandidates: (candidateIds: string[]) =>
+        request<{ archived: number }>(`/airgen/candidates/archive`, { method: "POST", body: JSON.stringify({ candidateIds }) }),
       createBaseline: (body: { tenant: string; projectKey: string; label?: string; author?: string }) =>
         request<BaselineResponse>(`/baseline`, { method: "POST", body: JSON.stringify(body) }),
       listBaselines: (tenant: string, project: string) =>

@@ -82,7 +82,7 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
           [rr IN relatedReqs WHERE rr IS NOT NULL | {id: id(rr), label: rr.ref, type: 'Requirement', properties: properties(rr)}] +
           [ls IN linksets WHERE ls IS NOT NULL | {id: id(ls), label: ls.sourceDocumentSlug + ' -> ' + ls.targetDocumentSlug, type: 'DocumentLinkset', properties: properties(ls)}] +
           [tl IN traceLinks WHERE tl IS NOT NULL | {id: id(tl), label: tl.linkType + ': ' + tl.sourceRequirementId + ' -> ' + tl.targetRequirementId, type: 'TraceLink', properties: properties(tl)}] +
-          [c IN candidates WHERE c IS NOT NULL | {id: id(c), label: substring(c.text, 0, 50) + '...', type: 'RequirementCandidate', properties: properties(c)}] +
+          [c IN candidates WHERE c IS NOT NULL AND c.status = 'pending' | {id: id(c), label: substring(c.text, 0, 50) + '...', type: 'RequirementCandidate', properties: properties(c)}] +
           [dia IN diagrams WHERE dia IS NOT NULL | {id: id(dia), label: dia.name, type: 'ArchitectureDiagram', properties: properties(dia)}] +
           [bd IN blockDefs WHERE bd IS NOT NULL | {id: id(bd), label: bd.name, type: 'ArchitectureBlock', properties: properties(bd)}] +
           [pb IN placedBlocks WHERE pb IS NOT NULL | {id: id(pb), label: pb.name, type: 'ArchitectureBlock', properties: properties(pb)}] +

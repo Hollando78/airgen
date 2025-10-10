@@ -11,6 +11,7 @@ import {
   updateRequirementCandidate,
   createRequirement
 } from "../services/graph.js";
+import { bulkArchiveCandidates } from "../services/graph/requirement-candidates.js";
 import { draftCandidates } from "../services/drafting.js";
 import { generateDiagram } from "../services/diagram-generation.js";
 import { 
@@ -411,6 +412,25 @@ export default async function airgenRoutes(app: FastifyInstance) {
       req.log.error({ err: error, candidateId: candidate.id }, "Failed to accept candidate");
       return reply.status(500).send({
         error: "Failed to accept candidate requirement.",
+        detail: error instanceof Error ? error.message : undefined
+      });
+    }
+  });
+
+  const archiveBody = z.object({
+    candidateIds: z.array(z.string().min(1)).min(1)
+  });
+
+  app.post("/airgen/candidates/archive", { preHandler: [app.authenticate] }, async (req, reply) => {
+    const body = archiveBody.parse(req.body);
+
+    try {
+      const result = await bulkArchiveCandidates(body.candidateIds);
+      return { archived: result.archived };
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to archive candidates");
+      return reply.status(500).send({
+        error: "Failed to archive candidates.",
         detail: error instanceof Error ? error.message : undefined
       });
     }
