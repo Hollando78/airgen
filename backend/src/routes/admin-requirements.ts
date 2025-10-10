@@ -347,7 +347,26 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
             OPTIONAL MATCH (traceLink)-[:FROM_REQUIREMENT]->(fromReq:Requirement)
             WHERE traceLink.targetRequirementId = requirement.id
 
-            // Check if links are broken or duplicate
+            // Get the documents containing source and target requirements
+            OPTIONAL MATCH (sourceDoc:Document)-[:CONTAINS]->(sourceReqForDoc:Requirement)
+            WHERE traceLink IS NOT NULL
+              AND sourceReqForDoc.id = CASE
+                WHEN traceLink.sourceRequirementId = requirement.id THEN requirement.id
+                ELSE (CASE WHEN fromReq IS NOT NULL THEN fromReq.id ELSE NULL END)
+              END
+
+            OPTIONAL MATCH (targetDoc:Document)-[:CONTAINS]->(targetReqForDoc:Requirement)
+            WHERE traceLink IS NOT NULL
+              AND targetReqForDoc.id = CASE
+                WHEN traceLink.sourceRequirementId = requirement.id THEN (CASE WHEN toReq IS NOT NULL THEN toReq.id ELSE NULL END)
+                ELSE requirement.id
+              END
+
+            // Check if a DocumentLinkset exists for this document pair
+            OPTIONAL MATCH (sourceDoc)<-[:LINKS_FROM]-(linkset:DocumentLinkset)-[:LINKS_TO]->(targetDoc)
+            WHERE linkset.tenant = $tenantSlug AND linkset.projectKey = $projectSlug
+
+            // Check if links are broken, duplicate, or missing linkset
             WITH requirement,
                  [link IN collect({
                    link: traceLink,
@@ -364,28 +383,33 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
                    isBroken: traceLink IS NOT NULL AND (
                      (traceLink.sourceRequirementId = requirement.id AND (toReq IS NULL OR toReq.deleted = true OR toReq.archived = true)) OR
                      (traceLink.targetRequirementId = requirement.id AND (fromReq IS NULL OR fromReq.deleted = true OR fromReq.archived = true))
-                   )
+                   ),
+                   isMissingLinkset: traceLink IS NOT NULL AND toReq IS NOT NULL AND fromReq IS NOT NULL
+                     AND sourceDoc IS NOT NULL AND targetDoc IS NOT NULL AND linkset IS NULL
                  }) WHERE link.linkId IS NOT NULL] AS links
 
             // Find duplicate links (multiple links to the same target with same link type)
             WITH requirement, links,
-                 [l IN links WHERE l.isBroken] AS brokenLinks
+                 [l IN links WHERE l.isBroken] AS brokenLinks,
+                 [l IN links WHERE l.isMissingLinkset] AS missingLinksetLinks
 
             // Get all unique target+linkType combinations
             UNWIND links AS link
-            WITH requirement, links, brokenLinks, link.targetId + '::' + link.linkType AS combo
-            WITH requirement, links, brokenLinks, combo, count(*) AS comboCount
+            WITH requirement, links, brokenLinks, missingLinksetLinks, link.targetId + '::' + link.linkType AS combo
+            WITH requirement, links, brokenLinks, missingLinksetLinks, combo, count(*) AS comboCount
             WHERE comboCount > 1
-            WITH requirement, links, brokenLinks, collect(combo) AS duplicateCombos
+            WITH requirement, links, brokenLinks, missingLinksetLinks, collect(combo) AS duplicateCombos
 
             // Get the IDs of duplicate links (keep first, mark rest as bad)
-            WITH requirement, links, brokenLinks, duplicateCombos,
+            WITH requirement, links, brokenLinks, missingLinksetLinks, duplicateCombos,
                  [l IN links WHERE l.targetId + '::' + l.linkType IN duplicateCombos] AS duplicateLinkGroups
 
             // Build list of all bad links with metadata
-            WITH requirement, brokenLinks, duplicateLinkGroups, duplicateCombos,
+            WITH requirement, brokenLinks, missingLinksetLinks, duplicateLinkGroups, duplicateCombos,
                  // Mark broken links
                  [l IN brokenLinks | {linkId: l.linkId, type: 'broken'}] +
+                 // Mark missing linkset links
+                 [l IN missingLinksetLinks | {linkId: l.linkId, type: 'missing_linkset'}] +
                  // Mark duplicate links (keep first of each group, remove rest)
                  reduce(duplicates = [], combo IN duplicateCombos |
                    duplicates + [dl IN tail([l IN duplicateLinkGroups WHERE l.targetId + '::' + l.linkType = combo]) | {linkId: dl.linkId, type: 'duplicate'}]

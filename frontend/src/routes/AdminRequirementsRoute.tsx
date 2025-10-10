@@ -23,7 +23,7 @@ type Requirement = {
   updatedAt: string;
   brokenLinkIds?: string[];
   brokenLinkCount?: number;
-  brokenLinksMetadata?: Array<{ linkId: string; type: 'broken' | 'duplicate' }>;
+  brokenLinksMetadata?: Array<{ linkId: string; type: 'broken' | 'duplicate' | 'missing_linkset' }>;
 };
 
 type Tab = "deleted" | "archived" | "drift" | "badlinks" | "candidates";
@@ -401,6 +401,7 @@ export function AdminRequirementsRoute(): JSX.Element {
                       {(() => {
                         const brokenCount = req.brokenLinksMetadata.filter(m => m.type === 'broken').length;
                         const duplicateCount = req.brokenLinksMetadata.filter(m => m.type === 'duplicate').length;
+                        const missingLinksetCount = req.brokenLinksMetadata.filter(m => m.type === 'missing_linkset').length;
                         return (
                           <>
                             {brokenCount > 0 && (
@@ -425,6 +426,18 @@ export function AdminRequirementsRoute(): JSX.Element {
                                 fontWeight: '500'
                               }}>
                                 {duplicateCount} Duplicate
+                              </span>
+                            )}
+                            {missingLinksetCount > 0 && (
+                              <span style={{
+                                fontSize: '0.75rem',
+                                padding: '0.25rem 0.5rem',
+                                borderRadius: '0.25rem',
+                                backgroundColor: '#dbeafe',
+                                color: '#1e40af',
+                                fontWeight: '500'
+                              }}>
+                                {missingLinksetCount} Missing Linkset
                               </span>
                             )}
                           </>
