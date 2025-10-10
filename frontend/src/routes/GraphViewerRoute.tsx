@@ -91,7 +91,7 @@ export function GraphViewerRoute() {
   ]));
   const [searchTerm, setSearchTerm] = useState('');
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
-  const [selectedLayout, setSelectedLayout] = useState('cose');
+  const [selectedLayout, setSelectedLayout] = useState('dagre'); // Changed default to dagre (hierarchical)
   const [savedViews, setSavedViews] = useState<Array<{
     name: string;
     visibleNodeTypes: string[];
@@ -427,7 +427,7 @@ export function GraphViewerRoute() {
   const getLayoutConfig = (layoutName: string) => {
     const baseConfig = {
       fit: true,
-      padding: 30,
+      padding: 20, // Reduced from 30 for more compact view
       animate: true,
       animationDuration: 500
     };
@@ -437,15 +437,15 @@ export function GraphViewerRoute() {
         return {
           ...baseConfig,
           name: 'cose',
-          idealEdgeLength: 100,
+          idealEdgeLength: 80, // Reduced from 100 for more compact layout
           nodeOverlap: 20,
           refresh: 20,
           randomize: false,
-          componentSpacing: 100,
-          nodeRepulsion: 400000,
+          componentSpacing: 60, // Reduced from 100 for tighter grouping
+          nodeRepulsion: 200000, // Reduced from 400000 to bring nodes closer
           edgeElasticity: 100,
           nestingFactor: 5,
-          gravity: 80,
+          gravity: 120, // Increased from 80 for stronger pull to center
           numIter: 1000,
           initialTemp: 200,
           coolingFactor: 0.95,
@@ -457,9 +457,9 @@ export function GraphViewerRoute() {
           name: 'dagre',
           rankDir: 'TB', // Top to bottom
           ranker: 'tight-tree', // Better for hierarchies than network-simplex
-          nodeSep: 50,
-          edgeSep: 10,
-          rankSep: 100, // Increased for better hierarchy separation
+          nodeSep: 50, // Horizontal spacing between nodes at same level
+          edgeSep: 10, // Minimum spacing between edges
+          rankSep: 80, // Vertical spacing between levels (reduced from 100 for compactness)
           // NEW: Use edge weights for ranking - hierarchical edges will be prioritized
           edgeWeight: (edge: any) => {
             return edge.data('weight') || 1;
@@ -494,11 +494,11 @@ export function GraphViewerRoute() {
         return {
           ...baseConfig,
           name: 'circle',
-          radius: 300,
+          radius: 200, // Reduced from 300 for more compact layout
           startAngle: 0,
           sweep: undefined,
           clockwise: true,
-          spacingFactor: 1.75
+          spacingFactor: 1.5 // Reduced from 1.75 for tighter spacing
         };
       case 'grid':
         return {
@@ -516,7 +516,7 @@ export function GraphViewerRoute() {
           ...baseConfig,
           name: 'breadthfirst',
           directed: true,
-          spacingFactor: 1.5,
+          spacingFactor: 1.2, // Reduced from 1.5 for more compact layout
           avoidOverlap: true,
           nodeDimensionsIncludeLabels: true
         };
@@ -524,12 +524,13 @@ export function GraphViewerRoute() {
         return {
           ...baseConfig,
           name: 'concentric',
-          minNodeSpacing: 50,
+          minNodeSpacing: 40, // Reduced from 50 for more compact layout
           levelWidth: (nodes: any) => nodes.maxDegree() / 4,
           concentric: (node: any) => node.degree(),
           equidistant: false,
           startAngle: 0,
-          clockwise: true
+          clockwise: true,
+          spacingFactor: 1.2 // Added to control spacing
         };
       default:
         return {
