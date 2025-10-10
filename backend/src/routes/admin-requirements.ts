@@ -179,7 +179,10 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
       const { tenant, project, requirementId } = req.params;
 
       try {
-        const requirement = await restoreRequirement(tenant, project, requirementId);
+        // Extract user context for version history
+        const restoredBy = (req as any).user?.email || (req as any).user?.sub || undefined;
+
+        const requirement = await restoreRequirement(tenant, project, requirementId, restoredBy);
 
         if (!requirement) {
           return reply.code(404).send({
@@ -524,6 +527,9 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
         });
       }
 
+      // Extract user context for version history
+      const restoredBy = (req as any).user?.email || (req as any).user?.sub || undefined;
+
       const results = {
         restored: [] as string[],
         failed: [] as { id: string; error: string }[]
@@ -531,7 +537,7 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
 
       for (const requirementId of requirementIds) {
         try {
-          const requirement = await restoreRequirement(tenant, project, requirementId);
+          const requirement = await restoreRequirement(tenant, project, requirementId, restoredBy);
           if (requirement) {
             results.restored.push(requirementId);
           } else {

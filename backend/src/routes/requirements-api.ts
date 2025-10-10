@@ -293,7 +293,10 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     });
     const params = paramsSchema.parse(req.params);
 
-    const requirement = await softDeleteRequirement(params.tenant, params.project, params.requirementId);
+    // Extract user context for version history
+    const deletedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
+
+    const requirement = await softDeleteRequirement(params.tenant, params.project, params.requirementId, deletedBy);
     if (!requirement) {return reply.status(404).send({ error: "Requirement not found" });}
     return { requirement };
   });
@@ -344,7 +347,10 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
 
-    const requirements = await archiveRequirements(params.tenant, params.project, body.requirementIds);
+    // Extract user context for version history
+    const archivedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
+
+    const requirements = await archiveRequirements(params.tenant, params.project, body.requirementIds, archivedBy);
     return { requirements, count: requirements.length };
   });
 
@@ -394,7 +400,10 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
 
-    const requirements = await unarchiveRequirements(params.tenant, params.project, body.requirementIds);
+    // Extract user context for version history
+    const unarchivedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
+
+    const requirements = await unarchiveRequirements(params.tenant, params.project, body.requirementIds, unarchivedBy);
     return { requirements, count: requirements.length };
   });
 
