@@ -2,22 +2,26 @@
 
 ## Overview
 
-AirGen implements a comprehensive 3-tier backup strategy to protect against data loss:
+AirGen implements a comprehensive 3-tier backup strategy to protect against data loss with **Neo4j as the single source of truth**:
 
 1. **Daily Incremental Backups** - Fast recovery, 7-day retention
 2. **Weekly Full Backups** - Disaster recovery, 4-week local + 12-week remote retention
-3. **Real-Time Protection** - Workspace files tracked in git
+3. **Real-Time Protection** - Git repository tracking
+
+**Architecture Note**: As of 2025-10-10, AirGen uses Neo4j as the single source of truth. All data (requirements, documents, version history, baselines, trace links, architecture) is stored in Neo4j. The Neo4j dump is the PRIMARY backup artifact containing complete data.
 
 ## What Gets Backed Up
 
 ### Critical Data Sources
 
-| Component | Size | Description | Backup Method |
-|-----------|------|-------------|---------------|
-| **Neo4j Database** | ~517MB | Requirements, documents, relationships, traceability | Database dump + volume snapshot |
-| **PostgreSQL** | ~47MB | Users, sessions, metadata | SQL dump + volume snapshot |
-| **Workspace Files** | ~7.5MB | Tenant data, requirements, documents (NOT in git) | Archive + git tracking |
-| **Configuration** | <1MB | Environment files, docker-compose configs | Archive |
+| Component | Priority | Size | Description | Backup Method |
+|-----------|----------|------|-------------|---------------|
+| **Neo4j Database** | **PRIMARY** | ~180MB | **ALL DATA**: requirements, documents, sections, version history, baselines, trace links, architecture diagrams, relationships, traceability | Database dump + volume snapshot |
+| **Docker Volumes** | Secondary | ~50MB | Redis cache, application state | Volume snapshots |
+| **Workspace Files** | Deprecated | ~7.5MB | **LEGACY ONLY** - Deprecated markdown files (can be regenerated via export service) | Archive (optional) |
+| **Configuration** | Required | <1MB | Environment files, docker-compose configs | Archive |
+
+**Important**: The Neo4j database dump is sufficient for complete data restore. Workspace files are deprecated and not required for restore operations.
 
 ### Backup Schedule
 
@@ -91,11 +95,19 @@ cat /root/airgen/backups/daily/YYYYMMDD/MANIFEST.txt
 **Location:** `/root/airgen/backups/daily/YYYYMMDD/`
 
 **Files created:**
-- `neo4j-YYYYMMDD-HHMMSS.dump.gz` - Neo4j database
-- `postgres-YYYYMMDD-HHMMSS.sql.gz` - PostgreSQL database
-- `workspace-YYYYMMDD-HHMMSS.tar.gz` - Workspace files
+- `neo4j-YYYYMMDD-HHMMSS.dump` - **Neo4j database (PRIMARY - contains ALL data)**
+  - All requirements and requirement versions
+  - All documents, sections, and their versions
+  - All baselines and version snapshots
+  - All trace links and linksets
+  - All architecture diagrams, blocks, connectors
+  - Complete version history for all entities
+  - User data and authentication
+- `workspace-YYYYMMDD-HHMMSS.tar.gz` - **DEPRECATED** (legacy markdown files, optional)
 - `config-YYYYMMDD-HHMMSS.tar.gz` - Configuration files
 - `MANIFEST.txt` - Checksums and metadata
+
+**Note**: PostgreSQL backup removed (no longer used). Neo4j is the single source of truth.
 
 ### Weekly Backup Script
 
@@ -113,8 +125,7 @@ cat /root/airgen/backups/daily/YYYYMMDD/MANIFEST.txt
 **Location:** `/root/airgen/backups/weekly/week-YYYY-WNN/`
 
 **Additional files:**
-- `neo4j-volume-YYYYMMDD-HHMMSS.tar.gz` - Full Neo4j volume
-- `postgres-volume-YYYYMMDD-HHMMSS.tar.gz` - Full PostgreSQL volume
+- `neo4j-volume-YYYYMMDD-HHMMSS.tar.gz` - Full Neo4j volume (contains complete graph database)
 
 ### Verification Script
 
@@ -168,9 +179,8 @@ cat /root/airgen/backups/daily/YYYYMMDD/MANIFEST.txt
 
 **Component-specific behavior:**
 
-- **Neo4j**: Stops container, loads dump with `--overwrite-destination`, restarts
-- **PostgreSQL**: Drops and recreates database, restores from dump
-- **Workspace**: Backs up existing workspace before restore, extracts archive
+- **Neo4j**: Stops container, loads dump with `--overwrite-destination`, restarts (PRIMARY - restores all data)
+- **Workspace**: **DEPRECATED** - Backs up existing workspace before restore, extracts archive (optional, can regenerate via export service)
 - **Config**: Restores environment files and docker-compose configs
 
 ## Remote Backup Configuration
@@ -393,12 +403,70 @@ restic snapshots
 env | grep RESTIC
 ```
 
-## Workspace Git Protection
+## Neo4j Single-Source Architecture (Updated 2025-10-10)
 
-As of this implementation, workspace files are now tracked in git (selectively):
+### Architecture Overview
+
+AirGen has migrated to **Neo4j as the single source of truth**. This architectural change simplifies backup/restore operations:
+
+**Before** (Dual-Source Architecture):
+- Requirements stored in Neo4j + workspace markdown
+- Documents stored in Neo4j + workspace files
+- Backup required both Neo4j dump + workspace archive
+- Restore required syncing between Neo4j and workspace
+
+**After** (Single-Source Architecture):
+- **ALL data stored exclusively in Neo4j**
+- Workspace markdown **deprecated** (legacy only)
+- Backup requires **only Neo4j dump**
+- Restore is **one-step** (Neo4j only)
+
+### What's in the Neo4j Database
+
+**Complete data includes**:
+- ✅ All requirements (current state + version history)
+- ✅ All documents and sections (current state + version history)
+- ✅ All baselines (point-in-time snapshots)
+- ✅ All trace links and linksets
+- ✅ All architecture diagrams, blocks, connectors
+- ✅ All version history (RequirementVersion, DocumentVersion, etc.)
+- ✅ Complete lifecycle tracking (archived, deleted, restored states)
+- ✅ User data and authentication
+- ✅ Tenant and project metadata
+
+### Export Service (On-Demand Markdown)
+
+If you need markdown files for external tools:
+
+```bash
+# Export entire project as markdown
+curl http://localhost:8787/export/acme/brake-system/markdown
+
+# Export single requirement
+curl http://localhost:8787/export/acme/brake-system/requirements/REQ-001
+```
+
+**Benefits**:
+- Always fresh (generated from Neo4j on request)
+- No sync issues
+- Smaller backup footprint
+
+## Workspace Git Protection (Deprecated)
+
+**Note**: Workspace is deprecated as of 2025-10-10. The workspace directory may contain legacy markdown files but is no longer actively managed.
+
+**Current status**:
+- Workspace markdown not generated on write operations
+- Export service generates markdown on demand
+- Legacy workspace files may exist for backward compatibility
+- Not required for backup/restore
+
+### Legacy Workspace Tracking
+
+If you have legacy workspace files, they remain tracked in git:
 
 **Tracked:**
-- All `.md` files (requirements, documents)
+- All `.md` files (legacy requirements, documents)
 - All `.json` and `.yaml` configuration files
 - Directory structure
 
@@ -493,6 +561,17 @@ For issues or questions about the backup system:
 
 ## Changelog
 
+### 2025-10-10 - Neo4j Single-Source Migration
+
+- **BREAKING**: Neo4j is now the single source of truth
+- Workspace markdown deprecated (legacy only)
+- Neo4j dump is PRIMARY backup (contains all data)
+- Removed PostgreSQL backup (no longer used)
+- Added version history to Neo4j (all lifecycle operations tracked)
+- Added baseline system to Neo4j (point-in-time snapshots)
+- Simplified restore process (Neo4j only)
+- Updated documentation to reflect new architecture
+
 ### 2025-10-09 - Initial Implementation
 
 - Created 3-tier backup strategy
@@ -503,8 +582,15 @@ For issues or questions about the backup system:
 - Set up automated cron jobs
 - Created comprehensive documentation
 
+## Related Documentation
+
+- **[Neo4j Migration Complete](./NEO4J-MIGRATION-COMPLETE.md)** - Complete migration summary
+- **[Version History System](./VERSION-HISTORY-SYSTEM.md)** - Version tracking and audit trail
+- **[Baseline System Guide](./BASELINE-SYSTEM-GUIDE.md)** - Point-in-time snapshots
+- [Remote Backup Setup](./REMOTE_BACKUP_SETUP.md) - Remote storage configuration
+
 ---
 
-**Last Updated:** 2025-10-09
-**Version:** 1.0
+**Last Updated:** 2025-10-10
+**Version:** 2.0 (Neo4j Single-Source)
 **Author:** AirGen Backup System

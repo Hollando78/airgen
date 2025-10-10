@@ -47,10 +47,10 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Context-aware** – Maintains project context for better suggestions.
 
 ### Data & Persistence
-- **Graph database** – Requirements, projects, tenants, and baselines live in Neo4j for rich traceability queries.
-- **Markdown-first storage** – Approved requirements stored as `workspace/<tenant>/<project>/requirements/*.md` with YAML front matter.
-- **Baselining** – Snapshot requirement sets for release audits and version control.
-- **Version history** – Track changes to requirements, documents, and architecture elements with full audit trail, diff capabilities, and rollback support.
+- **Neo4j single source of truth** – All data (requirements, projects, tenants, documents, trace links, baselines, version history) stored in Neo4j graph database.
+- **On-demand markdown export** – Export service generates markdown from Neo4j when needed (no persistent markdown files).
+- **Complete version history** – Immutable version snapshots for all entities including lifecycle operations (create, update, archive, delete, restore).
+- **Baselining** – Point-in-time project snapshots linking to version nodes, fully preserved in Neo4j backups.
 
 ### Deployment & Infrastructure
 - **Docker-native** – Traefik + Neo4j + Fastify API + Redis compose stack for quick VPS deployment.
@@ -67,7 +67,7 @@ airgen/
 ├─ docs/                     # Architecture and ops guidance
 ├─ scripts/                  # Automated backup and maintenance scripts
 ├─ examples/                 # Sample braking-domain artifacts
-├─ workspace/                # Runtime Markdown workspace (now tracked in git)
+├─ workspace/                # Deprecated (legacy workspace, use export service instead)
 ├─ docker-compose.dev.yml
 ├─ docker-compose.prod.yml
 ├─ pnpm-workspace.yaml
@@ -78,16 +78,30 @@ airgen/
 See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 
 ## Documentation map
+
+### Core Documentation
 - **[Design Description Document](./DESIGN_DESCRIPTION.md)** – Comprehensive system design, architecture, and technical specifications.
 - [Development guide](./DEVELOPMENT_GUIDE.md) – Local setup, contributor workflow, and day-to-day tasks.
 - [Architecture](./docs/ARCHITECTURE.md) – Core services, data flow, and deployment topology.
+
+### Neo4j Single-Source Architecture
+- **[Neo4j Migration Complete](./docs/NEO4J-MIGRATION-COMPLETE.md)** – Complete migration summary, all 4 phases, lifecycle version tracking.
+- **[Version History System](./docs/VERSION-HISTORY-SYSTEM.md)** – Complete audit trail, lifecycle tracking, compliance features.
+- **[Baseline System Guide](./docs/BASELINE-SYSTEM-GUIDE.md)** – Point-in-time snapshots, baseline comparison, release management.
+- [Export System Design](./docs/EXPORT-SYSTEM-DESIGN.md) – On-demand markdown generation from Neo4j.
+
+### Backup & Operations
 - **[Backup & Restore](./docs/BACKUP_RESTORE.md)** – Complete backup strategy, recovery procedures, and disaster recovery guide.
 - **[Remote Backup Setup](./docs/REMOTE_BACKUP_SETUP.md)** – Step-by-step guide for configuring encrypted remote backup storage.
+- [Observability](./OBSERVABILITY.md) – Metrics, health checks, and optional Sentry wiring.
+- [Troubleshooting](./TROUBLESHOOTING.md) – Quick fixes for the most common developer issues.
+
+### Testing & Quality
 - [Testing overview](./TEST_SUMMARY.md) – Current automated coverage and outstanding gaps.
 - [Test infrastructure](./TEST_INFRASTRUCTURE.md) – How integration and E2E test harnesses are wired.
 - [E2E testing](./E2E_TESTING.md) – End-to-end testing with Playwright.
-- [Observability](./OBSERVABILITY.md) – Metrics, health checks, and optional Sentry wiring.
-- [Troubleshooting](./TROUBLESHOOTING.md) – Quick fixes for the most common developer issues.
+
+### Features & Enhancements
 - [Custom Attributes Implementation](./CUSTOM_ATTRIBUTES_IMPLEMENTATION.md) – Guide for implementing extensible custom attributes on requirements.
 - [Neo4j Improvements](./NEO4J_IMPROVEMENTS_SUMMARY.md) – Performance optimizations and security enhancements.
 
@@ -263,7 +277,7 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
    ```
 4. Call `/baseline` to freeze the current set when preparing for release.
 
-Markdown output lands under `workspace/` so it can be mirrored to Git or other document stores, while Neo4j stores queryable metadata.
+All data is stored in Neo4j. Use the export service (`GET /export/:tenant/:project/markdown`) to generate markdown on demand for external documentation tools.
 
 ## LLM configuration
 Set the following environment variables (see `.env.example`) to enable OpenAI-backed drafts:
@@ -285,10 +299,9 @@ AIRGen includes a comprehensive automated backup system to protect your critical
 - **Automated verification** (2:30 AM) - Integrity checks and health monitoring
 
 ### What's Backed Up
-- Neo4j graph database (complete)
-- Docker volumes (full snapshots)
-- Workspace files (requirements, documents)
-- Configuration files
+- **Neo4j graph database** (PRIMARY - contains all data: requirements, documents, sections, version history, baselines, trace links, architecture diagrams)
+- **Docker volumes** (secondary - application state and cache)
+- **Workspace** (deprecated - legacy markdown files, no longer required)
 
 ### Quick Commands
 ```bash
