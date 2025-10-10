@@ -33,8 +33,8 @@ export interface RequirementCandidateListProps {
   onRejectClick: (candidate: RequirementCandidate) => void;
   /** Handler for returning a rejected candidate */
   onReturnClick: (candidate: RequirementCandidate) => void;
-  /** Handler for archiving accepted requirements in a group */
-  onArchiveGroup?: (requirementIds: string[]) => void;
+  /** Handler for archiving accepted or rejected candidates in a group */
+  onArchiveGroup?: (candidateIds: string[]) => void;
   /** Whether reject mutation is pending */
   isRejectPending: boolean;
   /** Whether return mutation is pending */
@@ -99,14 +99,14 @@ export function RequirementCandidateList({
           const groupTitle = group.prompt || `Session ${group.sessionId}`;
           const displayTitle = group.sessionId === 'ungrouped' ? 'Previous Requirements' : groupTitle;
 
-          const acceptedRequirementIds = group.candidates
-            .filter(c => c.status === "accepted" && c.requirementId)
-            .map(c => c.requirementId)
+          const acceptedCandidateIds = group.candidates
+            .filter(c => c.status === "accepted")
+            .map(c => c.id)
             .filter((id): id is string => Boolean(id));
 
-          const rejectedRequirementIds = group.candidates
-            .filter(c => c.status === "rejected" && c.requirementId)
-            .map(c => c.requirementId)
+          const rejectedCandidateIds = group.candidates
+            .filter(c => c.status === "rejected")
+            .map(c => c.id)
             .filter((id): id is string => Boolean(id));
 
           return (
@@ -238,20 +238,20 @@ export function RequirementCandidateList({
           }}
         >
           {(() => {
-            const acceptedRequirementIds = contextMenu.group.candidates
-              .filter(c => c.status === "accepted" && c.requirementId)
-              .map(c => c.requirementId)
+            const acceptedCandidateIds = contextMenu.group.candidates
+              .filter(c => c.status === "accepted")
+              .map(c => c.id)
               .filter((id): id is string => Boolean(id));
 
-            const rejectedRequirementIds = contextMenu.group.candidates
-              .filter(c => c.status === "rejected" && c.requirementId)
-              .map(c => c.requirementId)
+            const rejectedCandidateIds = contextMenu.group.candidates
+              .filter(c => c.status === "rejected")
+              .map(c => c.id)
               .filter((id): id is string => Boolean(id));
 
-            const acceptedCount = acceptedRequirementIds.length;
-            const rejectedCount = rejectedRequirementIds.length;
-            const allRequirementIds = [...acceptedRequirementIds, ...rejectedRequirementIds];
-            const totalCount = allRequirementIds.length;
+            const acceptedCount = acceptedCandidateIds.length;
+            const rejectedCount = rejectedCandidateIds.length;
+            const allCandidateIds = [...acceptedCandidateIds, ...rejectedCandidateIds];
+            const totalCount = allCandidateIds.length;
 
             if (totalCount === 0) {
               return (
@@ -262,7 +262,7 @@ export function RequirementCandidateList({
                     color: "#9ca3af"
                   }}
                 >
-                  No requirements to archive
+                  No candidates to archive
                 </div>
               );
             }
@@ -273,7 +273,7 @@ export function RequirementCandidateList({
                   <button
                     type="button"
                     onClick={() => {
-                      onArchiveGroup(acceptedRequirementIds);
+                      onArchiveGroup(acceptedCandidateIds);
                       setContextMenu({ isOpen: false, x: 0, y: 0, group: null });
                     }}
                     style={{
@@ -302,7 +302,7 @@ export function RequirementCandidateList({
                       <path d="M1 3h22v5H1z"/>
                       <path d="M10 12h4"/>
                     </svg>
-                    <span>Archive Accepted Requirements ({acceptedCount})</span>
+                    <span>Archive Accepted Candidates ({acceptedCount})</span>
                   </button>
                 )}
 
@@ -310,7 +310,7 @@ export function RequirementCandidateList({
                   <button
                     type="button"
                     onClick={() => {
-                      onArchiveGroup(rejectedRequirementIds);
+                      onArchiveGroup(rejectedCandidateIds);
                       setContextMenu({ isOpen: false, x: 0, y: 0, group: null });
                     }}
                     style={{
@@ -339,7 +339,7 @@ export function RequirementCandidateList({
                       <path d="M1 3h22v5H1z"/>
                       <path d="M10 12h4"/>
                     </svg>
-                    <span>Archive Rejected Requirements ({rejectedCount})</span>
+                    <span>Archive Rejected Candidates ({rejectedCount})</span>
                   </button>
                 )}
 
@@ -349,7 +349,7 @@ export function RequirementCandidateList({
                     <button
                       type="button"
                       onClick={() => {
-                        onArchiveGroup(allRequirementIds);
+                        onArchiveGroup(allCandidateIds);
                         setContextMenu({ isOpen: false, x: 0, y: 0, group: null });
                       }}
                       style={{
@@ -379,7 +379,7 @@ export function RequirementCandidateList({
                         <path d="M1 3h22v5H1z"/>
                         <path d="M10 12h4"/>
                       </svg>
-                      <span>Archive All Requirements ({totalCount})</span>
+                      <span>Archive All Candidates ({totalCount})</span>
                     </button>
                   </>
                 )}

@@ -130,15 +130,14 @@ export function AirGenRoute(): JSX.Element {
     }
   });
 
-  // Archive mutation for batch archiving requirements
+  // Archive mutation for batch archiving candidates (accepted or rejected only)
   const archiveGroupMutation = useMutation({
-    mutationFn: async (requirementIds: string[]) => {
+    mutationFn: async (candidateIds: string[]) => {
       if (!tenant || !project) {throw new Error("Select a tenant/project first");}
-      return api.archiveRequirements(tenant, project, requirementIds);
+      return api.archiveCandidates(candidateIds);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["airgen", "candidates", "grouped", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
     }
   });
 

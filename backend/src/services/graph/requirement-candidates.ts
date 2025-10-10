@@ -285,3 +285,29 @@ export async function bulkResetCandidates(ids: string[]): Promise<{ reset: numbe
     await session.close();
   }
 }
+
+export async function bulkArchiveCandidates(ids: string[]): Promise<{ archived: number }> {
+  if (ids.length === 0) {
+    return { archived: 0 };
+  }
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async tx => {
+      const query = `
+        MATCH (candidate:RequirementCandidate)
+        WHERE candidate.id IN $ids
+          AND (candidate.status = 'accepted' OR candidate.status = 'rejected')
+        DETACH DELETE candidate
+        RETURN count(candidate) AS archived
+      `;
+
+      const res = await tx.run(query, { ids });
+      return res.records[0] ? Number(res.records[0].get("archived").toInt()) : 0;
+    });
+
+    return { archived: result };
+  } finally {
+    await session.close();
+  }
+}
