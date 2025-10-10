@@ -298,47 +298,41 @@ restore_postgres_component() {
     fi
 }
 
-# Restore workspace
+# Restore workspace (DEPRECATED)
 restore_workspace_component() {
-    log "Restoring workspace files..."
+    # DEPRECATED: Workspace restore is no longer needed after Neo4j single-source migration (Phase 2).
+    # Neo4j is now the single source of truth. Markdown files are no longer written to workspace.
+    # The workspace directory is not used by the application anymore.
+    # See: docs/NEO4J-MIGRATION-PHASE-1-COMPLETE.md and docs/EXPORT-SYSTEM-DESIGN.md
 
-    # Find most recent workspace backup
+    log "⚠ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "⚠  WORKSPACE RESTORE IS DEPRECATED"
+    log "⚠ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "⚠"
+    log "⚠  After Phase 2 of the Neo4j migration:"
+    log "⚠  • Neo4j is the ONLY source of truth"
+    log "⚠  • Workspace markdown files are NO LONGER written"
+    log "⚠  • Workspace restore is UNNECESSARY"
+    log "⚠"
+    log "⚠  To restore data:"
+    log "⚠  1. Restore Neo4j backup (contains all data)"
+    log "⚠  2. Use export service for markdown generation"
+    log "⚠     (see src/services/export-service.ts)"
+    log "⚠"
+    log "⚠  Skipping workspace restore..."
+    log "⚠ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # Check if old workspace backup exists (for informational purposes)
     local workspace_backup=$(find "${BACKUP_DIR}" -name "workspace-*.tar.gz" -type f | sort -r | head -1)
 
-    if [ -z "${workspace_backup}" ]; then
-        log_error "No workspace backup found"
-        return 1
+    if [ -n "${workspace_backup}" ]; then
+        local size=$(du -h "${workspace_backup}" | cut -f1)
+        log "   Found old workspace backup: $(basename ${workspace_backup}) (${size})"
+        log "   This backup is from before the migration and is no longer needed"
     fi
 
-    log "Using backup: $(basename ${workspace_backup})"
-
-    if [ "$DRY_RUN" = true ]; then
-        log "[DRY RUN] Would restore workspace from: ${workspace_backup}"
-        return 0
-    fi
-
-    # Create backup of existing workspace
-    if [ -d "${WORKSPACE_DIR}" ]; then
-        local backup_existing="${WORKSPACE_DIR}.pre-restore-$(date +%Y%m%d-%H%M%S)"
-        log "Backing up existing workspace to: ${backup_existing}"
-        mv "${WORKSPACE_DIR}" "${backup_existing}"
-    fi
-
-    # Extract workspace
-    log "Extracting workspace archive..."
-    mkdir -p "$(dirname ${WORKSPACE_DIR})"
-
-    if tar -xzf "${workspace_backup}" -C "$(dirname ${WORKSPACE_DIR})"; then
-        log_success "Workspace files restored"
-        return 0
-    else
-        log_error "Failed to restore workspace"
-        # Restore original if extraction failed
-        if [ -d "${backup_existing}" ]; then
-            mv "${backup_existing}" "${WORKSPACE_DIR}"
-        fi
-        return 1
-    fi
+    log "Workspace restore skipped (deprecated)"
+    return 0
 }
 
 # Restore configuration
