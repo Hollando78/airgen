@@ -10,6 +10,7 @@ import { CandidateFilters } from "../components/AirGen/CandidateFilters";
 import { RequirementCandidateList } from "../components/AirGen/RequirementCandidateList";
 import { DiagramCandidateList } from "../components/AirGen/DiagramCandidatePreview";
 import type { RequirementCandidate, DocumentAttachment, DiagramAttachment, DiagramCandidate } from "../types";
+import { PageLayout } from "../components/layout/PageLayout";
 
 export function AirGenRoute(): JSX.Element {
   const { state } = useTenantProject();
@@ -201,20 +202,20 @@ export function AirGenRoute(): JSX.Element {
   const disabled = !tenant || !project;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="airgen-container">
-        <header className="airgen-header">
-          <div className="header-content">
-            <h1 className="header-title">AIRGen</h1>
-            {tenant && project ? (
-              <p className="header-subtitle">
-                {tenant} / {project}
-              </p>
-            ) : (
-              <p className="header-subtitle">Select a tenant and project to begin drafting requirements.</p>
-            )}
-          </div>
-        </header>
+    <PageLayout
+      title="AIRGen"
+      description={
+        tenant && project
+          ? `${tenant} / ${project}`
+          : "Select a tenant and project to begin drafting requirements"
+      }
+      breadcrumbs={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'AIRGen' }
+      ]}
+      maxWidth="full"
+    >
+      <div className="airgen-container-inner">
 
         <div className="airgen-layout">
           <section className="airgen-chat">
@@ -314,37 +315,8 @@ export function AirGenRoute(): JSX.Element {
 
       <style>{`
         /* Main Container */
-        .airgen-container {
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 0 24px;
-        }
-
-        /* Header */
-        .airgen-header {
-          background: white;
-          border-bottom: 1px solid #e2e8f0;
-          margin-bottom: 32px;
-          padding: 24px 0;
-        }
-
-        .header-content {
+        .airgen-container-inner {
           max-width: 100%;
-        }
-
-        .header-title {
-          font-size: 32px;
-          font-weight: 700;
-          color: #1e293b;
-          margin: 0 0 8px 0;
-          letter-spacing: -0.025em;
-        }
-
-        .header-subtitle {
-          font-size: 16px;
-          color: #64748b;
-          margin: 0;
-          font-weight: 500;
         }
 
         /* Two Column Layout */
@@ -815,6 +787,6 @@ export function AirGenRoute(): JSX.Element {
           }
         }
       `}</style>
-    </div>
+    </PageLayout>
   );
 }

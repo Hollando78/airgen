@@ -4,6 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
+import { PageLayout } from "../components/layout/PageLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { FormField } from "../components/ui/form-field";
+import { EmptyState } from "../components/ui/empty-state";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../components/ui/table";
+import { RefreshCw, Users } from "lucide-react";
 import type { DevUser } from "../types";
 
 type UserFormState = {
@@ -157,190 +165,254 @@ export function AdminUsersRoute(): JSX.Element {
 
   if (!isDevMode) {
     return (
-      <div className="panel">
-        <h1>Admin Users</h1>
-        <p>This page is only available while running in development mode.</p>
-      </div>
+      <PageLayout
+        title="Admin Users"
+        description="This page is only available while running in development mode."
+      >
+        <Card>
+          <CardContent className="py-8">
+            <EmptyState
+              icon={Users}
+              title="Development Mode Only"
+              description="This page is only available while running in development mode."
+            />
+          </CardContent>
+        </Card>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <div>
-          <h1>Admin Users</h1>
-          <p>Manage development-only user definitions for local testing.</p>
-        </div>
+    <PageLayout
+      title="Admin Users"
+      description="Manage development-only user definitions for local testing."
+    >
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Create User</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleCreate}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  label="Email"
+                  htmlFor="create-email"
+                  required
+                  error={createError || undefined}
+                >
+                  <Input
+                    id="create-email"
+                    type="email"
+                    value={createForm.email}
+                    onChange={event => setCreateForm(current => ({ ...current, email: event.target.value }))}
+                    required
+                  />
+                </FormField>
+                <FormField
+                  label="Name"
+                  htmlFor="create-name"
+                  hint="Optional"
+                >
+                  <Input
+                    id="create-name"
+                    type="text"
+                    value={createForm.name}
+                    onChange={event => setCreateForm(current => ({ ...current, name: event.target.value }))}
+                    placeholder="Optional"
+                  />
+                </FormField>
+                <FormField
+                  label="Password"
+                  htmlFor="create-password"
+                  hint="Optional"
+                >
+                  <Input
+                    id="create-password"
+                    type="password"
+                    value={createForm.password}
+                    onChange={event => setCreateForm(current => ({ ...current, password: event.target.value }))}
+                    placeholder="Optional"
+                  />
+                </FormField>
+                <FormField
+                  label="Roles"
+                  htmlFor="create-roles"
+                  hint="Comma separated"
+                >
+                  <Input
+                    id="create-roles"
+                    type="text"
+                    value={createForm.roles}
+                    onChange={event => setCreateForm(current => ({ ...current, roles: event.target.value }))}
+                    placeholder="Comma separated"
+                  />
+                </FormField>
+                <FormField
+                  label="Tenant Slugs"
+                  htmlFor="create-tenant-slugs"
+                  hint="Comma separated"
+                  className="md:col-span-2"
+                >
+                  <Input
+                    id="create-tenant-slugs"
+                    type="text"
+                    value={createForm.tenantSlugs}
+                    onChange={event => setCreateForm(current => ({ ...current, tenantSlugs: event.target.value }))}
+                    placeholder="Comma separated"
+                  />
+                </FormField>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={createMutation.isPending}>
+                  {createMutation.isPending ? "Creating..." : "Create User"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Existing Users</CardTitle>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => usersQuery.refetch()}
+                disabled={usersQuery.isFetching}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {usersQuery.isLoading ? (
+              <div className="flex justify-center py-8">
+                <Spinner />
+              </div>
+            ) : usersQuery.isError ? (
+              <ErrorState message={(usersQuery.error as Error).message} />
+            ) : users.length === 0 ? (
+              <EmptyState
+                icon={Users}
+                title="No users defined yet"
+                description="Create your first user using the form above."
+              />
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Password</TableHead>
+                        <TableHead>Roles</TableHead>
+                        <TableHead>Tenants</TableHead>
+                        <TableHead>Updated</TableHead>
+                        <TableHead className="w-[180px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users.map(user => (
+                        <TableRow key={user.id}>
+                          <TableCell>{editingId === user.id ? (
+                            <Input
+                              type="email"
+                              value={editForm.email}
+                              onChange={event => setEditForm(current => ({ ...current, email: event.target.value }))}
+                              className="h-8"
+                            />
+                          ) : (
+                            user.email
+                          )}</TableCell>
+                          <TableCell>{editingId === user.id ? (
+                            <Input
+                              type="text"
+                              value={editForm.name}
+                              onChange={event => setEditForm(current => ({ ...current, name: event.target.value }))}
+                              placeholder="Optional"
+                              className="h-8"
+                            />
+                          ) : (
+                            user.name ?? "—"
+                          )}</TableCell>
+                          <TableCell>{editingId === user.id ? (
+                            <Input
+                              type="password"
+                              value={editForm.password}
+                              onChange={event => setEditForm(current => ({ ...current, password: event.target.value }))}
+                              placeholder="Leave blank to keep current"
+                              className="h-8"
+                            />
+                          ) : (
+                            "••••••••"
+                          )}</TableCell>
+                          <TableCell>{editingId === user.id ? (
+                            <Input
+                              type="text"
+                              value={editForm.roles}
+                              onChange={event => setEditForm(current => ({ ...current, roles: event.target.value }))}
+                              className="h-8"
+                            />
+                          ) : (
+                            user.roles.join(", ")
+                          )}</TableCell>
+                          <TableCell>{editingId === user.id ? (
+                            <Input
+                              type="text"
+                              value={editForm.tenantSlugs}
+                              onChange={event => setEditForm(current => ({ ...current, tenantSlugs: event.target.value }))}
+                              className="h-8"
+                            />
+                          ) : (
+                            user.tenantSlugs.length ? user.tenantSlugs.join(", ") : "—"
+                          )}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{formatDate(user.updatedAt)}</TableCell>
+                          <TableCell>
+                            {editingId === user.id ? (
+                              <form onSubmit={handleUpdate} className="flex gap-2">
+                                <Button type="submit" size="sm" disabled={updateMutation.isPending}>
+                                  {updateMutation.isPending ? "Saving..." : "Save"}
+                                </Button>
+                                <Button type="button" variant="secondary" size="sm" onClick={cancelEdit}>
+                                  Cancel
+                                </Button>
+                              </form>
+                            ) : (
+                              <div className="flex gap-2">
+                                <Button type="button" variant="secondary" size="sm" onClick={() => beginEdit(user)}>
+                                  Edit
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDelete(user.id)}
+                                  disabled={deleteMutation.isPending}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {editingId && editError && (
+                  <p className="text-sm text-error mt-4" role="alert">
+                    {editError}
+                  </p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
-
-      <section className="form-card">
-        <h2>Create User</h2>
-        <form className="form-grid" onSubmit={handleCreate}>
-          <label>
-            <span>Email</span>
-            <input
-              type="email"
-              value={createForm.email}
-              onChange={event => setCreateForm(current => ({ ...current, email: event.target.value }))}
-              required
-            />
-          </label>
-          <label>
-            <span>Name</span>
-            <input
-              type="text"
-              value={createForm.name}
-              onChange={event => setCreateForm(current => ({ ...current, name: event.target.value }))}
-              placeholder="Optional"
-            />
-          </label>
-          <label>
-            <span>Password</span>
-            <input
-              type="password"
-              value={createForm.password}
-              onChange={event => setCreateForm(current => ({ ...current, password: event.target.value }))}
-              placeholder="Optional"
-            />
-          </label>
-          <label>
-            <span>Roles</span>
-            <input
-              type="text"
-              value={createForm.roles}
-              onChange={event => setCreateForm(current => ({ ...current, roles: event.target.value }))}
-              placeholder="Comma separated"
-            />
-          </label>
-          <label>
-            <span>Tenant Slugs</span>
-            <input
-              type="text"
-              value={createForm.tenantSlugs}
-              onChange={event => setCreateForm(current => ({ ...current, tenantSlugs: event.target.value }))}
-              placeholder="Comma separated"
-            />
-          </label>
-          <div className="form-actions">
-            <button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Saving..." : "Create"}
-            </button>
-          </div>
-          {createError && <p className="form-error">{createError}</p>}
-        </form>
-      </section>
-
-      <section className="table-card">
-        <div className="table-header">
-          <h2>Existing Users</h2>
-          <button type="button" onClick={() => usersQuery.refetch()} disabled={usersQuery.isFetching}>
-            Refresh
-          </button>
-        </div>
-
-        {usersQuery.isLoading ? (
-          <Spinner />
-        ) : usersQuery.isError ? (
-          <ErrorState message={(usersQuery.error as Error).message} />
-        ) : users.length === 0 ? (
-          <p className="hint">No users defined yet.</p>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Name</th>
-                <th>Password</th>
-                <th>Roles</th>
-                <th>Tenants</th>
-                <th>Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map(user => (
-                <tr key={user.id}>
-                  <td>{editingId === user.id ? (
-                    <input
-                      type="email"
-                      value={editForm.email}
-                      onChange={event => setEditForm(current => ({ ...current, email: event.target.value }))}
-                    />
-                  ) : (
-                    user.email
-                  )}</td>
-                  <td>{editingId === user.id ? (
-                    <input
-                      type="text"
-                      value={editForm.name}
-                      onChange={event => setEditForm(current => ({ ...current, name: event.target.value }))}
-                      placeholder="Optional"
-                    />
-                  ) : (
-                    user.name ?? "—"
-                  )}</td>
-                  <td>{editingId === user.id ? (
-                    <input
-                      type="password"
-                      value={editForm.password}
-                      onChange={event => setEditForm(current => ({ ...current, password: event.target.value }))}
-                      placeholder="Leave blank to keep current"
-                    />
-                  ) : (
-                    "••••••••"
-                  )}</td>
-                  <td>{editingId === user.id ? (
-                    <input
-                      type="text"
-                      value={editForm.roles}
-                      onChange={event => setEditForm(current => ({ ...current, roles: event.target.value }))}
-                    />
-                  ) : (
-                    user.roles.join(", ")
-                  )}</td>
-                  <td>{editingId === user.id ? (
-                    <input
-                      type="text"
-                      value={editForm.tenantSlugs}
-                      onChange={event => setEditForm(current => ({ ...current, tenantSlugs: event.target.value }))}
-                    />
-                  ) : (
-                    user.tenantSlugs.length ? user.tenantSlugs.join(", ") : "—"
-                  )}</td>
-                  <td>{formatDate(user.updatedAt)}</td>
-                  <td>
-                    {editingId === user.id ? (
-                      <form onSubmit={handleUpdate} className="table-inline-actions">
-                        <button type="submit" disabled={updateMutation.isPending}>
-                          {updateMutation.isPending ? "Saving" : "Save"}
-                        </button>
-                        <button type="button" onClick={cancelEdit} className="ghost-button">
-                          Cancel
-                        </button>
-                      </form>
-                    ) : (
-                      <div className="table-inline-actions">
-                        <button type="button" onClick={() => beginEdit(user)}>
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost-button"
-                          onClick={() => handleDelete(user.id)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {editingId && editError && <p className="form-error">{editError}</p>}
-      </section>
-    </div>
+    </PageLayout>
   );
 }

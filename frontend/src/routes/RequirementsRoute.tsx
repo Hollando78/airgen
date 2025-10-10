@@ -4,6 +4,13 @@ import { useApiClient } from "../lib/client";
 import { useTenantProject } from "../hooks/useTenantProject";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
+import { PageLayout } from "../components/layout/PageLayout";
+import { PageHeader } from "../components/layout/PageHeader";
+import { EmptyState } from "../components/ui/empty-state";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
+import { Input } from "../components/ui/input";
+import { FileText, RefreshCw, Copy, X } from "lucide-react";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {return "—";}
@@ -78,63 +85,62 @@ export function RequirementsRoute(): JSX.Element {
 
   if (!state.tenant || !state.project) {
     return (
-      <div className="panel">
-        <div className="panel-header">
-          <h1>Requirements</h1>
-          <p>Select a tenant and project to view requirements.</p>
-        </div>
-      </div>
+      <PageLayout
+        title="Requirements"
+        description="View and manage project requirements"
+      >
+        <EmptyState
+          icon={FileText}
+          title="No Project Selected"
+          description="Select a tenant and project to view requirements."
+        />
+      </PageLayout>
     );
   }
 
   return (
-    <div className="panel-stack">
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h1>Requirements</h1>
-            <p>{state.tenant} / {state.project}</p>
-          </div>
-        </div>
+    <PageLayout
+      title="Requirements"
+      description={`${state.tenant} / ${state.project}`}
+      breadcrumbs={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Requirements' }
+      ]}
+      actions={
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => graphDataQuery.refetch()}
+          disabled={graphDataQuery.isFetching}
+        >
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </Button>
+      }
+    >
+      <div className="mb-6 flex gap-3">
+        <Input
+          type="search"
+          value={search}
+          onChange={event => setSearch(event.target.value)}
+          placeholder="Search by ref, title, or text..."
+          className="flex-1"
+        />
+      </div>
 
-        <div style={{
-          padding: '1rem',
-          margin: '0 1rem 1rem',
-          display: 'flex',
-          gap: '0.5rem',
-          border: '1px solid var(--border-color)',
-          borderRadius: '0.5rem',
-          backgroundColor: 'var(--bg-secondary)'
-        }}>
-          <input
-            type="search"
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder="Search by ref, title, or text..."
-            style={{
-              flex: 1,
-              padding: '0.5rem 0.75rem',
-              border: '1px solid #d1d5db',
-              borderRadius: '0.25rem',
-              fontSize: '0.875rem',
-              backgroundColor: '#ffffff',
-              color: '#1f2937'
-            }}
-          />
-          <button type="button" onClick={() => graphDataQuery.refetch()}>
-            Refresh
-          </button>
-        </div>
-
-        {graphDataQuery.isLoading ? (
-          <Spinner />
-        ) : graphDataQuery.isError ? (
-          <ErrorState message={(graphDataQuery.error as Error).message} />
-        ) : filtered.length === 0 ? (
-          <p className="hint">
-            {search ? `No requirements match "${search}".` : "No requirements found."}
-          </p>
-        ) : (
+      {graphDataQuery.isLoading ? (
+        <Spinner />
+      ) : graphDataQuery.isError ? (
+        <ErrorState message={(graphDataQuery.error as Error).message} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title={search ? "No Matches Found" : "No Requirements"}
+          description={search ? `No requirements match "${search}".` : "No requirements found in this project."}
+        />
+      ) : (
+        <>
+          <div className="mb-6">
           <table className="data-table">
             <thead>
               <tr>
@@ -167,98 +173,103 @@ export function RequirementsRoute(): JSX.Element {
               ))}
             </tbody>
           </table>
-        )}
-
-        {items.length > 0 && (
-          <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-            {search ? (
-              <span>Showing {filtered.length} of {items.length} requirements</span>
-            ) : (
-              <span>Showing {items.length} requirement{items.length !== 1 ? 's' : ''}</span>
-            )}
           </div>
-        )}
-      </section>
+
+          {items.length > 0 && (
+            <div className="mt-4 text-sm text-muted-foreground">
+              {search ? (
+                <span>Showing {filtered.length} of {items.length} requirements</span>
+              ) : (
+                <span>Showing {items.length} requirement{items.length !== 1 ? 's' : ''}</span>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       {selectedRef && (
-        <section className="panel">
-          <div className="panel-header">
-            <h2>Requirement Details</h2>
-            <button type="button" onClick={() => setSelectedRef(null)} className="ghost-button">
-              Close
-            </button>
-          </div>
+        <div className="mt-8">
+          <PageHeader
+            title="Requirement Details"
+            actions={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedRef(null)}
+              >
+                <X className="h-4 w-4" />
+                Close
+              </Button>
+            }
+          />
 
           {detailQuery.isLoading && <Spinner />}
           {detailQuery.isError && <ErrorState message={(detailQuery.error as Error).message} />}
           {detailQuery.data && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="flex flex-col gap-6">
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+                <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '1.25rem' }}>{detailQuery.data.record.ref}</h3>
-                    <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)' }}>{detailQuery.data.record.title}</p>
+                    <h3 className="text-xl font-semibold mb-1">{detailQuery.data.record.ref}</h3>
+                    <p className="text-sm text-muted-foreground">{detailQuery.data.record.title}</p>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button type="button" onClick={() => handleCopy(detailQuery.data.record.text)}>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopy(detailQuery.data.record.text)}
+                    >
+                      <Copy className="h-4 w-4" />
                       Copy Text
-                    </button>
-                    <button type="button" onClick={() => handleCopy(detailQuery.data.markdown)}>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopy(detailQuery.data.markdown)}
+                    >
+                      <Copy className="h-4 w-4" />
                       Copy Markdown
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', padding: '1rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '0.5rem' }}>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>PATTERN</div>
+                  <div className="text-xs font-semibold text-muted-foreground mb-1">PATTERN</div>
                   <div>{detailQuery.data.record.pattern ?? "—"}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>VERIFICATION</div>
+                  <div className="text-xs font-semibold text-muted-foreground mb-1">VERIFICATION</div>
                   <div>{detailQuery.data.record.verification ?? "—"}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>QA SCORE</div>
-                  <div style={{
-                    color: detailQuery.data.record.qaScore >= 90 ? '#22c55e' : detailQuery.data.record.qaScore >= 70 ? '#eab308' : '#ef4444',
-                    fontWeight: 600,
-                    fontSize: '1.25rem'
+                  <div className="text-xs font-semibold text-muted-foreground mb-1">QA SCORE</div>
+                  <div className="text-xl font-semibold" style={{
+                    color: detailQuery.data.record.qaScore >= 90 ? '#22c55e' : detailQuery.data.record.qaScore >= 70 ? '#eab308' : '#ef4444'
                   }}>
                     {detailQuery.data.record.qaScore ?? "—"}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>VERDICT</div>
-                  <div style={{ fontSize: '0.875rem' }}>{detailQuery.data.record.qaVerdict ?? "—"}</div>
+                  <div className="text-xs font-semibold text-muted-foreground mb-1">VERDICT</div>
+                  <div className="text-sm">{detailQuery.data.record.qaVerdict ?? "—"}</div>
                 </div>
               </div>
 
               <div>
-                <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)' }}>REQUIREMENT TEXT</h4>
-                <p style={{
-                  margin: 0,
-                  padding: '1rem',
-                  backgroundColor: 'var(--bg-secondary)',
-                  borderRadius: '0.5rem',
-                  lineHeight: 1.6
-                }}>
+                <h4 className="text-xs font-semibold text-muted-foreground mb-2">REQUIREMENT TEXT</h4>
+                <p className="m-0 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg leading-relaxed">
                   {detailQuery.data.record.text}
                 </p>
               </div>
 
               {detailQuery.data.record.suggestions && detailQuery.data.record.suggestions.length > 0 && (
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)' }}>SUGGESTIONS</h4>
-                  <ul style={{
-                    margin: 0,
-                    padding: '1rem 1rem 1rem 2rem',
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderRadius: '0.5rem'
-                  }}>
+                  <h4 className="text-xs font-semibold text-muted-foreground mb-2">SUGGESTIONS</h4>
+                  <ul className="m-0 p-4 pl-8 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
                     {detailQuery.data.record.suggestions.map((suggestion, index) => (
-                      <li key={index} style={{ marginBottom: '0.5rem' }}>{suggestion}</li>
+                      <li key={index} className="mb-2">{suggestion}</li>
                     ))}
                   </ul>
                 </div>
@@ -266,26 +277,18 @@ export function RequirementsRoute(): JSX.Element {
 
               {detailQuery.data.record.tags && detailQuery.data.record.tags.length > 0 && (
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)' }}>TAGS</h4>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <h4 className="text-xs font-semibold text-muted-foreground mb-2">TAGS</h4>
+                  <div className="flex gap-2 flex-wrap">
                     {detailQuery.data.record.tags.map((tag, index) => (
-                      <span
-                        key={index}
-                        style={{
-                          padding: '0.25rem 0.75rem',
-                          backgroundColor: 'var(--bg-tertiary)',
-                          borderRadius: '1rem',
-                          fontSize: '0.875rem'
-                        }}
-                      >
+                      <Badge key={index} variant="secondary">
                         {tag}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+              <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
                 <div>
                   <strong>Created:</strong> {formatDate(detailQuery.data.record.createdAt)}
                 </div>
@@ -295,8 +298,8 @@ export function RequirementsRoute(): JSX.Element {
               </div>
             </div>
           )}
-        </section>
+        </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

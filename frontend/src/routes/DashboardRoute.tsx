@@ -5,6 +5,10 @@ import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
 import { useTenantProject } from "../hooks/useTenantProject";
 import { useAuth } from "../contexts/AuthContext";
+import { PageLayout } from "../components/layout/PageLayout";
+import { PageHeader } from "../components/layout/PageHeader";
+import { Button } from "../components/ui/button";
+import { RefreshCw } from "lucide-react";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {return "—";}
@@ -252,14 +256,18 @@ export function DashboardRoute(): JSX.Element {
   }, [graphDataQuery.data, traceLinksQuery.data, documentsQuery.data]);
 
   return (
-    <div className="panel-stack">
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h1>System Health</h1>
-            <p>Current backend status and metadata.</p>
-          </div>
-        </div>
+    <PageLayout
+      title="Dashboard"
+      description="System overview, project metrics, and administrative controls"
+      breadcrumbs={[
+        { label: 'Dashboard' }
+      ]}
+    >
+      <PageHeader
+        title="System Health"
+        description="Current backend status and metadata"
+      />
+      <div className="mb-8">
         {healthQuery.isLoading ? (
           <Spinner />
         ) : healthQuery.isError ? (
@@ -280,26 +288,18 @@ export function DashboardRoute(): JSX.Element {
             </div>
           </div>
         ) : null}
-      </section>
+      </div>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Tenants</h2>
-            <p>Overview of tenant and project counts.</p>
-          </div>
-          {isAdmin && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button 
-                type="button" 
-                className="primary-button"
-                onClick={() => setShowCreateTenant(true)}
-              >
-                + Create Tenant
-              </button>
-            </div>
-          )}
-        </div>
+      <PageHeader
+        title="Tenants"
+        description="Overview of tenant and project counts"
+        actions={isAdmin && (
+          <Button onClick={() => setShowCreateTenant(true)}>
+            + Create Tenant
+          </Button>
+        )}
+      />
+      <div className="mb-8">
         {tenantsQuery.isLoading ? (
           <Spinner />
         ) : tenantsQuery.isError ? (
@@ -367,39 +367,32 @@ export function DashboardRoute(): JSX.Element {
             </tbody>
           </table>
         )}
-      </section>
+      </div>
 
       {/* QA Scorer Worker Status */}
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>QA Scorer Worker</h2>
-            <p>Background worker for scoring all requirements in a project.</p>
-          </div>
-          {state.tenant && state.project && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {qaScorerStatusQuery.data?.isRunning ? (
-                <button
-                  type="button"
-                  className="danger-button"
-                  onClick={() => stopQAScorerMutation.mutate()}
-                  disabled={stopQAScorerMutation.isPending}
-                >
-                  Stop Worker
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => startQAScorerMutation.mutate({ tenant: state.tenant!, project: state.project! })}
-                  disabled={startQAScorerMutation.isPending}
-                >
-                  Start QA Scoring
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+      <PageHeader
+        title="QA Scorer Worker"
+        description="Background worker for scoring all requirements in a project"
+        actions={state.tenant && state.project && (
+          qaScorerStatusQuery.data?.isRunning ? (
+            <Button
+              variant="destructive"
+              onClick={() => stopQAScorerMutation.mutate()}
+              disabled={stopQAScorerMutation.isPending}
+            >
+              Stop Worker
+            </Button>
+          ) : (
+            <Button
+              onClick={() => startQAScorerMutation.mutate({ tenant: state.tenant!, project: state.project! })}
+              disabled={startQAScorerMutation.isPending}
+            >
+              Start QA Scoring
+            </Button>
+          )
+        )}
+      />
+      <div className="mb-8">
         {!state.tenant || !state.project ? (
           <p className="hint">Select a tenant and project to use the QA scorer.</p>
         ) : qaScorerStatusQuery.isLoading ? (
@@ -454,29 +447,29 @@ export function DashboardRoute(): JSX.Element {
             )}
           </div>
         ) : null}
-      </section>
+      </div>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Active Project Metrics</h2>
-            <p>Comprehensive metrics and health indicators for the current project.</p>
-          </div>
-          {state.tenant && state.project && (
-            <button
-              type="button"
-              onClick={() => {
-                graphDataQuery.refetch();
-                projectsQuery.refetch();
-                documentsQuery.refetch();
-                traceLinksQuery.refetch();
-              }}
-              disabled={graphDataQuery.isFetching || projectsQuery.isFetching || documentsQuery.isFetching || traceLinksQuery.isFetching}
-            >
-              Refresh
-            </button>
-          )}
-        </div>
+      <PageHeader
+        title="Active Project Metrics"
+        description="Comprehensive metrics and health indicators for the current project"
+        actions={state.tenant && state.project && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              graphDataQuery.refetch();
+              projectsQuery.refetch();
+              documentsQuery.refetch();
+              traceLinksQuery.refetch();
+            }}
+            disabled={graphDataQuery.isFetching || projectsQuery.isFetching || documentsQuery.isFetching || traceLinksQuery.isFetching}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+        )}
+      />
+      <div className="mb-8">
         {!state.tenant || !state.project ? (
           <p>Select a tenant and project to view project metrics.</p>
         ) : projectsQuery.isLoading || graphDataQuery.isLoading || documentsQuery.isLoading || traceLinksQuery.isLoading ? (
@@ -755,7 +748,7 @@ export function DashboardRoute(): JSX.Element {
         ) : (
           <p>No project information available.</p>
         )}
-      </section>
+      </div>
 
       {/* Admin Management Modals */}
       {isAdmin && showCreateTenant && (
@@ -879,6 +872,6 @@ export function DashboardRoute(): JSX.Element {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
