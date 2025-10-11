@@ -57,19 +57,34 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       response: {
         200: {
           type: "object",
-          properties: {
-            token: { type: "string", description: "JWT authentication token" },
-            user: {
+          oneOf: [
+            {
               type: "object",
               properties: {
-                id: { type: "string" },
-                email: { type: "string" },
-                name: { type: "string" },
-                roles: { type: "array", items: { type: "string" } },
-                tenantSlugs: { type: "array", items: { type: "string" } }
-              }
+                token: { type: "string", description: "JWT authentication token" },
+                user: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    email: { type: "string" },
+                    name: { type: "string" },
+                    roles: { type: "array", items: { type: "string" } },
+                    tenantSlugs: { type: "array", items: { type: "string" } }
+                  }
+                }
+              },
+              required: ["token", "user"]
+            },
+            {
+              type: "object",
+              properties: {
+                status: { type: "string", enum: ["MFA_REQUIRED"], description: "MFA challenge status" },
+                tempToken: { type: "string", description: "Temporary token for MFA verification" },
+                message: { type: "string", description: "Instructions for user" }
+              },
+              required: ["status", "tempToken", "message"]
             }
-          }
+          ]
         },
         401: {
           type: "object",
@@ -422,7 +437,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     // Verify temporary token
     let decoded;
     try {
-      decoded = await req.jwtVerify({ token: tempToken }) as any;
+      decoded = app.jwt.verify(tempToken) as any;
     } catch (error) {
       return reply.status(401).send({ error: "Invalid or expired session token" });
     }
@@ -470,7 +485,6 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     if (usedBackupCode && user.mfaBackupCodes) {
       const remainingCodes = consumeBackupCode(code, user.mfaBackupCodes);
       await updateDevUser(user.id, {
-        // @ts-expect-error - mfaBackupCodes is valid but not in UpdateDevUserInput type
         mfaBackupCodes: remainingCodes
       });
     }

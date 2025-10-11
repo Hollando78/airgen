@@ -187,6 +187,10 @@ type UpdateDevUserInput = {
   password?: string;
   roles?: string[];
   tenantSlugs?: string[];
+  emailVerified?: boolean;
+  mfaEnabled?: boolean;
+  mfaSecret?: string;
+  mfaBackupCodes?: string[];
 };
 
 export async function updateDevUser(id: string, input: UpdateDevUserInput): Promise<DevUserRecord | null> {
@@ -222,6 +226,22 @@ export async function updateDevUser(id: string, input: UpdateDevUserInput): Prom
 
   if (Array.isArray(input.tenantSlugs)) {
     user.tenantSlugs = input.tenantSlugs;
+  }
+
+  if (typeof input.emailVerified !== "undefined") {
+    user.emailVerified = input.emailVerified;
+  }
+
+  if (typeof input.mfaEnabled !== "undefined") {
+    user.mfaEnabled = input.mfaEnabled;
+  }
+
+  if (typeof input.mfaSecret !== "undefined") {
+    user.mfaSecret = input.mfaSecret || undefined;
+  }
+
+  if (typeof input.mfaBackupCodes !== "undefined") {
+    user.mfaBackupCodes = input.mfaBackupCodes || undefined;
   }
 
   user.updatedAt = new Date().toISOString();

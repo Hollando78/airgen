@@ -59,7 +59,6 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
     // Store encrypted secret temporarily (not yet enabled)
     const encryptedSecret = encryptSecret(secret);
     await updateDevUser(user.id, {
-      // @ts-expect-error - mfaSecret is valid but not in UpdateDevUserInput type
       mfaSecret: encryptedSecret
     });
 
@@ -118,7 +117,6 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
 
     // Enable 2FA
     await updateDevUser(user.id, {
-      // @ts-expect-error - mfaEnabled and mfaBackupCodes are valid but not in UpdateDevUserInput type
       mfaEnabled: true,
       mfaBackupCodes: hashedBackupCodes
     });
@@ -167,7 +165,6 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
 
     // Disable 2FA
     await updateDevUser(user.id, {
-      // @ts-expect-error - mfaEnabled, mfaSecret, mfaBackupCodes are valid but not in UpdateDevUserInput type
       mfaEnabled: false,
       mfaSecret: undefined,
       mfaBackupCodes: undefined
