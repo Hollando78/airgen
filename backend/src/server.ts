@@ -118,7 +118,11 @@ app.addHook("onSend", async (request, reply, payload) => {
   return payload;
 });
 
-await app.register(cors, { origin: true, credentials: true });
+// CORS configuration (allowlist in production, allow all in dev)
+await app.register(cors, {
+  origin: config.corsOrigins.length > 0 ? config.corsOrigins : true,
+  credentials: true
+});
 await app.register(fastifyCookie, {
   secret: config.jwtSecret, // Use JWT secret for cookie signing
   hook: "onRequest"
@@ -133,11 +137,10 @@ await app.register(helmet, {
     }
   }
 });
-// Higher rate limit in development to accommodate React strict mode double renders
-const isProduction = config.environment === "production";
+// Global rate limiting (higher limit in dev for React strict mode)
 await app.register(rateLimit, {
-  max: isProduction ? 100 : 500,
-  timeWindow: "1 minute"
+  max: config.rateLimit.global.max,
+  timeWindow: config.rateLimit.global.timeWindow
 });
 
 // Register Swagger for API documentation

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { config } from "../config.js";
 import {
   ensureLegacyPasswordUpgrade,
   listDevUsers,
@@ -103,10 +104,9 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       const refreshToken = createRefreshToken(user.id);
 
       // Set refresh token as httpOnly cookie (secure in production)
-      const isProduction = process.env.NODE_ENV === "production" || process.env.API_ENV === "production";
-      reply.setCookie("refreshToken", refreshToken, {
+      reply.setCookie(config.cookies.refreshTokenName, refreshToken, {
         httpOnly: true,
-        secure: isProduction, // HTTPS only in production
+        secure: config.environment === "production", // HTTPS only in production
         sameSite: "lax",
         path: "/",
         maxAge: 7 * 24 * 60 * 60 // 7 days in seconds
@@ -188,7 +188,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     }
   }, async (req, reply) => {
     // Get refresh token from httpOnly cookie
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.cookies[config.cookies.refreshTokenName];
 
     if (!refreshToken) {
       return reply.status(401).send({ error: "No refresh token provided" });
@@ -199,14 +199,14 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
 
     if (!userId) {
       // Token invalid, expired, or already used
-      reply.clearCookie("refreshToken");
+      reply.clearCookie(config.cookies.refreshTokenName);
       return reply.status(401).send({ error: "Invalid or expired refresh token" });
     }
 
     // Get user from database
     const user = await getDevUser(userId);
     if (!user) {
-      reply.clearCookie("refreshToken");
+      reply.clearCookie(config.cookies.refreshTokenName);
       return reply.status(401).send({ error: "User not found" });
     }
 
@@ -226,10 +226,9 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     const newRefreshToken = createRefreshToken(user.id);
 
     // Set new refresh token as httpOnly cookie
-    const isProduction = process.env.NODE_ENV === "production" || process.env.API_ENV === "production";
-    reply.setCookie("refreshToken", newRefreshToken, {
+    reply.setCookie(config.cookies.refreshTokenName, newRefreshToken, {
       httpOnly: true,
-      secure: isProduction,
+      secure: config.environment === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 7 * 24 * 60 * 60 // 7 days in seconds
@@ -256,13 +255,13 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     }
   }, async (req, reply) => {
     // Revoke refresh token if present
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.cookies[config.cookies.refreshTokenName];
     if (refreshToken) {
       revokeRefreshToken(refreshToken);
     }
 
     // Clear refresh token cookie
-    reply.clearCookie("refreshToken");
+    reply.clearCookie(config.cookies.refreshTokenName);
 
     return { message: "Logged out successfully" };
   });
@@ -292,7 +291,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     revokeAllUserTokens(req.currentUser.sub);
 
     // Clear refresh token cookie
-    reply.clearCookie("refreshToken");
+    reply.clearCookie(config.cookies.refreshTokenName);
 
     return { message: "Logged out from all devices" };
   });
