@@ -1,164 +1,111 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import CytoscapeComponent from "react-cytoscapejs";
 import type { Core, ElementDefinition } from "cytoscape";
 import cytoscape from "cytoscape";
 import cytoscapeDagre from "cytoscape-dagre";
 import cytoscapeFcose from "cytoscape-fcose";
 import { useApiClient } from "../lib/client";
 import { useTenantProject } from "../hooks/useTenantProject";
+import { NODE_TYPE_CATEGORIES, DEFAULT_VISIBLE_NODE_TYPES, DEFAULT_LAYOUT } from "./graph-viewer/graphConfig";
+import { getEdgeWeight, isHierarchicalEdge } from "./graph-viewer/graphHelpers";
+import * as graphOps from "./graph-viewer/graphOperations";
+import * as menuActions from "./graph-viewer/contextMenuActions";
+import { useGraphState } from "./graph-viewer/hooks/useGraphState";
+import { useGraphFilters } from "./graph-viewer/hooks/useGraphFilters";
+import { useGraphLayout } from "./graph-viewer/hooks/useGraphLayout";
+import { useSavedViews } from "./graph-viewer/hooks/useSavedViews";
+import { useContextMenus, type ContextMenuItem } from "./graph-viewer/hooks/useContextMenus";
+import { useEdgeStyles, type EdgeStyle } from "./graph-viewer/hooks/useEdgeStyles";
+import { GraphControls } from "./graph-viewer/components/GraphControls";
+import { GraphInspector } from "./graph-viewer/components/GraphInspector";
+import { GraphCanvas } from "./graph-viewer/components/GraphCanvas";
+import { GraphLegendNodes } from "./graph-viewer/components/GraphLegendNodes";
+import { GraphLegendRelationships } from "./graph-viewer/components/GraphLegendRelationships";
+import { SaveViewDialog } from "./graph-viewer/components/SaveViewDialog";
+import { GraphContextMenu } from "./graph-viewer/components/GraphContextMenu";
 import "./graphViewer.css";
 
 // Register layout extensions
 cytoscape.use(cytoscapeDagre);
 cytoscape.use(cytoscapeFcose);
 
-/**
- * Classify relationship types by their hierarchical nature
- * Strong hierarchy = true containment/ownership (parent-child)
- * Medium hierarchy = ownership but not strict containment
- * Weak/No hierarchy = peer relationships and references
- */
-const RELATIONSHIP_HIERARCHY = {
-  // Strong hierarchy (weight: 100) - true containment/ownership
-  strong: new Set([
-    'OWNS',           // Tenant → Project
-    'HAS_DOCUMENT',   // Project → Document
-    'HAS_SECTION',    // Document → Section
-    'CONTAINS',       // Section → Requirement/Info/SurrogateReference
-    'HAS_BLOCK',      // Diagram → Block
-    'HAS_CONNECTOR',  // Diagram → Connector
-  ]),
-
-  // Medium hierarchy (weight: 50) - ownership but not containment
-  medium: new Set([
-    'HAS_LINKSET',              // Project → DocumentLinkset
-    'HAS_TRACE_LINK',           // Project → TraceLink
-    'HAS_CANDIDATE',            // Project → RequirementCandidate
-    'HAS_ARCHITECTURE_DIAGRAM', // Project → ArchitectureDiagram
-    'HAS_ARCHITECTURE_BLOCK',   // Project → ArchitectureBlock (definition)
-    'CONTAINS_LINK',            // Linkset → TraceLink
-  ]),
-
-  // Weak/No hierarchy (weight: 1) - peer relationships and references
-  weak: new Set([
-    'SATISFIES',
-    'DERIVES_FROM',
-    'RELATED_TO',
-    'VERIFIES',
-    'DEPENDS_ON',
-    'LINKED_TO',
-    'FROM_DOCUMENT',
-    'TO_DOCUMENT',
-    'FROM_REQUIREMENT',
-    'TO_REQUIREMENT',
-    'FROM_BLOCK',
-    'TO_BLOCK',
-    'LINKED_DOCUMENT',
-  ]),
-};
-
-/**
- * Get hierarchical weight for a relationship type
- * Higher weight = stronger hierarchical preference in layout
- */
-function getEdgeWeight(relationshipType: string): number {
-  if (RELATIONSHIP_HIERARCHY.strong.has(relationshipType)) {
-    return 100; // Strong hierarchy
-  } else if (RELATIONSHIP_HIERARCHY.medium.has(relationshipType)) {
-    return 50;  // Medium hierarchy
-  } else {
-    return 1;   // Weak/no hierarchy
-  }
-}
-
-/**
- * Check if relationship is hierarchical (parent → child direction matters)
- */
-function isHierarchicalEdge(relationshipType: string): boolean {
-  return RELATIONSHIP_HIERARCHY.strong.has(relationshipType) ||
-         RELATIONSHIP_HIERARCHY.medium.has(relationshipType);
-}
-
 export function GraphViewerRoute() {
   const api = useApiClient();
   const { state } = useTenantProject();
   const { tenant, project } = state;
-  const [cyInstance, setCyInstance] = useState<Core | null>(null);
-  const [selectedNodeInfo, setSelectedNodeInfo] = useState<any>(null);
-  const [visibleNodeTypes, setVisibleNodeTypes] = useState<Set<string>>(new Set([
-    'Tenant', 'Project', 'Document', 'DocumentSection', 'Requirement', 'Info', 'SurrogateReference', 'DocumentLinkset', 'TraceLink', 'RequirementCandidate', 'ArchitectureDiagram', 'ArchitectureBlock', 'ArchitectureConnector'
-  ]));
-  const [searchTerm, setSearchTerm] = useState('');
-  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
-  const [selectedLayout, setSelectedLayout] = useState('dagre'); // Changed default to dagre (hierarchical)
-  const [savedViews, setSavedViews] = useState<Array<{
-    name: string;
-    visibleNodeTypes: string[];
-    searchTerm: string;
-    hiddenNodeIds: string[];
-    layout?: any;
-  }>>(() => {
-    // Load saved views from localStorage
-    const saved = localStorage.getItem(`graph-views-${tenant}-${project}`);
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [newViewName, setNewViewName] = useState('');
-  // Context menu types
-  type ContextMenuItem = {
-    label: string;
-    action?: () => void;
-    submenu?: ContextMenuItem[];
-    separator?: boolean;
-    icon?: string;
-    disabled?: boolean;
-  };
-
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    nodeId: string;
-    nodeLabel: string;
-    nodeType: string;
-    menuItems: ContextMenuItem[];
-  } | null>(null);
-  const [pinnedNodes, setPinnedNodes] = useState<Set<string>>(new Set());
-  const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showOnlyHierarchy, setShowOnlyHierarchy] = useState(false);
-  const [hasInitialLayout, setHasInitialLayout] = useState(false);
-  const [autoFitEnabled, setAutoFitEnabled] = useState(true);
   const cyRef = useRef<HTMLDivElement>(null);
 
-  // Edge styling customization
-  type EdgeStyle = {
-    color: string;
-    width: number;
-    lineStyle: 'solid' | 'dashed' | 'dotted';
-    dashPattern?: number[];
-  };
+  // Custom hooks for state management
+  const graphState = useGraphState();
+  const {
+    cyInstance,
+    selectedNodeInfo,
+    pinnedNodes,
+    highlightedNodes,
+    setCyInstance,
+    setSelectedNodeInfo,
+    togglePin,
+    toggleHighlight,
+  } = graphState;
 
-  const [edgeStyles, setEdgeStyles] = useState<Map<string, EdgeStyle>>(() => {
-    // Load saved edge styles from localStorage
-    const saved = localStorage.getItem(`graph-edge-styles-${tenant}-${project}`);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return new Map(Object.entries(parsed));
-    }
-    return new Map();
-  });
+  const graphFilters = useGraphFilters();
+  const {
+    visibleNodeTypes,
+    searchTerm,
+    hiddenNodeIds,
+    showOnlyHierarchy,
+    collapsedCategories,
+    sidebarOpen,
+    setVisibleNodeTypes,
+    setSearchTerm,
+    setHiddenNodeIds,
+    setShowOnlyHierarchy,
+    setSidebarOpen,
+    toggleNodeType,
+    selectAllInCategory,
+    deselectAllInCategory,
+    toggleCategory,
+    hideNode,
+  } = graphFilters;
 
-  // Edge context menu state
-  const [edgeContextMenu, setEdgeContextMenu] = useState<{
-    x: number;
-    y: number;
-    edgeId: string;
-    edgeLabel: string;
-    sourceLabel: string;
-    targetLabel: string;
-  } | null>(null);
+  const graphLayout = useGraphLayout();
+  const {
+    selectedLayout,
+    hasInitialLayout,
+    autoFitEnabled,
+    setSelectedLayout,
+    setHasInitialLayout,
+    setAutoFitEnabled,
+  } = graphLayout;
+
+  const savedViewsState = useSavedViews(tenant, project);
+  const {
+    savedViews,
+    showSaveDialog,
+    newViewName,
+    setShowSaveDialog,
+    setNewViewName,
+    saveCurrentView: saveView,
+    loadView,
+    deleteView,
+  } = savedViewsState;
+
+  const contextMenusState = useContextMenus();
+  const {
+    contextMenu,
+    edgeContextMenu,
+    setContextMenu,
+    setEdgeContextMenu,
+    closeMenus,
+  } = contextMenusState;
+
+  const edgeStylesState = useEdgeStyles(tenant, project);
+  const {
+    edgeStyles,
+    applyEdgeStyle,
+    resetEdgeStyle,
+    resetAllEdgeStyles,
+  } = edgeStylesState;
 
   // Fetch graph data from Neo4j
   const { data: graphData, isLoading } = useQuery({
@@ -430,153 +377,22 @@ export function GraphViewerRoute() {
     }
   ], [edgeStyles]);
 
-  // Layout configurations
-  const getLayoutConfig = (layoutName: string) => {
-    const baseConfig = {
-      fit: hasInitialLayout ? autoFitEnabled : true, // Auto-fit on initial layout, then respect user preference
-      padding: 20, // Reduced from 30 for more compact view
-      animate: true,
-      animationDuration: 500
-    };
-
-    switch (layoutName) {
-      case 'cose':
-        return {
-          ...baseConfig,
-          name: 'cose',
-          idealEdgeLength: 80, // Reduced from 100 for more compact layout
-          nodeOverlap: 20,
-          refresh: 20,
-          randomize: false,
-          componentSpacing: 60, // Reduced from 100 for tighter grouping
-          nodeRepulsion: 200000, // Reduced from 400000 to bring nodes closer
-          edgeElasticity: 100,
-          nestingFactor: 5,
-          gravity: 120, // Increased from 80 for stronger pull to center
-          numIter: 1000,
-          initialTemp: 200,
-          coolingFactor: 0.95,
-          minTemp: 1.0
-        };
-      case 'dagre':
-        return {
-          ...baseConfig,
-          name: 'dagre',
-          rankDir: 'TB', // Top to bottom
-          ranker: 'tight-tree', // Better for hierarchies than network-simplex
-          nodeSep: 50, // Horizontal spacing between nodes at same level
-          edgeSep: 10, // Minimum spacing between edges
-          rankSep: 80, // Vertical spacing between levels (reduced from 100 for compactness)
-          // NEW: Use edge weights for ranking - hierarchical edges will be prioritized
-          edgeWeight: (edge: any) => {
-            return edge.data('weight') || 1;
-          }
-        };
-      case 'fcose':
-        return {
-          ...baseConfig,
-          name: 'fcose',
-          quality: 'default',
-          randomize: false,
-          animate: 'end',
-          nodeSeparation: 75,
-          // NEW: Variable edge length - hierarchical edges are shorter (pulls parents/children closer)
-          idealEdgeLength: (edge: any) => {
-            const isHier = edge.data('isHierarchical');
-            return isHier ? 80 : 150;
-          },
-          // NEW: Variable elasticity - hierarchical edges are stiffer (stronger pull)
-          edgeElasticity: (edge: any) => {
-            const isHier = edge.data('isHierarchical');
-            return isHier ? 0.8 : 0.45;
-          },
-          nestingFactor: 0.1,
-          gravity: 0.25,
-          numIter: 2500,
-          initialTemp: 200,
-          coolingFactor: 0.95,
-          minTemp: 1.0
-        };
-      case 'circle':
-        return {
-          ...baseConfig,
-          name: 'circle',
-          radius: 200, // Reduced from 300 for more compact layout
-          startAngle: 0,
-          sweep: undefined,
-          clockwise: true,
-          spacingFactor: 1.5 // Reduced from 1.75 for tighter spacing
-        };
-      case 'grid':
-        return {
-          ...baseConfig,
-          name: 'grid',
-          rows: undefined,
-          cols: undefined,
-          position: (node: any) => ({ row: 0, col: 0 }),
-          condense: false,
-          avoidOverlap: true,
-          avoidOverlapPadding: 10
-        };
-      case 'breadthfirst':
-        return {
-          ...baseConfig,
-          name: 'breadthfirst',
-          directed: true,
-          spacingFactor: 1.2, // Reduced from 1.5 for more compact layout
-          avoidOverlap: true,
-          nodeDimensionsIncludeLabels: true
-        };
-      case 'concentric':
-        return {
-          ...baseConfig,
-          name: 'concentric',
-          minNodeSpacing: 40, // Reduced from 50 for more compact layout
-          levelWidth: (nodes: any) => nodes.maxDegree() / 4,
-          concentric: (node: any) => node.degree(),
-          equidistant: false,
-          startAngle: 0,
-          clockwise: true,
-          spacingFactor: 1.2 // Added to control spacing
-        };
-      default:
-        return {
-          ...baseConfig,
-          name: 'cose'
-        };
-    }
-  };
-
   // Memoize layout to prevent unnecessary recreation causing node position resets
-  const layout = useMemo(() => getLayoutConfig(selectedLayout), [selectedLayout, hasInitialLayout, autoFitEnabled]);
+  const layout = useMemo(() =>
+    graphOps.getLayoutConfig(selectedLayout, hasInitialLayout, autoFitEnabled),
+    [selectedLayout, hasInitialLayout, autoFitEnabled]
+  );
 
   // Function to apply a new layout
   const applyLayout = (layoutName: string) => {
-    if (!cyInstance) return;
-
-    try {
-      // Check if cyInstance is valid
-      const container = cyInstance.container();
-      if (!container) return;
-
-      setSelectedLayout(layoutName);
-      const layoutConfig = getLayoutConfig(layoutName);
-
-      // Apply layout only to visible nodes
-      const allNodes = cyInstance.nodes();
-      if (!allNodes || allNodes.length === 0) return;
-
-      const visibleNodes = allNodes.filter((node: any) => {
-        return node.style('display') !== 'none';
-      });
-
-      if (visibleNodes.length > 0) {
-        visibleNodes.layout(layoutConfig).run();
-        setHasInitialLayout(true);
-      }
-    } catch (error) {
-      console.warn('Error applying layout:', error);
-    }
+    graphOps.applyLayout(
+      cyInstance,
+      layoutName,
+      hasInitialLayout,
+      autoFitEnabled,
+      setSelectedLayout,
+      setHasInitialLayout
+    );
   };
 
   // Apply filters and search (without auto-layout to prevent constant refocusing)
@@ -641,12 +457,14 @@ export function GraphViewerRoute() {
     if (cyInstance) {
       const handleNodeTap = (event: any) => {
         const node = event.target;
-        setSelectedNodeInfo({
+        const nodeInfo = {
           id: node.data("id"),
           label: node.data("label"),
           type: node.data("type"),
           properties: node.data("properties")
-        });
+        };
+        console.log('[GraphViewer] Node clicked:', nodeInfo);
+        setSelectedNodeInfo(nodeInfo);
       };
 
       const handleBackgroundTap = (event: any) => {
@@ -750,58 +568,19 @@ export function GraphViewerRoute() {
 
   // Layout controls
   const handleResetLayout = () => {
-    if (!cyInstance) return;
-
-    try {
-      const container = cyInstance.container();
-      if (!container) return;
-
-      cyInstance.layout(layout as any).run();
-      setHasInitialLayout(true);
-    } catch (error) {
-      console.warn('Error resetting layout:', error);
-    }
+    graphOps.resetLayout(cyInstance, layout, setHasInitialLayout);
   };
 
   const handleFitView = () => {
-    if (!cyInstance) return;
-
-    try {
-      const container = cyInstance.container();
-      if (!container) return;
-
-      cyInstance.fit();
-    } catch (error) {
-      console.warn('Error fitting view:', error);
-    }
+    graphOps.fitView(cyInstance);
   };
 
   const handleZoomIn = () => {
-    if (!cyInstance) return;
-
-    try {
-      const container = cyInstance.container();
-      if (!container) return;
-
-      cyInstance.zoom(cyInstance.zoom() * 1.2);
-      cyInstance.center();
-    } catch (error) {
-      console.warn('Error zooming in:', error);
-    }
+    graphOps.zoomIn(cyInstance);
   };
 
   const handleZoomOut = () => {
-    if (!cyInstance) return;
-
-    try {
-      const container = cyInstance.container();
-      if (!container) return;
-
-      cyInstance.zoom(cyInstance.zoom() * 0.8);
-      cyInstance.center();
-    } catch (error) {
-      console.warn('Error zooming out:', error);
-    }
+    graphOps.zoomOut(cyInstance);
   };
 
   if (!tenant || !project) {
@@ -823,382 +602,120 @@ export function GraphViewerRoute() {
   }
 
   // Node type categories
-  const nodeTypeCategories = {
-    'System': ['Tenant', 'Project'],
-    'Document Structure': ['Document', 'DocumentSection', 'Info', 'SurrogateReference'],
-    'Requirements': ['Requirement', 'RequirementCandidate'],
-    'Architecture': ['ArchitectureDiagram', 'ArchitectureBlock', 'ArchitectureConnector'],
-    'Traceability': ['DocumentLinkset', 'TraceLink']
-  };
-
+  const nodeTypeCategories = NODE_TYPE_CATEGORIES;
   const nodeTypes = Object.values(nodeTypeCategories).flat();
 
-  const toggleNodeType = (type: string) => {
-    const newVisible = new Set(visibleNodeTypes);
-    if (newVisible.has(type)) {
-      newVisible.delete(type);
-    } else {
-      newVisible.add(type);
-    }
-    setVisibleNodeTypes(newVisible);
-  };
-
-  const selectAllInCategory = (types: string[]) => {
-    const newVisible = new Set(visibleNodeTypes);
-    types.forEach(type => newVisible.add(type));
-    setVisibleNodeTypes(newVisible);
-  };
-
-  const deselectAllInCategory = (types: string[]) => {
-    const newVisible = new Set(visibleNodeTypes);
-    types.forEach(type => newVisible.delete(type));
-    setVisibleNodeTypes(newVisible);
-  };
-
-  const toggleCategory = (category: string) => {
-    const newCollapsed = new Set(collapsedCategories);
-    if (newCollapsed.has(category)) {
-      newCollapsed.delete(category);
-    } else {
-      newCollapsed.add(category);
-    }
-    setCollapsedCategories(newCollapsed);
-  };
-
-  const saveCurrentView = () => {
-    if (!newViewName.trim()) {
-      alert('Please enter a view name');
-      return;
-    }
-
-    const newView = {
-      name: newViewName.trim(),
-      visibleNodeTypes: Array.from(visibleNodeTypes),
-      searchTerm,
-      hiddenNodeIds: Array.from(hiddenNodeIds),
-      layout: cyInstance ? {
-        positions: cyInstance.nodes().map((node: any) => {
-          const pos = node.position();
-          return {
-            id: node.id(),
-            position: { x: pos.x, y: pos.y }
-          };
-        })
-      } : undefined
-    };
-
-    const updatedViews = [...savedViews.filter(v => v.name !== newView.name), newView];
-    setSavedViews(updatedViews);
-    localStorage.setItem(`graph-views-${tenant}-${project}`, JSON.stringify(updatedViews));
-    setNewViewName('');
-    setShowSaveDialog(false);
-  };
-
-  const loadView = (viewName: string) => {
-    const view = savedViews.find(v => v.name === viewName);
-    if (!view) return;
-
-    setVisibleNodeTypes(new Set(view.visibleNodeTypes));
-    setSearchTerm(view.searchTerm);
-    setHiddenNodeIds(new Set(view.hiddenNodeIds || []));
-
-    // Restore node positions if saved
-    if (view.layout?.positions && cyInstance && Array.isArray(view.layout.positions)) {
-      setTimeout(() => {
-        try {
-          // Stop any running layouts/animations to prevent conflicts
-          cyInstance.stop();
-
-          const validPositions = view.layout.positions.filter((pos: any) => {
-            return pos && pos.id && pos.position &&
-                   typeof pos.position.x === 'number' &&
-                   typeof pos.position.y === 'number';
-          });
-
-          if (validPositions.length > 0) {
-            cyInstance.startBatch();
-
-            validPositions.forEach((pos: any) => {
-              const node = cyInstance.$id(pos.id);
-              if (node && node.length > 0) {
-                node.position({ x: pos.position.x, y: pos.position.y });
-              }
-            });
-
-            cyInstance.endBatch();
-            cyInstance.fit();
-          }
-        } catch (error) {
-          console.error('Error restoring node positions:', error);
-          // Just fit the view if position restoration fails
-          cyInstance.fit();
-        }
-      }, 300);
-    }
-  };
-
-  const deleteView = (viewName: string) => {
-    if (!confirm(`Delete view "${viewName}"?`)) return;
-    const updatedViews = savedViews.filter(v => v.name !== viewName);
-    setSavedViews(updatedViews);
-    localStorage.setItem(`graph-views-${tenant}-${project}`, JSON.stringify(updatedViews));
-  };
-
-  const hideNode = (nodeId: string) => {
-    setHiddenNodeIds(prev => new Set([...prev, nodeId]));
+  // Wrapper functions for menu actions that need to close menus after execution
+  const handleTogglePin = (nodeId: string) => {
+    togglePin(nodeId);
     setContextMenu(null);
   };
 
-  // Advanced context menu functions
+  const handleToggleHighlight = (nodeId: string) => {
+    toggleHighlight(nodeId);
+    setContextMenu(null);
+  };
+
+  const handleApplyEdgeStyle = (edgeLabel: string, style: EdgeStyle) => {
+    if (tenant && project) {
+      applyEdgeStyle(tenant, project, edgeLabel, style);
+      setEdgeContextMenu(null);
+    }
+  };
+
+  const handleResetEdgeStyle = (edgeLabel: string) => {
+    if (tenant && project) {
+      resetEdgeStyle(tenant, project, edgeLabel);
+      setEdgeContextMenu(null);
+    }
+  };
+
+  // Wrapper for saveView that calls the hook version
+  const handleSaveCurrentView = () => {
+    if (tenant && project) {
+      saveView(tenant, project, visibleNodeTypes, searchTerm, hiddenNodeIds, cyInstance, newViewName);
+    }
+  };
+
+  // Wrapper for loadView that calls the hook version
+  const handleLoadView = (viewName: string) => {
+    loadView(viewName, setVisibleNodeTypes, setSearchTerm, setHiddenNodeIds, cyInstance);
+  };
+
+  // Wrapper for deleteView that calls the hook version
+  const handleDeleteView = (viewName: string) => {
+    if (tenant && project) {
+      deleteView(tenant, project, viewName);
+    }
+  };
+
+  // Wrapper for hideNode that closes menu
+  const handleHideNode = (nodeId: string) => {
+    hideNode(nodeId);
+    setContextMenu(null);
+  };
+
+  // Advanced context menu functions (using extracted actions)
 
   // Neighborhood exploration
   const showNeighbors = (nodeId: string) => {
-    if (!cyInstance) return;
-    const node = cyInstance.$id(nodeId);
-    const neighbors = node.neighborhood();
-
-    neighbors.forEach((ele: any) => {
-      if (ele.isNode()) {
-        const id = ele.data('id');
-        setHiddenNodeIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(id);
-          return newSet;
-        });
-      }
-    });
+    menuActions.showNeighbors(cyInstance, nodeId, setHiddenNodeIds);
     setContextMenu(null);
   };
 
   const hideNeighbors = (nodeId: string) => {
-    if (!cyInstance) return;
-    const node = cyInstance.$id(nodeId);
-    const neighbors = node.neighborhood().nodes();
-
-    neighbors.forEach((neighbor: any) => {
-      const id = neighbor.data('id');
-      setHiddenNodeIds(prev => new Set([...prev, id]));
-    });
+    menuActions.hideNeighbors(cyInstance, nodeId, setHiddenNodeIds);
     setContextMenu(null);
   };
 
   const expandNeighborhood = (nodeId: string, hops: number) => {
-    if (!cyInstance) return;
-    const node = cyInstance.$id(nodeId);
-    let currentLevel = node;
-
-    for (let i = 0; i < hops; i++) {
-      currentLevel = currentLevel.neighborhood();
-    }
-
-    currentLevel.nodes().forEach((n: any) => {
-      const id = n.data('id');
-      setHiddenNodeIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
-      });
-    });
+    menuActions.expandNeighborhood(cyInstance, nodeId, hops, setHiddenNodeIds);
     setContextMenu(null);
   };
 
   const isolateNode = (nodeId: string) => {
-    if (!cyInstance) return;
-    const node = cyInstance.$id(nodeId);
-    const neighborhood = node.neighborhood().nodes();
-    const toShow = new Set([nodeId, ...neighborhood.map((n: any) => n.data('id'))]);
-
-    cyInstance.nodes().forEach((n: any) => {
-      const id = n.data('id');
-      if (!toShow.has(id)) {
-        setHiddenNodeIds(prev => new Set([...prev, id]));
-      }
-    });
+    menuActions.isolateNode(cyInstance, nodeId, setHiddenNodeIds);
     setContextMenu(null);
   };
 
   // Path finding
   const highlightShortestPath = (sourceId: string) => {
-    if (!cyInstance || !selectedNodeInfo) return;
-
-    const source = cyInstance.$id(sourceId);
-    const target = cyInstance.$id(selectedNodeInfo.id);
-
-    if (source.id() === target.id()) return;
-
-    const dijkstra = cyInstance.elements().dijkstra({
-      root: source,
-      weight: () => 1
-    });
-
-    const path = dijkstra.pathTo(target);
-
-    if (path && path.length > 0) {
-      // Reset previous highlights
-      cyInstance.elements().removeClass('path-highlight');
-
-      // Highlight path
-      path.addClass('path-highlight');
-    }
+    if (!selectedNodeInfo) return;
+    menuActions.highlightShortestPath(cyInstance, sourceId, selectedNodeInfo.id);
     setContextMenu(null);
   };
 
   const showConnectedComponent = (nodeId: string) => {
-    if (!cyInstance) return;
-    const node = cyInstance.$id(nodeId);
-    const component = node.component();
-    const componentIds = new Set(component.nodes().map((n: any) => n.data('id')));
-
-    cyInstance.nodes().forEach((n: any) => {
-      const id = n.data('id');
-      if (!componentIds.has(id)) {
-        setHiddenNodeIds(prev => new Set([...prev, id]));
-      }
-    });
+    menuActions.showConnectedComponent(cyInstance, nodeId, setHiddenNodeIds);
     setContextMenu(null);
   };
 
   // Visual operations
-  const togglePin = (nodeId: string) => {
-    setPinnedNodes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(nodeId)) {
-        newSet.delete(nodeId);
-        if (cyInstance) {
-          const node = cyInstance.$id(nodeId);
-          node.unlock();
-        }
-      } else {
-        newSet.add(nodeId);
-        if (cyInstance) {
-          const node = cyInstance.$id(nodeId);
-          node.lock();
-        }
-      }
-      return newSet;
-    });
-    setContextMenu(null);
-  };
-
-  const toggleHighlight = (nodeId: string) => {
-    setHighlightedNodes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(nodeId)) {
-        newSet.delete(nodeId);
-      } else {
-        newSet.add(nodeId);
-      }
-      return newSet;
-    });
-    setContextMenu(null);
-  };
-
   const changeNodeColor = (nodeId: string, color: string) => {
-    if (!cyInstance) return;
-    const node = cyInstance.$id(nodeId);
-    node.style('background-color', color);
+    menuActions.changeNodeColor(cyInstance, nodeId, color);
     setContextMenu(null);
   };
 
   // Information & export
   const copyNodeInfo = (nodeId: string) => {
-    if (!cyInstance) return;
-    const node = cyInstance.$id(nodeId);
-    const info = {
-      id: node.data('id'),
-      label: node.data('label'),
-      type: node.data('type'),
-      properties: node.data('properties')
-    };
-    navigator.clipboard.writeText(JSON.stringify(info, null, 2));
+    menuActions.copyNodeInfo(cyInstance, nodeId);
     setContextMenu(null);
   };
 
   const exportSubgraph = (nodeId: string) => {
-    if (!cyInstance) return;
-    const node = cyInstance.$id(nodeId);
-    const subgraph = node.neighborhood();
-    const data = {
-      nodes: subgraph.nodes().map((n: any) => ({
-        id: n.data('id'),
-        label: n.data('label'),
-        type: n.data('type'),
-        properties: n.data('properties')
-      })),
-      edges: subgraph.edges().map((e: any) => ({
-        source: e.data('source'),
-        target: e.data('target'),
-        type: e.data('label')
-      }))
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `subgraph-${nodeId}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    menuActions.exportSubgraph(cyInstance, nodeId);
     setContextMenu(null);
   };
 
   // Layout operations
   const centerNode = (nodeId: string) => {
-    if (!cyInstance) return;
-    const node = cyInstance.$id(nodeId);
-    cyInstance.center(node);
+    graphOps.centerNode(cyInstance, nodeId);
     setContextMenu(null);
   };
 
   const resetNodePosition = (nodeId: string) => {
-    if (!cyInstance) return;
-
-    try {
-      const container = cyInstance.container();
-      if (!container) return;
-
-      // Re-run the layout algorithm
-      cyInstance.layout(layout as any).run();
-    } catch (error) {
-      console.warn('Error resetting node position:', error);
-    }
-
+    graphOps.resetNodePosition(cyInstance, layout);
     setContextMenu(null);
-  };
-
-  // Edge styling functions
-  const applyEdgeStyle = (edgeLabel: string, style: EdgeStyle) => {
-    const newEdgeStyles = new Map(edgeStyles);
-    newEdgeStyles.set(edgeLabel, style);
-    setEdgeStyles(newEdgeStyles);
-
-    // Save to localStorage
-    const stylesObj: any = {};
-    newEdgeStyles.forEach((value, key) => {
-      stylesObj[key] = value;
-    });
-    localStorage.setItem(`graph-edge-styles-${tenant}-${project}`, JSON.stringify(stylesObj));
-
-    setEdgeContextMenu(null);
-  };
-
-  const resetEdgeStyle = (edgeLabel: string) => {
-    const newEdgeStyles = new Map(edgeStyles);
-    newEdgeStyles.delete(edgeLabel);
-    setEdgeStyles(newEdgeStyles);
-
-    // Save to localStorage
-    const stylesObj: any = {};
-    newEdgeStyles.forEach((value, key) => {
-      stylesObj[key] = value;
-    });
-    localStorage.setItem(`graph-edge-styles-${tenant}-${project}`, JSON.stringify(stylesObj));
-
-    setEdgeContextMenu(null);
-  };
-
-  const resetAllEdgeStyles = () => {
-    setEdgeStyles(new Map());
-    localStorage.removeItem(`graph-edge-styles-${tenant}-${project}`);
   };
 
   // Generate edge context menu items
@@ -1212,35 +729,35 @@ export function GraphViewerRoute() {
         {
           label: 'Color',
           submenu: [
-            { label: '🔴 Red', action: () => applyEdgeStyle(edgeLabel, { color: '#ef4444', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: '🟠 Orange', action: () => applyEdgeStyle(edgeLabel, { color: '#f97316', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: '🟡 Yellow', action: () => applyEdgeStyle(edgeLabel, { color: '#eab308', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: '🟢 Green', action: () => applyEdgeStyle(edgeLabel, { color: '#22c55e', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: '🔵 Blue', action: () => applyEdgeStyle(edgeLabel, { color: '#3b82f6', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: '🟣 Purple', action: () => applyEdgeStyle(edgeLabel, { color: '#a855f7', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: '🩷 Pink', action: () => applyEdgeStyle(edgeLabel, { color: '#ec4899', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: '🩵 Teal', action: () => applyEdgeStyle(edgeLabel, { color: '#14b8a6', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) }
+            { label: '🔴 Red', action: () => handleApplyEdgeStyle(edgeLabel, { color: '#ef4444', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🟠 Orange', action: () => handleApplyEdgeStyle(edgeLabel, { color: '#f97316', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🟡 Yellow', action: () => handleApplyEdgeStyle(edgeLabel, { color: '#eab308', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🟢 Green', action: () => handleApplyEdgeStyle(edgeLabel, { color: '#22c55e', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🔵 Blue', action: () => handleApplyEdgeStyle(edgeLabel, { color: '#3b82f6', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🟣 Purple', action: () => handleApplyEdgeStyle(edgeLabel, { color: '#a855f7', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🩷 Pink', action: () => handleApplyEdgeStyle(edgeLabel, { color: '#ec4899', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: '🩵 Teal', action: () => handleApplyEdgeStyle(edgeLabel, { color: '#14b8a6', width: currentStyle?.width || 3, lineStyle: currentStyle?.lineStyle || 'solid' }) }
           ]
         },
         {
           label: 'Line Style',
           submenu: [
-            { label: '━ Solid', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: currentStyle?.width || 3, lineStyle: 'solid' }) },
-            { label: '╌ Dashed', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: currentStyle?.width || 3, lineStyle: 'dashed' }) },
-            { label: '┈ Dotted', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: currentStyle?.width || 3, lineStyle: 'dotted' }) }
+            { label: '━ Solid', action: () => handleApplyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: currentStyle?.width || 3, lineStyle: 'solid' }) },
+            { label: '╌ Dashed', action: () => handleApplyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: currentStyle?.width || 3, lineStyle: 'dashed' }) },
+            { label: '┈ Dotted', action: () => handleApplyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: currentStyle?.width || 3, lineStyle: 'dotted' }) }
           ]
         },
         {
           label: 'Width',
           submenu: [
-            { label: 'Thin (2px)', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 2, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: 'Normal (3px)', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: 'Thick (4px)', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 4, lineStyle: currentStyle?.lineStyle || 'solid' }) },
-            { label: 'Extra Thick (5px)', action: () => applyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 5, lineStyle: currentStyle?.lineStyle || 'solid' }) }
+            { label: 'Thin (2px)', action: () => handleApplyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 2, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: 'Normal (3px)', action: () => handleApplyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 3, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: 'Thick (4px)', action: () => handleApplyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 4, lineStyle: currentStyle?.lineStyle || 'solid' }) },
+            { label: 'Extra Thick (5px)', action: () => handleApplyEdgeStyle(edgeLabel, { color: currentStyle?.color || '#94a3b8', width: 5, lineStyle: currentStyle?.lineStyle || 'solid' }) }
           ]
         },
         { separator: true },
-        { label: '🔄 Reset Style', action: () => resetEdgeStyle(edgeLabel), disabled: !currentStyle }
+        { label: '🔄 Reset Style', action: () => handleResetEdgeStyle(edgeLabel), disabled: !currentStyle }
       ]
     });
 
@@ -1252,51 +769,6 @@ export function GraphViewerRoute() {
     });
 
     return items;
-  };
-
-  // Recursive context menu item renderer
-  const ContextMenuItemComponent = ({ item, depth = 0 }: { item: ContextMenuItem; depth?: number }) => {
-    const [showSubmenu, setShowSubmenu] = useState(false);
-
-    if (item.separator) {
-      return <div className="context-menu-separator" />;
-    }
-
-    if (item.submenu) {
-      return (
-        <div
-          className="context-menu-item context-menu-item-with-submenu"
-          onMouseEnter={() => setShowSubmenu(true)}
-          onMouseLeave={() => setShowSubmenu(false)}
-        >
-          <span>{item.label}</span>
-          <span className="context-menu-arrow">▶</span>
-          {showSubmenu && (
-            <div className="context-menu-submenu" style={{ left: '100%', top: 0, zIndex: 1001 + depth }}>
-              {item.submenu.map((subitem, idx) => (
-                <ContextMenuItemComponent key={idx} item={subitem} depth={depth + 1} />
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div
-        className={`context-menu-item ${item.disabled ? 'context-menu-item-disabled' : ''}`}
-        onClick={(e) => {
-          if (!item.disabled && item.action) {
-            e.preventDefault();
-            e.stopPropagation();
-            item.action();
-          }
-        }}
-      >
-        {item.icon && <span className="context-menu-icon">{item.icon}</span>}
-        <span>{item.label}</span>
-      </div>
-    );
   };
 
   // Generate context menu items based on node type
@@ -1386,8 +858,8 @@ export function GraphViewerRoute() {
     items.push({
       label: '🎨 Visual',
       submenu: [
-        { label: pinnedNodes.has(nodeId) ? '📌 Unpin' : '📍 Pin', action: () => togglePin(nodeId) },
-        { label: highlightedNodes.has(nodeId) ? '💡 Unhighlight' : '✨ Highlight', action: () => toggleHighlight(nodeId) },
+        { label: pinnedNodes.has(nodeId) ? '📌 Unpin' : '📍 Pin', action: () => handleTogglePin(nodeId) },
+        { label: highlightedNodes.has(nodeId) ? '💡 Unhighlight' : '✨ Highlight', action: () => handleToggleHighlight(nodeId) },
         { label: 'Change Color', submenu: [
           { label: '🔴 Red', action: () => changeNodeColor(nodeId, '#ef4444') },
           { label: '🟢 Green', action: () => changeNodeColor(nodeId, '#22c55e') },
@@ -1423,108 +895,47 @@ export function GraphViewerRoute() {
     items.push({ separator: true });
 
     // Basic actions
-    items.push({ label: '👁️ Hide Node', action: () => hideNode(nodeId) });
+    items.push({ label: '👁️ Hide Node', action: () => handleHideNode(nodeId) });
 
     return items;
   };
 
   return (
     <div className="graph-viewer-container">
-      <div className="graph-viewer-header">
-        <h1>Graph Database Viewer</h1>
-        <div className="graph-viewer-controls">
-          <input
-            type="text"
-            placeholder="Search nodes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="graph-search-input"
-          />
-          <select
-            value={selectedLayout}
-            onChange={(e) => applyLayout(e.target.value)}
-            className="graph-control-btn"
-            style={{
-              padding: '0.5rem 0.75rem',
-              fontSize: '0.875rem',
-              cursor: 'pointer',
-              minWidth: '180px'
-            }}
-          >
-            <option value="cose">CoSE (Force-Directed)</option>
-            <option value="fcose">fCoSE (Fast)</option>
-            <option value="dagre">Dagre (Hierarchical)</option>
-            <option value="breadthfirst">Breadth-First</option>
-            <option value="circle">Circle</option>
-            <option value="concentric">Concentric</option>
-            <option value="grid">Grid</option>
-          </select>
-          <button onClick={handleResetLayout} className="graph-control-btn">
-            Reset Layout
-          </button>
-          <button onClick={handleFitView} className="graph-control-btn">
-            Fit View
-          </button>
-          <button onClick={handleZoomIn} className="graph-control-btn">
-            Zoom In
-          </button>
-          <button onClick={handleZoomOut} className="graph-control-btn">
-            Zoom Out
-          </button>
-          <button onClick={() => setShowSaveDialog(true)} className="graph-control-btn">
-            Save View
-          </button>
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="graph-control-btn">
-            {sidebarOpen ? 'Hide Filters' : 'Show Filters'}
-          </button>
-        </div>
-      </div>
+      <GraphControls
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        selectedLayout={selectedLayout}
+        onLayoutChange={applyLayout}
+        onResetLayout={handleResetLayout}
+        onFitView={handleFitView}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onSaveView={() => setShowSaveDialog(true)}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+      />
 
       <div style={{ display: 'flex', flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <div className="graph-viewer-content" style={{ flex: 1 }}>
-          <CytoscapeComponent
+        <div className="graph-viewer-content" style={{ flex: 1, position: 'relative' }}>
+          <GraphCanvas
             elements={elements}
-            stylesheet={stylesheet as any}
-            layout={layout as any}
-            style={{ width: "100%", height: "100%" }}
-            cy={(cy) => setCyInstance(cy)}
+            stylesheet={stylesheet}
+            layout={layout}
+            onCyInit={setCyInstance}
           />
 
-          {selectedNodeInfo && (
-            <div className="graph-inspector-panel">
-              <div className="inspector-header">
-                <h3>Node Details</h3>
-                <button
-                  onClick={() => setSelectedNodeInfo(null)}
-                  className="inspector-close"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="inspector-content">
-                <div className="inspector-field">
-                  <label>ID:</label>
-                  <span>{selectedNodeInfo.id}</span>
-                </div>
-                <div className="inspector-field">
-                  <label>Label:</label>
-                  <span>{selectedNodeInfo.label}</span>
-                </div>
-                <div className="inspector-field">
-                  <label>Type:</label>
-                  <span className="node-type-badge">{selectedNodeInfo.type}</span>
-                </div>
-                {selectedNodeInfo.properties && (
-                  <div className="inspector-field">
-                    <label>Properties:</label>
-                    <pre className="properties-json">
-                      {JSON.stringify(selectedNodeInfo.properties, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          <GraphInspector
+            selectedNodeInfo={selectedNodeInfo}
+            onClose={() => setSelectedNodeInfo(null)}
+          />
+
+          <GraphLegendNodes inspectorOpen={!!selectedNodeInfo} />
+          <GraphLegendRelationships
+            edgeStyles={edgeStyles}
+            onResetAllEdgeStyles={resetAllEdgeStyles}
+            sidebarOpen={sidebarOpen}
+          />
         </div>
 
         {/* Sidebar for filters */}
@@ -1750,7 +1161,7 @@ export function GraphViewerRoute() {
                 {savedViews.map(view => (
                   <div key={view.name} style={{ display: 'flex', gap: '8px' }}>
                     <button
-                      onClick={() => loadView(view.name)}
+                      onClick={() => handleLoadView(view.name)}
                       style={{
                         flex: 1,
                         padding: '8px 12px',
@@ -1770,7 +1181,7 @@ export function GraphViewerRoute() {
                       {view.name}
                     </button>
                     <button
-                      onClick={() => deleteView(view.name)}
+                      onClick={() => handleDeleteView(view.name)}
                       style={{
                         padding: '8px 12px',
                         fontSize: '14px',
@@ -1792,245 +1203,20 @@ export function GraphViewerRoute() {
         </div>
       </div>
 
-      <div className="graph-legend">
-        <h4>Legend</h4>
-        <div className="legend-items">
-          {/* Node Types */}
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#8b5cf6" }}></span>
-            <span>Tenant</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#06b6d4" }}></span>
-            <span>Project</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#10b981" }}></span>
-            <span>Document</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#f59e0b" }}></span>
-            <span>Section</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#3b82f6" }}></span>
-            <span>Requirement</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#ec4899" }}></span>
-            <span>LinkSet</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#a855f7" }}></span>
-            <span>TraceLink</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#14b8a6" }}></span>
-            <span>Arch Diagram</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#6366f1" }}></span>
-            <span>Arch Block</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-color" style={{ background: "#84cc16" }}></span>
-            <span>Connector</span>
-          </div>
+      <SaveViewDialog
+        show={showSaveDialog}
+        viewName={newViewName}
+        onViewNameChange={setNewViewName}
+        onSave={handleSaveCurrentView}
+        onCancel={() => setShowSaveDialog(false)}
+      />
 
-          {/* NEW: Relationship Hierarchy */}
-          <div className="legend-item" style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px", paddingTop: "8px" }}>
-            <span style={{ fontSize: "12px", fontWeight: "700", display: "block", marginBottom: "8px" }}>Relationship Types</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-edge" style={{
-              display: "inline-block",
-              width: "20px",
-              height: "4px",
-              background: "#1e40af",
-              marginRight: "8px",
-              verticalAlign: "middle"
-            }}></span>
-            <span style={{ fontSize: "11px", fontWeight: "600" }}>Strong Hierarchy (CONTAINS, HAS_SECTION)</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-edge" style={{
-              display: "inline-block",
-              width: "20px",
-              height: "3px",
-              background: "#4b5563",
-              marginRight: "8px",
-              verticalAlign: "middle"
-            }}></span>
-            <span style={{ fontSize: "11px", fontWeight: "600" }}>Medium Hierarchy (HAS_LINKSET)</span>
-          </div>
-          <div className="legend-item">
-            <span className="legend-edge" style={{
-              display: "inline-block",
-              width: "20px",
-              height: "2px",
-              background: "#94a3b8",
-              backgroundImage: "linear-gradient(to right, #94a3b8 50%, transparent 50%)",
-              backgroundSize: "10px 100%",
-              marginRight: "8px",
-              verticalAlign: "middle"
-            }}></span>
-            <span style={{ fontSize: "11px", fontWeight: "600" }}>Peer Relationships (SATISFIES, RELATED_TO)</span>
-          </div>
-          {edgeStyles.size > 0 && (
-            <div className="legend-item" style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px", paddingTop: "8px" }}>
-              <span style={{ fontSize: "12px", fontWeight: "700", display: "block", marginBottom: "8px" }}>Custom Edge Styles</span>
-            </div>
-          )}
-          {Array.from(edgeStyles.entries()).map(([edgeType, style]) => {
-            const linePattern =
-              style.lineStyle === 'dashed'
-                ? `linear-gradient(to right, ${style.color} 50%, transparent 50%)`
-                : style.lineStyle === 'dotted'
-                ? `repeating-linear-gradient(to right, ${style.color} 0px, ${style.color} 2px, transparent 2px, transparent 4px)`
-                : style.color;
-
-            const backgroundSize = style.lineStyle === 'dashed' ? '10px 100%' : undefined;
-
-            return (
-              <div key={edgeType} className="legend-item">
-                <span className="legend-edge" style={{
-                  display: "inline-block",
-                  width: "20px",
-                  height: `${style.width}px`,
-                  background: linePattern,
-                  backgroundSize,
-                  marginRight: "8px",
-                  verticalAlign: "middle"
-                }}></span>
-                <span style={{ fontSize: "11px", fontWeight: "600" }}>{edgeType}</span>
-              </div>
-            );
-          })}
-          {edgeStyles.size > 0 && (
-            <div className="legend-item" style={{ marginTop: "8px" }}>
-              <button
-                onClick={() => {
-                  if (confirm('Reset all edge styles?')) {
-                    resetAllEdgeStyles();
-                  }
-                }}
-                style={{
-                  padding: '4px 8px',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  backgroundColor: '#ef4444',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontWeight: '500',
-                  width: '100%'
-                }}
-              >
-                Reset All Edge Styles
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {showSaveDialog && (
-        <div className="save-dialog-overlay" onClick={() => setShowSaveDialog(false)}>
-          <div className="save-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="save-dialog-header">
-              <h3>Save Current View</h3>
-              <button
-                onClick={() => setShowSaveDialog(false)}
-                className="save-dialog-close"
-              >
-                ×
-              </button>
-            </div>
-            <div className="save-dialog-content">
-              <label htmlFor="view-name">View Name:</label>
-              <input
-                id="view-name"
-                type="text"
-                value={newViewName}
-                onChange={(e) => setNewViewName(e.target.value)}
-                placeholder="Enter view name..."
-                className="save-dialog-input"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    saveCurrentView();
-                  } else if (e.key === 'Escape') {
-                    setShowSaveDialog(false);
-                  }
-                }}
-                autoFocus
-              />
-            </div>
-            <div className="save-dialog-footer">
-              <button
-                onClick={() => setShowSaveDialog(false)}
-                className="save-dialog-btn save-dialog-btn-cancel"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveCurrentView}
-                className="save-dialog-btn save-dialog-btn-save"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {contextMenu && (() => {
-        const menuItems = generateContextMenuItems(contextMenu.nodeId, contextMenu.nodeType, contextMenu.nodeLabel);
-        return (
-          <div
-            className="context-menu"
-            style={{
-              left: `${contextMenu.x}px`,
-              top: `${contextMenu.y}px`
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            {menuItems.map((item, idx) => (
-              <ContextMenuItemComponent key={idx} item={item} />
-            ))}
-          </div>
-        );
-      })()}
-
-      {edgeContextMenu && (() => {
-        const menuItems = generateEdgeContextMenuItems(edgeContextMenu.edgeLabel, edgeContextMenu.sourceLabel, edgeContextMenu.targetLabel);
-        return (
-          <div
-            className="context-menu"
-            style={{
-              left: `${edgeContextMenu.x}px`,
-              top: `${edgeContextMenu.y}px`
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            {menuItems.map((item, idx) => (
-              <ContextMenuItemComponent key={idx} item={item} />
-            ))}
-          </div>
-        );
-      })()}
+      <GraphContextMenu
+        contextMenu={contextMenu}
+        edgeContextMenu={edgeContextMenu}
+        generateNodeMenuItems={generateContextMenuItems}
+        generateEdgeMenuItems={generateEdgeContextMenuItems}
+      />
     </div>
   );
 }

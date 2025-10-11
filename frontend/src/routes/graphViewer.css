@@ -58,12 +58,17 @@
 }
 
 .graph-inspector-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
   width: 350px;
   background-color: white;
-  border-left: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
+  z-index: 50;
 }
 
 .inspector-header {
@@ -151,13 +156,21 @@
 .graph-legend {
   position: absolute;
   bottom: 1rem;
-  left: 1rem;
   background-color: white;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
   padding: 1rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   z-index: 10;
+  max-width: 300px;
+}
+
+.graph-legend-left {
+  left: 1rem;
+}
+
+.graph-legend-right {
+  right: 1rem;
 }
 
 .graph-legend h4 {
