@@ -5,7 +5,10 @@ import {
   ensureLegacyPasswordUpgrade,
   listDevUsers,
   verifyDevUserPassword,
-  getDevUser
+  getDevUser,
+  getDevUserByEmail,
+  markEmailVerified,
+  updateDevUser
 } from "../services/dev-users.js";
 import {
   createRefreshToken,
@@ -13,6 +16,9 @@ import {
   revokeRefreshToken,
   revokeAllUserTokens
 } from "../lib/refresh-tokens.js";
+import { createToken, verifyAndConsumeToken, revokeUserTokens } from "../lib/tokens.js";
+import { sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail } from "../lib/email.js";
+import { hashPassword } from "../lib/password.js";
 
 export default async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   // Auth-specific rate limiter (stricter than global)
@@ -314,5 +320,141 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     reply.clearCookie(config.cookies.refreshTokenName);
 
     return { message: "Logged out from all devices" };
+  });
+
+  // Email verification - request
+  app.post("/auth/request-verification", {
+    preHandler: [app.authenticate],
+    config: {
+      rateLimit: authRateLimitConfig
+    },
+    schema: {
+      tags: ["authentication"],
+      summary: "Request email verification",
+      description: "Send verification email to current user",
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (req, reply) => {
+    if (!req.currentUser) {
+      return reply.status(401).send({ error: "User not authenticated" });
+    }
+
+    const user = await getDevUser(req.currentUser.sub);
+    if (!user) {
+      return reply.status(404).send({ error: "User not found" });
+    }
+
+    if (user.emailVerified) {
+      return reply.status(400).send({ error: "Email already verified" });
+    }
+
+    // Create verification token
+    const token = createToken(user.id, user.email, "email_verification");
+
+    // Send verification email
+    await sendVerificationEmail(user.email, user.name, token);
+
+    return { message: "Verification email sent" };
+  });
+
+  // Email verification - verify
+  app.post("/auth/verify-email", {
+    config: {
+      rateLimit: authRateLimitConfig
+    },
+    schema: {
+      tags: ["authentication"],
+      summary: "Verify email address",
+      description: "Verify email with token from verification email"
+    }
+  }, async (req, reply) => {
+    const { token } = validateInput(authSchemas.verifyEmail, req.body);
+
+    // Verify and consume token
+    const tokenRecord = verifyAndConsumeToken(token, "email_verification");
+
+    if (!tokenRecord) {
+      return reply.status(400).send({ error: "Invalid or expired verification token" });
+    }
+
+    // Mark email as verified
+    const user = await markEmailVerified(tokenRecord.userId);
+
+    if (!user) {
+      return reply.status(404).send({ error: "User not found" });
+    }
+
+    return { message: "Email verified successfully" };
+  });
+
+  // Password reset - request
+  app.post("/auth/request-password-reset", {
+    config: {
+      rateLimit: authRateLimitConfig
+    },
+    schema: {
+      tags: ["authentication"],
+      summary: "Request password reset",
+      description: "Send password reset email"
+    }
+  }, async (req, reply) => {
+    const { email } = validateInput(authSchemas.requestPasswordReset, req.body);
+
+    // Find user by email (don't reveal if user exists)
+    const user = await getDevUserByEmail(email);
+
+    if (user) {
+      // Create reset token
+      const token = createToken(user.id, user.email, "password_reset", 30); // 30 min expiry
+
+      // Send reset email
+      await sendPasswordResetEmail(user.email, user.name, token);
+    }
+
+    // Always return success (don't reveal if user exists)
+    return { message: "If an account exists with this email, a password reset link has been sent" };
+  });
+
+  // Password reset - confirm
+  app.post("/auth/reset-password", {
+    config: {
+      rateLimit: authRateLimitConfig
+    },
+    schema: {
+      tags: ["authentication"],
+      summary: "Reset password",
+      description: "Reset password with token from reset email"
+    }
+  }, async (req, reply) => {
+    const { token, password } = validateInput(authSchemas.resetPassword, req.body);
+
+    // Verify and consume token
+    const tokenRecord = verifyAndConsumeToken(token, "password_reset");
+
+    if (!tokenRecord) {
+      return reply.status(400).send({ error: "Invalid or expired reset token" });
+    }
+
+    // Get user
+    const user = await getDevUser(tokenRecord.userId);
+
+    if (!user) {
+      return reply.status(404).send({ error: "User not found" });
+    }
+
+    // Update password
+    const hashedPassword = await hashPassword(password);
+    await updateDevUser(user.id, { password: hashedPassword });
+
+    // Revoke all refresh tokens (logout all devices)
+    revokeAllUserTokens(user.id);
+
+    // Revoke any remaining reset tokens
+    revokeUserTokens(user.id, "password_reset");
+
+    // Send confirmation email
+    await sendPasswordChangedEmail(user.email, user.name);
+
+    return { message: "Password reset successfully. Please log in with your new password." };
   });
 }

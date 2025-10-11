@@ -16,6 +16,7 @@ export type DevUserRecord = {
   password?: string;        // Legacy SHA256 hash (deprecated)
   passwordHash?: string;    // Legacy scrypt hash or Argon2id hash
   passwordSalt?: string;    // Legacy scrypt salt (deprecated)
+  emailVerified?: boolean;  // Email verification status
   roles: string[];
   tenantSlugs: string[];
   createdAt: string;
@@ -239,4 +240,31 @@ export async function deleteDevUser(id: string): Promise<boolean> {
 export async function getDevUser(id: string): Promise<DevUserRecord | null> {
   const users = await loadUsers();
   return users.find(user => user.id === id) ?? null;
+}
+
+/**
+ * Mark a user's email as verified
+ */
+export async function markEmailVerified(userId: string): Promise<DevUserRecord | null> {
+  const users = await loadUsers();
+  const index = users.findIndex(user => user.id === userId);
+  if (index === -1) {
+    return null;
+  }
+
+  const user = users[index];
+  user.emailVerified = true;
+  user.updatedAt = new Date().toISOString();
+
+  users[index] = user;
+  await saveUsers(users);
+  return user;
+}
+
+/**
+ * Get user by email
+ */
+export async function getDevUserByEmail(email: string): Promise<DevUserRecord | null> {
+  const users = await loadUsers();
+  return users.find(user => user.email.toLowerCase() === email.toLowerCase()) ?? null;
 }
