@@ -8,7 +8,7 @@ import { REQUIREMENT_PATTERNS, VERIFICATION_METHODS } from "../constants";
 import type { DraftRequest, RequirementRecord, RequirementPattern, VerificationMethod } from "../types";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
-import { PageLayout } from "../components/PageLayout";
+import { PageLayout } from "../components/layout/PageLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
