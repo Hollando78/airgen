@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
+import fastifyCookie from "@fastify/cookie";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import { fileURLToPath } from "node:url";
@@ -17,6 +18,7 @@ import { logger } from "./lib/logger.js";
 import { initMetrics, metricsMiddleware, getMetrics, areMetricsAvailable } from "./lib/metrics.js";
 import { initSentry, sentryErrorHandler, isSentryEnabled, flush as flushSentry } from "./lib/sentry.js";
 import { closeCache } from "./lib/cache.js";
+import { startTokenCleanup, stopTokenCleanup } from "./lib/refresh-tokens.js";
 import { sanitizeNeo4jResponse } from "./lib/neo4j-utils.js";
 import draftRoutes from "./routes/draft.js";
 import airgenRoutes from "./routes/airgen.js";
@@ -116,7 +118,11 @@ app.addHook("onSend", async (request, reply, payload) => {
   return payload;
 });
 
-await app.register(cors, { origin: true });
+await app.register(cors, { origin: true, credentials: true });
+await app.register(fastifyCookie, {
+  secret: config.jwtSecret, // Use JWT secret for cookie signing
+  hook: "onRequest"
+});
 await app.register(helmet, {
   contentSecurityPolicy: {
     directives: {
@@ -212,7 +218,13 @@ if (isSentryEnabled()) {
   });
 }
 
+// Start refresh token cleanup
+startTokenCleanup();
+
 app.addHook("onClose", async () => {
+  // Stop refresh token cleanup
+  stopTokenCleanup();
+
   // Flush Sentry events before closing
   if (isSentryEnabled()) {
     await flushSentry(2000);
