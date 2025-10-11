@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
 import { config } from "../config.js";
+import { authSchemas, validateInput } from "../lib/validation.js";
 import {
   ensureLegacyPasswordUpgrade,
   listDevUsers,
@@ -14,13 +14,22 @@ import {
   revokeAllUserTokens
 } from "../lib/refresh-tokens.js";
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1)
-});
-
 export default async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
+  // Auth-specific rate limiter (stricter than global)
+  const authRateLimitConfig = {
+    max: config.rateLimit.auth.max,
+    timeWindow: config.rateLimit.auth.timeWindow,
+    errorResponseBuilder: () => ({
+      error: "Too many authentication attempts. Please try again later.",
+      statusCode: 429,
+      retryAfter: Math.ceil(config.rateLimit.auth.timeWindow / 1000)
+    })
+  };
+
   app.post("/auth/login", {
+    config: {
+      rateLimit: authRateLimitConfig
+    },
     schema: {
       tags: ["authentication"],
       summary: "Authenticate user",
@@ -65,7 +74,8 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       }
     }
   }, async (req, reply) => {
-    const { email, password } = loginSchema.parse(req.body);
+    // Validate input with enhanced Zod schema
+    const { email, password } = validateInput(authSchemas.login, req.body);
 
     try {
       // Find user by email
@@ -119,6 +129,13 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         user: userWithoutPassword
       };
     } catch (error) {
+      // Handle validation errors
+      if ((error as any).statusCode === 400 && (error as any).validation) {
+        return reply.status(400).send({
+          error: "Validation failed",
+          details: (error as any).validation
+        });
+      }
       app.log.error(error, "Login error");
       return reply.status(500).send({ error: "Internal server error" });
     }
@@ -167,6 +184,9 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
   });
 
   app.post("/auth/refresh", {
+    config: {
+      rateLimit: authRateLimitConfig
+    },
     schema: {
       tags: ["authentication"],
       summary: "Refresh access token",

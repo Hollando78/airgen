@@ -127,15 +127,33 @@ await app.register(fastifyCookie, {
   secret: config.jwtSecret, // Use JWT secret for cookie signing
   hook: "onRequest"
 });
+
+// Helmet security headers (CSP enabled only in production)
 await app.register(helmet, {
-  contentSecurityPolicy: {
+  // Enable full CSP only in production
+  contentSecurityPolicy: config.environment === "production" ? {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"]
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"]
     }
-  }
+  } : false, // Disabled in dev to avoid interfering with HMR
+  // Always enable these headers
+  hsts: config.environment === "production" ? {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+  } : false,
+  frameguard: { action: "deny" },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 });
 // Global rate limiting (higher limit in dev for React strict mode)
 await app.register(rateLimit, {
