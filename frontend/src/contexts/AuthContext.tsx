@@ -172,32 +172,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     };
   }, [token, tokenExpiresAt, clearStoredAuth]);
 
-  // Auto-logout when the token expiration is reached
+  // Refresh token automatically 2 minutes before expiry
+  const refreshAccessToken = useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include" // Send httpOnly cookie
+      });
+
+      if (!response.ok) {
+        throw new Error("Token refresh failed");
+      }
+
+      const data: { token: string } = await response.json();
+      const expiry = decodeJwtExpiration(data.token);
+
+      if (!expiry) {
+        throw new Error("Invalid token expiry");
+      }
+
+      // Update stored token and expiry
+      localStorage.setItem(STORAGE_TOKEN, data.token);
+      localStorage.setItem(STORAGE_EXPIRY, expiry.toString());
+
+      setToken(data.token);
+      setTokenExpiresAt(expiry);
+
+      // Verify the new token to update user data
+      const meResponse = await fetch("/api/auth/me", {
+        headers: {
+          Authorization: `Bearer ${data.token}`
+        }
+      });
+
+      if (meResponse.ok) {
+        const meData = (await meResponse.json()) as { user: User };
+        setUser(meData.user);
+        localStorage.setItem(STORAGE_USER, JSON.stringify(meData.user));
+      }
+    } catch (error) {
+      // If refresh fails, log out the user
+      clearStoredAuth();
+      setToken(null);
+      setUser(null);
+      setTokenExpiresAt(null);
+      setError("Session expired. Please log in again.");
+    }
+  }, [clearStoredAuth]);
+
+  // Auto-refresh token 2 minutes before expiry (or logout if already expired)
   useEffect(() => {
     if (!token || !tokenExpiresAt) {
       return;
     }
 
     const remaining = tokenExpiresAt - Date.now();
+    const refreshBuffer = 2 * 60 * 1000; // 2 minutes in milliseconds
+
+    // If token already expired, logout immediately
     if (remaining <= 0) {
       clearStoredAuth();
       setToken(null);
       setUser(null);
       setTokenExpiresAt(null);
+      setError("Session expired. Please log in again.");
       return;
     }
 
+    // Schedule refresh 2 minutes before expiry (or immediately if less than 2 min remaining)
+    const refreshIn = Math.max(0, remaining - refreshBuffer);
+
     const timeoutId = window.setTimeout(() => {
-      clearStoredAuth();
-      setToken(null);
-      setUser(null);
-      setTokenExpiresAt(null);
-    }, remaining);
+      void refreshAccessToken();
+    }, refreshIn);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [token, tokenExpiresAt, clearStoredAuth]);
+  }, [token, tokenExpiresAt, clearStoredAuth, refreshAccessToken]);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
