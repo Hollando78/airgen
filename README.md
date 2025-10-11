@@ -52,10 +52,19 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Complete version history** – Immutable version snapshots for all entities including lifecycle operations (create, update, archive, delete, restore).
 - **Baselining** – Point-in-time project snapshots linking to version nodes, fully preserved in Neo4j backups.
 
+### Authentication & Security
+- **Production-grade authentication** – Argon2id password hashing with automatic legacy migration from SHA256/scrypt.
+- **Session management** – Short-lived JWT access tokens (15 min) + httpOnly refresh tokens (7 days) with automatic rotation.
+- **Two-factor authentication (2FA)** – TOTP with encrypted secrets and hashed backup codes. Compatible with Google Authenticator, Authy, 1Password, and other RFC 6238 apps.
+- **Email verification** – Token-based email verification with secure token generation and expiry.
+- **Password reset** – Secure token-based password reset with automatic session revocation.
+- **Security middleware** – Helmet (CSP, HSTS), rate limiting (global + auth-specific), CORS allowlisting, Zod input validation.
+- **Observability** – Structured auth event logging, health endpoints (/healthz, /readyz, /health), request correlation with X-Request-ID headers.
+- **Environment separation** – Development, staging, production configurations with fail-fast validation for production secrets.
+
 ### Deployment & Infrastructure
 - **Docker-native** – Traefik + Neo4j + Fastify API + Redis compose stack for quick VPS deployment.
 - **Multi-tenant** – Full tenant and project isolation with RBAC.
-- **Authentication** – JWT-based authentication with role-based access control.
 - **Automated backups** – Daily incremental and weekly full backups with encrypted remote storage, 12-week retention, and one-command restore.
 
 ## Repository layout
@@ -89,6 +98,10 @@ See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 - **[Version History System](./docs/VERSION-HISTORY-SYSTEM.md)** – Complete audit trail, lifecycle tracking, compliance features.
 - **[Baseline System Guide](./docs/BASELINE-SYSTEM-GUIDE.md)** – Point-in-time snapshots, baseline comparison, release management.
 - [Export System Design](./docs/EXPORT-SYSTEM-DESIGN.md) – On-demand markdown generation from Neo4j.
+
+### Authentication & Security
+- **[Security Documentation](./docs/SECURITY.md)** – Complete security foundation guide: authentication, 2FA, sessions, security headers, observability.
+- **[Security Test Checklist](./docs/SECURITY-TEST-CHECKLIST.md)** – Manual testing checklist for all security features.
 
 ### Backup & Operations
 - **[Backup & Restore](./docs/BACKUP_RESTORE.md)** – Complete backup strategy, recovery procedures, and disaster recovery guide.
@@ -154,10 +167,30 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 
 ## Key API endpoints
 
+### Authentication & Security
+| Method | Path                                      | Purpose |
+| ------ | ----------------------------------------- | ------- |
+| POST   | `/auth/login`                             | Login with email/password (returns JWT or MFA_REQUIRED) |
+| POST   | `/auth/mfa-verify`                        | Verify 2FA code to complete login |
+| POST   | `/auth/refresh`                           | Refresh access token using httpOnly cookie |
+| POST   | `/auth/logout`                            | Logout current session |
+| POST   | `/auth/logout-all`                        | Revoke all sessions for current user |
+| GET    | `/auth/me`                                | Get current user info |
+| POST   | `/auth/request-verification`              | Request email verification |
+| POST   | `/auth/verify-email`                      | Verify email with token |
+| POST   | `/auth/request-password-reset`            | Request password reset |
+| POST   | `/auth/reset-password`                    | Reset password with token |
+| POST   | `/mfa/totp/start`                         | Start 2FA setup (generate QR code) |
+| POST   | `/mfa/totp/verify`                        | Verify TOTP code and enable 2FA |
+| POST   | `/mfa/disable`                            | Disable 2FA (revokes all sessions) |
+| GET    | `/mfa/status`                             | Get 2FA status and backup codes remaining |
+
 ### Core & System
 | Method | Path                                      | Purpose |
 | ------ | ----------------------------------------- | ------- |
-| GET    | `/health`                                 | Health and environment details |
+| GET    | `/healthz`                                | Liveness probe (Kubernetes-compatible) |
+| GET    | `/readyz`                                 | Readiness probe (checks database connectivity) |
+| GET    | `/health`                                 | Comprehensive health and environment details |
 | GET    | `/tenants`                                | List tenants and project counts |
 | POST   | `/tenants`                                | Create a new tenant |
 | GET    | `/tenants/:tenant/projects`               | Projects for a tenant with requirement counts |
