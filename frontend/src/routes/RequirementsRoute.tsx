@@ -5,12 +5,11 @@ import { useTenantProject } from "../hooks/useTenantProject";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
 import { PageLayout } from "../components/layout/PageLayout";
-import { PageHeader } from "../components/layout/PageHeader";
 import { EmptyState } from "../components/ui/empty-state";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
-import { FileText, RefreshCw, Copy, X } from "lucide-react";
+import { FileText, RefreshCw, Copy, ChevronRight } from "lucide-react";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {return "—";}
@@ -118,186 +117,198 @@ export function RequirementsRoute(): JSX.Element {
         </Button>
       }
     >
-      <div className="mb-6 flex gap-3">
-        <Input
-          type="search"
-          value={search}
-          onChange={event => setSearch(event.target.value)}
-          placeholder="Search by ref, title, or text..."
-          className="flex-1"
-        />
-      </div>
-
       {graphDataQuery.isLoading ? (
-        <Spinner />
+        <div className="flex items-center justify-center h-64">
+          <Spinner />
+        </div>
       ) : graphDataQuery.isError ? (
         <ErrorState message={(graphDataQuery.error as Error).message} />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={FileText}
-          title={search ? "No Matches Found" : "No Requirements"}
-          description={search ? `No requirements match "${search}".` : "No requirements found in this project."}
-        />
       ) : (
-        <>
-          <div className="mb-6">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Ref</th>
-                <th>Description</th>
-                <th>QA Score</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(item => (
-                <tr
-                  key={item.ref}
-                  onClick={() => handleRowClick(item.ref)}
-                  className={item.ref === selectedRef ? "row-active" : undefined}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <td><strong>{item.ref}</strong></td>
-                  <td>{item.title}</td>
-                  <td>
-                    <span style={{
-                      color: item.qaScore >= 90 ? '#22c55e' : item.qaScore >= 70 ? '#eab308' : '#ef4444',
-                      fontWeight: 600
-                    }}>
-                      {item.qaScore ?? "—"}
-                    </span>
-                  </td>
-                  <td>{formatDate(item.updatedAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" style={{ height: 'calc(100vh - 16rem)' }}>
+          {/* Left Panel - Requirements List */}
+          <div className="flex flex-col gap-4 overflow-hidden h-full">
+            <div className="flex flex-col gap-3">
+              <Input
+                type="search"
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                placeholder="Search by ref, title, or text..."
+              />
+              <div className="text-sm text-muted-foreground">
+                {search ? (
+                  <span>Showing {filtered.length} of {items.length} requirements</span>
+                ) : (
+                  <span>{items.length} requirement{items.length !== 1 ? 's' : ''}</span>
+                )}
+              </div>
+            </div>
+
+            {filtered.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title={search ? "No Matches Found" : "No Requirements"}
+                description={search ? `No requirements match "${search}".` : "No requirements found in this project."}
+              />
+            ) : (
+              <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
+                <div className="divide-y">
+                  {filtered.map(item => (
+                    <div
+                      key={item.ref}
+                      onClick={() => handleRowClick(item.ref)}
+                      className={`p-4 cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900 ${
+                        item.ref === selectedRef ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-blue-500' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-sm">{item.ref}</span>
+                            {item.qaScore !== undefined && (
+                              <span
+                                className="text-xs font-semibold px-2 py-0.5 rounded"
+                                style={{
+                                  backgroundColor: item.qaScore >= 90 ? '#dcfce7' : item.qaScore >= 70 ? '#fef3c7' : '#fee2e2',
+                                  color: item.qaScore >= 90 ? '#166534' : item.qaScore >= 70 ? '#92400e' : '#991b1b'
+                                }}
+                              >
+                                {item.qaScore}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {item.title}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {items.length > 0 && (
-            <div className="mt-4 text-sm text-muted-foreground">
-              {search ? (
-                <span>Showing {filtered.length} of {items.length} requirements</span>
-              ) : (
-                <span>Showing {items.length} requirement{items.length !== 1 ? 's' : ''}</span>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {selectedRef && (
-        <div className="mt-8">
-          <PageHeader
-            title="Requirement Details"
-            actions={
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedRef(null)}
-              >
-                <X className="h-4 w-4" />
-                Close
-              </Button>
-            }
-          />
-
-          {detailQuery.isLoading && <Spinner />}
-          {detailQuery.isError && <ErrorState message={(detailQuery.error as Error).message} />}
-          {detailQuery.data && (
-            <div className="flex flex-col gap-6">
-              <div>
-                <div className="flex justify-between items-start mb-4">
+          {/* Right Panel - Requirement Details */}
+          <div className="flex flex-col overflow-hidden h-full">
+            {!selectedRef ? (
+              <div className="h-full flex items-center justify-center border rounded-lg bg-neutral-50 dark:bg-neutral-900">
+                <EmptyState
+                  icon={FileText}
+                  title="No Requirement Selected"
+                  description="Select a requirement from the list to view its details."
+                />
+              </div>
+            ) : detailQuery.isLoading ? (
+              <div className="h-full flex items-center justify-center border rounded-lg">
+                <Spinner />
+              </div>
+            ) : detailQuery.isError ? (
+              <div className="h-full border rounded-lg p-4">
+                <ErrorState message={(detailQuery.error as Error).message} />
+              </div>
+            ) : detailQuery.data ? (
+              <div className="h-full overflow-y-auto border rounded-lg">
+                <div className="p-6 space-y-6">
+                  {/* Header */}
                   <div>
-                    <h3 className="text-xl font-semibold mb-1">{detailQuery.data.record.ref}</h3>
-                    <p className="text-sm text-muted-foreground">{detailQuery.data.record.title}</p>
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-2xl font-semibold mb-1">{detailQuery.data.record.ref}</h3>
+                        <p className="text-sm text-muted-foreground">{detailQuery.data.record.title}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCopy(detailQuery.data.record.text)}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy Text
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCopy(detailQuery.data.markdown)}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy Markdown
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCopy(detailQuery.data.record.text)}
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy Text
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCopy(detailQuery.data.markdown)}
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy Markdown
-                    </Button>
+
+                  {/* Metadata Grid */}
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
+                    <div>
+                      <div className="text-xs font-semibold text-muted-foreground mb-1">PATTERN</div>
+                      <div className="text-sm">{detailQuery.data.record.pattern ?? "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-muted-foreground mb-1">VERIFICATION</div>
+                      <div className="text-sm">{detailQuery.data.record.verification ?? "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-muted-foreground mb-1">QA SCORE</div>
+                      <div className="text-xl font-semibold" style={{
+                        color: detailQuery.data.record.qaScore >= 90 ? '#22c55e' : detailQuery.data.record.qaScore >= 70 ? '#eab308' : '#ef4444'
+                      }}>
+                        {detailQuery.data.record.qaScore ?? "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-muted-foreground mb-1">VERDICT</div>
+                      <div className="text-sm">{detailQuery.data.record.qaVerdict ?? "—"}</div>
+                    </div>
+                  </div>
+
+                  {/* Requirement Text */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground mb-2">REQUIREMENT TEXT</h4>
+                    <p className="m-0 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg leading-relaxed text-sm">
+                      {detailQuery.data.record.text}
+                    </p>
+                  </div>
+
+                  {/* Suggestions */}
+                  {detailQuery.data.record.suggestions && detailQuery.data.record.suggestions.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-muted-foreground mb-2">SUGGESTIONS</h4>
+                      <ul className="m-0 p-4 pl-8 bg-neutral-50 dark:bg-neutral-900 rounded-lg space-y-2 text-sm">
+                        {detailQuery.data.record.suggestions.map((suggestion, index) => (
+                          <li key={index}>{suggestion}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Tags */}
+                  {detailQuery.data.record.tags && detailQuery.data.record.tags.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-muted-foreground mb-2">TAGS</h4>
+                      <div className="flex gap-2 flex-wrap">
+                        {detailQuery.data.record.tags.map((tag, index) => (
+                          <Badge key={index} variant="secondary">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Timestamps */}
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t text-sm text-muted-foreground">
+                    <div>
+                      <strong>Created:</strong> {formatDate(detailQuery.data.record.createdAt)}
+                    </div>
+                    <div>
+                      <strong>Updated:</strong> {formatDate(detailQuery.data.record.updatedAt)}
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
-                <div>
-                  <div className="text-xs font-semibold text-muted-foreground mb-1">PATTERN</div>
-                  <div>{detailQuery.data.record.pattern ?? "—"}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-muted-foreground mb-1">VERIFICATION</div>
-                  <div>{detailQuery.data.record.verification ?? "—"}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-muted-foreground mb-1">QA SCORE</div>
-                  <div className="text-xl font-semibold" style={{
-                    color: detailQuery.data.record.qaScore >= 90 ? '#22c55e' : detailQuery.data.record.qaScore >= 70 ? '#eab308' : '#ef4444'
-                  }}>
-                    {detailQuery.data.record.qaScore ?? "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-muted-foreground mb-1">VERDICT</div>
-                  <div className="text-sm">{detailQuery.data.record.qaVerdict ?? "—"}</div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-semibold text-muted-foreground mb-2">REQUIREMENT TEXT</h4>
-                <p className="m-0 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg leading-relaxed">
-                  {detailQuery.data.record.text}
-                </p>
-              </div>
-
-              {detailQuery.data.record.suggestions && detailQuery.data.record.suggestions.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground mb-2">SUGGESTIONS</h4>
-                  <ul className="m-0 p-4 pl-8 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
-                    {detailQuery.data.record.suggestions.map((suggestion, index) => (
-                      <li key={index} className="mb-2">{suggestion}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {detailQuery.data.record.tags && detailQuery.data.record.tags.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground mb-2">TAGS</h4>
-                  <div className="flex gap-2 flex-wrap">
-                    {detailQuery.data.record.tags.map((tag, index) => (
-                      <Badge key={index} variant="secondary">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-                <div>
-                  <strong>Created:</strong> {formatDate(detailQuery.data.record.createdAt)}
-                </div>
-                <div>
-                  <strong>Updated:</strong> {formatDate(detailQuery.data.record.updatedAt)}
-                </div>
-              </div>
-            </div>
-          )}
+            ) : null}
+          </div>
         </div>
       )}
     </PageLayout>
