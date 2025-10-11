@@ -29,6 +29,7 @@ import architectureRoutes from "./routes/architecture.js";
 import traceRoutes from "./routes/trace.js";
 import { linksetRoutes } from "./routes/linksets.js";
 import authRoutes from "./routes/auth.js";
+import mfaRoutes from "./routes/mfa.js";
 import markdownRoutes from "./routes/markdown-api.js";
 import thumbnailRoutes from "./routes/thumbnails.js";
 import graphRoutes from "./routes/graph.js";
@@ -174,7 +175,8 @@ await app.register(swagger, {
       { url: "https://airgen.studio", description: "Production server" }
     ],
     tags: [
-      { name: "auth", description: "Authentication endpoints" },
+      { name: "authentication", description: "Authentication endpoints" },
+      { name: "mfa", description: "Multi-factor authentication" },
       { name: "core", description: "Core system endpoints" },
       { name: "requirements", description: "Requirements management" },
       { name: "documents", description: "Document management" },
@@ -268,6 +270,7 @@ if (areMetricsAvailable()) {
 }
 
 await app.register(authRoutes, { prefix: "/api" });
+await app.register(mfaRoutes, { prefix: "/api" });
 await app.register(coreRoutes, { prefix: "/api" });
 await app.register(requirementsRoutes, { prefix: "/api" });
 await app.register(documentRoutes, { prefix: "/api" });

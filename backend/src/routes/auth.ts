@@ -19,6 +19,12 @@ import {
 import { createToken, verifyAndConsumeToken, revokeUserTokens } from "../lib/tokens.js";
 import { sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail } from "../lib/email.js";
 import { hashPassword } from "../lib/password.js";
+import {
+  verifyTotpToken,
+  decryptSecret,
+  verifyBackupCode,
+  consumeBackupCode
+} from "../lib/mfa.js";
 
 export default async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   // Auth-specific rate limiter (stricter than global)
@@ -103,6 +109,25 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
 
       // Upgrade legacy hashes to Argon2id on successful auth
       await ensureLegacyPasswordUpgrade(user, password);
+
+      // Check if MFA is enabled for this user
+      if (user.mfaEnabled) {
+        // Generate temporary session token for MFA verification (5 minutes)
+        const tempToken = await reply.jwtSign(
+          {
+            sub: user.id,
+            email: user.email,
+            mfaPending: true
+          },
+          { expiresIn: '5m' }
+        );
+
+        return {
+          status: "MFA_REQUIRED",
+          tempToken,
+          message: "Please provide your 2FA code"
+        };
+      }
 
       // Generate short-lived JWT access token (15 minutes)
       const token = await reply.jwtSign(
@@ -320,6 +345,125 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     reply.clearCookie(config.cookies.refreshTokenName);
 
     return { message: "Logged out from all devices" };
+  });
+
+  /**
+   * Verify MFA code after login
+   */
+  app.post("/auth/mfa-verify", {
+    config: {
+      rateLimit: authRateLimitConfig
+    },
+    schema: {
+      tags: ["authentication"],
+      summary: "Verify MFA code",
+      description: "Complete login by verifying TOTP or backup code",
+      body: {
+        type: "object",
+        required: ["tempToken", "code"],
+        properties: {
+          tempToken: { type: "string", description: "Temporary session token from login" },
+          code: { type: "string", description: "TOTP code or backup code" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            token: { type: "string" },
+            user: { type: "object" }
+          }
+        },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const { tempToken, code } = validateInput(authSchemas.verifyMfaLogin, req.body);
+
+    // Verify temporary token
+    let decoded;
+    try {
+      decoded = await req.jwtVerify({ token: tempToken }) as any;
+    } catch (error) {
+      return reply.status(401).send({ error: "Invalid or expired session token" });
+    }
+
+    // Check if this is an MFA pending token
+    if (!decoded.mfaPending) {
+      return reply.status(401).send({ error: "Invalid session token" });
+    }
+
+    // Get user
+    const user = await getDevUser(decoded.sub);
+    if (!user) {
+      return reply.status(404).send({ error: "User not found" });
+    }
+
+    if (!user.mfaEnabled || !user.mfaSecret) {
+      return reply.status(400).send({ error: "2FA not enabled for this user" });
+    }
+
+    let isValid = false;
+    let usedBackupCode = false;
+
+    // Try TOTP first
+    const secret = decryptSecret(user.mfaSecret);
+    isValid = verifyTotpToken(code, secret);
+
+    // If TOTP fails, try backup codes
+    if (!isValid && user.mfaBackupCodes && user.mfaBackupCodes.length > 0) {
+      isValid = verifyBackupCode(code, user.mfaBackupCodes);
+      usedBackupCode = isValid;
+    }
+
+    if (!isValid) {
+      return reply.status(400).send({ error: "Invalid 2FA code" });
+    }
+
+    // If backup code was used, consume it
+    if (usedBackupCode && user.mfaBackupCodes) {
+      const remainingCodes = consumeBackupCode(code, user.mfaBackupCodes);
+      await updateDevUser(user.id, {
+        // @ts-expect-error - mfaBackupCodes is valid but not in UpdateDevUserInput type
+        mfaBackupCodes: remainingCodes
+      });
+    }
+
+    // Generate full access token
+    const token = await reply.jwtSign(
+      {
+        sub: user.id,
+        email: user.email,
+        name: user.name,
+        roles: user.roles,
+        tenantSlugs: user.tenantSlugs
+      },
+      { expiresIn: '15m' }
+    );
+
+    // Generate refresh token
+    const refreshToken = createRefreshToken(user.id);
+
+    // Set refresh token as httpOnly cookie
+    reply.setCookie(config.cookies.refreshTokenName, refreshToken, {
+      httpOnly: true,
+      secure: config.environment === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 // 7 days in seconds
+    });
+
+    // Return token and user info
+    const { password: _legacy, passwordHash: _hash, passwordSalt: _salt, mfaSecret: _secret, mfaBackupCodes: _codes, ...userWithoutSensitive } = user;
+    return {
+      token,
+      user: userWithoutSensitive
+    };
   });
 
   // Email verification - request

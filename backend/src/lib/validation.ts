@@ -106,8 +106,14 @@ export const authSchemas = {
       : relaxedPasswordSchema
   }),
 
-  // MFA verification
+  // MFA verification (during setup)
   verifyMfa: z.object({
+    code: z.union([totpCodeSchema, backupCodeSchema])
+  }),
+
+  // MFA verification (during login)
+  verifyMfaLogin: z.object({
+    tempToken: z.string().min(1, "Session token is required"),
     code: z.union([totpCodeSchema, backupCodeSchema])
   })
 };

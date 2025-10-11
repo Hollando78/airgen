@@ -17,6 +17,9 @@ export type DevUserRecord = {
   passwordHash?: string;    // Legacy scrypt hash or Argon2id hash
   passwordSalt?: string;    // Legacy scrypt salt (deprecated)
   emailVerified?: boolean;  // Email verification status
+  mfaEnabled?: boolean;     // 2FA enabled status
+  mfaSecret?: string;       // Encrypted TOTP secret
+  mfaBackupCodes?: string[]; // Hashed backup codes
   roles: string[];
   tenantSlugs: string[];
   createdAt: string;
