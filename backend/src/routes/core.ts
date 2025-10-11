@@ -48,6 +48,73 @@ const draftSchema = z.object({
 });
 
 export default async function registerCoreRoutes(app: FastifyInstance): Promise<void> {
+  // Liveness probe - simple check that the server is running
+  app.get("/healthz", {
+    schema: {
+      tags: ["core"],
+      summary: "Liveness check",
+      description: "Simple liveness check for Kubernetes/Docker health probes",
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            status: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async () => {
+    return { status: "ok" };
+  });
+
+  // Readiness probe - checks if the server can handle requests
+  app.get("/readyz", {
+    schema: {
+      tags: ["core"],
+      summary: "Readiness check",
+      description: "Checks if the server is ready to accept traffic (database connectivity, etc.)",
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            status: { type: "string" },
+            checks: { type: "object" }
+          }
+        },
+        503: {
+          type: "object",
+          properties: {
+            status: { type: "string" },
+            checks: { type: "object" }
+          }
+        }
+      }
+    }
+  }, async (_req, reply) => {
+    const checks: Record<string, string> = {};
+    let isReady = true;
+
+    // Check Neo4j connectivity
+    try {
+      const { getSession } = await import("../services/graph/driver.js");
+      const session = getSession();
+      await session.run("RETURN 1");
+      await session.close();
+      checks.database = "ready";
+    } catch (error) {
+      checks.database = "not_ready";
+      isReady = false;
+    }
+
+    if (isReady) {
+      return { status: "ready", checks };
+    } else {
+      reply.status(503);
+      return { status: "not_ready", checks };
+    }
+  });
+
+  // Comprehensive health check endpoint
   app.get("/health", {
     schema: {
       tags: ["core"],

@@ -20,6 +20,7 @@ import { initSentry, sentryErrorHandler, isSentryEnabled, flush as flushSentry }
 import { closeCache } from "./lib/cache.js";
 import { startTokenCleanup, stopTokenCleanup } from "./lib/refresh-tokens.js";
 import { sanitizeNeo4jResponse } from "./lib/neo4j-utils.js";
+import { setupRequestIdMiddleware } from "./lib/request-id.js";
 import draftRoutes from "./routes/draft.js";
 import airgenRoutes from "./routes/airgen.js";
 import coreRoutes from "./routes/core.js";
@@ -215,6 +216,9 @@ app.addContentTypeParser(/^multipart\//, { parseAs: "buffer", bodyLimit: 50 * 10
   done(null, body);
 });
 await registerAuth(app);
+
+// Setup request ID middleware for correlation tracking
+setupRequestIdMiddleware(app);
 
 app.addHook("onRequest", app.optionalAuthenticate);
 

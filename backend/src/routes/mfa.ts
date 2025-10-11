@@ -123,6 +123,14 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
       mfaBackupCodes: hashedBackupCodes
     });
 
+    // Log MFA enabled
+    app.log.info({
+      event: "auth.mfa.enabled",
+      userId: user.id,
+      email: user.email,
+      backupCodesGenerated: backupCodes.length
+    }, "2FA enabled for user");
+
     return {
       message: "2FA enabled successfully",
       backupCodes // Return plaintext codes ONCE for user to save
@@ -164,6 +172,13 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
       mfaSecret: undefined,
       mfaBackupCodes: undefined
     });
+
+    // Log MFA disabled
+    app.log.info({
+      event: "auth.mfa.disabled",
+      userId: user.id,
+      email: user.email
+    }, "2FA disabled for user");
 
     // Revoke all sessions for security
     revokeAllUserTokens(user.id);

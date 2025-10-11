@@ -104,6 +104,13 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       // Verify password (supports Argon2id, legacy scrypt, and legacy SHA256)
       const authenticated = await verifyDevUserPassword(user, password);
       if (!authenticated) {
+        // Log failed login attempt
+        app.log.warn({
+          event: "auth.login.failed",
+          email,
+          reason: "invalid_password",
+          ip: req.ip
+        }, "Failed login attempt");
         return reply.status(401).send({ error: "Invalid credentials" });
       }
 
@@ -121,6 +128,14 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
           },
           { expiresIn: '5m' }
         );
+
+        // Log MFA challenge issued
+        app.log.info({
+          event: "auth.mfa.challenge_issued",
+          userId: user.id,
+          email: user.email,
+          ip: req.ip
+        }, "MFA challenge issued for user");
 
         return {
           status: "MFA_REQUIRED",
@@ -152,6 +167,15 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         path: "/",
         maxAge: 7 * 24 * 60 * 60 // 7 days in seconds
       });
+
+      // Log successful login
+      app.log.info({
+        event: "auth.login.success",
+        userId: user.id,
+        email: user.email,
+        mfaEnabled: false,
+        ip: req.ip
+      }, "User logged in successfully");
 
       // Return token and user info (without password)
       const { password: _legacy, passwordHash: _hash, passwordSalt: _salt, ...userWithoutPassword } = user;
@@ -311,6 +335,16 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       revokeRefreshToken(refreshToken);
     }
 
+    // Log logout event
+    if (req.currentUser) {
+      app.log.info({
+        event: "auth.logout",
+        userId: req.currentUser.sub,
+        email: req.currentUser.email,
+        ip: req.ip
+      }, "User logged out");
+    }
+
     // Clear refresh token cookie
     reply.clearCookie(config.cookies.refreshTokenName);
 
@@ -422,6 +456,13 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     }
 
     if (!isValid) {
+      // Log failed MFA verification
+      app.log.warn({
+        event: "auth.mfa.verification_failed",
+        userId: user.id,
+        email: user.email,
+        ip: req.ip
+      }, "Failed MFA verification attempt");
       return reply.status(400).send({ error: "Invalid 2FA code" });
     }
 
@@ -457,6 +498,15 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       path: "/",
       maxAge: 7 * 24 * 60 * 60 // 7 days in seconds
     });
+
+    // Log successful MFA verification
+    app.log.info({
+      event: "auth.mfa.verification_success",
+      userId: user.id,
+      email: user.email,
+      usedBackupCode,
+      ip: req.ip
+    }, "MFA verification successful");
 
     // Return token and user info
     const { password: _legacy, passwordHash: _hash, passwordSalt: _salt, mfaSecret: _secret, mfaBackupCodes: _codes, ...userWithoutSensitive } = user;
@@ -528,6 +578,14 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       return reply.status(404).send({ error: "User not found" });
     }
 
+    // Log email verification success
+    app.log.info({
+      event: "auth.email.verified",
+      userId: user.id,
+      email: user.email,
+      ip: req.ip
+    }, "Email verified successfully");
+
     return { message: "Email verified successfully" };
   });
 
@@ -595,6 +653,14 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
 
     // Revoke any remaining reset tokens
     revokeUserTokens(user.id, "password_reset");
+
+    // Log password reset
+    app.log.info({
+      event: "auth.password.reset",
+      userId: user.id,
+      email: user.email,
+      ip: req.ip
+    }, "Password reset successfully");
 
     // Send confirmation email
     await sendPasswordChangedEmail(user.email, user.name);
