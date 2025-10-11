@@ -9,6 +9,8 @@ import { PageLayout } from "../components/layout/PageLayout";
 import { PageHeader } from "../components/layout/PageHeader";
 import { Button } from "../components/ui/button";
 import { RefreshCw } from "lucide-react";
+import { TenantProjectSelector } from "../components/TenantProjectSelector";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {return "—";}
@@ -263,6 +265,21 @@ export function DashboardRoute(): JSX.Element {
         { label: 'Dashboard' }
       ]}
     >
+      {/* Workspace Selection */}
+      <div className="mb-8">
+        <Card className="border-neutral-200 bg-white shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-xl text-neutral-900">Select Your Workspace</CardTitle>
+            <CardDescription className="text-neutral-600">
+              Choose a tenant and project to access requirements, documents, and architecture.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TenantProjectSelector />
+          </CardContent>
+        </Card>
+      </div>
+
       <PageHeader
         title="System Health"
         description="Current backend status and metadata"

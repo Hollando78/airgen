@@ -1,7 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { TenantProjectProvider } from "../hooks/useTenantProject";
 import { TokenControls } from "./TokenControls";
-import { TenantProjectSelector } from "./TenantProjectSelector";
 import { UserMenu } from "./UserMenu";
 import { useAuth } from "../contexts/AuthContext";
 import { FloatingDocumentsProvider } from "../contexts/FloatingDocumentsContext";
@@ -42,8 +41,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
                 <span className="brand-subtitle">Studio</span>
               </div>
             </div>
-            <TenantProjectSelector />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: 'auto' }}>
               <TokenControls />
               <UserMenu />
             </div>

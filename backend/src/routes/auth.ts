@@ -8,7 +8,8 @@ import {
   getDevUser,
   getDevUserByEmail,
   markEmailVerified,
-  updateDevUser
+  updateDevUser,
+  createDevUser
 } from "../services/dev-users.js";
 import {
   createRefreshToken,
@@ -210,7 +211,102 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       return reply.status(500).send({ error: "Internal server error" });
     }
   });
-  
+
+  // User registration
+  app.post("/auth/register", {
+    config: {
+      rateLimit: authRateLimitConfig
+    },
+    schema: {
+      tags: ["authentication"],
+      summary: "Register new user",
+      description: "Creates a new user account with email and password",
+      body: {
+        type: "object",
+        required: ["email", "password", "name"],
+        properties: {
+          email: { type: "string", format: "email", description: "User email address" },
+          password: { type: "string", minLength: 8, description: "User password (min 8 characters)" },
+          name: { type: "string", minLength: 1, description: "User's full name" }
+        }
+      },
+      response: {
+        201: {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                email: { type: "string" },
+                name: { type: "string" }
+              }
+            }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        409: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const { email, password, name } = validateInput(authSchemas.register, req.body);
+
+    try {
+      // Create new user (starts with 'user' role by default)
+      const user = await createDevUser({
+        email,
+        password,
+        name,
+        roles: ['user']
+      });
+
+      // Log registration
+      app.log.info({
+        event: "auth.register.success",
+        userId: user.id,
+        email: user.email,
+        ip: req.ip
+      }, "User registered successfully");
+
+      // Return success (user needs to login separately)
+      return reply.status(201).send({
+        message: "Account created successfully. Please sign in.",
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name
+        }
+      });
+    } catch (error) {
+      // Handle duplicate email error
+      if ((error as NodeJS.ErrnoException).code === 'EUSER_EXISTS') {
+        return reply.status(409).send({ error: "An account with this email already exists" });
+      }
+
+      // Handle validation errors
+      if ((error as any).statusCode === 400 && (error as any).validation) {
+        return reply.status(400).send({
+          error: "Validation failed",
+          details: (error as any).validation
+        });
+      }
+
+      app.log.error(error, "Registration error");
+      return reply.status(500).send({ error: "Internal server error" });
+    }
+  });
+
   app.get("/auth/me", {
     preHandler: [app.authenticate],
     schema: {

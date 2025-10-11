@@ -82,8 +82,14 @@ export function DocumentAttachmentSelector({
         <button
           type="button"
           onClick={() => setShowSelector(!showSelector)}
-          className="btn btn--secondary"
-          style={{ marginTop: attachments.length > 0 ? "8px" : "0" }}
+          className="btn btn--primary btn--compact"
+          style={{
+            marginTop: attachments.length > 0 ? "8px" : "0",
+            marginLeft: "auto",
+            display: "block",
+            fontSize: "13px",
+            padding: "6px 12px"
+          }}
         >
           {showSelector ? "Hide" : "Attach"} Documents
         </button>

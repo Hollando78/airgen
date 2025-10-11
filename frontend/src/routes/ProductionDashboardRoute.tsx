@@ -1,6 +1,7 @@
 import { PageLayout } from "../components/PageLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Wrench, Link2, GitBranch, Sparkles, Building2, FileText, Rocket } from "lucide-react";
+import { TenantProjectSelector } from "../components/TenantProjectSelector";
 
 export function ProductionDashboardRoute(): JSX.Element {
   return (
@@ -9,6 +10,18 @@ export function ProductionDashboardRoute(): JSX.Element {
       description="Requirements Engineering and Traceability Platform"
     >
       <div className="space-y-8">
+        {/* Tenant & Project Selection */}
+        <Card className="border-neutral-200 bg-white shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-xl text-neutral-900">Select Your Workspace</CardTitle>
+            <CardDescription className="text-neutral-600">
+              Choose a tenant and project to access requirements, documents, and architecture.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TenantProjectSelector />
+          </CardContent>
+        </Card>
         {/* Feature Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Card className="hover:shadow-lg transition-shadow">

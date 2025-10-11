@@ -17,130 +17,57 @@ const BaselinesRoute = lazy(() => import("./routes/BaselinesRoute").then(m => ({
 const LinksRoute = lazy(() => import("./routes/LinksRoute").then(m => ({ default: m.LinksRoute })));
 const RequirementsSchemaRoute = lazy(() => import("./routes/RequirementsSchemaRoute").then(m => ({ default: m.RequirementsSchemaRoute })));
 const GraphViewerRoute = lazy(() => import("./routes/GraphViewerRoute").then(m => ({ default: m.GraphViewerRoute })));
+const SettingsRoute = lazy(() => import("./routes/SettingsRoute").then(m => ({ default: m.SettingsRoute })));
 const AdminUsersRoute = lazy(() => import("./routes/AdminUsersRoute").then(m => ({ default: m.AdminUsersRoute })));
 const AdminRequirementsRoute = lazy(() => import("./routes/AdminRequirementsRoute").then(m => ({ default: m.AdminRequirementsRoute })));
 const AdminRecoveryRoute = lazy(() => import("./routes/AdminRecoveryRoute"));
 
 export default function DevAppRoutes(): JSX.Element {
   return (
-    <AppLayout>
-      <Suspense fallback={<div className="flex items-center justify-center h-screen"><Spinner /></div>}>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute fallback={<LandingPage />}>
-                <DashboardRoute />
-              </ProtectedRoute>
-            }
-          />
-        <Route
-          path="/airgen"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <AirGenRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/documents"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <DocumentsRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/architecture"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <ArchitectureRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/interfaces"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <InterfaceRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/drafts"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <DraftsRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/requirements"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <RequirementsRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/baselines"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <BaselinesRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/links"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <LinksRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/requirements-schema"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <RequirementsSchemaRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/graph-viewer"
-          element={
-            <ProtectedRoute fallback={<LandingPage />}>
-              <GraphViewerRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/users"
-          element={
-            <ProtectedRoute fallback={<LandingPage />} requiredRoles={["admin"]}>
-              <AdminUsersRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/requirements"
-          element={
-            <ProtectedRoute fallback={<LandingPage />} requiredRoles={["admin"]}>
-              <AdminRequirementsRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/recovery"
-          element={
-            <ProtectedRoute fallback={<LandingPage />} requiredRoles={["admin"]}>
-              <AdminRecoveryRoute />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-      </Suspense>
-    </AppLayout>
+    <ProtectedRoute fallback={<LandingPage />}>
+      <AppLayout>
+        <Suspense fallback={<div className="flex items-center justify-center h-screen"><Spinner /></div>}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardRoute />} />
+            <Route path="/airgen" element={<AirGenRoute />} />
+            <Route path="/documents" element={<DocumentsRoute />} />
+            <Route path="/architecture" element={<ArchitectureRoute />} />
+            <Route path="/interfaces" element={<InterfaceRoute />} />
+            <Route path="/drafts" element={<DraftsRoute />} />
+            <Route path="/requirements" element={<RequirementsRoute />} />
+            <Route path="/baselines" element={<BaselinesRoute />} />
+            <Route path="/links" element={<LinksRoute />} />
+            <Route path="/requirements-schema" element={<RequirementsSchemaRoute />} />
+            <Route path="/graph-viewer" element={<GraphViewerRoute />} />
+            <Route path="/settings" element={<SettingsRoute />} />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute requiredRoles={["admin"]}>
+                  <AdminUsersRoute />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/requirements"
+              element={
+                <ProtectedRoute requiredRoles={["admin"]}>
+                  <AdminRequirementsRoute />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/recovery"
+              element={
+                <ProtectedRoute requiredRoles={["admin"]}>
+                  <AdminRecoveryRoute />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Suspense>
+      </AppLayout>
+    </ProtectedRoute>
   );
 }

@@ -17,17 +17,17 @@
     --neutral-900: oklch(0.15 0.02 270);
     --neutral-950: oklch(0.10 0.015 270);
 
-    /* Brand Color (Blue) */
-    --brand-50: oklch(0.95 0.05 240);
-    --brand-100: oklch(0.90 0.08 240);
-    --brand-200: oklch(0.82 0.12 240);
-    --brand-300: oklch(0.72 0.16 240);
-    --brand-400: oklch(0.62 0.20 240);
-    --brand-500: oklch(0.55 0.22 240);  /* Primary brand */
-    --brand-600: oklch(0.48 0.20 240);
-    --brand-700: oklch(0.40 0.18 240);
-    --brand-800: oklch(0.32 0.15 240);
-    --brand-900: oklch(0.24 0.12 240);
+    /* Brand Color (Navy Blue - #092765) */
+    --brand-50: oklch(0.95 0.04 250);
+    --brand-100: oklch(0.88 0.06 250);
+    --brand-200: oklch(0.75 0.08 250);
+    --brand-300: oklch(0.60 0.10 250);
+    --brand-400: oklch(0.42 0.11 250);
+    --brand-500: oklch(0.28 0.12 250);  /* Primary brand #092765 */
+    --brand-600: oklch(0.24 0.11 250);
+    --brand-700: oklch(0.20 0.10 250);
+    --brand-800: oklch(0.16 0.08 250);
+    --brand-900: oklch(0.12 0.06 250);
 
     /* Accent Color (Teal/Cyan) */
     --accent-50: oklch(0.95 0.05 190);
@@ -149,8 +149,8 @@
     --neutral-900: oklch(0.92 0.005 270);
     --neutral-950: oklch(0.96 0.002 270);
 
-    /* Dark mode brand (slightly desaturated) */
-    --brand-500: oklch(0.65 0.18 240);
+    /* Dark mode brand (lighter for contrast) */
+    --brand-500: oklch(0.60 0.10 250);
     --accent-500: oklch(0.60 0.16 190);
 
     /* Dark mode surfaces */

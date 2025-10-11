@@ -5,9 +5,10 @@ import { MfaVerificationModal } from './MfaVerificationModal';
 type LoginModalProps = {
   isOpen: boolean;
   onClose: () => void;
+  onSwitchToSignup?: () => void;
 };
 
-export function LoginModal({ isOpen, onClose }: LoginModalProps): JSX.Element | null {
+export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProps): JSX.Element | null {
   const { login, isLoading, error, mfaRequired } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -168,6 +169,34 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps): JSX.Element | 
             </button>
           </div>
         </form>
+
+        {onSwitchToSignup && (
+          <div style={{
+            marginTop: '1.5rem',
+            paddingTop: '1.5rem',
+            borderTop: '1px solid #e2e8f0',
+            textAlign: 'center',
+            fontSize: '0.9rem',
+            color: '#64748b'
+          }}>
+            Don't have an account?{' '}
+            <button
+              type="button"
+              onClick={onSwitchToSignup}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#1f5eff',
+                fontWeight: '600',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: 0
+              }}
+            >
+              Create account
+            </button>
+          </div>
+        )}
       </div>
     </div>
     </>

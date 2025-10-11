@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export function UserMenu(): JSX.Element {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!user) {return <></>;}
 
   const handleLogout = () => {
     logout();
+    setIsOpen(false);
+  };
+
+  const handleSettings = () => {
+    navigate('/settings');
     setIsOpen(false);
   };
 
@@ -85,6 +92,32 @@ export function UserMenu(): JSX.Element {
             </div>
           </div>
           <div style={{ padding: '0.5rem' }}>
+            <button
+              onClick={handleSettings}
+              style={{
+                width: '100%',
+                padding: '0.5rem 0.75rem',
+                background: 'none',
+                border: 'none',
+                borderRadius: '0.375rem',
+                color: '#1c2530',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.background = '#f1f4f8';
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.background = 'none';
+              }}
+            >
+              <span>⚙️</span>
+              Settings
+            </button>
             <button
               onClick={handleLogout}
               style={{
