@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo, Fragment, type MouseEvent } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, type MouseEvent } from "react";
 import type { NodeProps } from "@xyflow/react";
 import { Handle, NodeResizer, Position, useUpdateNodeInternals } from "@xyflow/react";
 import type { SysmlBlock, BlockPort } from "../../hooks/useArchitectureApi";
@@ -6,7 +6,7 @@ import type { DocumentRecord } from "../../types";
 import { DiagramContextMenu } from "../diagram/DiagramContextMenu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import * as portHelpers from "./portHelpers";
-import { generatePortArrowSvg } from "./portArrows";
+import { PortHandle } from "./PortHandle";
 
 export type SysmlBlockNodeData = {
   block: SysmlBlock;
@@ -496,234 +496,34 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
 
       {/* Render ports on all edges - hidden in Architecture view (when hideDefaultHandles is false) */}
       {Object.entries(portsByEdge).flatMap(([edge, ports]) =>
-        ports.map((port, index) => {
-          // Check if this port is being dragged
-          const isDragging = draggingPort?.portId === port.id;
-          const hidePortsVisually = !hideDefaultHandles; // Hide ports visually in Architecture view
-
-          const { position, style } = portHelpers.calculatePortPosition(
-            port,
-            index,
-            ports.length,
-            block.size.width,
-            block.size.height,
-            isDragging ? draggingPort.edge : undefined,
-            isDragging ? draggingPort.offset : undefined
-          );
-
-          // Edge-aware arrow direction: horizontal for left/right, vertical for top/bottom
-          // Use actual edge from calculation (which respects dragging state)
-          const actualEdge = isDragging ? draggingPort.edge : edge;
-          const portSize = portHelpers.PORT_SIZE;
-          const offsetPercent = `${port.actualOffset}%`;
-          const isHidden = Boolean(port.hidden);
-
-          const arrowSvg = generatePortArrowSvg(port, actualEdge as portHelpers.EdgeType, isHidden);
-
-          // Render single visible port using overlapping source/target Handles
-          const isSelected = selectedPortId === port.id;
-
-          // Shared positioning and size for perfect alignment of source/target handles
-          const sharedHandleStyle = {
-            ...style, // Contains positioning: left/right/top/bottom and transform
-            width: `${port.size ?? portSize}px`,
-            height: `${port.size ?? portSize}px`,
-            borderRadius: "3px",
-            display: "flex" as const,
-            alignItems: "center" as const,
-            justifyContent: "center" as const,
-            transition: draggingPort?.portId === port.id ? "none" : "all 0.2s ease",
-            // Ensure box-sizing is consistent for both handles
-            boxSizing: "border-box" as const
-          };
-
-          const showPortLabel = !isHidden && (port.showLabel !== false || hideDefaultHandles);
-
-          const labelOffsetX = port.labelOffsetX || 0;
-          const labelOffsetY = port.labelOffsetY || 0;
-
-          const labelStyle = portHelpers.calculatePortLabelStyle(
-            actualEdge as portHelpers.EdgeType,
-            offsetPercent,
-            labelOffsetX,
-            labelOffsetY
-          );
-
-          const handleLabelDragStart = (e: React.MouseEvent) => {
-            if (!updatePort || isHidden || editingPortId === port.id) return;
-            e.stopPropagation();
-            e.preventDefault();
-
-            const startX = e.clientX;
-            const startY = e.clientY;
-            const startOffsetX = labelOffsetX;
-            const startOffsetY = labelOffsetY;
-            const labelElement = e.currentTarget as HTMLElement;
-
-            // Get ReactFlow viewport zoom from the transform applied to the viewport
-            const reactFlowViewport = document.querySelector('.react-flow__viewport');
-            let zoom = 1;
-            if (reactFlowViewport) {
-              const transform = window.getComputedStyle(reactFlowViewport).transform;
-              const matrix = new DOMMatrix(transform);
-              zoom = matrix.a; // Scale X from the transform matrix
-            }
-
-            let currentOffsetX = startOffsetX;
-            let currentOffsetY = startOffsetY;
-
-            const handleDrag = (moveEvent: MouseEvent) => {
-              const deltaX = (moveEvent.clientX - startX) / zoom;
-              const deltaY = (moveEvent.clientY - startY) / zoom;
-              currentOffsetX = startOffsetX + deltaX;
-              currentOffsetY = startOffsetY + deltaY;
-
-              // Update DOM directly for smooth visual feedback
-              // Need to update the appropriate position property based on edge
-              if (actualEdge === "left") {
-                labelElement.style.top = `calc(${offsetPercent} + ${currentOffsetY}px)`;
-                labelElement.style.left = `calc(12px + ${currentOffsetX}px)`;
-              } else if (actualEdge === "right") {
-                labelElement.style.top = `calc(${offsetPercent} + ${currentOffsetY}px)`;
-                labelElement.style.right = `calc(12px - ${currentOffsetX}px)`;
-              } else if (actualEdge === "top") {
-                labelElement.style.top = `calc(-28px + ${currentOffsetY}px)`;
-                labelElement.style.left = `calc(${offsetPercent} + ${currentOffsetX}px)`;
-              } else {
-                labelElement.style.bottom = `calc(-28px - ${currentOffsetY}px)`;
-                labelElement.style.left = `calc(${offsetPercent} + ${currentOffsetX}px)`;
-              }
-            };
-
-            const handleDragEnd = () => {
-              document.removeEventListener("mousemove", handleDrag);
-              document.removeEventListener("mouseup", handleDragEnd);
-              // Only send the final position to the server
-              updatePort(block.id, port.id, {
-                labelOffsetX: currentOffsetX,
-                labelOffsetY: currentOffsetY
-              });
-            };
-
-            document.addEventListener("mousemove", handleDrag);
-            document.addEventListener("mouseup", handleDragEnd);
-          };
-
-          return (
-            <Fragment key={`${edge}-${port.id}`}>
-              {/* Invisible target handle - for incoming connections */}
-              <Handle
-                id={`${port.id}-target`}
-                type="target"
-                position={position}
-                isConnectableStart={false}
-                isConnectableEnd={hidePortsVisually ? false : (isHidden ? false : isConnectMode)}
-                style={{
-                  ...sharedHandleStyle,
-                  background: "transparent",
-                  border: "none",
-                  zIndex: 29,
-                  pointerEvents: "none",
-                  opacity: 0
-                }}
-              />
-
-              {/* Visible source handle - for outgoing connections and interactions */}
-              <Handle
-                id={port.id}
-                type="source"
-                position={position}
-                isConnectableStart={hidePortsVisually ? false : (isHidden ? false : isConnectMode)}
-                isConnectableEnd={false}
-                className="nodrag nopan"
-                onMouseDown={(e) => {
-                  if (!hidePortsVisually && !isHidden && !isConnectMode) {
-                    handlePortMouseDown(e, port.id, edge as "top" | "right" | "bottom" | "left", port.actualOffset, isHidden);
-                  }
-                }}
-                onClick={(e) => {
-                  if (!hidePortsVisually && !isHidden) {
-                    handlePortClick(e, port.id, isHidden);
-                  }
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                onContextMenu={(e) => {
-                  if (!hidePortsVisually && !isHidden) {
-                    handlePortContextMenu(e, port.id, port.name, isHidden, port.direction);
-                  }
-                }}
-                style={{
-                  ...sharedHandleStyle,
-                  background: hidePortsVisually ? "transparent" : (port.backgroundColor ?? "#ffffff"),
-                  border: hidePortsVisually ? "none" : (isSelected
-                    ? "2px solid #2563eb"
-                    : `${port.borderWidth ?? 2}px solid ${port.borderColor ?? "#64748b"}`),
-                  cursor: isHidden ? "default" : (isConnectMode ? "crosshair" : "pointer"),
-                  zIndex: selectedPortId === port.id ? 50 : 30,
-                  pointerEvents: hidePortsVisually || isHidden ? "none" : "auto",
-                  boxShadow: hidePortsVisually ? "none" : (isSelected ? "0 4px 12px rgba(37, 99, 235, 0.4)" : "none"),
-                  outline: hidePortsVisually ? "none" : (isSelected ? "2px solid rgba(59, 130, 246, 0.35)" : "none"),
-                  outlineOffset: isSelected ? "2px" : "0",
-                  opacity: hidePortsVisually ? 0 : (isHidden ? 0 : 1)
-                }}
-                title={!isHidden
-                  ? (isConnectMode
-                    ? `${port.name} (${port.direction})`
-                    : `${port.name} - Click to select, drag to reposition`)
-                  : undefined}
-              >
-                {!hidePortsVisually && arrowSvg}
-              </Handle>
-
-              {!hidePortsVisually && showPortLabel && (
-                editingPortId === port.id ? (
-                  <input
-                    ref={portLabelInputRef}
-                    type="text"
-                    value={editedPortName}
-                    onChange={(e) => setEditedPortName(e.target.value)}
-                    onKeyDown={handlePortLabelKeyDown}
-                    onBlur={handlePortLabelSubmit}
-                    className="nodrag nopan"
-                    style={{
-                      ...labelStyle,
-                      border: "2px solid #2563eb",
-                      outline: "none",
-                      minWidth: "80px"
-                    }}
-                  />
-                ) : (
-                  <div
-                    className="nodrag nopan"
-                    style={{
-                      ...labelStyle,
-                      cursor: updatePort ? "text" : "move"
-                    }}
-                    onMouseDown={handleLabelDragStart}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handlePortClick(event as unknown as MouseEvent<HTMLDivElement>, port.id, isHidden);
-                    }}
-                    onDoubleClick={(event) => handlePortLabelDoubleClick(event, port.id, port.name)}
-                    onContextMenu={(event) => {
-                      if (hidePortsVisually) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        return;
-                      }
-                      event.preventDefault();
-                      event.stopPropagation();
-                      handlePortContextMenu(event as unknown as MouseEvent<HTMLDivElement>, port.id, port.name, isHidden, port.direction);
-                    }}
-                    title={updatePort ? "Double-click or press F2 to rename" : undefined}
-                  >
-                    <span>{port.name}</span>
-                  </div>
-                )
-              )}
-            </Fragment>
-          );
-        })
+        ports.map((port, index) => (
+          <PortHandle
+            key={`${edge}-${port.id}`}
+            port={port}
+            edge={edge}
+            index={index}
+            totalPorts={ports.length}
+            blockId={block.id}
+            blockWidth={block.size.width}
+            blockHeight={block.size.height}
+            draggingPort={draggingPort}
+            hidePortsVisually={hidePortsVisually}
+            isConnectMode={isConnectMode}
+            selectedPortId={selectedPortId}
+            editingPortId={editingPortId}
+            editedPortName={editedPortName}
+            portLabelInputRef={portLabelInputRef}
+            handlePortMouseDown={handlePortMouseDown}
+            handlePortClick={handlePortClick}
+            handlePortContextMenu={handlePortContextMenu}
+            handlePortLabelDoubleClick={handlePortLabelDoubleClick}
+            setEditingPortId={setEditingPortId}
+            setEditedPortName={setEditedPortName}
+            handlePortLabelSubmit={handlePortLabelSubmit}
+            handlePortLabelKeyDown={handlePortLabelKeyDown}
+            updatePort={updatePort}
+          />
+        ))
       )}
 
       {/* Default top/bottom handles - hidden in interface view */}
