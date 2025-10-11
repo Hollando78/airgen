@@ -5,6 +5,8 @@ import type { SysmlBlock, BlockPort } from "../../hooks/useArchitectureApi";
 import type { DocumentRecord } from "../../types";
 import { DiagramContextMenu } from "../diagram/DiagramContextMenu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
+import * as portHelpers from "./portHelpers";
+import { generatePortArrowSvg } from "./portArrows";
 
 export type SysmlBlockNodeData = {
   block: SysmlBlock;
@@ -21,78 +23,6 @@ export type SysmlBlockNodeData = {
   onPortContextMenu?: (blockId: string, portId: string, portName: string, hidden: boolean, direction: BlockPort["direction"], x: number, y: number) => void;
   onClosePortContextMenu?: () => void;
 };
-
-function formatStereotype(value?: string) {
-  if (!value || !value.trim()) {return "«block»";}
-  const trimmed = value.trim();
-  return trimmed.startsWith("«") ? trimmed : `«${trimmed.replace(/^<</, "").replace(/>>$/, "")}»`;
-}
-
-function calculatePortPosition(
-  port: import("../../hooks/useArchitectureApi").BlockPort,
-  index: number,
-  totalOnEdge: number,
-  blockWidth: number,
-  blockHeight: number,
-  explicitEdge?: "top" | "right" | "bottom" | "left",
-  explicitOffset?: number
-): { edge: "top" | "right" | "bottom" | "left", position: Position, style: React.CSSProperties } {
-  // Use explicit edge if provided, otherwise port's edge, otherwise default based on direction
-  const edge = explicitEdge || port.edge || (
-    port.direction === "in" ? "left" :
-    port.direction === "out" ? "right" : "left"
-  );
-
-  // Calculate offset (prefer explicit, then port.offset, then distribute evenly)
-  const offset = explicitOffset !== undefined
-    ? explicitOffset
-    : (port.offset !== undefined
-      ? port.offset
-      : ((index + 1) / (totalOnEdge + 1)) * 100);
-
-  const portSize = 24;
-  const halfPort = portSize / 2;
-  let style: React.CSSProperties = {};
-  let position: Position;
-
-  switch (edge) {
-    case "top":
-      position = Position.Top;
-      style = {
-        left: `${offset}%`,
-        top: `-${halfPort}px`,
-        transform: "translateX(-50%)"
-      };
-      break;
-    case "right":
-      position = Position.Right;
-      style = {
-        top: `${offset}%`,
-        right: `-${halfPort}px`,
-        transform: "translateY(-50%)"
-      };
-      break;
-    case "bottom":
-      position = Position.Bottom;
-      style = {
-        left: `${offset}%`,
-        bottom: `-${halfPort}px`,
-        transform: "translateX(-50%)"
-      };
-      break;
-    case "left":
-    default:
-      position = Position.Left;
-      style = {
-        top: `${offset}%`,
-        left: `-${halfPort}px`,
-        transform: "translateY(-50%)"
-      };
-      break;
-  }
-
-  return { edge, position, style };
-}
 
 export function SysmlBlockNode({ id, data, selected }: NodeProps) {
   const { block, documents = [], onOpenDocument, hideDefaultHandles = false, isConnectMode = false, selectedPortId, onSelectPort, updatePort, removePort, updateBlock, portContextMenu, onPortContextMenu, onClosePortContextMenu } = data as SysmlBlockNodeData;
@@ -171,61 +101,23 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
     const mouseX = e.clientX - blockRect.left;
     const mouseY = e.clientY - blockRect.top;
 
-    // Calculate distances to each edge
-    const distToLeft = mouseX;
-    const distToRight = blockRect.width - mouseX;
-    const distToTop = mouseY;
-    const distToBottom = blockRect.height - mouseY;
-
     // Find the closest edge with hysteresis to prevent rapid switching
-    const HYSTERESIS = 20; // pixels - only switch edges if significantly closer
-    const currentEdge = draggingPort.edge;
-    let newEdge: "top" | "right" | "bottom" | "left";
-    let newOffset: number;
-
-    // Get distance to current edge
-    let currentEdgeDist = 0;
-    switch (currentEdge) {
-      case "left": currentEdgeDist = distToLeft; break;
-      case "right": currentEdgeDist = distToRight; break;
-      case "top": currentEdgeDist = distToTop; break;
-      case "bottom": currentEdgeDist = distToBottom; break;
-    }
-
-    // Find minimum distance to any edge
-    const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
-
-    // Only switch edges if the new edge is significantly closer (hysteresis)
-    if (minDist < currentEdgeDist - HYSTERESIS || currentEdgeDist > 100) {
-      // Determine which edge is closest
-      if (minDist === distToLeft) {
-        newEdge = "left";
-      } else if (minDist === distToRight) {
-        newEdge = "right";
-      } else if (minDist === distToTop) {
-        newEdge = "top";
-      } else {
-        newEdge = "bottom";
-      }
-    } else {
-      // Stay on current edge
-      newEdge = currentEdge;
-    }
+    const newEdge = portHelpers.calculateClosestEdge(
+      mouseX,
+      mouseY,
+      blockRect.width,
+      blockRect.height,
+      draggingPort.edge
+    );
 
     // Calculate offset based on the selected edge
-    switch (newEdge) {
-      case "left":
-      case "right":
-        newOffset = (mouseY / blockRect.height) * 100;
-        break;
-      case "top":
-      case "bottom":
-        newOffset = (mouseX / blockRect.width) * 100;
-        break;
-    }
-
-    // Clamp offset to 5-95% to keep ports away from corners
-    newOffset = Math.max(5, Math.min(95, newOffset));
+    const newOffset = portHelpers.calculateEdgeOffset(
+      newEdge,
+      mouseX,
+      mouseY,
+      blockRect.width,
+      blockRect.height
+    );
 
     // Update local state immediately for smooth dragging
     setDraggingPort({ portId: draggingPort.portId, edge: newEdge, offset: newOffset });
@@ -390,24 +282,7 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
   }, [updatePort]);
 
   // Group ports by edge for positioning (use dragging state if available)
-  const portsByEdge: Record<string, Array<typeof block.ports[0] & { actualEdge: string; actualOffset: number }>> = {
-    top: [],
-    right: [],
-    bottom: [],
-    left: []
-  };
-
-  block.ports.forEach(port => {
-    // Use dragging state if this port is being dragged
-    const isDragging = draggingPort?.portId === port.id;
-    const actualEdge = isDragging ? draggingPort.edge : (port.edge || (
-      port.direction === "in" ? "left" :
-      port.direction === "out" ? "right" : "left"
-    ));
-    const actualOffset = isDragging ? draggingPort.offset : (port.offset ?? 50);
-
-    portsByEdge[actualEdge].push({ ...port, actualEdge, actualOffset });
-  });
+  const portsByEdge = portHelpers.groupPortsByEdge(block.ports, draggingPort);
   
   // Get linked documents
   const linkedDocuments = documents.filter(doc => 
@@ -500,7 +375,7 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
           letterSpacing: "0.08em",
           fontWeight: block.fontWeight || "normal"
         }}>
-          {formatStereotype(block.stereotype)}
+          {portHelpers.formatStereotype(block.stereotype)}
         </div>
         {isEditingName ? (
           <input
@@ -626,7 +501,7 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
           const isDragging = draggingPort?.portId === port.id;
           const hidePortsVisually = !hideDefaultHandles; // Hide ports visually in Architecture view
 
-          const { position, style } = calculatePortPosition(
+          const { position, style } = portHelpers.calculatePortPosition(
             port,
             index,
             ports.length,
@@ -639,84 +514,11 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
           // Edge-aware arrow direction: horizontal for left/right, vertical for top/bottom
           // Use actual edge from calculation (which respects dragging state)
           const actualEdge = isDragging ? draggingPort.edge : edge;
-          const isHorizontalEdge = actualEdge === "left" || actualEdge === "right";
-          const portSize = 24;
+          const portSize = portHelpers.PORT_SIZE;
           const offsetPercent = `${port.actualOffset}%`;
           const isHidden = Boolean(port.hidden);
 
-          const arrowSvg = !isHidden && port.direction !== "none" ? (
-            <svg
-              width={portSize - 4}
-              height={portSize - 4}
-              viewBox="0 0 20 20"
-              style={{
-                pointerEvents: "none",
-                transition: "transform 0.2s ease"
-              }}
-            >
-              {isHorizontalEdge ? (
-                // Horizontal arrows (left/right edges)
-                <>
-                  {/* Left arrow (input) */}
-                  {(port.direction === "in" || port.direction === "inout") && (
-                    <path d="M 7 10 L 2 10 M 2 10 L 4.5 7.5 M 2 10 L 4.5 12.5"
-                      stroke="#64748b"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      fill="none" />
-                  )}
-                  {/* Right arrow (output) */}
-                  {(port.direction === "out" || port.direction === "inout") && (
-                    <path d="M 13 10 L 18 10 M 18 10 L 15.5 7.5 M 18 10 L 15.5 12.5"
-                      stroke="#64748b"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      fill="none" />
-                  )}
-                </>
-              ) : actualEdge === "top" ? (
-                // Top edge: arrows point down (in) or up (out)
-                <>
-                  {/* Down arrow (input - data coming into the block from top) */}
-                  {(port.direction === "in" || port.direction === "inout") && (
-                    <path d="M 10 13 L 10 18 M 10 18 L 7.5 15.5 M 10 18 L 12.5 15.5"
-                      stroke="#64748b"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      fill="none" />
-                  )}
-                  {/* Up arrow (output - data going out of the block to top) */}
-                  {(port.direction === "out" || port.direction === "inout") && (
-                    <path d="M 10 7 L 10 2 M 10 2 L 7.5 4.5 M 10 2 L 12.5 4.5"
-                      stroke="#64748b"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      fill="none" />
-                  )}
-                </>
-              ) : (
-                // Bottom edge: arrows point up (in) or down (out)
-                <>
-                  {/* Up arrow (input - data coming into the block from bottom) */}
-                  {(port.direction === "in" || port.direction === "inout") && (
-                    <path d="M 10 7 L 10 2 M 10 2 L 7.5 4.5 M 10 2 L 12.5 4.5"
-                      stroke="#64748b"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      fill="none" />
-                  )}
-                  {/* Down arrow (output - data going out of the block to bottom) */}
-                  {(port.direction === "out" || port.direction === "inout") && (
-                    <path d="M 10 13 L 10 18 M 10 18 L 7.5 15.5 M 10 18 L 12.5 15.5"
-                      stroke="#64748b"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      fill="none" />
-                  )}
-                </>
-              )}
-            </svg>
-          ) : null;
+          const arrowSvg = generatePortArrowSvg(port, actualEdge as portHelpers.EdgeType, isHidden);
 
           // Render single visible port using overlapping source/target Handles
           const isSelected = selectedPortId === port.id;
@@ -740,60 +542,12 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
           const labelOffsetX = port.labelOffsetX || 0;
           const labelOffsetY = port.labelOffsetY || 0;
 
-          const labelStyle: React.CSSProperties = {
-            position: "absolute",
-            fontSize: "11px",
-            fontWeight: 600,
-            background: "rgba(255,255,255,0.92)",
-            padding: "2px 6px",
-            borderRadius: "6px",
-            color: "#0f172a",
-            border: "1px solid #e2e8f0",
-            pointerEvents: "auto",
-            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.15)",
-            maxWidth: "160px",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            cursor: "move",
-            userSelect: "none"
-          };
-
-          switch (actualEdge) {
-            case "left":
-              Object.assign(labelStyle, {
-                top: `calc(${offsetPercent} + ${labelOffsetY}px)`,
-                left: `calc(12px + ${labelOffsetX}px)`,
-                transform: "translateY(-50%)",
-                textAlign: "left"
-              });
-              break;
-            case "right":
-              Object.assign(labelStyle, {
-                top: `calc(${offsetPercent} + ${labelOffsetY}px)`,
-                right: `calc(12px - ${labelOffsetX}px)`,
-                transform: "translateY(-50%)",
-                textAlign: "right"
-              });
-              break;
-            case "top":
-              Object.assign(labelStyle, {
-                top: `calc(-28px + ${labelOffsetY}px)`,
-                left: `calc(${offsetPercent} + ${labelOffsetX}px)`,
-                transform: "translateX(-50%)",
-                textAlign: "center"
-              });
-              break;
-            case "bottom":
-            default:
-              Object.assign(labelStyle, {
-                bottom: `calc(-28px - ${labelOffsetY}px)`,
-                left: `calc(${offsetPercent} + ${labelOffsetX}px)`,
-                transform: "translateX(-50%)",
-                textAlign: "center"
-              });
-              break;
-          }
+          const labelStyle = portHelpers.calculatePortLabelStyle(
+            actualEdge as portHelpers.EdgeType,
+            offsetPercent,
+            labelOffsetX,
+            labelOffsetY
+          );
 
           const handleLabelDragStart = (e: React.MouseEvent) => {
             if (!updatePort || isHidden || editingPortId === port.id) return;
