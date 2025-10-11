@@ -182,6 +182,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
             <span>Full Name</span>
             <input
               type="text"
+              name="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter your full name"
@@ -195,6 +196,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
             <span>Email</span>
             <input
               type="email"
+              name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
@@ -208,6 +210,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
             <span>Password</span>
             <input
               type="password"
+              name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="At least 8 characters"
@@ -222,6 +225,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
             <span>Confirm Password</span>
             <input
               type="password"
+              name="confirm-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Re-enter your password"

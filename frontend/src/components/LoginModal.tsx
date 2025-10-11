@@ -125,6 +125,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
             <span>Email</span>
             <input
               type="email"
+              name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
@@ -138,6 +139,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
             <span>Password</span>
             <input
               type="password"
+              name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
