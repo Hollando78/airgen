@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { MfaVerificationModal } from './MfaVerificationModal';
 
 type LoginModalProps = {
   isOpen: boolean;
@@ -7,10 +8,18 @@ type LoginModalProps = {
 };
 
 export function LoginModal({ isOpen, onClose }: LoginModalProps): JSX.Element | null {
-  const { login, isLoading, error } = useAuth();
+  const { login, isLoading, error, mfaRequired } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [showMfaModal, setShowMfaModal] = useState(false);
+
+  // Show MFA modal when MFA is required
+  useEffect(() => {
+    if (mfaRequired) {
+      setShowMfaModal(true);
+    }
+  }, [mfaRequired]);
 
   if (!isOpen) {return null;}
 
@@ -40,7 +49,26 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps): JSX.Element | 
     }
   };
 
+  const handleMfaSuccess = () => {
+    // Reset form
+    setEmail('');
+    setPassword('');
+    setShowMfaModal(false);
+    onClose();
+  };
+
+  const handleMfaClose = () => {
+    setShowMfaModal(false);
+    setLoginError('MFA verification cancelled. Please log in again.');
+  };
+
   return (
+    <>
+      <MfaVerificationModal
+        isOpen={showMfaModal}
+        onClose={handleMfaClose}
+        onSuccess={handleMfaSuccess}
+      />
     <div
       style={{
         position: 'fixed',
@@ -142,5 +170,6 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps): JSX.Element | 
         </form>
       </div>
     </div>
+    </>
   );
 }

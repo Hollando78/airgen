@@ -15,6 +15,10 @@ type AuthContextType = {
   logout: () => void;
   isLoading: boolean;
   error: string | null;
+  // MFA support
+  mfaRequired: boolean;
+  mfaTempToken: string | null;
+  verifyMfa: (code: string) => Promise<void>;
 };
 
 const STORAGE_TOKEN = "auth_token";
@@ -53,10 +57,16 @@ export function useAuth(): AuthContextType {
   return context;
 }
 
-type LoginResponse = {
-  token: string;
-  user: User;
-};
+type LoginResponse =
+  | {
+      token: string;
+      user: User;
+    }
+  | {
+      status: "MFA_REQUIRED";
+      tempToken: string;
+      message: string;
+    };
 
 export function AuthProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [user, setUser] = useState<User | null>(null);
@@ -64,6 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const [tokenExpiresAt, setTokenExpiresAt] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // MFA state
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaTempToken, setMfaTempToken] = useState<string | null>(null);
 
   const clearStoredAuth = useCallback(() => {
     localStorage.removeItem(STORAGE_TOKEN);
@@ -189,6 +202,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     setError(null);
+    setMfaRequired(false);
+    setMfaTempToken(null);
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -205,6 +220,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
       }
 
       const data: LoginResponse = await response.json();
+
+      // Check if MFA is required
+      if ("status" in data && data.status === "MFA_REQUIRED") {
+        setMfaRequired(true);
+        setMfaTempToken(data.tempToken);
+        setIsLoading(false);
+        return;
+      }
+
+      // Normal login flow (no MFA or MFA already verified)
+      // TypeScript narrowing: if we got here, data has token and user
+      if (!("token" in data) || !("user" in data)) {
+        throw new Error("Invalid login response");
+      }
+
       const expiry = decodeJwtExpiration(data.token);
 
       localStorage.setItem(STORAGE_TOKEN, data.token);
@@ -227,6 +257,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     }
   }, []);
 
+  const verifyMfa = useCallback(async (code: string) => {
+    if (!mfaTempToken) {
+      throw new Error("No MFA session found. Please log in again.");
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/auth/mfa-verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ tempToken: mfaTempToken, code })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "MFA verification failed" }));
+        throw new Error(errorData.error || "MFA verification failed");
+      }
+
+      const data: { token: string; user: User } = await response.json();
+      const expiry = decodeJwtExpiration(data.token);
+
+      localStorage.setItem(STORAGE_TOKEN, data.token);
+      localStorage.setItem(STORAGE_USER, JSON.stringify(data.user));
+      if (expiry) {
+        localStorage.setItem(STORAGE_EXPIRY, expiry.toString());
+      } else {
+        localStorage.removeItem(STORAGE_EXPIRY);
+      }
+
+      setToken(data.token);
+      setUser(data.user);
+      setTokenExpiresAt(expiry ?? null);
+      setMfaRequired(false);
+      setMfaTempToken(null);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "MFA verification failed";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [mfaTempToken]);
+
   const logout = useCallback(() => {
     clearStoredAuth();
     setToken(null);
@@ -234,6 +311,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     setTokenExpiresAt(null);
     setError(null);
     setIsLoading(false);
+    setMfaRequired(false);
+    setMfaTempToken(null);
   }, [clearStoredAuth]);
 
   const value = useMemo<AuthContextType>(() => ({
@@ -242,8 +321,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     login,
     logout,
     isLoading,
-    error
-  }), [user, token, login, logout, isLoading, error]);
+    error,
+    mfaRequired,
+    mfaTempToken,
+    verifyMfa
+  }), [user, token, login, logout, isLoading, error, mfaRequired, mfaTempToken, verifyMfa]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
