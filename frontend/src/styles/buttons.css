@@ -1,0 +1,53 @@
+/**
+ * Button Styles
+ *
+ * Button component styling
+ */
+
+button {
+  background: var(--primary-legacy);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.ghost-button {
+  background: transparent;
+  color: var(--muted-legacy);
+  border: 1px solid var(--border-legacy);
+}
+
+/* Light backgrounds should have dark text */
+.panel,
+.modal,
+.app-shell,
+.file-manager,
+[style*="background: white"],
+[style*="background: #fff"],
+[style*="background: #ffffff"],
+[style*="background-color: white"],
+[style*="background-color: #fff"],
+[style*="background-color: #ffffff"] {
+  color: var(--text);
+}
+
+/* Secondary buttons (light backgrounds) should have dark text */
+.btn--secondary,
+.ghost-button,
+button[style*="background: white"],
+button[style*="background: #fff"],
+button[style*="background-color: white"] {
+  color: var(--text) !important;
+}

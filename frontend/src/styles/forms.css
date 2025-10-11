@@ -1,0 +1,183 @@
+/**
+ * Form Styles
+ *
+ * Form element styling, autofill overrides, and input enhancements
+ */
+
+/* Base form element styles */
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--text) !important;
+  background: #fff !important;
+  -webkit-text-fill-color: var(--text) !important;
+  opacity: 1 !important;
+}
+
+/* Force override for autofill and dark mode */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: var(--text) !important;
+  color: var(--text) !important;
+  background: white !important;
+}
+
+/* APP-WIDE TEXT READABILITY RULES */
+/* Ensure all form elements and labels use dark text on light backgrounds */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+textarea,
+select,
+label,
+.form-label,
+.form-input,
+.form-textarea,
+.form-select,
+.form-help,
+.form-error {
+  color: var(--text) !important;
+}
+
+/* Ensure modal content uses dark text and proper form styling */
+.modal input:not(.btn):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+.modal textarea,
+.modal select {
+  color: var(--text) !important;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-legacy);
+  border-radius: 0.5rem;
+  background: #fff !important;
+  width: 100%;
+}
+
+.modal input:not(.btn):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):focus,
+.modal textarea:focus,
+.modal select:focus {
+  outline: 2px solid rgba(31, 94, 255, 0.35);
+  outline-offset: 1px;
+  border-color: var(--primary-legacy);
+}
+
+.modal label,
+.modal h1, .modal h2, .modal h3, .modal h4, .modal h5, .modal h6,
+.modal p:not(.btn),
+.modal span:not(.btn),
+.modal div:not(.btn) {
+  color: var(--text) !important;
+}
+
+/* Form grid layout */
+.form-grid {
+  display: grid;
+  gap: 1rem;
+  max-width: 640px;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+.form-grid input,
+.form-grid textarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-legacy);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.form-grid input:focus,
+.form-grid textarea:focus {
+  outline: 2px solid rgba(31, 94, 255, 0.35);
+  outline-offset: 1px;
+}
+
+.form-error {
+  margin: 0;
+  color: #dc2626;
+  font-size: 0.9rem;
+}
+
+/* Form actions */
+.form-actions {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Field component */
+.field,
+.checkbox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.field span,
+.checkbox span {
+  color: var(--muted-legacy);
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-legacy);
+  background: #fff !important;
+  color: var(--text) !important;
+  -webkit-text-fill-color: var(--text) !important;
+  opacity: 1 !important;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+/* List toolbar with search */
+.list-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border-radius: 0.5rem;
+}
+
+.list-toolbar input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]) {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-legacy);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: var(--text);
+}
+
+.list-toolbar input:focus {
+  outline: 2px solid rgba(31, 94, 255, 0.35);
+  outline-offset: 1px;
+  border-color: var(--primary-legacy);
+}

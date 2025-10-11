@@ -1,0 +1,41 @@
+/**
+ * Base Styles
+ *
+ * Global resets and base HTML element styles
+ */
+
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Box sizing reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Body defaults */
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg);
+}
+
+/* Root container */
+#root {
+  min-height: 100vh;
+}
+
+/* Link defaults */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Button defaults */
+button {
+  font: inherit;
+}

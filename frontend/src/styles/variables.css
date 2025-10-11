@@ -1,0 +1,192 @@
+/**
+ * Design System Variables
+ *
+ * All CSS custom properties (design tokens) for the application
+ * including colors, spacing, typography, elevation, and z-index scales.
+ */
+
+@layer base {
+  :root {
+    /* Neutral Scale (OKLCH format - perceptually uniform) */
+    --neutral-50: oklch(0.98 0 0);
+    --neutral-100: oklch(0.96 0.002 270);
+    --neutral-200: oklch(0.92 0.005 270);
+    --neutral-300: oklch(0.85 0.01 270);
+    --neutral-400: oklch(0.70 0.015 270);
+    --neutral-500: oklch(0.55 0.02 270);
+    --neutral-600: oklch(0.45 0.025 270);
+    --neutral-700: oklch(0.35 0.03 270);
+    --neutral-800: oklch(0.25 0.025 270);
+    --neutral-900: oklch(0.15 0.02 270);
+    --neutral-950: oklch(0.10 0.015 270);
+
+    /* Brand Color (Navy Blue - #092765) */
+    --brand-50: oklch(0.95 0.04 250);
+    --brand-100: oklch(0.88 0.06 250);
+    --brand-200: oklch(0.75 0.08 250);
+    --brand-300: oklch(0.60 0.10 250);
+    --brand-400: oklch(0.42 0.11 250);
+    --brand-500: oklch(0.28 0.12 250);  /* Primary brand #092765 */
+    --brand-600: oklch(0.24 0.11 250);
+    --brand-700: oklch(0.20 0.10 250);
+    --brand-800: oklch(0.16 0.08 250);
+    --brand-900: oklch(0.12 0.06 250);
+
+    /* Accent Color (Teal/Cyan) */
+    --accent-50: oklch(0.95 0.05 190);
+    --accent-100: oklch(0.88 0.08 190);
+    --accent-200: oklch(0.78 0.12 190);
+    --accent-300: oklch(0.68 0.16 190);
+    --accent-400: oklch(0.58 0.18 190);
+    --accent-500: oklch(0.50 0.20 190);  /* Primary accent */
+    --accent-600: oklch(0.42 0.18 190);
+    --accent-700: oklch(0.35 0.15 190);
+    --accent-800: oklch(0.28 0.12 190);
+    --accent-900: oklch(0.20 0.10 190);
+
+    /* Semantic Colors */
+    --success: oklch(0.60 0.18 145);  /* Green */
+    --warning: oklch(0.75 0.15 75);   /* Yellow/Orange */
+    --error: oklch(0.58 0.22 25);     /* Red */
+    --info: oklch(0.62 0.20 240);     /* Blue */
+
+    /* Surface Colors (mapped to Tailwind convention) */
+    --background: var(--neutral-50);
+    --foreground: var(--neutral-900);
+    --muted: var(--neutral-100);
+    --muted-foreground: var(--neutral-600);
+    --card: oklch(1 0 0);  /* Pure white */
+    --card-foreground: var(--neutral-900);
+    --popover: oklch(1 0 0);
+    --popover-foreground: var(--neutral-900);
+    --border: var(--neutral-200);
+    --input: var(--neutral-200);
+    --ring: var(--brand-500);
+
+    /* Primary/Secondary for Tailwind components */
+    --primary: var(--brand-500);
+    --primary-foreground: oklch(1 0 0);
+    --secondary: var(--neutral-100);
+    --secondary-foreground: var(--neutral-900);
+    --destructive: var(--error);
+    --destructive-foreground: oklch(1 0 0);
+    --accent-foreground: var(--neutral-900);
+
+    /* Spacing Scale (strict adherence) */
+    --space-1: 0.25rem;  /* 4px */
+    --space-2: 0.5rem;   /* 8px */
+    --space-3: 0.75rem;  /* 12px */
+    --space-4: 1rem;     /* 16px */
+    --space-6: 1.5rem;   /* 24px */
+    --space-8: 2rem;     /* 32px */
+    --space-12: 3rem;    /* 48px */
+    --space-16: 4rem;    /* 64px */
+
+    /* Radius Scale */
+    --radius-sm: 0.375rem;  /* 6px */
+    --radius-md: 0.625rem;  /* 10px */
+    --radius-full: 9999px;  /* Pills */
+    --radius: var(--radius-md); /* Default */
+
+    /* Typography (Inter variable font with clamp scaling) */
+    --font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+    /* Font sizes with clamp for fluid scaling */
+    --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);    /* 12-14px */
+    --text-sm: clamp(0.875rem, 0.8rem + 0.3vw, 1rem);        /* 14-16px */
+    --text-base: clamp(1rem, 0.95rem + 0.35vw, 1.125rem);    /* 16-18px */
+    --text-lg: clamp(1.125rem, 1rem + 0.4vw, 1.25rem);       /* 18-20px */
+    --text-xl: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);       /* 20-24px */
+    --text-2xl: clamp(1.5rem, 1.3rem + 0.7vw, 1.875rem);     /* 24-30px */
+    --text-3xl: clamp(1.875rem, 1.6rem + 1vw, 2.25rem);      /* 30-36px */
+    --text-4xl: clamp(2.25rem, 1.9rem + 1.5vw, 3rem);        /* 36-48px */
+
+    /* Line heights */
+    --leading-tight: 1.2;
+    --leading-normal: 1.5;
+    --leading-relaxed: 1.7;
+
+    /* Elevation (box-shadow) */
+    --elevation-0: none;
+    --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --elevation-2: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+
+    /* Z-index scale */
+    --z-base: 0;
+    --z-dropdown: 1000;
+    --z-sticky: 1100;
+    --z-fixed: 1200;
+    --z-modal-backdrop: 1300;
+    --z-modal: 1400;
+    --z-popover: 1500;
+    --z-tooltip: 1600;
+
+    /* Legacy variables for backward compatibility (will be phased out) */
+    color-scheme: light dark;
+    font-family: var(--font-sans);
+    line-height: var(--leading-normal);
+    font-weight: 400;
+    --bg: var(--neutral-50);
+    --bg-panel: oklch(1 0 0);
+    --border-legacy: var(--neutral-200);
+    --primary-legacy: var(--brand-500);
+    --primary-dark: var(--brand-700);
+    --text: var(--neutral-900);
+    --muted-legacy: var(--neutral-600);
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  .dark {
+    /* Dark mode neutrals (inverted lightness) */
+    --neutral-50: oklch(0.15 0.02 270);
+    --neutral-100: oklch(0.18 0.02 270);
+    --neutral-200: oklch(0.22 0.025 270);
+    --neutral-300: oklch(0.28 0.03 270);
+    --neutral-400: oklch(0.40 0.025 270);
+    --neutral-500: oklch(0.55 0.02 270);
+    --neutral-600: oklch(0.65 0.015 270);
+    --neutral-700: oklch(0.75 0.01 270);
+    --neutral-800: oklch(0.85 0.008 270);
+    --neutral-900: oklch(0.92 0.005 270);
+    --neutral-950: oklch(0.96 0.002 270);
+
+    /* Dark mode brand (lighter for contrast) */
+    --brand-500: oklch(0.60 0.10 250);
+    --accent-500: oklch(0.60 0.16 190);
+
+    /* Dark mode surfaces */
+    --background: oklch(0.15 0.02 270);
+    --foreground: var(--neutral-900);
+    --muted: oklch(0.20 0.025 270);
+    --muted-foreground: var(--neutral-400);
+    --card: oklch(0.18 0.02 270);
+    --card-foreground: var(--neutral-900);
+    --popover: oklch(0.18 0.02 270);
+    --popover-foreground: var(--neutral-900);
+    --border: oklch(0.28 0.03 270);
+    --input: oklch(0.28 0.03 270);
+    --ring: var(--brand-500);
+
+    /* Primary/Secondary for dark mode */
+    --primary: var(--brand-500);
+    --primary-foreground: oklch(0.15 0.02 270);
+    --secondary: oklch(0.20 0.025 270);
+    --secondary-foreground: var(--neutral-900);
+    --destructive: var(--error);
+    --destructive-foreground: oklch(1 0 0);
+    --accent-foreground: var(--neutral-900);
+
+    /* Dark mode elevation (lighter shadows with glow) */
+    --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --elevation-2: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+
+    /* Legacy variables for dark mode backward compatibility */
+    --bg: oklch(0.15 0.02 270);
+    --bg-panel: oklch(0.18 0.02 270);
+    --border-legacy: oklch(0.28 0.03 270);
+    --text: var(--neutral-900);
+    --muted-legacy: var(--neutral-400);
+  }
+}

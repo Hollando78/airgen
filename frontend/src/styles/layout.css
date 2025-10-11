@@ -1,0 +1,303 @@
+/**
+ * Layout Styles
+ *
+ * App shell, navigation, panels, grids, and core layout components
+ */
+
+/* App Shell Layout */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-legacy);
+  gap: 1.5rem;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-logo-img {
+  height: 32px;
+  width: auto;
+}
+
+.brand-text {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.brand-logo {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.brand-subtitle {
+  color: var(--muted-legacy);
+  font-size: 0.9rem;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Navigation */
+.app-nav {
+  width: 220px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-legacy);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  gap: 0.5rem;
+}
+
+.app-nav .nav-link {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  color: var(--muted-legacy);
+}
+
+.app-nav .nav-link.active {
+  background: var(--primary-legacy);
+  color: #fff;
+}
+
+/* Main Content Area */
+.app-main {
+  flex: 1;
+  padding: 1.5rem 2rem;
+  overflow-y: auto;
+}
+
+/* Panel Stack */
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Panel Component */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-legacy);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  color: var(--text);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.panel-header h1,
+.panel-header h2 {
+  margin: 0;
+}
+
+.panel-header p {
+  margin: 0;
+  color: var(--muted-legacy);
+}
+
+/* Form and Table Cards */
+.form-card,
+.table-card {
+  border-top: 1px solid var(--border-legacy);
+  padding-top: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.table-card .table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.table-inline-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Grid Layouts */
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.grid-cols-3 {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+/* Baseline Summary */
+.baseline-summary {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.baseline-detail {
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid var(--border-legacy);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  flex: 1;
+  min-width: 240px;
+}
+
+/* Stat Cards */
+.stat-card {
+  background: rgba(31, 94, 255, 0.08);
+  border: 1px solid rgba(31, 94, 255, 0.12);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  color: var(--muted-legacy);
+  font-size: 0.85rem;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* Selector Components */
+.selector {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.selector-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.selector-field input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-legacy);
+  border-radius: 0.5rem;
+}
+
+.selector-field label {
+  font-size: 0.85rem;
+}
+
+.selector-field--compact {
+  align-self: center;
+}
+
+/* Token Controls */
+.token-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.token-summary {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.token-status {
+  font-weight: 600;
+}
+
+.token-roles {
+  color: var(--muted-legacy);
+  font-size: 0.85rem;
+}
+
+.token-buttons,
+.token-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.token-editor textarea {
+  width: 320px;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-legacy);
+}
+
+/* Responsive fixes */
+.document-panel {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Prevent infinite growth */
+.document-panel,
+.linking-panel,
+.document-tree {
+  max-height: 100%;
+  overflow: hidden;
+}
+
+/* Select Component Enhancements */
+.select-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.select-item-name {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.select-item-slug {
+  font-size: 0.75rem;
+  color: var(--muted-legacy);
+  font-family: monospace;
+}
+
+/* Enhanced Card Headers for Document Selectors */
+.document-selector-card .card-header {
+  padding-bottom: 1rem;
+}
+
+.document-selector-card .card-content {
+  padding-top: 1.5rem;
+}
+
+/* Ensure proper spacing for form elements */
+.space-y-3 > * + * {
+  margin-top: 0.75rem;
+}
+
+.space-y-6 > * + * {
+  margin-top: 1.5rem;
+}

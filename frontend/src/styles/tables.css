@@ -1,0 +1,32 @@
+/**
+ * Table Styles
+ *
+ * Data table component styling
+ */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-legacy);
+}
+
+.data-table tbody tr:hover {
+  background: rgba(31, 94, 255, 0.06);
+  cursor: pointer;
+}
+
+.row-active {
+  background: rgba(31, 94, 255, 0.12);
+}
+
+.empty-row {
+  text-align: center;
+  padding: 1rem;
+  color: var(--muted-legacy);
+}

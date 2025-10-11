@@ -1,0 +1,50 @@
+/**
+ * Select Component Enhancements
+ *
+ * Radix UI Select component styling and enhancements
+ */
+
+/* Select trigger styling improvements */
+[data-radix-select-trigger] {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-radix-select-trigger]:hover {
+  border-color: var(--primary-legacy);
+}
+
+[data-radix-select-trigger][data-state="open"] {
+  border-color: var(--primary-legacy);
+  box-shadow: 0 0 0 2px rgba(31, 94, 255, 0.1);
+}
+
+/* Select content popup improvements */
+[data-radix-select-content] {
+  background: white !important;
+  border: 1px solid var(--border-legacy) !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+  z-index: 50 !important;
+}
+
+/* Ensure select viewport has proper background */
+[data-radix-select-viewport] {
+  background: white !important;
+}
+
+/* Select content fallback styling */
+.select-content-fallback {
+  background: white !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-radix-select-item] {
+  transition: background-color 0.2s ease;
+}
+
+[data-radix-select-item][data-highlighted] {
+  background-color: rgba(31, 94, 255, 0.08);
+  color: var(--text);
+}
