@@ -1,5 +1,5 @@
 import * as argon2 from "argon2";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual, scryptSync } from "node:crypto";
 
 /**
  * Argon2id password hashing utility with secure parameters.
@@ -104,8 +104,6 @@ export function verifyLegacySHA256(legacyHash: string, password: string): boolea
  */
 export function verifyLegacyScrypt(legacyHash: string, salt: string, password: string): boolean {
   try {
-    // Import scryptSync for legacy verification only
-    const { scryptSync } = require("node:crypto");
     const candidateHash = scryptSync(password, salt, 64).toString("hex");
 
     if (legacyHash.length !== candidateHash.length) {
