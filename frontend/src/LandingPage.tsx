@@ -48,15 +48,27 @@ export function LandingPage(): JSX.Element {
         </nav>
 
         {/* Hero Section */}
-        <div className="flex-1 flex items-center justify-center px-6 py-16 md:py-24">
+        <div className="flex-1 flex items-center justify-center px-6 py-16 md:py-24 bg-gradient-to-br from-blue-50/50 via-sky-50/30 to-transparent">
           <div className="max-w-6xl w-full">
-            {/* Hero Image */}
-            <div>
+            <div className="max-w-5xl mx-auto">
+              {/* Hero Image */}
               <img
                 src="/hero.png"
                 alt="AIRGen Platform Interface"
-                className="w-full max-w-5xl mx-auto rounded-2xl shadow-2xl border border-neutral-200/50"
+                className="w-full rounded-2xl border border-neutral-200/50 shadow-[0_30px_90px_-10px_rgba(0,0,0,0.5),0_20px_50px_-5px_rgba(59,130,246,0.4)] animate-in fade-in slide-in-from-bottom-4 duration-700 hover:scale-[1.02] transition-transform hover:duration-300"
               />
+              <p className="text-center text-xl text-neutral-700 mt-8 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-200 whitespace-nowrap">
+                Accelerate your systems engineering workflow with AIRGen's AI-powered studio
+              </p>
+              <div className="flex justify-center mt-6">
+                <Button
+                  size="lg"
+                  onClick={() => setShowSignup(true)}
+                  className="font-semibold shadow-lg hover:shadow-xl px-8 text-lg animate-in fade-in slide-in-from-bottom-2 duration-700 delay-300"
+                >
+                  Try AIRGen Now
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -215,6 +215,23 @@ export function AirGenRoute(): JSX.Element {
       ]}
       maxWidth="full"
     >
+      {/* Loading Overlay */}
+      {chatMutation.isPending && (
+        <div className="llm-loading-overlay">
+          <div className="llm-loading-content">
+            <video
+              src="/logo.mov"
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="llm-loading-video"
+            />
+            <p className="llm-loading-text">Generating responses...</p>
+          </div>
+        </div>
+      )}
+
       <div className="airgen-container-inner">
 
         <div className="airgen-layout">
@@ -784,6 +801,64 @@ export function AirGenRoute(): JSX.Element {
           .candidate-meta {
             flex-direction: column;
             gap: 8px;
+          }
+        }
+
+        /* LLM Loading Overlay */
+        .llm-loading-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        .llm-loading-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 24px;
+        }
+
+        .llm-loading-video {
+          max-width: 90vw;
+          max-height: 60vh;
+          object-fit: contain;
+          mix-blend-mode: multiply;
+          border-radius: 24px;
+          filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.6));
+        }
+
+        .llm-loading-text {
+          font-size: 18px;
+          font-weight: 500;
+          color: #475569;
+          margin: 0;
+          animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
           }
         }
       `}</style>
