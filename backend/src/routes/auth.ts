@@ -96,7 +96,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
 
       if (
         !user ||
-        (!user.password && (!user.passwordHash || !user.passwordSalt))
+        (!user.password && !user.passwordHash)
       ) {
         return reply.status(401).send({ error: "Invalid credentials" });
       }
