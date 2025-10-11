@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import * as React from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { useTenantProject } from "../hooks/useTenantProject";
 import { ErrorState } from "../components/ErrorState";
@@ -11,449 +11,31 @@ import { RequirementContextMenu } from "../components/RequirementContextMenu";
 import { LinkTypeSelectionModal } from "../components/LinkTypeSelectionModal";
 import { CopyAndLinkModal } from "../components/CopyAndLinkModal";
 import { DeleteConfirmationModal } from "../components/DeleteConfirmationModal";
-import { useRequirementLinking } from "../contexts/RequirementLinkingContext";
-import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Label } from "../components/ui/label";
-import { Textarea } from "../components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { useLinksetSelection } from "./LinksRoute/useLinksetSelection";
+import { useTraceLinkMutations } from "./LinksRoute/useTraceLinkMutations";
+import { useDragAndDrop } from "./LinksRoute/useDragAndDrop";
 import type {
   DocumentRecord,
   RequirementRecord,
-  TraceLinkType,
-  CreateTraceLinkRequest,
-  TraceLink
+  TraceLinkType
 } from "../types";
 
-interface ContextMenuProps {
-  isOpen: boolean;
-  x: number;
-  y: number;
-  requirement: RequirementRecord | null;
-  onClose: () => void;
-  onStartLink: () => void;
-  onLinkFromStart: () => void;
-}
-
-function ContextMenu({ isOpen, x, y, requirement, onClose, onStartLink, onLinkFromStart }: ContextMenuProps): JSX.Element {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("keydown", handleEscape);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !requirement) {return <></>;}
-
-  return (
-    <div 
-      ref={menuRef}
-      className="context-menu"
-      style={{ left: x, top: y }}
-    >
-      <div className="context-menu-item" onClick={onStartLink}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-        </svg>
-        Start link from here
-      </div>
-      <div className="context-menu-item" onClick={onLinkFromStart}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
-        Link to here
-      </div>
-    </div>
-  );
-}
-
-// Link Confirmation Modal Component
-interface LinkConfirmationModalProps {
-  isOpen: boolean;
-  sourceRequirements: RequirementRecord[];
-  targetRequirements: RequirementRecord[];
-  onConfirm: (linkType: TraceLinkType, description?: string) => void;
-  onCancel: () => void;
-}
-
-function LinkConfirmationModal({ isOpen, sourceRequirements, targetRequirements, onConfirm, onCancel }: LinkConfirmationModalProps): JSX.Element {
-  const [linkType, setLinkType] = useState<TraceLinkType>('satisfies');
-  const [description, setDescription] = useState('');
-
-  const linkTypes: Array<{ value: TraceLinkType; label: string; description: string }> = [
-    { value: "satisfies", label: "Satisfies", description: "Target requirement satisfies source requirement" },
-    { value: "derives", label: "Derives", description: "Target requirement is derived from source requirement" },
-    { value: "verifies", label: "Verifies", description: "Target requirement verifies source requirement" },
-    { value: "implements", label: "Implements", description: "Target requirement implements source requirement" },
-    { value: "refines", label: "Refines", description: "Target requirement refines source requirement" },
-    { value: "conflicts", label: "Conflicts", description: "Target requirement conflicts with source requirement" }
-  ];
-
-  const handleConfirm = () => {
-    onConfirm(linkType, description.trim() || undefined);
-    setDescription('');
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Confirm Trace Link Creation</DialogTitle>
-          <DialogDescription>
-            Create relationships between the selected requirements
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">From ({sourceRequirements.length})</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {sourceRequirements.map(req => (
-                  <div key={req.id} className="flex flex-col space-y-1">
-                    <span className="font-mono text-xs text-muted-foreground">{req.ref}</span>
-                    <span className="text-sm">{req.title}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-            
-            <div className="flex justify-center">
-              <div className="text-2xl text-muted-foreground">→</div>
-            </div>
-            
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">To ({targetRequirements.length})</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {targetRequirements.map(req => (
-                  <div key={req.id} className="flex flex-col space-y-1">
-                    <span className="font-mono text-xs text-muted-foreground">{req.ref}</span>
-                    <span className="text-sm">{req.title}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Link Type</Label>
-              <Select value={linkType} onValueChange={(value) => setLinkType(value as TraceLinkType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {linkTypes.map(type => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                {linkTypes.find(t => t.value === linkType)?.description}
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Description (optional)</Label>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Additional notes about this relationship..."
-                rows={3}
-              />
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button onClick={handleConfirm}>
-            Create {sourceRequirements.length * targetRequirements.length} Link{sourceRequirements.length * targetRequirements.length > 1 ? 's' : ''}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export function LinksRoute(): JSX.Element {
-  const api = useApiClient();
-  const queryClient = useQueryClient();
-  const { state } = useTenantProject();
-
-  const [selectedLinksetId, setSelectedLinksetId] = useState<string>("");
-  const hasLoadedFromStorage = useRef(false);
-  const previousTenantProject = useRef<string | null>(null);
-  const [selectedRequirements, setSelectedRequirements] = useState<Set<string>>(new Set());
-  const [linkStartRequirements, setLinkStartRequirements] = useState<RequirementRecord[]>([]);
-  const [contextMenu, setContextMenu] = useState<{
-    isOpen: boolean;
-    x: number;
-    y: number;
-    requirement: RequirementRecord | null;
-  }>({ isOpen: false, x: 0, y: 0, requirement: null });
-  const [linkModal, setLinkModal] = useState<{
-    isOpen: boolean;
-    sourceRequirements: RequirementRecord[];
-    targetRequirements: RequirementRecord[];
-  }>({ isOpen: false, sourceRequirements: [], targetRequirements: [] });
-
-  const linksetsQuery = useQuery({
-    queryKey: ["linksets", state.tenant, state.project],
-    queryFn: () => api.listLinksets(state.tenant!, state.project!),
-    enabled: Boolean(state.tenant && state.project)
-  });
-
-  // Find selected linkset
-  const selectedLinkset = React.useMemo(() => {
-    if (!selectedLinksetId || !linksetsQuery.data?.linksets) {return null;}
-    const linkset = linksetsQuery.data.linksets.find(ls => ls.id === selectedLinksetId);
-    return linkset || null;
-  }, [selectedLinksetId, linksetsQuery.data]);
-  
-  // Load from localStorage when tenant/project become available
-  React.useEffect(() => {
-    if (state.tenant && state.project && linksetsQuery.data?.linksets && !hasLoadedFromStorage.current) {
-      const storageKey = `trace-links-selected-linkset-${state.tenant}-${state.project}`;
-      const saved = localStorage.getItem(storageKey);
-      console.log('[LinksRoute] Loading from localStorage:', { storageKey, saved, linksets: linksetsQuery.data.linksets });
-
-      if (saved) {
-        // Check if saved linkset still exists
-        const exists = linksetsQuery.data.linksets.some(ls => ls.id === saved);
-        if (exists) {
-          console.log('[LinksRoute] Restoring saved linkset:', saved);
-          setSelectedLinksetId(saved);
-        } else if (linksetsQuery.data.linksets.length > 0) {
-          // Saved linkset doesn't exist, select first available
-          console.log('[LinksRoute] Saved linkset not found, selecting first');
-          setSelectedLinksetId(linksetsQuery.data.linksets[0].id);
-        }
-      } else if (linksetsQuery.data.linksets.length > 0) {
-        // No saved selection, auto-select first linkset
-        console.log('[LinksRoute] No saved selection, auto-selecting first');
-        setSelectedLinksetId(linksetsQuery.data.linksets[0].id);
-      }
-      hasLoadedFromStorage.current = true;
-    }
-  }, [state.tenant, state.project, linksetsQuery.data]);
-
-  // Save selected linkset to localStorage when it changes
-  React.useEffect(() => {
-    if (state.tenant && state.project && selectedLinksetId && hasLoadedFromStorage.current) {
-      const storageKey = `trace-links-selected-linkset-${state.tenant}-${state.project}`;
-      console.log('[LinksRoute] Saving to localStorage:', { storageKey, selectedLinksetId });
-      localStorage.setItem(storageKey, selectedLinksetId);
-    }
-  }, [selectedLinksetId, state.tenant, state.project]);
-
-  // Reset hasLoadedFromStorage flag when tenant/project ACTUALLY changes (not on initial mount)
-  React.useEffect(() => {
-    const currentTenantProject = `${state.tenant}-${state.project}`;
-    if (previousTenantProject.current !== null && previousTenantProject.current !== currentTenantProject) {
-      console.log('[LinksRoute] Tenant/project changed, resetting hasLoadedFromStorage', {
-        previous: previousTenantProject.current,
-        current: currentTenantProject
-      });
-      hasLoadedFromStorage.current = false;
-    }
-    previousTenantProject.current = currentTenantProject;
-  }, [state.tenant, state.project]);
-
-  const traceLinksQuery = useQuery({
-    queryKey: ["traceLinks", state.tenant, state.project],
-    queryFn: () => api.listTraceLinks(state.tenant!, state.project!),
-    enabled: Boolean(state.tenant && state.project)
-  });
-
-
-  const deleteLinkMutation = useMutation({
-    mutationFn: (linkId: string) => {
-      return api.deleteTraceLink(state.tenant!, state.project!, linkId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["traceLinks", state.tenant, state.project] });
-    }
-  });
-
-  const createLinkMutation = useMutation({
-    mutationFn: (request: CreateTraceLinkRequest) => {
-      return api.createTraceLink({
-        ...request,
-        tenant: state.tenant!,
-        projectKey: state.project!
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["traceLinks", state.tenant, state.project] });
-    }
-  });
-
-  const handleRequirementSelect = (requirement: RequirementRecord, isMultiSelect: boolean) => {
-    setSelectedRequirements(prev => {
-      const newSet = new Set(prev);
-      if (isMultiSelect) {
-        if (newSet.has(requirement.id)) {
-          newSet.delete(requirement.id);
-        } else {
-          newSet.add(requirement.id);
-        }
-      } else {
-        newSet.clear();
-        newSet.add(requirement.id);
-      }
-      return newSet;
-    });
-  };
-
-  const handleContextMenu = (requirement: RequirementRecord, event: React.MouseEvent) => {
-    setContextMenu({
-      isOpen: true,
-      x: event.clientX,
-      y: event.clientY,
-      requirement
-    });
-  };
-
-  const handleStartLink = () => {
-    if (contextMenu.requirement) {
-      setLinkStartRequirements([contextMenu.requirement]);
-    }
-    setContextMenu({ isOpen: false, x: 0, y: 0, requirement: null });
-  };
-
-  const handleLinkFromStart = () => {
-    if (contextMenu.requirement && linkStartRequirements.length > 0) {
-      setLinkModal({
-        isOpen: true,
-        sourceRequirements: linkStartRequirements,
-        targetRequirements: [contextMenu.requirement]
-      });
-    }
-    setContextMenu({ isOpen: false, x: 0, y: 0, requirement: null });
-  };
-
-  const [draggedRequirement, setDraggedRequirement] = useState<RequirementRecord | null>(null);
-
-  const handleDragStart = (requirement: RequirementRecord) => {
-    setDraggedRequirement(requirement);
-  };
-
-  const handleDragOver = (event: React.DragEvent) => {
-    event.preventDefault(); // Allow drop
-    const target = event.currentTarget as HTMLElement;
-    target.classList.add('drag-over');
-  };
-
-  const handleDragLeave = (event: React.DragEvent) => {
-    const target = event.currentTarget as HTMLElement;
-    target.classList.remove('drag-over');
-  };
-
-  const handleDrop = (event: React.DragEvent, targetRequirement: RequirementRecord) => {
-    event.preventDefault();
-    const target = event.currentTarget as HTMLElement;
-    target.classList.remove('drag-over');
-    
-    if (draggedRequirement && draggedRequirement.id !== targetRequirement.id) {
-      // Show link confirmation modal
-      setLinkModal({
-        isOpen: true,
-        sourceRequirements: [draggedRequirement],
-        targetRequirements: [targetRequirement]
-      });
-    }
-    setDraggedRequirement(null);
-  };
-
-  const handleCreateLink = (linkType: TraceLinkType, description?: string) => {
-    const { sourceRequirements, targetRequirements } = linkModal;
-    
-    // Create all combinations of links
-    const linkPromises = sourceRequirements.flatMap(source =>
-      targetRequirements.map(target =>
-        createLinkMutation.mutateAsync({
-          sourceRequirementId: source.id,
-          targetRequirementId: target.id,
-          linkType,
-          description
-        })
-      )
-    );
-    
-    Promise.all(linkPromises).then(() => {
-      setLinkModal({ isOpen: false, sourceRequirements: [], targetRequirements: [] });
-      setSelectedRequirements(new Set());
-      setLinkStartRequirements([]);
-    });
-  };
-
-  const handleCancelLink = () => {
-    setLinkModal({ isOpen: false, sourceRequirements: [], targetRequirements: [] });
-  };
-
-  if (!state.tenant || !state.project) {
-    return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Trace Links</CardTitle>
-            <CardDescription>Select a tenant and project first.</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <TraceLinksView />
-  );
-}
-
-function TraceLinksView(): JSX.Element {
   const { state: { tenant, project } } = useTenantProject();
   const apiClient = useApiClient();
   const queryClient = useQueryClient();
 
-  const [selectedLinksetId, setSelectedLinksetId] = useState<string>("");
-  const hasLoadedFromStorage = useRef(false);
-  const previousTenantProject = useRef<string | null>(null);
+  // State for UI elements
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean;
     x: number;
     y: number;
     requirement: RequirementRecord | null;
   }>({ isOpen: false, x: 0, y: 0, requirement: null });
-  
+
   const [linkingState, setLinkingState] = useState<{
     sourceRequirement: RequirementRecord | null;
     isLinking: boolean;
@@ -465,7 +47,6 @@ function TraceLinksView(): JSX.Element {
   } | null>(null);
 
   const [selectedRequirements, setSelectedRequirements] = useState<Set<string>>(new Set());
-  const [draggedRequirement, setDraggedRequirement] = useState<RequirementRecord | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string>("");
   const [targetFilter, setTargetFilter] = useState<string>("");
   const [copyLinkModal, setCopyLinkModal] = useState<{
@@ -489,131 +70,85 @@ function TraceLinksView(): JSX.Element {
     enabled: Boolean(tenant && project)
   });
 
+  // Use custom hooks
+  const { selectedLinksetId, setSelectedLinksetId } = useLinksetSelection({
+    tenant,
+    project,
+    linksets: linksetsQuery.data?.linksets
+  });
+
+  const {
+    createTraceLinkMutation,
+    archiveMutation,
+    unarchiveMutation,
+    deleteMutation
+  } = useTraceLinkMutations({ tenant, project });
+
   // Get selected linkset
   const selectedLinkset = React.useMemo(() => {
-    if (!selectedLinksetId || !linksetsQuery.data?.linksets) {return null;}
+    if (!selectedLinksetId || !linksetsQuery.data?.linksets) {
+      return null;
+    }
     return linksetsQuery.data.linksets.find(ls => ls.id === selectedLinksetId) || null;
   }, [selectedLinksetId, linksetsQuery.data?.linksets]);
 
-  // Load from localStorage when tenant/project become available
-  React.useEffect(() => {
-    if (tenant && project && linksetsQuery.data?.linksets && !hasLoadedFromStorage.current) {
-      const storageKey = `trace-links-selected-linkset-${tenant}-${project}`;
-      const saved = localStorage.getItem(storageKey);
+  // Drag and drop handlers
+  const handleRequestLink = useCallback((source: RequirementRecord, target: RequirementRecord) => {
+    setLinkModal({
+      sourceRequirement: source,
+      targetRequirement: target
+    });
+  }, []);
 
-      if (saved) {
-        const exists = linksetsQuery.data.linksets.some(ls => ls.id === saved);
-        if (exists) {
-          setSelectedLinksetId(saved);
-        } else if (linksetsQuery.data.linksets.length > 0) {
-          setSelectedLinksetId(linksetsQuery.data.linksets[0].id);
-        }
-      } else if (linksetsQuery.data.linksets.length > 0) {
-        setSelectedLinksetId(linksetsQuery.data.linksets[0].id);
-      }
-      hasLoadedFromStorage.current = true;
-    }
-  }, [tenant, project, linksetsQuery.data]);
+  const handleRequestCopyLink = useCallback((
+    source: RequirementRecord,
+    targetSectionId: string,
+    targetDocument: DocumentRecord
+  ) => {
+    setCopyLinkModal({
+      sourceRequirement: source,
+      targetSectionId,
+      targetDocument
+    });
+  }, []);
 
-  // Save selected linkset to localStorage when it changes
-  React.useEffect(() => {
-    if (tenant && project && selectedLinksetId && hasLoadedFromStorage.current) {
-      const storageKey = `trace-links-selected-linkset-${tenant}-${project}`;
-      localStorage.setItem(storageKey, selectedLinksetId);
-    }
-  }, [selectedLinksetId, tenant, project]);
-
-  // Reset hasLoadedFromStorage flag when tenant/project ACTUALLY changes (not on initial mount)
-  React.useEffect(() => {
-    const currentTenantProject = `${tenant}-${project}`;
-    if (previousTenantProject.current !== null && previousTenantProject.current !== currentTenantProject) {
-      hasLoadedFromStorage.current = false;
-    }
-    previousTenantProject.current = currentTenantProject;
-  }, [tenant, project]);
-
-  // Create trace link mutation
-  const createTraceLinkMutation = useMutation({
-    mutationFn: (body: CreateTraceLinkRequest) =>
-      apiClient.createTraceLink(tenant, project, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["trace-links", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
-      setLinkModal(null);
-    }
+  const {
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDropOnSection
+  } = useDragAndDrop({
+    onRequestLink: handleRequestLink,
+    onRequestCopyLink: handleRequestCopyLink,
+    selectedLinkset
   });
 
-  // Delete trace link mutation
-  const deleteTraceLinkMutation = useMutation({
-    mutationFn: (linkId: string) =>
-      apiClient.deleteTraceLink(tenant, project, linkId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["trace-links", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
-    }
-  });
-
-  const handleDeleteLink = React.useCallback((linkId: string) => {
-    deleteTraceLinkMutation.mutate(linkId);
-  }, [deleteTraceLinkMutation]);
-
-  // Archive mutation
-  const archiveMutation = useMutation({
-    mutationFn: (requirementId: string) =>
-      apiClient.archiveRequirements(tenant, project, [requirementId]),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["trace-links", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
-    }
-  });
-
-  // Unarchive mutation
-  const unarchiveMutation = useMutation({
-    mutationFn: (requirementId: string) =>
-      apiClient.unarchiveRequirements(tenant, project, [requirementId]),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["trace-links", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
-    }
-  });
-
-  // Delete mutation (soft delete)
-  const deleteMutation = useMutation({
-    mutationFn: (requirementId: string) =>
-      apiClient.deleteRequirement(tenant, project, requirementId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["trace-links", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["sections-with-relations", tenant, project] });
-    }
-  });
-
-  const handleArchive = React.useCallback((requirementId: string) => {
+  // Requirement mutation handlers
+  const handleArchive = useCallback((requirementId: string) => {
     archiveMutation.mutate(requirementId);
   }, [archiveMutation]);
 
-  const handleUnarchive = React.useCallback((requirementId: string) => {
+  const handleUnarchive = useCallback((requirementId: string) => {
     unarchiveMutation.mutate(requirementId);
   }, [unarchiveMutation]);
 
-  const handleRequestDelete = React.useCallback((requirement: RequirementRecord) => {
+  const handleRequestDelete = useCallback((requirement: RequirementRecord) => {
     setDeleteConfirmModal(requirement);
   }, []);
 
-  const handleConfirmDelete = React.useCallback(async () => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!deleteConfirmModal) return;
     deleteMutation.mutate(deleteConfirmModal.id);
     setDeleteConfirmModal(null);
   }, [deleteConfirmModal, deleteMutation]);
 
-  const handleCancelDelete = React.useCallback(() => {
+  const handleCancelDelete = useCallback(() => {
     setDeleteConfirmModal(null);
   }, []);
 
-  const handleStartLink = React.useCallback(() => {
+  // Linking handlers
+  const handleStartLink = useCallback(() => {
     if (contextMenu.requirement) {
       setLinkingState({
         sourceRequirement: contextMenu.requirement,
@@ -623,7 +158,7 @@ function TraceLinksView(): JSX.Element {
     }
   }, [contextMenu.requirement]);
 
-  const handleLinkFromStart = React.useCallback(() => {
+  const handleLinkFromStart = useCallback(() => {
     if (linkingState.sourceRequirement && contextMenu.requirement) {
       setLinkModal({
         sourceRequirement: linkingState.sourceRequirement,
@@ -634,8 +169,8 @@ function TraceLinksView(): JSX.Element {
     }
   }, [linkingState.sourceRequirement, contextMenu.requirement]);
 
-  const handleCreateLink = React.useCallback((linkType: TraceLinkType, description?: string) => {
-    if (!linkModal) {return;}
+  const handleCreateLink = useCallback((linkType: TraceLinkType, description?: string) => {
+    if (!linkModal) return;
 
     createTraceLinkMutation.mutate({
       sourceRequirementId: linkModal.sourceRequirement.id,
@@ -643,14 +178,16 @@ function TraceLinksView(): JSX.Element {
       linkType,
       description
     });
+    setLinkModal(null);
+    setLinkingState({ sourceRequirement: null, isLinking: false });
   }, [linkModal, createTraceLinkMutation]);
 
-  const handleCancelLink = React.useCallback(() => {
+  const handleCancelLink = useCallback(() => {
     setLinkModal(null);
     setLinkingState({ sourceRequirement: null, isLinking: false });
   }, []);
 
-  const handleCopyAndLink = React.useCallback(async () => {
+  const handleCopyAndLink = useCallback(async () => {
     if (!copyLinkModal || !tenant || !project || !selectedLinkset) return;
 
     const { sourceRequirement, targetSectionId, targetDocument } = copyLinkModal;
@@ -671,7 +208,6 @@ function TraceLinksView(): JSX.Element {
       const copiedRequirement = createResponse.requirement;
 
       // Step 2: Create a trace link between source and copied requirement
-      // Use the linkset's default link type
       const linkType = selectedLinkset.defaultLinkType || "satisfies";
 
       await apiClient.createTraceLink(tenant, project, {
@@ -686,19 +222,18 @@ function TraceLinksView(): JSX.Element {
       await queryClient.invalidateQueries({ queryKey: ["sections-with-relations", tenant, project] });
       await queryClient.invalidateQueries({ queryKey: ["linksets", tenant, project] });
 
-      // Close the modal
       setCopyLinkModal(null);
     } catch (error) {
       console.error('Failed to copy and link requirement:', error);
-      throw error; // Re-throw to let modal handle error state
+      throw error;
     }
   }, [copyLinkModal, tenant, project, selectedLinkset, apiClient, queryClient]);
 
-  const handleCancelCopyLink = React.useCallback(() => {
+  const handleCancelCopyLink = useCallback(() => {
     setCopyLinkModal(null);
   }, []);
 
-  const handleRequirementSelect = React.useCallback((requirement: RequirementRecord, isMultiSelect: boolean) => {
+  const handleRequirementSelect = useCallback((requirement: RequirementRecord, isMultiSelect: boolean) => {
     setSelectedRequirements(prev => {
       const newSet = new Set(prev);
       if (isMultiSelect) {
@@ -715,7 +250,7 @@ function TraceLinksView(): JSX.Element {
     });
   }, []);
 
-  const handleRequirementContextMenu = React.useCallback((event: React.MouseEvent, requirement: RequirementRecord) => {
+  const handleContextMenu = useCallback((requirement: RequirementRecord, event: React.MouseEvent) => {
     event.preventDefault();
     setContextMenu({
       isOpen: true,
@@ -725,76 +260,7 @@ function TraceLinksView(): JSX.Element {
     });
   }, []);
 
-  // Alias for DocumentTree compatibility
-  const handleContextMenu = React.useCallback((requirement: RequirementRecord, event: React.MouseEvent) => {
-    event.preventDefault();
-    setContextMenu({
-      isOpen: true,
-      x: event.clientX,
-      y: event.clientY,
-      requirement
-    });
-  }, []);
-
-  const handleDragStart = React.useCallback((requirement: RequirementRecord) => {
-    setDraggedRequirement(requirement);
-  }, []);
-
-  const handleDragOver = React.useCallback((event: React.DragEvent) => {
-    event.preventDefault(); // Allow drop
-    const target = event.currentTarget as HTMLElement;
-    target.classList.add('drag-over');
-  }, []);
-
-  const handleDragLeave = React.useCallback((event: React.DragEvent) => {
-    const target = event.currentTarget as HTMLElement;
-    target.classList.remove('drag-over');
-  }, []);
-
-  const handleDrop = React.useCallback((event: React.DragEvent, targetRequirement: RequirementRecord) => {
-    event.preventDefault();
-    const target = event.currentTarget as HTMLElement;
-    target.classList.remove('drag-over');
-
-    if (draggedRequirement && draggedRequirement.id !== targetRequirement.id) {
-      setLinkModal({
-        sourceRequirement: draggedRequirement,
-        targetRequirement
-      });
-    }
-    setDraggedRequirement(null);
-  }, [draggedRequirement]);
-
-  const handleDropOnSection = React.useCallback((event: React.DragEvent, sectionId: string, targetDocumentSlug: string) => {
-    event.preventDefault();
-    const target = event.currentTarget as HTMLElement;
-    target.classList.remove('drag-over');
-
-    if (!draggedRequirement || !selectedLinkset) {
-      setDraggedRequirement(null);
-      return;
-    }
-
-    // Determine the target document based on which document the section belongs to
-    let targetDocument: DocumentRecord;
-    if (targetDocumentSlug === selectedLinkset.sourceDocument.slug) {
-      targetDocument = selectedLinkset.sourceDocument;
-    } else if (targetDocumentSlug === selectedLinkset.targetDocument.slug) {
-      targetDocument = selectedLinkset.targetDocument;
-    } else {
-      setDraggedRequirement(null);
-      return;
-    }
-
-    setCopyLinkModal({
-      sourceRequirement: draggedRequirement,
-      targetSectionId: sectionId,
-      targetDocument
-    });
-    setDraggedRequirement(null);
-  }, [draggedRequirement, selectedLinkset]);
-
-
+  // Loading and error states
   if (!tenant || !project) {
     return (
       <div className="p-6 space-y-6 min-h-screen">
@@ -816,6 +282,7 @@ function TraceLinksView(): JSX.Element {
     return <ErrorState message="Failed to load trace links" />;
   }
 
+  // Main UI
   return (
     <div className="p-6 space-y-6 min-h-screen">
       <Card>
@@ -859,7 +326,7 @@ function TraceLinksView(): JSX.Element {
                 </SelectContent>
               </Select>
             </div>
-            
+
             {selectedLinkset && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <div className="text-sm font-medium text-blue-900 flex items-center gap-2">
@@ -878,106 +345,107 @@ function TraceLinksView(): JSX.Element {
 
       {selectedLinkset && (
         <div className="desktop-three-columns h-[600px]">
-        {/* Source Document Panel */}
-        <Card className="h-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{selectedLinkset.sourceDocument.name}</CardTitle>
-            <div className="mt-2">
-              <input
-                type="text"
-                placeholder="Filter requirements..."
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 h-[calc(100%-7rem)]">
-            <div className="document-panel left-panel h-full overflow-y-auto">
-              <DocumentTree
-                document={selectedLinkset.sourceDocument}
-                selectedRequirements={selectedRequirements}
-                onRequirementSelect={handleRequirementSelect}
-                onContextMenu={handleContextMenu}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onDropOnSection={handleDropOnSection}
-                traceLinks={traceLinksQuery.data?.traceLinks || []}
-                documentSide="left"
-                filter={sourceFilter}
-              />
-            </div>
-          </CardContent>
-        </Card>
+          {/* Source Document Panel */}
+          <Card className="h-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{selectedLinkset.sourceDocument.name}</CardTitle>
+              <div className="mt-2">
+                <input
+                  type="text"
+                  placeholder="Filter requirements..."
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 h-[calc(100%-7rem)]">
+              <div className="document-panel left-panel h-full overflow-y-auto">
+                <DocumentTree
+                  document={selectedLinkset.sourceDocument}
+                  selectedRequirements={selectedRequirements}
+                  onRequirementSelect={handleRequirementSelect}
+                  onContextMenu={handleContextMenu}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onDropOnSection={handleDropOnSection}
+                  traceLinks={traceLinksQuery.data?.traceLinks || []}
+                  documentSide="left"
+                  filter={sourceFilter}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Visual Links Panel */}
-        <Card className="h-full">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Visual Links</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 h-[calc(100%-4rem)]">
-            <div className="linking-panel h-full relative">
-              <VisualLinksArea
-                traceLinks={selectedLinkset.links.map(link => ({
-                  id: link.id,
-                  sourceRequirementId: link.sourceRequirementId,
-                  targetRequirementId: link.targetRequirementId,
-                  linkType: link.linkType,
-                  description: link.description,
-                  createdAt: link.createdAt,
-                  updatedAt: link.updatedAt,
-                  sourceRequirement: {} as any,
-                  targetRequirement: {} as any
-                }))}
-                leftDocument={selectedLinkset.sourceDocument}
-                rightDocument={selectedLinkset.targetDocument}
-                onDeleteLink={(linkId) => {
-                  // TODO: Implement linkset link deletion
-                  console.log('Delete link from linkset:', linkId);
-                }}
-              />
-            </div>
-          </CardContent>
-        </Card>
+          {/* Visual Links Panel */}
+          <Card className="h-full">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Visual Links</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 h-[calc(100%-4rem)]">
+              <div className="linking-panel h-full relative">
+                <VisualLinksArea
+                  traceLinks={selectedLinkset.links.map(link => ({
+                    id: link.id,
+                    sourceRequirementId: link.sourceRequirementId,
+                    targetRequirementId: link.targetRequirementId,
+                    linkType: link.linkType,
+                    description: link.description,
+                    createdAt: link.createdAt,
+                    updatedAt: link.updatedAt,
+                    sourceRequirement: {} as any,
+                    targetRequirement: {} as any
+                  }))}
+                  leftDocument={selectedLinkset.sourceDocument}
+                  rightDocument={selectedLinkset.targetDocument}
+                  onDeleteLink={(linkId) => {
+                    // TODO: Implement linkset link deletion
+                    console.log('Delete link from linkset:', linkId);
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Target Document Panel */}
-        <Card className="h-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{selectedLinkset.targetDocument.name}</CardTitle>
-            <div className="mt-2">
-              <input
-                type="text"
-                placeholder="Filter requirements..."
-                value={targetFilter}
-                onChange={(e) => setTargetFilter(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 h-[calc(100%-7rem)]">
-            <div className="document-panel right-panel h-full overflow-y-auto">
-              <DocumentTree
-                document={selectedLinkset.targetDocument}
-                selectedRequirements={selectedRequirements}
-                onRequirementSelect={handleRequirementSelect}
-                onContextMenu={handleContextMenu}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onDropOnSection={handleDropOnSection}
-                traceLinks={traceLinksQuery.data?.traceLinks || []}
-                documentSide="right"
-                filter={targetFilter}
-              />
-            </div>
-          </CardContent>
-        </Card>
+          {/* Target Document Panel */}
+          <Card className="h-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{selectedLinkset.targetDocument.name}</CardTitle>
+              <div className="mt-2">
+                <input
+                  type="text"
+                  placeholder="Filter requirements..."
+                  value={targetFilter}
+                  onChange={(e) => setTargetFilter(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 h-[calc(100%-7rem)]">
+              <div className="document-panel right-panel h-full overflow-y-auto">
+                <DocumentTree
+                  document={selectedLinkset.targetDocument}
+                  selectedRequirements={selectedRequirements}
+                  onRequirementSelect={handleRequirementSelect}
+                  onContextMenu={handleContextMenu}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onDropOnSection={handleDropOnSection}
+                  traceLinks={traceLinksQuery.data?.traceLinks || []}
+                  documentSide="right"
+                  filter={targetFilter}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
-      
+
+      {/* Modals and Context Menus */}
       {contextMenu.isOpen && contextMenu.requirement && (
         <RequirementContextMenu
           x={contextMenu.x}
