@@ -280,7 +280,9 @@ export async function exportDocument(
 
     const docRecord = docResult.records[0];
     const doc = docRecord.get("doc").properties;
-    const sections = docRecord.get("sections").filter((s: any) => s.id !== null);
+    const sections = docRecord.get("sections")
+      .filter((s: any) => s.id !== null)
+      .sort((a: any, b: any) => a.order - b.order); // Ensure correct section ordering
     const linksets = docRecord.get("linksets").filter((ls: any) => ls.id !== null);
 
     // Then get requirements for each section
@@ -310,7 +312,9 @@ export async function exportDocument(
         name: section.name,
         shortCode: section.shortCode,
         order: section.order,
-        requirements: requirements.filter((r: any) => r.id !== null)
+        requirements: requirements
+          .filter((r: any) => r.id !== null)
+          .sort((a: any, b: any) => a.order - b.order) // Ensure correct requirement ordering
       });
     }
 

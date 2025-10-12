@@ -48,6 +48,7 @@ export async function createDocumentSection(params: {
   description?: string;
   shortCode?: string;
   order: number;
+  userId: string;
 }): Promise<DocumentSectionRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -101,7 +102,7 @@ export async function createDocumentSection(params: {
         sectionId,
         tenantSlug,
         projectSlug,
-        changedBy: 'system', // TODO: Get from auth context
+        changedBy: params.userId,
         changeType: 'created',
         name: params.name,
         description: params.description,
@@ -151,7 +152,8 @@ export async function updateDocumentSection(
     description?: string;
     order?: number;
     shortCode?: string;
-  }
+  },
+  userId: string
 ): Promise<DocumentSectionRecord> {
   const now = new Date().toISOString();
   const session = getSession();
@@ -249,7 +251,7 @@ export async function updateDocumentSection(
           sectionId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: userId,
           changeType: 'updated',
           name: newName,
           description: newDescription,
@@ -268,7 +270,7 @@ export async function updateDocumentSection(
   }
 }
 
-export async function deleteDocumentSection(sectionId: string): Promise<void> {
+export async function deleteDocumentSection(sectionId: string, userId: string): Promise<void> {
   const session = getSession();
 
   try {
@@ -299,7 +301,7 @@ export async function deleteDocumentSection(sectionId: string): Promise<void> {
           sectionId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: userId,
           changeType: 'deleted',
           name: String(currentProps.name),
           description: currentProps.description ? String(currentProps.description) : undefined,
@@ -404,19 +406,22 @@ export async function listDocumentSectionsWithRelations(
           .map(item => ({
             ...mapRequirement(item.node),
             order: item.rel?.properties?.order ?? 999999
-          })),
+          }))
+          .sort((a, b) => a.order - b.order), // Ensure correct requirement ordering
         infos: infos
           .filter(item => item.node !== null)
           .map(item => ({
             ...mapInfo(item.node),
             order: item.rel?.properties?.order ?? 999999
-          })),
+          }))
+          .sort((a, b) => a.order - b.order), // Ensure correct info ordering
         surrogates: surrogates
           .filter(item => item.node !== null)
           .map(item => ({
             ...mapSurrogateReference(item.node),
             order: item.rel?.properties?.order ?? 999999
           }))
+          .sort((a, b) => a.order - b.order) // Ensure correct surrogate ordering
       };
     });
   } finally {

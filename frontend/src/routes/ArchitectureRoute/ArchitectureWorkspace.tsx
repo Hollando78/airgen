@@ -114,6 +114,7 @@ export function ArchitectureWorkspace({
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [diagramViewports, setDiagramViewports] = useState<Record<string, { x: number; y: number; zoom: number }>>({});
   const canvasRef = useRef<DiagramCanvasHandle>(null);
+  const activeDiagramIdRef = useRef<string | null>(null);
 
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -172,8 +173,15 @@ export function ArchitectureWorkspace({
 
   const viewportTimeoutRef = useRef<NodeJS.Timeout>();
 
+  // Keep ref in sync with current active diagram ID
+  useEffect(() => {
+    activeDiagramIdRef.current = activeDiagramId;
+  }, [activeDiagramId]);
+
   const handleViewportChange = useCallback((viewport: { x: number; y: number; zoom: number }) => {
-    if (!activeDiagramId) return;
+    // Use ref to get current diagram ID, not closure variable
+    const currentDiagramId = activeDiagramIdRef.current;
+    if (!currentDiagramId) return;
 
     // Debounce viewport updates to avoid excessive re-renders
     if (viewportTimeoutRef.current) {
@@ -183,12 +191,12 @@ export function ArchitectureWorkspace({
     viewportTimeoutRef.current = setTimeout(() => {
       setDiagramViewports(prev => ({
         ...prev,
-        [activeDiagramId]: viewport
+        [currentDiagramId]: viewport
       }));
       if (typeof window !== "undefined") {
         try {
           window.localStorage.setItem(
-            `airgen:diagramViewport:${activeDiagramId}`,
+            `airgen:diagramViewport:${currentDiagramId}`,
             JSON.stringify(viewport)
           );
         } catch (error) {
@@ -196,7 +204,7 @@ export function ArchitectureWorkspace({
         }
       }
     }, 100);
-  }, [activeDiagramId]);
+  }, []); // No dependencies needed since we use ref
 
   // Cleanup timeout on unmount
   useEffect(() => {

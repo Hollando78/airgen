@@ -15,7 +15,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
     { to: "/documents", label: "Documents" },
     { to: "/architecture", label: "Architecture" },
     { to: "/interfaces", label: "Interfaces" },
-    { to: "/drafts", label: "Drafts" },
+    // { to: "/drafts", label: "Drafts" }, // ARCHIVED: Not production ready
     { to: "/requirements", label: "Requirements" },
     { to: "/baselines", label: "Baselines" },
     { to: "/links", label: "Trace Links" },
