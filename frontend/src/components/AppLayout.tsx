@@ -5,6 +5,7 @@ import { UserMenu } from "./UserMenu";
 import { useAuth } from "../contexts/AuthContext";
 import { FloatingDocumentsProvider } from "../contexts/FloatingDocumentsContext";
 import { FloatingDocumentsManager } from "./FloatingDocumentsManager";
+import { MobileViewToggle } from "../mobile/components/MobileViewToggle";
 
 export function AppLayout({ children }: { children: React.ReactNode }): JSX.Element {
   const isDevMode = import.meta.env.MODE !== "production";
@@ -42,6 +43,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: 'auto' }}>
+              <MobileViewToggle />
               <TokenControls />
               <UserMenu />
             </div>

@@ -275,6 +275,7 @@ pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (p
 - The UI covers tenant/project selection, draft generation (heuristics + optional LLM), QA, requirement persistence, baseline management, link suggestions, and token management for upcoming authentication flows.
 - Development builds expose an admin workspace at `/admin/users` for seeding file-backed user accounts without touching production data. All UI routes now require authentication even in development, so create a dev account via the API or workspace file before logging in.
 - Production builds only publish the static landing experience; the interactive console and admin tools stay behind a dev-only bundle path to keep the public surface minimal.
+- Mobile preview: authenticated users on small screens are redirected to `/mobile`, a touch-first read-only viewer (workspace selection, requirement/document metadata, lightweight admin lookup) while authoring and diagram editing stay desktop-only. The header in either experience lets reviewers switch back if they prefer the other layout.
 
 ### UI Features
 - **Floating windows** – Open documents and diagrams in draggable, resizable floating windows. Right-click on document links or use the "Pop-out" action in diagrams to create floating views.

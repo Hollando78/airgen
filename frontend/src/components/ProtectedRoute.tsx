@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Spinner } from './Spinner';
+import { useMobileRedirect } from '../mobile/useMobileRedirect';
 
 type ProtectedRouteProps = {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ export function ProtectedRoute({
   requiredRoles = []
 }: ProtectedRouteProps): JSX.Element {
   const { user, isLoading } = useAuth();
+  useMobileRedirect(Boolean(user));
 
   // Show loading spinner while checking auth
   if (isLoading) {

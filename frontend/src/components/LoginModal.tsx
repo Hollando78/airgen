@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { MfaVerificationModal } from './MfaVerificationModal';
+import { MobileLoginSheet } from '../mobile/components/MobileLoginSheet';
+import { disableMobileRedirectPreference } from '../mobile/useMobileRedirect';
 
-type LoginModalProps = {
+export type LoginModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSwitchToSignup?: () => void;
   onForgotPassword?: () => void;
 };
+
+function isMobileViewport(): boolean {
+  if (typeof window === 'undefined') {return false;}
+  return window.matchMedia?.('(max-width: 768px)')?.matches ?? false;
+}
 
 export function LoginModal({ isOpen, onClose, onSwitchToSignup, onForgotPassword }: LoginModalProps): JSX.Element | null {
   const { login, isLoading, error, mfaRequired } = useAuth();
@@ -15,6 +22,14 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup, onForgotPassword
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [showMfaModal, setShowMfaModal] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => isMobileViewport());
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {return;}
+    const listener = () => setIsMobile(isMobileViewport());
+    window.addEventListener('resize', listener);
+    return () => window.removeEventListener('resize', listener);
+  }, []);
 
   // Show MFA modal when MFA is required
   useEffect(() => {
@@ -25,14 +40,13 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup, onForgotPassword
 
   if (!isOpen) {return null;}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError(null);
-
+  const submitLogin = async () => {
     if (!email || !password) {
       setLoginError('Please enter both email and password');
       return;
     }
+
+    setLoginError(null);
 
     try {
       await login(email, password);
@@ -43,6 +57,11 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup, onForgotPassword
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Login failed');
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitLogin();
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -63,6 +82,32 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup, onForgotPassword
     setShowMfaModal(false);
     setLoginError('MFA verification cancelled. Please log in again.');
   };
+
+  if (isMobile) {
+    return (
+      <MobileLoginSheet
+        isOpen={isOpen}
+        onClose={onClose}
+        onSwitchToSignup={onSwitchToSignup}
+        onForgotPassword={onForgotPassword}
+        email={email}
+        password={password}
+        onEmailChange={setEmail}
+        onPasswordChange={setPassword}
+        onSubmit={submitLogin}
+        isLoading={isLoading}
+        errorMessage={loginError || error || null}
+        onViewDesktop={() => {
+          disableMobileRedirectPreference();
+          onClose();
+        }}
+      />
+    );
+  }
+
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <>
