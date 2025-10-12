@@ -15,6 +15,7 @@ import {
   updateArchitectureDiagram,
   deleteArchitectureDiagram
 } from "../services/graph.js";
+import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
 
 const portOverrideSchema = z.object({
   edge: z.enum(["top", "right", "bottom", "left"]).optional(),
@@ -86,10 +87,19 @@ const architectureDiagramSchema = z.object({
 });
 
 export default async function registerArchitectureRoutes(app: FastifyInstance): Promise<void> {
-  app.post("/architecture/diagrams", async (req, reply) => {
+  app.post("/architecture/diagrams", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const payload = architectureDiagramSchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
     try {
-      const diagram = await createArchitectureDiagram(payload);
+      const diagram = await createArchitectureDiagram({
+        ...payload,
+        userId: req.currentUser!.sub
+      });
       return { diagram };
     } catch (error) {
       if ((error as Error).message.includes("not found")) {
@@ -99,21 +109,35 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     }
   });
 
-  app.get("/architecture/diagrams/:tenant/:project", async (req) => {
+  app.get("/architecture/diagrams/:tenant/:project", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const diagrams = await getArchitectureDiagrams({ tenant: params.tenant, projectKey: params.project });
     return { diagrams };
   });
 
-  app.get("/architecture/block-library/:tenant/:project", async (req) => {
+  app.get("/architecture/block-library/:tenant/:project", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const blocks = await getArchitectureBlockLibrary({ tenant: params.tenant, projectKey: params.project });
     return { blocks };
   });
 
-  app.patch("/architecture/diagrams/:tenant/:project/:diagramId", async (req, reply) => {
+  app.patch("/architecture/diagrams/:tenant/:project/:diagramId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
@@ -128,12 +152,16 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
 
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     try {
       const diagram = await updateArchitectureDiagram({
         tenant: params.tenant,
         projectKey: params.project,
         diagramId: params.diagramId,
-        ...body
+        ...body,
+        userId: req.currentUser!.sub
       });
       return { diagram };
     } catch (error) {
@@ -144,7 +172,9 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     }
   });
 
-  app.delete("/architecture/diagrams/:tenant/:project/:diagramId", async (req, reply) => {
+  app.delete("/architecture/diagrams/:tenant/:project/:diagramId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
@@ -152,11 +182,15 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     });
     const params = paramsSchema.parse(req.params);
 
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     try {
       await deleteArchitectureDiagram({
         tenant: params.tenant,
         projectKey: params.project,
-        diagramId: params.diagramId
+        diagramId: params.diagramId,
+        userId: req.currentUser!.sub
       });
       return { success: true };
     } catch (error) {
@@ -167,8 +201,14 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     }
   });
 
-  app.post("/architecture/blocks", async (req, reply) => {
+  app.post("/architecture/blocks", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const payload = architectureBlockSchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
     try {
       const block = await createArchitectureBlock({
         tenant: payload.tenant,
@@ -184,7 +224,8 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
         sizeHeight: payload.sizeHeight,
         ports: payload.ports,
         documentIds: payload.documentIds,
-        existingBlockId: payload.existingBlockId
+        existingBlockId: payload.existingBlockId,
+        userId: req.currentUser!.sub
       });
       return { block };
     } catch (error) {
@@ -195,14 +236,22 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     }
   });
 
-  app.get("/architecture/blocks/:tenant/:project/:diagramId", async (req) => {
+  app.get("/architecture/blocks/:tenant/:project/:diagramId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1), diagramId: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const blocks = await getArchitectureBlocks({ tenant: params.tenant, projectKey: params.project, diagramId: params.diagramId });
     return { blocks };
   });
 
-  app.patch("/architecture/blocks/:tenant/:project/:blockId", async (req, reply) => {
+  app.patch("/architecture/blocks/:tenant/:project/:blockId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
@@ -256,13 +305,17 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     const body = bodySchema.parse(req.body);
     const { diagramId, ...updateFields } = body;
 
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     try {
       const block = await updateArchitectureBlock({
         tenant: params.tenant,
         projectKey: params.project,
         blockId: params.blockId,
         diagramId,
-        ...updateFields
+        ...updateFields,
+        userId: req.currentUser!.sub
       });
       return { block };
     } catch (error) {
@@ -273,7 +326,9 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     }
   });
 
-  app.delete("/architecture/blocks/:tenant/:project/:blockId", async (req, reply) => {
+  app.delete("/architecture/blocks/:tenant/:project/:blockId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
@@ -283,12 +338,16 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     const params = paramsSchema.parse(req.params);
     const query = querySchema.parse(req.query);
 
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     try {
       await deleteArchitectureBlock({
         tenant: params.tenant,
         projectKey: params.project,
         blockId: params.blockId,
-        diagramId: query.diagramId
+        diagramId: query.diagramId,
+        userId: req.currentUser!.sub
       });
       return { success: true };
     } catch {
@@ -296,8 +355,14 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     }
   });
 
-  app.post("/architecture/connectors", async (req, reply) => {
+  app.post("/architecture/connectors", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const payload = architectureConnectorSchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
     try {
       const connector = await createArchitectureConnector({
         tenant: payload.tenant,
@@ -317,7 +382,8 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
         color: payload.color,
         strokeWidth: payload.strokeWidth,
         labelOffsetX: payload.labelOffsetX,
-        labelOffsetY: payload.labelOffsetY
+        labelOffsetY: payload.labelOffsetY,
+        userId: req.currentUser!.sub
       });
       return { connector };
     } catch (error) {
@@ -328,14 +394,22 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     }
   });
 
-  app.get("/architecture/connectors/:tenant/:project/:diagramId", async (req) => {
+  app.get("/architecture/connectors/:tenant/:project/:diagramId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1), diagramId: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const connectors = await getArchitectureConnectors({ tenant: params.tenant, projectKey: params.project, diagramId: params.diagramId });
     return { connectors };
   });
 
-  app.patch("/architecture/connectors/:tenant/:project/:connectorId", async (req, reply) => {
+  app.patch("/architecture/connectors/:tenant/:project/:connectorId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
@@ -362,13 +436,17 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     const body = bodySchema.parse(req.body);
     const { diagramId, ...updateFields } = body;
 
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     try {
       const connector = await updateArchitectureConnector({
         tenant: params.tenant,
         projectKey: params.project,
         connectorId: params.connectorId,
         diagramId,
-        ...updateFields
+        ...updateFields,
+        userId: req.currentUser!.sub
       });
       return { connector };
     } catch (error) {
@@ -379,7 +457,9 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     }
   });
 
-  app.delete("/architecture/connectors/:tenant/:project/:connectorId", async (req, reply) => {
+  app.delete("/architecture/connectors/:tenant/:project/:connectorId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
@@ -389,12 +469,16 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     const params = paramsSchema.parse(req.params);
     const query = querySchema.parse(req.query);
 
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     try {
       await deleteArchitectureConnector({
         tenant: params.tenant,
         projectKey: params.project,
         connectorId: params.connectorId,
-        diagramId: query.diagramId
+        diagramId: query.diagramId,
+        userId: req.currentUser!.sub
       });
       return { success: true };
     } catch {

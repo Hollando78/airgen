@@ -196,6 +196,25 @@ export async function getRequirementCandidate(id: string): Promise<RequirementCa
   }
 }
 
+// Whitelist of fields that can be updated to prevent Cypher injection
+const ALLOWED_UPDATE_FIELDS = [
+  'tenant',
+  'projectKey',
+  'text',
+  'status',
+  'qaScore',
+  'qaVerdict',
+  'suggestions',
+  'prompt',
+  'source',
+  'querySessionId',
+  'requirementId',
+  'requirementRef',
+  'documentSlug',
+  'sectionId',
+  'updatedAt'
+] as const;
+
 export async function updateRequirementCandidate(
   id: string,
   updates: Partial<Omit<RequirementCandidateRecord, "id" | "createdAt">>
@@ -209,6 +228,10 @@ export async function updateRequirementCandidate(
 
       for (const [key, value] of Object.entries(updates)) {
         if (value !== undefined) {
+          // Validate field name against whitelist to prevent Cypher injection
+          if (!ALLOWED_UPDATE_FIELDS.includes(key as any)) {
+            throw new Error(`Invalid field for update: ${key}`);
+          }
           setClauses.push(`candidate.${key} = $${key}`);
           params[key] = value;
         }

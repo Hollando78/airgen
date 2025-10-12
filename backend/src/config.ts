@@ -62,7 +62,11 @@ const corsOrigins = parseList(
 );
 
 if (environment === "production" && corsOrigins.length === 0) {
-  console.warn("[WARNING] CORS_ORIGINS not set in production. API will reject cross-origin requests.");
+  throw new Error(
+    "[SECURITY] CORS_ORIGINS must be set in production.\n" +
+    "Set the CORS_ORIGINS environment variable to a comma-separated list of allowed origins.\n" +
+    "Example: CORS_ORIGINS=\"https://airgen.studio,https://www.airgen.studio\""
+  );
 }
 
 // Environment-specific cookie names (to prevent cookie conflicts)
@@ -125,6 +129,10 @@ export const config = {
     auth: {
       max: parseNumber(env.RATE_LIMIT_AUTH_MAX, environment === "production" ? 5 : 20),
       timeWindow: parseNumber(env.RATE_LIMIT_AUTH_WINDOW, 300000) // 5 minutes
+    },
+    llm: {
+      max: parseNumber(env.RATE_LIMIT_LLM_MAX, environment === "production" ? 20 : 100),
+      timeWindow: parseNumber(env.RATE_LIMIT_LLM_WINDOW, 3600000) // 1 hour
     }
   },
 

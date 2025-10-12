@@ -17,6 +17,7 @@ import { tryGeneratePreviewPdf } from "../helpers/file-upload-helpers.js";
 import { parseMultipartFormData } from "../helpers/multipart-parser.js";
 import { buildDownloadUrl, buildPreviewUrl } from "../helpers/document-url-builders.js";
 import { ensureUniqueDocumentSlug } from "../helpers/slug-helpers.js";
+import { requireTenantAccess, type AuthUser } from "../../../lib/authorization.js";
 
 const documentSchema = z.object({
   tenant: z.string().min(1),
@@ -40,7 +41,9 @@ const surrogateUploadFieldsSchema = z.object({
  */
 export async function registerDocumentRoutes(app: FastifyInstance): Promise<void> {
   // Upload surrogate document
-  app.post("/documents/upload", async (req, reply) => {
+  app.post("/documents/upload", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const contentType = req.headers["content-type"] ?? "";
     const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
     if (!boundaryMatch) {
@@ -65,6 +68,10 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
     }
 
     const { tenant, projectKey, name, description, parentFolder } = parsedFields.data;
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, tenant, reply);
+
     const sanitizedOriginalName = basename(filePart.filename);
     const originalExtension = extname(sanitizedOriginalName);
     const baseFileName = sanitizedOriginalName.slice(0, sanitizedOriginalName.length - originalExtension.length) || sanitizedOriginalName;
@@ -131,7 +138,8 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
       fileSize: filePart.data.byteLength,
       storagePath,
       previewPath: previewPath ?? undefined,
-      previewMimeType: previewMimeType ?? undefined
+      previewMimeType: previewMimeType ?? undefined,
+      userId: req.currentUser!.sub
     });
 
     const documentWithDownload = {
@@ -152,6 +160,7 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
 
   // Create document
   app.post("/documents", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["documents"],
       summary: "Create a new document",
@@ -177,15 +186,20 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const payload = documentSchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
     const document = await createDocument({
       tenant: payload.tenant,
       projectKey: payload.projectKey,
       name: payload.name,
       description: payload.description,
       shortCode: payload.shortCode,
-      parentFolder: payload.parentFolder
+      parentFolder: payload.parentFolder,
+      userId: req.currentUser!.sub
     });
     const documentWithDownload = {
       ...document,
@@ -204,6 +218,7 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
 
   // List documents
   app.get("/documents/:tenant/:project", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["documents"],
       summary: "List documents",
@@ -217,9 +232,12 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
     const documents = await listDocuments(params.tenant, params.project);
     const documentsWithDownload = documents.map(document => ({
       ...document,
@@ -237,13 +255,18 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
   });
 
   // Get single document
-  app.get("/documents/:tenant/:project/:documentSlug", async (req, reply) => {
+  app.get("/documents/:tenant/:project/:documentSlug", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
       documentSlug: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
     const document = await getDocument(params.tenant, params.project, params.documentSlug);
     if (!document) {return reply.status(404).send({ error: "Document not found" });}
     const documentWithDownload = {
@@ -262,13 +285,18 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
   });
 
   // Download document file
-  app.get("/documents/:tenant/:project/:documentSlug/file", async (req, reply) => {
+  app.get("/documents/:tenant/:project/:documentSlug/file", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
       documentSlug: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const document = await getDocument(params.tenant, params.project, params.documentSlug);
     if (!document || document.kind !== "surrogate" || !document.storagePath) {
@@ -304,13 +332,18 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
   });
 
   // Get document preview
-  app.get("/documents/:tenant/:project/:documentSlug/preview", async (req, reply) => {
+  app.get("/documents/:tenant/:project/:documentSlug/preview", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
       documentSlug: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const document = await getDocument(params.tenant, params.project, params.documentSlug);
     if (!document || document.kind !== "surrogate" || !document.previewPath) {
@@ -346,13 +379,18 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
   });
 
   // View document (preview or original)
-  app.get("/documents/:tenant/:project/:documentSlug/view", async (req, reply) => {
+  app.get("/documents/:tenant/:project/:documentSlug/view", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
       documentSlug: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const document = await getDocument(params.tenant, params.project, params.documentSlug);
     if (!document || document.kind !== "surrogate") {
@@ -401,7 +439,9 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
   });
 
   // Update document
-  app.patch("/documents/:tenant/:project/:documentSlug", async (req, reply) => {
+  app.patch("/documents/:tenant/:project/:documentSlug", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
@@ -415,6 +455,9 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     let document;
     if (body.parentFolder !== undefined) {
@@ -430,7 +473,7 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
         name,
         description,
         shortCode
-      });
+      }, req.currentUser!.sub);
     }
 
     if (!document) {return reply.status(404).send({ error: "Document not found" });}
@@ -452,6 +495,7 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
 
   // Delete document
   app.delete("/documents/:tenant/:project/:documentSlug", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["documents"],
       summary: "Delete a document",
@@ -487,7 +531,11 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
       documentSlug: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
-    const document = await softDeleteDocument(params.tenant, params.project, params.documentSlug);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
+    const document = await softDeleteDocument(params.tenant, params.project, params.documentSlug, req.currentUser!.sub);
     if (!document) {return reply.status(404).send({ error: "Document not found" });}
 
     const documentWithDownload = {

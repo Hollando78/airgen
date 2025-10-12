@@ -1,6 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { analyzeRequirement } from "@airgen/req-qa";
+import { INPUT_LIMITS } from "../lib/prompt-security.js";
+import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
+import { config } from "../config.js";
 import type {
   RequirementCandidateRecord
 } from "../services/graph.js";
@@ -14,8 +17,8 @@ import {
 import { bulkArchiveCandidates } from "../services/graph/requirement-candidates.js";
 import { draftCandidates } from "../services/drafting.js";
 import { generateDiagram } from "../services/diagram-generation.js";
-import { 
-  createDiagramCandidate, 
+import {
+  createDiagramCandidate,
   listDiagramCandidates,
   getDiagramCandidate,
   updateDiagramCandidate,
@@ -60,6 +63,21 @@ function mapCandidate(record: RequirementCandidateRecord) {
 }
 
 export default async function airgenRoutes(app: FastifyInstance) {
+  // LLM-specific rate limiter (per-user, hourly limit to control costs and prevent abuse)
+  const llmRateLimitConfig = {
+    max: config.rateLimit.llm.max,
+    timeWindow: config.rateLimit.llm.timeWindow,
+    keyGenerator: (req: any) => {
+      // Per-user rate limiting using the authenticated user's ID
+      return req.currentUser?.sub || req.ip;
+    },
+    errorResponseBuilder: () => ({
+      error: "Too many LLM requests. Please try again later.",
+      statusCode: 429,
+      retryAfter: Math.ceil(config.rateLimit.llm.timeWindow / 1000)
+    })
+  };
+
   const documentAttachmentSchema = z.object({
     type: z.enum(["native", "surrogate", "structured"]),
     documentSlug: z.string().min(1),
@@ -74,27 +92,47 @@ export default async function airgenRoutes(app: FastifyInstance) {
   });
 
   const chatSchema = z.object({
-    tenant: z.string().min(1),
-    projectKey: z.string().min(1),
-    user_input: z.string().min(1),
-    glossary: z.string().optional(),
-    constraints: z.string().optional(),
+    tenant: z.string().min(1).max(100),
+    projectKey: z.string().min(1).max(100),
+    user_input: z.string().min(1).max(INPUT_LIMITS.USER_INPUT),
+    glossary: z.string().max(INPUT_LIMITS.GLOSSARY).optional(),
+    constraints: z.string().max(INPUT_LIMITS.CONSTRAINTS).optional(),
     n: z.number().int().min(1).max(10).optional(),
     mode: z.enum(["requirements", "diagram"]).optional(),
     attachedDocuments: z.array(documentAttachmentSchema).optional(),
     attachedDiagrams: z.array(diagramAttachmentSchema).optional()
   });
 
-  app.post("/airgen/chat", { preHandler: [app.authenticate] }, async (req, reply) => {
-    const body = chatSchema.parse(req.body);
-    
+  app.post("/airgen/chat", {
+    preHandler: [app.authenticate],
+    config: {
+      rateLimit: llmRateLimitConfig
+    }
+  }, async (req, reply) => {
+    let body: z.infer<typeof chatSchema>;
+    try {
+      body = chatSchema.parse(req.body);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({
+          error: "Bad Request",
+          message: "Invalid request payload",
+          issues: error.issues
+        });
+      }
+      throw error;
+    }
+
+    // Verify tenant access before proceeding
+    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
+
     // Generate a unique session ID for this query
     const { randomUUID } = await import("crypto");
     const querySessionId = randomUUID();
 
     // Extract document and diagram context if attachments are provided
     let documentContext = "";
-    
+
     const tenantSlug = slugify(body.tenant);
     const projectSlug = slugify(body.projectKey);
 
@@ -232,14 +270,22 @@ export default async function airgenRoutes(app: FastifyInstance) {
     project: z.string().min(1)
   });
 
-  app.get("/airgen/candidates/:tenant/:project", { preHandler: [app.authenticate] }, async (req) => {
+  app.get("/airgen/candidates/:tenant/:project", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = listParams.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const items = await listRequirementCandidates(params.tenant, params.project);
     return { items: items.map(mapCandidate) };
   });
 
-  app.get("/airgen/candidates/:tenant/:project/grouped", { preHandler: [app.authenticate] }, async (req) => {
+  app.get("/airgen/candidates/:tenant/:project/grouped", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = listParams.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const items = await listRequirementCandidates(params.tenant, params.project);
     const mapped = items.map(mapCandidate);
     
@@ -274,6 +320,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
   app.post("/airgen/candidates/:id/reject", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = rejectParams.parse(req.params);
     const body = rejectBody.parse(req.body);
+
+    // Verify tenant access FIRST
+    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getRequirementCandidate(params.id);
     if (!candidate) {
@@ -323,6 +372,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
     const params = returnParams.parse(req.params);
     const body = returnBody.parse(req.body);
 
+    // Verify tenant access FIRST
+    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
+
     const candidate = await getRequirementCandidate(params.id);
     if (!candidate) {
       return reply.status(404).send({ error: "Candidate not found" });
@@ -355,6 +407,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
   app.post("/airgen/candidates/:id/accept", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = acceptParams.parse(req.params);
     const body = acceptBody.parse(req.body);
+
+    // Verify tenant access FIRST
+    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getRequirementCandidate(params.id);
     if (!candidate) {
@@ -425,8 +480,12 @@ export default async function airgenRoutes(app: FastifyInstance) {
   });
 
   // Diagram candidate endpoints
-  app.get("/airgen/diagram-candidates/:tenant/:project", { preHandler: [app.authenticate] }, async (req) => {
+  app.get("/airgen/diagram-candidates/:tenant/:project", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = listParams.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const items = await listDiagramCandidates(params.tenant, params.project);
     return { items };
   });
@@ -434,6 +493,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
   app.post("/airgen/diagram-candidates/:id/reject", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = rejectParams.parse(req.params);
     const body = rejectBody.parse(req.body);
+
+    // Verify tenant access FIRST
+    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getDiagramCandidate(params.id);
     if (!candidate) {
@@ -456,6 +518,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
   app.post("/airgen/diagram-candidates/:id/return", { preHandler: [app.authenticate] }, async (req, reply) => {
     const params = returnParams.parse(req.params);
     const body = returnBody.parse(req.body);
+
+    // Verify tenant access FIRST
+    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getDiagramCandidate(params.id);
     if (!candidate) {
@@ -486,6 +551,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
     const params = acceptParams.parse(req.params);
     const body = acceptDiagramBody.parse(req.body);
 
+    // Verify tenant access FIRST
+    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
+
     const candidate = await getDiagramCandidate(params.id);
     if (!candidate) {
       return reply.status(404).send({ error: "Diagram candidate not found" });
@@ -510,7 +578,8 @@ export default async function airgenRoutes(app: FastifyInstance) {
           projectKey: body.projectKey,
           name: body.diagramName || candidate.diagramName || "Generated Diagram",
           description: body.diagramDescription || candidate.diagramDescription || undefined,
-          view: candidate.diagramView as "block" | "internal" | "deployment" || "block"
+          view: candidate.diagramView as "block" | "internal" | "deployment" || "block",
+          userId: req.currentUser!.sub
         });
         diagramId = newDiagram.id;
       }
@@ -535,7 +604,8 @@ export default async function airgenRoutes(app: FastifyInstance) {
               sizeWidth: block.sizeWidth || 150,
               sizeHeight: block.sizeHeight || 100,
               ports: block.ports?.map(p => ({ ...p, direction: p.direction as "in" | "out" | "inout" })) || [],
-              documentIds: []
+              documentIds: [],
+              userId: req.currentUser!.sub
             });
             blockIdMap.set(block.name, createdBlock.id);
           }
@@ -557,7 +627,8 @@ export default async function airgenRoutes(app: FastifyInstance) {
                 kind: connector.kind as any,
                 label: connector.label,
                 sourcePortId: connector.sourcePortId,
-                targetPortId: connector.targetPortId
+                targetPortId: connector.targetPortId,
+                userId: req.currentUser!.sub
               });
             }
           }

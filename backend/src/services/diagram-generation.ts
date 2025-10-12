@@ -1,4 +1,10 @@
 import { openai, model } from "../lib/openai.js";
+import {
+  sanitizeDiagramInputs,
+  wrapUserInput,
+  detectSuspiciousOutput,
+  buildSecureSystemPrompt
+} from "../lib/prompt-security.js";
 
 export type DiagramGenerationRequest = {
   user_input: string; // stakeholder instruction for diagram
@@ -54,8 +60,10 @@ export async function generateDiagram(req: DiagramGenerationRequest): Promise<Di
     throw new Error("OpenAI client not configured. Please set LLM_API_KEY environment variable.");
   }
 
-  const sys = [
-    "You are a systems architecture expert specializing in hierarchical SysML block diagrams.",
+  // Sanitize and validate all inputs
+  const sanitized = sanitizeDiagramInputs(req);
+
+  const sys = buildSecureSystemPrompt("systems architecture expert specializing in hierarchical SysML block diagrams", [
     "Generate architecture diagrams focusing on parent-child relationships and system decomposition.",
     "CRITICAL RULES for architecture diagrams:",
     "1. Use a strict hierarchy: System -> Subsystem -> Component",
@@ -66,7 +74,7 @@ export async function generateDiagram(req: DiagramGenerationRequest): Promise<Di
     "6. Position blocks hierarchically: Systems at top, Subsystems in middle, Components at bottom",
     "Block types and stereotypes:",
     "- System: kind='system', stereotype='<<system>>' (top-level, contains subsystems)",
-    "- Subsystem: kind='subsystem', stereotype='<<subsystem>>' (mid-level, contains components)",  
+    "- Subsystem: kind='subsystem', stereotype='<<subsystem>>' (mid-level, contains components)",
     "- Component: kind='component', stereotype='<<component>>' (leaf-level implementations)",
     "- Actor: kind='actor', stereotype='<<actor>>' (external entities, no children)",
     "Connector rules for architecture diagrams:",
@@ -121,18 +129,19 @@ export async function generateDiagram(req: DiagramGenerationRequest): Promise<Di
       reasoning: "string explaining the design decisions"
     }, null, 2),
     "No markdown fencing, no preface, no comments—just valid JSON."
-  ].join("\n");
+  ]);
 
-  const content = [
-    `USER_INPUT: ${req.user_input}`,
-    `MODE: ${req.mode}`,
-    req.existingDiagramContext ? `EXISTING_DIAGRAM_CONTEXT:\n${req.existingDiagramContext}` : "",
-    req.documentContext ? `DOCUMENT_CONTEXT:\n${req.documentContext}` : "",
-    req.glossary ? `GLOSSARY:\n${req.glossary}` : "",
-    req.constraints ? `CONSTRAINTS:\n${req.constraints}` : ""
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  // Build content with secure delimiters
+  const contentParts = [
+    wrapUserInput(sanitized.user_input, "USER_INPUT"),
+    `<MODE>${req.mode}</MODE>`,
+    sanitized.existingDiagramContext ? wrapUserInput(sanitized.existingDiagramContext, "EXISTING_DIAGRAM_CONTEXT") : "",
+    sanitized.documentContext ? wrapUserInput(sanitized.documentContext, "DOCUMENT_CONTEXT") : "",
+    sanitized.glossary ? wrapUserInput(sanitized.glossary, "GLOSSARY") : "",
+    sanitized.constraints ? wrapUserInput(sanitized.constraints, "CONSTRAINTS") : ""
+  ];
+
+  const content = contentParts.filter(Boolean).join("\n\n");
 
   const completion = await openai.chat.completions.create({
     model,
@@ -144,6 +153,11 @@ export async function generateDiagram(req: DiagramGenerationRequest): Promise<Di
   });
 
   const text = completion.choices[0]?.message?.content ?? "{}";
+
+  // Detect suspicious output that may indicate successful prompt injection
+  if (detectSuspiciousOutput(text)) {
+    throw new Error("LLM response validation failed. Please rephrase your request.");
+  }
 
   let parsed: unknown = {};
   try {

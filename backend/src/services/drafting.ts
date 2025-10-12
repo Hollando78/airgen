@@ -1,4 +1,10 @@
 import { openai, model } from "../lib/openai.js";
+import {
+  sanitizeDraftingInputs,
+  wrapUserInput,
+  detectSuspiciousOutput,
+  buildSecureSystemPrompt
+} from "../lib/prompt-security.js";
 
 export type DraftRequest = {
   user_input: string; // stakeholder need / instruction
@@ -13,10 +19,11 @@ export async function draftCandidates(req: DraftRequest): Promise<string[]> {
     throw new Error("OpenAI client not configured. Please set LLM_API_KEY environment variable.");
   }
 
-  const n = Math.min(Math.max(req.n ?? 5, 1), 10);
+  // Sanitize and validate all inputs
+  const sanitized = sanitizeDraftingInputs(req);
+  const n = sanitized.n;
 
-  const sys = [
-    "You are a systems requirements engineer.",
+  const sys = buildSecureSystemPrompt("systems requirements engineer", [
     "Write binding requirements using SHALL, following ISO/IEC/IEEE 29148 and EARS patterns.",
     "Avoid ambiguous terms (fast, user-friendly, optimal, adequate, etc.).",
     "Include measurable criteria and units where applicable.",
@@ -27,17 +34,18 @@ export async function draftCandidates(req: DraftRequest): Promise<string[]> {
     "Return ONLY a JSON object with this shape:",
     '{ "candidates": ["<req1>", "<req2>", ...] }',
     "No markdown fencing, no preface, no comments—just JSON."
-  ].join("\n");
+  ]);
 
-  const content = [
-    `USER_INPUT:\n${req.user_input}`,
-    req.documentContext ? `DOCUMENT_CONTEXT:\n${req.documentContext}` : "",
-    req.glossary ? `GLOSSARY:\n${req.glossary}` : "",
-    req.constraints ? `CONSTRAINTS:\n${req.constraints}` : "",
-    `COUNT: ${n}`
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  // Build content with secure delimiters
+  const contentParts = [
+    wrapUserInput(sanitized.user_input, "USER_INPUT"),
+    sanitized.documentContext ? wrapUserInput(sanitized.documentContext, "DOCUMENT_CONTEXT") : "",
+    sanitized.glossary ? wrapUserInput(sanitized.glossary, "GLOSSARY") : "",
+    sanitized.constraints ? wrapUserInput(sanitized.constraints, "CONSTRAINTS") : "",
+    `<COUNT>${n}</COUNT>`
+  ];
+
+  const content = contentParts.filter(Boolean).join("\n\n");
 
   const completion = await openai.chat.completions.create({
     model,
@@ -49,6 +57,11 @@ export async function draftCandidates(req: DraftRequest): Promise<string[]> {
   });
 
   const text = completion.choices[0]?.message?.content ?? "{}";
+
+  // Detect suspicious output that may indicate successful prompt injection
+  if (detectSuspiciousOutput(text)) {
+    throw new Error("LLM response validation failed. Please rephrase your request.");
+  }
 
   let parsed: unknown = {};
   try {

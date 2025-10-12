@@ -14,12 +14,14 @@ import {
   migrateOrphanedTraceLinks,
   checkOrphanedTraceLinks
 } from "../services/graph/migrate-linksets.js";
+import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
 
 export async function linksetRoutes(fastify: FastifyInstance) {
   // List all linksets for a project
   fastify.get<{
     Params: { tenant: string; project: string };
   }>("/linksets/:tenant/:project", {
+    preHandler: [fastify.authenticate],
     schema: {
       tags: ["linksets"],
       summary: "List all linksets for a project",
@@ -36,6 +38,10 @@ export async function linksetRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { tenant, project } = request.params;
+
+      // Verify tenant access
+      requireTenantAccess(request.currentUser as AuthUser, tenant, reply);
+
       const linksets = await listLinksets({ tenant, projectKey: project });
 
       return reply.send({ linksets });
@@ -57,6 +63,7 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       targetDoc: string;
     };
   }>("/linksets/:tenant/:project/:sourceDoc/:targetDoc", {
+    preHandler: [fastify.authenticate],
     schema: {
       tags: ["linksets"],
       summary: "Get a specific linkset",
@@ -75,6 +82,10 @@ export async function linksetRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { tenant, project, sourceDoc, targetDoc } = request.params;
+
+      // Verify tenant access
+      requireTenantAccess(request.currentUser as AuthUser, tenant, reply);
+
       const linkset = await getLinkset({
         tenant,
         projectKey: project,
@@ -163,12 +174,16 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       const { tenant, project } = request.params;
       const { sourceDocumentSlug, targetDocumentSlug, links } = request.body;
 
+      // Verify tenant access
+      requireTenantAccess(request.currentUser as AuthUser, tenant, reply);
+
       const linkset = await createLinkset({
         tenant,
         projectKey: project,
         sourceDocumentSlug,
         targetDocumentSlug,
-        links
+        links,
+        userId: request.currentUser!.sub
       });
 
       return reply.status(201).send({ linkset });
@@ -249,11 +264,15 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       const { tenant, project, linksetId } = request.params;
       const { defaultLinkType } = request.body;
 
+      // Verify tenant access
+      requireTenantAccess(request.currentUser as AuthUser, tenant, reply);
+
       const linkset = await updateLinkset({
         tenant,
         projectKey: project,
         linksetId,
-        defaultLinkType
+        defaultLinkType,
+        userId: request.currentUser!.sub
       });
 
       return reply.send({ linkset });
@@ -280,6 +299,7 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       description?: string;
     };
   }>("/linksets/:tenant/:project/:linksetId/links", {
+    preHandler: [fastify.authenticate],
     schema: {
       tags: ["linksets"],
       summary: "Add a link to a linkset",
@@ -328,6 +348,9 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       const { tenant, project, linksetId } = request.params;
       const { sourceRequirementId, targetRequirementId, linkType, description } = request.body;
 
+      // Verify tenant access
+      requireTenantAccess(request.currentUser as AuthUser, tenant, reply);
+
       const linkset = await addLinkToLinkset({
         tenant,
         projectKey: project,
@@ -357,6 +380,7 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       linkId: string;
     };
   }>("/linksets/:tenant/:project/:linksetId/links/:linkId", {
+    preHandler: [fastify.authenticate],
     schema: {
       tags: ["linksets"],
       summary: "Remove a link from a linkset",
@@ -390,6 +414,9 @@ export async function linksetRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { tenant, project, linksetId, linkId } = request.params;
+
+      // Verify tenant access
+      requireTenantAccess(request.currentUser as AuthUser, tenant, reply);
 
       const linkset = await removeLinkFromLinkset({
         tenant,
@@ -461,10 +488,14 @@ export async function linksetRoutes(fastify: FastifyInstance) {
     try {
       const { tenant, project, linksetId } = request.params;
 
+      // Verify tenant access
+      requireTenantAccess(request.currentUser as AuthUser, tenant, reply);
+
       await deleteLinkset({
         tenant,
         projectKey: project,
-        linksetId
+        linksetId,
+        userId: request.currentUser!.sub
       });
 
       return reply.send({ success: true });

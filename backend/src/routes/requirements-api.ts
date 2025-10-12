@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
 // Workspace markdown functions removed as part of Neo4j single-source migration (Phase 2)
 import {
   createRequirement,
@@ -83,8 +84,12 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const payload = requirementSchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
     const record = await createRequirement({
       tenant: payload.tenant,
       projectKey: payload.projectKey,
@@ -125,9 +130,13 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const pagination = parsePaginationParams(req.query);
 
     const { skip, limit } = getSkipLimit(pagination.page, pagination.limit);
@@ -171,6 +180,10 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       ref: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const record = await getRequirement(params.tenant, params.project, params.ref);
     if (!record) {return reply.status(404).send({ error: "Requirement not found" });}
 
@@ -251,6 +264,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
 
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const requirement = await updateRequirement(params.tenant, params.project, params.requirementId, body);
     if (!requirement) {return reply.status(404).send({ error: "Requirement not found" });}
     return { requirement };
@@ -292,6 +308,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       requirementId: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     // Extract user context for version history
     const deletedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
@@ -336,7 +355,7 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1)
@@ -346,6 +365,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     // Extract user context for version history
     const archivedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
@@ -389,7 +411,7 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1)
@@ -399,6 +421,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     // Extract user context for version history
     const unarchivedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
@@ -429,12 +454,15 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const duplicates = await findDuplicateRequirementRefs(params.tenant, params.project);
     return { duplicates };
@@ -463,12 +491,15 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const result = await fixDuplicateRequirementRefs(params.tenant, params.project);
     return result;
@@ -498,8 +529,12 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const payload = baselineSchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
     const record = await createBaseline({
       tenant: payload.tenant,
       projectKey: payload.projectKey,
@@ -524,9 +559,13 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       }
       // Response schema removed - let Fastify infer from actual data
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const items = await listBaselines(params.tenant, params.project);
     return { items };
   });
@@ -577,6 +616,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       baselineRef: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     try {
       const snapshot = await getBaselineDetails(params.tenant, params.project, params.baselineRef);
@@ -656,6 +698,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       const params = paramsSchema.parse(req.params);
       const query = querySchema.parse(req.query);
 
+      // Verify tenant access
+      requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
       if (query.from === query.to) {
         return reply.status(400).send({ error: "Source and target baselines must be different" });
       }
@@ -693,9 +738,13 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const schema = z.object({ tenant: z.string(), project: z.string(), text: z.string().min(10) });
     const payload = schema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
     const suggestions = await suggestLinks({
       tenant: payload.tenant,
       projectKey: payload.project,
@@ -757,6 +806,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       id: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     try {
       const history = await getRequirementHistory(params.tenant, params.project, params.id);
@@ -835,6 +887,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
       const params = paramsSchema.parse(req.params);
       const query = querySchema.parse(req.query);
 
+      // Verify tenant access
+      requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
       if (query.from === query.to) {
         return reply.status(400).send({ error: "Source and target versions must be different" });
       }
@@ -896,6 +951,9 @@ export default async function registerRequirementRoutes(app: FastifyInstance): P
 
     try {
       const params = paramsSchema.parse(req.params);
+
+      // Verify tenant access
+      requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
       // Get the version history to find the target version
       const history = await getRequirementHistory(params.tenant, params.project, params.id);

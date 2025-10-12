@@ -6,6 +6,7 @@ import {
   listTraceLinksByRequirement,
   deleteTraceLink
 } from "../services/graph.js";
+import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
 
 const traceLinkSchema = z.object({
   tenant: z.string().min(1),
@@ -18,6 +19,7 @@ const traceLinkSchema = z.object({
 
 export default async function registerTraceRoutes(app: FastifyInstance): Promise<void> {
   app.post("/trace-links", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["traceability"],
       summary: "Create a trace link",
@@ -39,8 +41,11 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const payload = traceLinkSchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     const traceLink = await createTraceLink({
       tenant: payload.tenant,
@@ -48,13 +53,15 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
       sourceRequirementId: payload.sourceRequirementId,
       targetRequirementId: payload.targetRequirementId,
       linkType: payload.linkType,
-      description: payload.description
+      description: payload.description,
+      userId: req.currentUser!.sub
     });
 
     return { traceLink };
   });
 
   app.get("/trace-links/:tenant/:project", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["traceability"],
       summary: "List all trace links for a project",
@@ -68,9 +75,12 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const traceLinks = await listTraceLinks({
       tenant: params.tenant,
@@ -81,6 +91,7 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
   });
 
   app.get("/trace-links/:tenant/:project/:requirementId", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["traceability"],
       summary: "List trace links for a requirement",
@@ -95,13 +106,16 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1),
       requirementId: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const traceLinks = await listTraceLinksByRequirement({
       tenant: params.tenant,
@@ -113,6 +127,7 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
   });
 
   app.delete("/trace-links/:tenant/:project/:linkId", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["traceability"],
       summary: "Delete a trace link",
@@ -149,11 +164,15 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
     });
     const params = paramsSchema.parse(req.params);
 
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     try {
       await deleteTraceLink({
         tenant: params.tenant,
         projectKey: params.project,
-        linkId: params.linkId
+        linkId: params.linkId,
+        userId: req.currentUser!.sub
       });
 
       return { success: true };

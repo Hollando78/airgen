@@ -120,7 +120,8 @@ app.addHook("onSend", async (request, reply, payload) => {
   return payload;
 });
 
-// CORS configuration (allowlist in production, allow all in dev)
+// CORS configuration (strict allowlist in production, permissive in dev)
+// Note: config.ts enforces CORS_ORIGINS must be set in production
 await app.register(cors, {
   origin: config.corsOrigins.length > 0 ? config.corsOrigins : true,
   credentials: true

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { analyzeRequirement, AMBIGUOUS } from "@airgen/req-qa";
 import { config } from "../config.js";
+import { requireTenantAccess, requireRole, type AuthUser } from "../lib/authorization.js";
 import type {
   RequirementPattern,
   VerificationMethod
@@ -286,9 +287,13 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const paramsSchema = z.object({ tenant: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify user has access to this tenant
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
     const projects = await listProjects(params.tenant);
     return { projects };
   });
@@ -460,12 +465,14 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
       }
     }
   }, async (req, reply) => {
-    if (!req.currentUser?.roles.includes('admin')) {
-      return reply.status(403).send({ error: "Admin access required" });
-    }
+    // Verify user has admin role
+    requireRole(req.currentUser as AuthUser, 'admin', reply);
 
     const paramsSchema = z.object({ tenant: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    // Verify user has access to this tenant (admins skip this check)
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const schema = z.object({
       slug: z.string().min(1),
@@ -522,15 +529,17 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
       }
     }
   }, async (req, reply) => {
-    if (!req.currentUser?.roles.includes('admin')) {
-      return reply.status(403).send({ error: "Admin access required" });
-    }
+    // Verify user has admin role
+    requireRole(req.currentUser as AuthUser, 'admin', reply);
 
     const paramsSchema = z.object({
       tenant: z.string().min(1),
       project: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
+
+    // Verify user has access to this tenant (admins skip this check)
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const success = await deleteProject(params.tenant, params.project);
     if (!success) {

@@ -2,6 +2,12 @@ import OpenAI from "openai";
 import { analyzeRequirement } from "@airgen/req-qa";
 import { config } from "../config.js";
 import type { DraftRequest, Draft } from "./drafts.js";
+import {
+  sanitizePromptInput,
+  INPUT_LIMITS,
+  detectSuspiciousOutput,
+  buildSecureSystemPrompt
+} from "../lib/prompt-security.js";
 
 let openAiClient: OpenAI | null = null;
 
@@ -38,8 +44,15 @@ export async function generateLlmDrafts(request: DraftRequest): Promise<Draft[]>
   const client = getOpenAiClient();
   const count = clampCount(request.count);
 
-  const prompt = [
-    "You are a senior systems requirements engineer.",
+  // Sanitize and validate all text inputs
+  const sanitizedNeed = sanitizePromptInput(request.need, "need", INPUT_LIMITS.USER_INPUT);
+  const sanitizedActor = request.actor ? sanitizePromptInput(request.actor, "actor", 500) : null;
+  const sanitizedSystem = request.system ? sanitizePromptInput(request.system, "system", 500) : null;
+  const sanitizedTrigger = request.trigger ? sanitizePromptInput(request.trigger, "trigger", 500) : null;
+  const sanitizedResponse = request.response ? sanitizePromptInput(request.response, "response", 500) : null;
+  const sanitizedConstraint = request.constraint ? sanitizePromptInput(request.constraint, "constraint", 1000) : null;
+
+  const prompt = buildSecureSystemPrompt("senior systems requirements engineer", [
     "Author concise, testable requirements using the SHALL form (ISO/IEC/IEEE 29148, EARS).",
     "Return JSON with an array named requirements. Each requirement item must include:",
     "- text: the full requirement",
@@ -48,17 +61,17 @@ export async function generateLlmDrafts(request: DraftRequest): Promise<Draft[]>
     "- rationale: brief justification",
     "- tags (optional)",
     "Ensure all requirements align with the provided need/context and include measurable criteria."
-  ].join(" ");
+  ]);
 
   const userContext = {
-    need: request.need,
+    need: sanitizedNeed,
     preferredPattern: request.pattern ?? null,
     verification: request.verification ?? null,
-    actor: request.actor ?? null,
-    system: request.system ?? null,
-    trigger: request.trigger ?? null,
-    response: request.response ?? null,
-    constraint: request.constraint ?? null,
+    actor: sanitizedActor,
+    system: sanitizedSystem,
+    trigger: sanitizedTrigger,
+    response: sanitizedResponse,
+    constraint: sanitizedConstraint,
     count
   };
 
@@ -70,12 +83,18 @@ export async function generateLlmDrafts(request: DraftRequest): Promise<Draft[]>
       { role: "system", content: prompt },
       {
         role: "user",
-        content: `Context: ${JSON.stringify(userContext)}\nRespond with valid JSON.`
+        content: `<USER_CONTEXT>${JSON.stringify(userContext, null, 2)}</USER_CONTEXT>\n\nRespond with valid JSON.`
       }
     ]
   });
 
   const content = completion.choices[0]?.message?.content ?? "";
+
+  // Detect suspicious output that may indicate successful prompt injection
+  if (detectSuspiciousOutput(content)) {
+    throw new Error("LLM response validation failed. Please rephrase your request.");
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -117,4 +136,8 @@ export async function generateLlmDrafts(request: DraftRequest): Promise<Draft[]>
   }
 
   return drafts;
+}
+
+export function __resetOpenAiClientForTests(): void {
+  openAiClient = null;
 }

@@ -17,6 +17,7 @@ import {
   reorderSurrogateReferences,
   reorderSurrogateReferencesWithOrder
 } from "../../../services/graph/surrogates.js";
+import { requireTenantAccess, type AuthUser } from "../../../lib/authorization.js";
 
 /**
  * Register all section content routes (requirements, infos, surrogates)
@@ -28,31 +29,61 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
   // ============================
 
   // List requirements in a section
-  app.get("/sections/:sectionId/requirements", async (req) => {
+  app.get("/sections/:sectionId/requirements", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       sectionId: z.string().min(1)
     });
+    const querySchema = z.object({
+      tenant: z.string().min(1)
+    });
     const params = paramsSchema.parse(req.params);
+    const query = querySchema.parse(req.query);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, query.tenant, reply);
+
     const requirements = await listSectionRequirements(params.sectionId);
     return { requirements };
   });
 
   // List infos in a section
-  app.get("/sections/:sectionId/infos", async (req) => {
+  app.get("/sections/:sectionId/infos", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       sectionId: z.string().min(1)
     });
+    const querySchema = z.object({
+      tenant: z.string().min(1)
+    });
     const params = paramsSchema.parse(req.params);
+    const query = querySchema.parse(req.query);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, query.tenant, reply);
+
     const infos = await listSectionInfos(params.sectionId);
     return { infos };
   });
 
   // List surrogate references in a section
-  app.get("/sections/:sectionId/surrogates", async (req) => {
+  app.get("/sections/:sectionId/surrogates", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
     const paramsSchema = z.object({
       sectionId: z.string().min(1)
     });
+    const querySchema = z.object({
+      tenant: z.string().min(1)
+    });
     const params = paramsSchema.parse(req.params);
+    const query = querySchema.parse(req.query);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, query.tenant, reply);
+
     const surrogates = await listSectionSurrogateReferences(params.sectionId);
     return { surrogates };
   });
@@ -63,6 +94,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
 
   // Create a new info
   app.post("/infos", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["infos"],
       summary: "Create a new info",
@@ -88,7 +120,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const bodySchema = z.object({
       tenant: z.string().min(1),
       projectKey: z.string().min(1),
@@ -98,6 +130,9 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
       sectionId: z.string().min(1).optional()
     });
     const payload = bodySchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     // Generate ref for the info
     const ref = `INFO-${Date.now()}`;
@@ -109,7 +144,8 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
       ref,
       text: payload.text,
       title: payload.title,
-      sectionId: payload.sectionId
+      sectionId: payload.sectionId,
+      userId: req.currentUser!.sub
     });
 
     return { info: record };
@@ -117,6 +153,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
 
   // Create a new surrogate reference
   app.post("/surrogates", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["surrogates"],
       summary: "Create a new surrogate reference",
@@ -142,7 +179,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const bodySchema = z.object({
       tenant: z.string().min(1),
       projectKey: z.string().min(1),
@@ -153,13 +190,17 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
     });
     const payload = bodySchema.parse(req.body);
 
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
     const record = await createSurrogateReference({
       tenant: payload.tenant,
       projectKey: payload.projectKey,
       documentSlug: payload.documentSlug,
       slug: payload.slug,
       caption: payload.caption,
-      sectionId: payload.sectionId
+      sectionId: payload.sectionId,
+      userId: req.currentUser!.sub
     });
 
     return { surrogate: record };
@@ -171,6 +212,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
 
   // Reorder infos in a section
   app.post("/sections/:sectionId/reorder-infos", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["sections"],
       summary: "Reorder infos in a section",
@@ -183,8 +225,9 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
       },
       body: {
         type: "object",
-        required: ["infoIds"],
+        required: ["tenant", "infoIds"],
         properties: {
+          tenant: { type: "string" },
           infoIds: {
             type: "array",
             items: { type: "string" }
@@ -192,12 +235,16 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const { sectionId } = req.params as { sectionId: string };
     const bodySchema = z.object({
+      tenant: z.string().min(1),
       infoIds: z.array(z.string())
     });
     const payload = bodySchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     await reorderInfos(sectionId, payload.infoIds);
 
@@ -206,6 +253,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
 
   // Reorder surrogate references in a section
   app.post("/sections/:sectionId/reorder-surrogates", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["sections"],
       summary: "Reorder surrogate references in a section",
@@ -218,8 +266,9 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
       },
       body: {
         type: "object",
-        required: ["surrogateIds"],
+        required: ["tenant", "surrogateIds"],
         properties: {
+          tenant: { type: "string" },
           surrogateIds: {
             type: "array",
             items: { type: "string" }
@@ -227,12 +276,16 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const { sectionId } = req.params as { sectionId: string };
     const bodySchema = z.object({
+      tenant: z.string().min(1),
       surrogateIds: z.array(z.string())
     });
     const payload = bodySchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     await reorderSurrogateReferences(sectionId, payload.surrogateIds);
 
@@ -241,6 +294,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
 
   // Reorder requirements in a section
   app.post("/sections/:sectionId/reorder-requirements", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["sections"],
       summary: "Reorder requirements in a section",
@@ -253,8 +307,9 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
       },
       body: {
         type: "object",
-        required: ["requirementIds"],
+        required: ["tenant", "requirementIds"],
         properties: {
+          tenant: { type: "string" },
           requirementIds: {
             type: "array",
             items: { type: "string" }
@@ -262,12 +317,16 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const { sectionId } = req.params as { sectionId: string };
     const bodySchema = z.object({
+      tenant: z.string().min(1),
       requirementIds: z.array(z.string())
     });
     const payload = bodySchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     await reorderRequirements(sectionId, payload.requirementIds);
 
@@ -277,6 +336,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
   // Unified reorder endpoint with explicit order values
   // Reorders requirements, infos, and surrogates with explicit order values for each item
   app.post("/sections/:sectionId/reorder-with-order", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["sections"],
       summary: "Reorder requirements, infos, and surrogates with explicit order values",
@@ -289,7 +349,9 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
       },
       body: {
         type: "object",
+        required: ["tenant"],
         properties: {
+          tenant: { type: "string" },
           requirements: {
             type: "array",
             items: {
@@ -334,15 +396,19 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
         }
       }
     }
-  }, async (req) => {
+  }, async (req, reply) => {
     const { sectionId } = req.params as { sectionId: string };
 
     const bodySchema = z.object({
+      tenant: z.string().min(1),
       requirements: z.array(z.object({ id: z.string(), order: z.number() })).optional(),
       infos: z.array(z.object({ id: z.string(), order: z.number() })).optional(),
       surrogates: z.array(z.object({ id: z.string(), order: z.number() })).optional()
     });
     const payload = bodySchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     await Promise.all([
       payload.requirements && payload.requirements.length > 0
