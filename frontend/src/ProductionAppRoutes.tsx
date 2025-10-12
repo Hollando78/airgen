@@ -3,7 +3,7 @@ import { AppLayout } from "./components/AppLayout";
 import { DraftsRoute } from "./routes/DraftsRoute";
 import { RequirementsRoute } from "./routes/RequirementsRoute";
 import { BaselinesRoute } from "./routes/BaselinesRoute";
-import { ProductionDashboardRoute } from "./routes/ProductionDashboardRoute";
+import { DashboardRoute } from "./routes/DashboardRoute";
 import { LinksRoute } from "./routes/LinksRoute";
 import { RequirementsSchemaRoute } from "./routes/RequirementsSchemaRoute";
 import { DocumentsRoute } from "./routes/DocumentsRoute";
@@ -18,13 +18,12 @@ import { useAuth } from "./contexts/AuthContext";
 
 export default function ProductionAppRoutes(): JSX.Element {
   const { user } = useAuth();
-  const isDevMode = import.meta.env.MODE !== "production";
 
   return (
     <AppLayout>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<ProductionDashboardRoute />} />
+        <Route path="/dashboard" element={<DashboardRoute />} />
         
         {/* AIRGen route - most critical to protect */}
         <Route 
@@ -47,15 +46,15 @@ export default function ProductionAppRoutes(): JSX.Element {
         <Route path="/graph-viewer" element={<GraphViewerRoute />} />
         <Route path="/settings" element={<SettingsRoute />} />
 
-        {/* Admin routes - only for admin users in dev mode */}
-        {isDevMode && user?.roles.includes('admin') && (
-          <Route 
-            path="/admin/users" 
+        {/* Admin routes - only for admin users */}
+        {user?.roles.includes('admin') && (
+          <Route
+            path="/admin/users"
             element={
               <ProtectedRoute requiredRoles={['admin']}>
                 <AdminUsersRoute />
               </ProtectedRoute>
-            } 
+            }
           />
         )}
       </Routes>

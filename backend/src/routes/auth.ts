@@ -26,6 +26,28 @@ import {
   verifyBackupCode,
   consumeBackupCode
 } from "../lib/mfa.js";
+import { createTenant } from "../services/graph.js";
+
+/**
+ * Generate a unique tenant slug from email address
+ * Format: username from email (sanitized) + random suffix if needed
+ */
+function generateTenantSlug(email: string): string {
+  // Extract username part before @
+  const username = email.split('@')[0] || 'user';
+
+  // Sanitize: keep only alphanumeric and hyphens, convert to lowercase
+  const sanitized = username
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+    .replace(/-+/g, '-') // Collapse multiple hyphens
+    .substring(0, 20); // Limit length
+
+  // Add timestamp suffix to ensure uniqueness
+  const timestamp = Date.now().toString(36);
+  return `${sanitized}-${timestamp}`;
+}
 
 export default async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   // Auth-specific rate limiter (stricter than global)
@@ -114,7 +136,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         !user ||
         (!user.password && !user.passwordHash)
       ) {
-        return reply.status(401).send({ error: "Invalid credentials" });
+        return reply.code(401).send({ error: "Invalid credentials" });
       }
 
       // Verify password (supports Argon2id, legacy scrypt, and legacy SHA256)
@@ -127,7 +149,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
           reason: "invalid_password",
           ip: req.ip
         }, "Failed login attempt");
-        return reply.status(401).send({ error: "Invalid credentials" });
+        return reply.code(401).send({ error: "Invalid credentials" });
       }
 
       // Upgrade legacy hashes to Argon2id on successful auth
@@ -202,13 +224,13 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     } catch (error) {
       // Handle validation errors
       if ((error as any).statusCode === 400 && (error as any).validation) {
-        return reply.status(400).send({
+        return (reply as any).code(400).send({
           error: "Validation failed",
           details: (error as any).validation
         });
       }
       app.log.error(error, "Login error");
-      return reply.status(500).send({ error: "Internal server error" });
+      return (reply as any).code(500).send({ error: "Internal server error" });
     }
   });
 
@@ -263,24 +285,53 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     const { email, password, name } = validateInput(authSchemas.register, req.body);
 
     try {
-      // Create new user (starts with 'user' role by default)
+      // Generate unique tenant slug for the new user
+      const tenantSlug = generateTenantSlug(email);
+
+      // Create new user with admin role and tenant association
       const user = await createDevUser({
         email,
         password,
         name,
-        roles: ['user']
+        roles: ['admin', 'author', 'user'],
+        tenantSlugs: [tenantSlug]
       });
+
+      // Create personal tenant for the user in Neo4j
+      try {
+        await createTenant({
+          slug: tenantSlug,
+          name: name ? `${name}'s Workspace` : `${email.split('@')[0]}'s Workspace`
+        });
+
+        app.log.info({
+          event: "auth.register.tenant_created",
+          userId: user.id,
+          email: user.email,
+          tenantSlug,
+          ip: req.ip
+        }, "Personal tenant created for new user");
+      } catch (tenantError) {
+        // Log tenant creation error but don't fail registration
+        app.log.error({
+          error: tenantError,
+          userId: user.id,
+          email: user.email,
+          tenantSlug
+        }, "Failed to create tenant for new user");
+      }
 
       // Log registration
       app.log.info({
         event: "auth.register.success",
         userId: user.id,
         email: user.email,
+        tenantSlug,
         ip: req.ip
       }, "User registered successfully");
 
       // Return success (user needs to login separately)
-      return reply.status(201).send({
+      return reply.code(201).send({
         message: "Account created successfully. Please sign in.",
         user: {
           id: user.id,
@@ -291,19 +342,19 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     } catch (error) {
       // Handle duplicate email error
       if ((error as NodeJS.ErrnoException).code === 'EUSER_EXISTS') {
-        return reply.status(409).send({ error: "An account with this email already exists" });
+        return reply.code(409).send({ error: "An account with this email already exists" });
       }
 
       // Handle validation errors
       if ((error as any).statusCode === 400 && (error as any).validation) {
-        return reply.status(400).send({
+        return (reply as any).code(400).send({
           error: "Validation failed",
           details: (error as any).validation
         });
       }
 
       app.log.error(error, "Registration error");
-      return reply.status(500).send({ error: "Internal server error" });
+      return (reply as any).code(500).send({ error: "Internal server error" });
     }
   });
 
@@ -377,7 +428,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     const refreshToken = req.cookies[config.cookies.refreshTokenName];
 
     if (!refreshToken) {
-      return reply.status(401).send({ error: "No refresh token provided" });
+      return reply.code(401).send({ error: "No refresh token provided" });
     }
 
     // Verify refresh token (this also marks it as used)
@@ -386,14 +437,14 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     if (!userId) {
       // Token invalid, expired, or already used
       reply.clearCookie(config.cookies.refreshTokenName);
-      return reply.status(401).send({ error: "Invalid or expired refresh token" });
+      return reply.code(401).send({ error: "Invalid or expired refresh token" });
     }
 
     // Get user from database
     const user = await getDevUser(userId);
     if (!user) {
       reply.clearCookie(config.cookies.refreshTokenName);
-      return reply.status(401).send({ error: "User not found" });
+      return reply.code(401).send({ error: "User not found" });
     }
 
     // Generate new access token
@@ -480,7 +531,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     }
   }, async (req, reply) => {
     if (!req.currentUser) {
-      return reply.status(401).send({ error: "User not authenticated" });
+      return (reply as any).code(401).send({ error: "User not authenticated" });
     }
 
     // Revoke all refresh tokens for this user
@@ -535,22 +586,22 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     try {
       decoded = app.jwt.verify(tempToken) as any;
     } catch (error) {
-      return reply.status(401).send({ error: "Invalid or expired session token" });
+      return reply.code(401).send({ error: "Invalid or expired session token" });
     }
 
     // Check if this is an MFA pending token
     if (!decoded.mfaPending) {
-      return reply.status(401).send({ error: "Invalid session token" });
+      return reply.code(401).send({ error: "Invalid session token" });
     }
 
     // Get user
     const user = await getDevUser(decoded.sub);
     if (!user) {
-      return reply.status(404).send({ error: "User not found" });
+      return (reply as any).code(404).send({ error: "User not found" });
     }
 
     if (!user.mfaEnabled || !user.mfaSecret) {
-      return reply.status(400).send({ error: "2FA not enabled for this user" });
+      return (reply as any).code(400).send({ error: "2FA not enabled for this user" });
     }
 
     let isValid = false;
@@ -574,7 +625,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         email: user.email,
         ip: req.ip
       }, "Failed MFA verification attempt");
-      return reply.status(400).send({ error: "Invalid 2FA code" });
+      return (reply as any).code(400).send({ error: "Invalid 2FA code" });
     }
 
     // If backup code was used, consume it
@@ -640,16 +691,16 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     }
   }, async (req, reply) => {
     if (!req.currentUser) {
-      return reply.status(401).send({ error: "User not authenticated" });
+      return reply.code(401).send({ error: "User not authenticated" });
     }
 
     const user = await getDevUser(req.currentUser.sub);
     if (!user) {
-      return reply.status(404).send({ error: "User not found" });
+      return reply.code(404).send({ error: "User not found" });
     }
 
     if (user.emailVerified) {
-      return reply.status(400).send({ error: "Email already verified" });
+      return reply.code(400).send({ error: "Email already verified" });
     }
 
     // Create verification token
@@ -678,14 +729,14 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     const tokenRecord = verifyAndConsumeToken(token, "email_verification");
 
     if (!tokenRecord) {
-      return reply.status(400).send({ error: "Invalid or expired verification token" });
+      return reply.code(400).send({ error: "Invalid or expired verification token" });
     }
 
     // Mark email as verified
     const user = await markEmailVerified(tokenRecord.userId);
 
     if (!user) {
-      return reply.status(404).send({ error: "User not found" });
+      return reply.code(404).send({ error: "User not found" });
     }
 
     // Log email verification success
@@ -744,14 +795,14 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     const tokenRecord = verifyAndConsumeToken(token, "password_reset");
 
     if (!tokenRecord) {
-      return reply.status(400).send({ error: "Invalid or expired reset token" });
+      return reply.code(400).send({ error: "Invalid or expired reset token" });
     }
 
     // Get user
     const user = await getDevUser(tokenRecord.userId);
 
     if (!user) {
-      return reply.status(404).send({ error: "User not found" });
+      return reply.code(404).send({ error: "User not found" });
     }
 
     // Update password

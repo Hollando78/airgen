@@ -54,7 +54,8 @@ export const INPUT_LIMITS = {
 export function sanitizePromptInput(
   input: string,
   fieldName: string = "input",
-  maxLength: number = INPUT_LIMITS.USER_INPUT
+  maxLength: number = INPUT_LIMITS.USER_INPUT,
+  skipSpecialCharCheck: boolean = false
 ): string {
   // Trim whitespace
   const trimmed = input.trim();
@@ -81,11 +82,14 @@ export function sanitizePromptInput(
   }
 
   // Check for excessive special characters (may indicate injection attempts)
-  const specialCharRatio = (trimmed.match(/[<>{}[\]\\|`]/g) || []).length / trimmed.length;
-  if (specialCharRatio > 0.15) {
-    throw new Error(
-      `${fieldName} contains too many special characters. Please use plain text.`
-    );
+  // Skip this check for context fields which may contain structured data
+  if (!skipSpecialCharCheck) {
+    const specialCharRatio = (trimmed.match(/[<>{}[\]\\|`]/g) || []).length / trimmed.length;
+    if (specialCharRatio > 0.15) {
+      throw new Error(
+        `${fieldName} contains too many special characters. Please use plain text.`
+      );
+    }
   }
 
   return trimmed;
@@ -124,7 +128,7 @@ export function sanitizeDraftingInputs(inputs: {
       ? sanitizePromptInput(inputs.constraints, "constraints", INPUT_LIMITS.CONSTRAINTS)
       : undefined,
     documentContext: inputs.documentContext
-      ? sanitizePromptInput(inputs.documentContext, "documentContext", INPUT_LIMITS.DOCUMENT_CONTEXT)
+      ? sanitizePromptInput(inputs.documentContext, "documentContext", INPUT_LIMITS.DOCUMENT_CONTEXT, true)
       : undefined,
     n: inputs.n ? Math.min(Math.max(inputs.n, 1), 10) : 5,
   };
@@ -149,10 +153,10 @@ export function sanitizeDiagramInputs(inputs: {
       ? sanitizePromptInput(inputs.constraints, "constraints", INPUT_LIMITS.CONSTRAINTS)
       : undefined,
     existingDiagramContext: inputs.existingDiagramContext
-      ? sanitizePromptInput(inputs.existingDiagramContext, "existingDiagramContext", INPUT_LIMITS.DIAGRAM_CONTEXT)
+      ? sanitizePromptInput(inputs.existingDiagramContext, "existingDiagramContext", INPUT_LIMITS.DIAGRAM_CONTEXT, true)
       : undefined,
     documentContext: inputs.documentContext
-      ? sanitizePromptInput(inputs.documentContext, "documentContext", INPUT_LIMITS.DOCUMENT_CONTEXT)
+      ? sanitizePromptInput(inputs.documentContext, "documentContext", INPUT_LIMITS.DOCUMENT_CONTEXT, true)
       : undefined,
   };
 }

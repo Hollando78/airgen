@@ -31,6 +31,8 @@ export async function draftCandidates(req: DraftRequest): Promise<string[]> {
     "and alignment with existing requirements and specifications.",
     "When diagram context is provided, generate architecture-aware requirements that consider",
     "component interactions, interfaces, data flows, and system boundaries shown in the diagrams.",
+    "IMPORTANT: Generate exactly the number of candidate requirements specified in the <COUNT> tag.",
+    "For example, if <COUNT>3</COUNT> is provided, generate exactly 3 requirements.",
     "Return ONLY a JSON object with this shape:",
     '{ "candidates": ["<req1>", "<req2>", ...] }',
     "No markdown fencing, no preface, no comments—just JSON."
