@@ -340,12 +340,12 @@ export function useApiClient() {
         request<DocumentSectionResponse>(`/sections/${sectionId}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteDocumentSection: (sectionId: string) =>
         request<{ success: boolean }>(`/sections/${sectionId}`, { method: "DELETE" }),
-      listSectionRequirements: (sectionId: string) =>
-        request<{ requirements: RequirementRecord[] }>(`/sections/${sectionId}/requirements`),
-      listSectionInfos: (sectionId: string) =>
-        request<{ infos: InfoRecord[] }>(`/sections/${sectionId}/infos`),
-      listSectionSurrogates: (sectionId: string) =>
-        request<{ surrogates: SurrogateReferenceRecord[] }>(`/sections/${sectionId}/surrogates`),
+      listSectionRequirements: (sectionId: string, tenant: string) =>
+        request<{ requirements: RequirementRecord[] }>(`/sections/${sectionId}/requirements?tenant=${encodeURIComponent(tenant)}`),
+      listSectionInfos: (sectionId: string, tenant: string) =>
+        request<{ infos: InfoRecord[] }>(`/sections/${sectionId}/infos?tenant=${encodeURIComponent(tenant)}`),
+      listSectionSurrogates: (sectionId: string, tenant: string) =>
+        request<{ surrogates: SurrogateReferenceRecord[] }>(`/sections/${sectionId}/surrogates?tenant=${encodeURIComponent(tenant)}`),
       reorderRequirements: (sectionId: string, requirementIds: string[]) =>
         request<{ success: boolean }>(`/sections/${sectionId}/reorder-requirements`, { method: "POST", body: JSON.stringify({ requirementIds }) }),
       reorderInfos: (sectionId: string, infoIds: string[]) =>

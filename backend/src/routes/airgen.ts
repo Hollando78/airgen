@@ -22,6 +22,7 @@ import {
   listDiagramCandidates,
   getDiagramCandidate,
   updateDiagramCandidate,
+  transitionDiagramCandidateStatus,
   mapDiagramCandidate
 } from "../services/graph/diagram-candidates.js";
 import {
@@ -569,8 +570,25 @@ export default async function airgenRoutes(app: FastifyInstance) {
     }
 
     try {
+      // CRITICAL: Atomically transition status from "pending" to "accepted" BEFORE creating any resources
+      // This prevents race conditions where multiple requests try to accept the same candidate
+      const statusTransition = await transitionDiagramCandidateStatus(
+        candidate.id,
+        "pending",
+        "accepted"
+      );
+
+      // If transition failed, another request already processed this candidate
+      if (!statusTransition) {
+        req.log.warn({ candidateId: candidate.id }, "Diagram candidate already processed by another request");
+        return reply.status(409).send({
+          error: "Diagram candidate already processed",
+          message: "This candidate has already been accepted or is being processed by another request"
+        });
+      }
+
       let diagramId = candidate.diagramId;
-      
+
       // Create new diagram if action is "create"
       if (candidate.action === "create") {
         const newDiagram = await createArchitectureDiagram({
@@ -583,12 +601,12 @@ export default async function airgenRoutes(app: FastifyInstance) {
         });
         diagramId = newDiagram.id;
       }
-      
+
       // Create blocks and connectors if we have a diagram ID
       if (diagramId && candidate.blocks && candidate.connectors) {
         // Create blocks first and track their IDs
         const blockIdMap = new Map<string, string>(); // original name -> created ID
-        
+
         for (const block of candidate.blocks) {
           if (!block.action || block.action === "create") {
             const createdBlock = await createArchitectureBlock({
@@ -610,13 +628,13 @@ export default async function airgenRoutes(app: FastifyInstance) {
             blockIdMap.set(block.name, createdBlock.id);
           }
         }
-        
+
         // Create connectors using the mapped block IDs
         for (const connector of candidate.connectors) {
           if (!connector.action || connector.action === "create") {
             const sourceBlockId = blockIdMap.get(connector.source);
             const targetBlockId = blockIdMap.get(connector.target);
-            
+
             if (sourceBlockId && targetBlockId) {
               await createArchitectureConnector({
                 tenant: body.tenant,
@@ -634,16 +652,15 @@ export default async function airgenRoutes(app: FastifyInstance) {
           }
         }
       }
-      
-      // Mark candidate as accepted and store the diagram ID
-      const updated = await updateDiagramCandidate(candidate.id, { 
-        status: "accepted",
+
+      // Update candidate with final diagram details
+      const updated = await updateDiagramCandidate(candidate.id, {
         diagramId,
         diagramName: body.diagramName || candidate.diagramName,
         diagramDescription: body.diagramDescription || candidate.diagramDescription
       });
-      
-      return { candidate: updated ?? candidate, diagramId };
+
+      return { candidate: updated ?? statusTransition, diagramId };
     } catch (error) {
       req.log.error({ err: error, candidateId: candidate.id }, "Failed to accept diagram candidate");
       return reply.status(500).send({

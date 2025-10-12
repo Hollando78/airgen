@@ -240,3 +240,62 @@ export async function updateDiagramCandidate(
     await session.close();
   }
 }
+
+/**
+ * Atomically transition a diagram candidate from one status to another.
+ * This prevents race conditions by only updating if the current status matches expectedStatus.
+ *
+ * @param id - The candidate ID
+ * @param expectedStatus - The status the candidate must currently have
+ * @param newStatus - The new status to set
+ * @param additionalUpdates - Optional additional fields to update
+ * @returns The updated candidate if transition succeeded, null if candidate not found or status didn't match
+ */
+export async function transitionDiagramCandidateStatus(
+  id: string,
+  expectedStatus: DiagramCandidateStatus,
+  newStatus: DiagramCandidateStatus,
+  additionalUpdates?: Partial<Omit<DiagramCandidateRecord, "id" | "status" | "createdAt">>
+): Promise<DiagramCandidateRecord | null> {
+  const session = getSession();
+
+  try {
+    const result = await session.executeWrite(async tx => {
+      const setClauses: string[] = [
+        "candidate.status = $newStatus",
+        "candidate.updatedAt = $now"
+      ];
+      const params: Record<string, unknown> = {
+        id,
+        expectedStatus,
+        newStatus,
+        now: new Date().toISOString()
+      };
+
+      // Add any additional updates
+      if (additionalUpdates) {
+        for (const [key, value] of Object.entries(additionalUpdates)) {
+          if (value !== undefined) {
+            setClauses.push(`candidate.${key} = $${key}`);
+            params[key] = value;
+          }
+        }
+      }
+
+      // Atomic status transition - only updates if current status matches expected
+      const query = `
+        MATCH (candidate:DiagramCandidate {id: $id})
+        WHERE candidate.status = $expectedStatus
+        SET ${setClauses.join(", ")}
+        RETURN candidate
+      `;
+
+      const res = await tx.run(query, params);
+      return res.records.length ? res.records[0].get("candidate") : null;
+    });
+
+    return result ? mapDiagramCandidate(result) : null;
+  } finally {
+    await session.close();
+  }
+}

@@ -224,9 +224,9 @@ export function DocumentView({
               try {
                 console.log('[UPDATE REQUIREMENT] Fetching section:', sectionId);
                 const [requirementsResponse, infosResponse, surrogatesResponse] = await Promise.all([
-                  api.listSectionRequirements(sectionId),
-                  api.listSectionInfos(sectionId),
-                  api.listSectionSurrogates(sectionId)
+                  api.listSectionRequirements(sectionId, tenant),
+                  api.listSectionInfos(sectionId, tenant),
+                  api.listSectionSurrogates(sectionId, tenant)
                 ]);
                 console.log('[UPDATE REQUIREMENT] Fetched section', sectionId, 'requirements:', requirementsResponse.requirements.length);
                 sectionDataMap.set(sectionId, {
