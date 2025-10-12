@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import './styles.css';
 import { LoginModal } from './components/LoginModal';
 import { SignupModal } from './components/SignupModal';
+import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Sparkles, Lock, Workflow, Network } from 'lucide-react';
@@ -9,6 +10,7 @@ import { Sparkles, Lock, Workflow, Network } from 'lucide-react';
 export function LandingPage(): JSX.Element {
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   return (
     <>
@@ -84,6 +86,10 @@ export function LandingPage(): JSX.Element {
       <LoginModal
         isOpen={showLogin}
         onClose={() => setShowLogin(false)}
+        onForgotPassword={() => {
+          setShowLogin(false);
+          setShowForgotPassword(true);
+        }}
         onSwitchToSignup={() => {
           setShowLogin(false);
           setShowSignup(true);
@@ -95,6 +101,15 @@ export function LandingPage(): JSX.Element {
         onClose={() => setShowSignup(false)}
         onSwitchToLogin={() => {
           setShowSignup(false);
+          setShowLogin(true);
+        }}
+      />
+
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+        onBackToLogin={() => {
+          setShowForgotPassword(false);
           setShowLogin(true);
         }}
       />

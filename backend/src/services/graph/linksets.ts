@@ -67,6 +67,7 @@ export async function createLinkset(params: {
   targetDocumentSlug: string;
   defaultLinkType?: string;
   links?: TraceLinkItem[];
+  userId: string;
 }): Promise<DocumentLinksetRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -145,7 +146,7 @@ export async function createLinkset(params: {
         linksetId,
         tenantSlug,
         projectSlug,
-        changedBy: 'system', // TODO: Get from auth context
+        changedBy: params.userId,
         changeType: 'created',
         sourceDocumentSlug: params.sourceDocumentSlug,
         targetDocumentSlug: params.targetDocumentSlug,
@@ -453,6 +454,7 @@ export async function updateLinkset(params: {
   projectKey: string;
   linksetId: string;
   defaultLinkType: string;
+  userId: string;
 }): Promise<DocumentLinksetRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -515,7 +517,7 @@ export async function updateLinkset(params: {
           linksetId: params.linksetId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: params.userId,
           changeType: 'updated',
           sourceDocumentSlug: String(currentProps.sourceDocumentSlug),
           targetDocumentSlug: String(currentProps.targetDocumentSlug),
@@ -542,6 +544,7 @@ export async function deleteLinkset(params: {
   tenant: string;
   projectKey: string;
   linksetId: string;
+  userId: string;
 }): Promise<void> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -571,7 +574,7 @@ export async function deleteLinkset(params: {
           linksetId: params.linksetId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: params.userId,
           changeType: 'deleted',
           sourceDocumentSlug: String(currentProps.sourceDocumentSlug),
           targetDocumentSlug: String(currentProps.targetDocumentSlug),

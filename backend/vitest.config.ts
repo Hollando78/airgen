@@ -5,7 +5,12 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["src/**/*.test.ts"],
-    exclude: ["node_modules", "dist"],
+    exclude: [
+      "node_modules",
+      "dist",
+      // Exclude container tests by default (run with npm run test:integration)
+      "**/*.container.test.ts"
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

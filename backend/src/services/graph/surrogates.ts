@@ -40,6 +40,7 @@ export async function createSurrogateReference(params: {
   caption?: string;
   sectionId?: string;
   order?: number;
+  userId: string;
 }): Promise<SurrogateReferenceRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -96,7 +97,7 @@ export async function createSurrogateReference(params: {
         surrogateId,
         tenantSlug,
         projectSlug,
-        changedBy: 'system', // TODO: Get from auth context
+        changedBy: params.userId,
         changeType: 'created',
         slug: params.slug,
         caption: params.caption,
@@ -114,7 +115,7 @@ export async function createSurrogateReference(params: {
   }
 }
 
-export async function deleteSurrogateReference(tenant: string, project: string, surrogateId: string): Promise<void> {
+export async function deleteSurrogateReference(tenant: string, project: string, surrogateId: string, userId: string): Promise<void> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(project);
 
@@ -141,7 +142,7 @@ export async function deleteSurrogateReference(tenant: string, project: string, 
           surrogateId: String(currentProps.id),
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: userId,
           changeType: 'deleted',
           slug: String(currentProps.slug),
           caption: currentProps.caption ? String(currentProps.caption) : undefined,

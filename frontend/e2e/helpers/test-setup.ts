@@ -74,10 +74,17 @@ export async function waitForApiResponse(
  * Clear local storage and cookies
  */
 export async function clearBrowserState(page: Page): Promise<void> {
+  // Navigate to a page first to avoid SecurityError
+  await page.goto('/').catch(() => {});
+
+  // Clear browser state
   await page.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();
+  }).catch(() => {
+    // Ignore errors if page isn't ready
   });
+
   await page.context().clearCookies();
 }
 

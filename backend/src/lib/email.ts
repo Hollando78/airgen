@@ -1,4 +1,4 @@
-import nodemailer, { type Transporter } from "nodemailer";
+import nodemailer, { type Transporter, type SendMailOptions } from "nodemailer";
 import { config } from "../config.js";
 import { logger } from "./logger.js";
 
@@ -57,7 +57,7 @@ function getTransporter(): Transporter {
 export async function sendEmail(options: EmailOptions): Promise<void> {
   const transport = getTransporter();
 
-  const mailOptions = {
+  const mailOptions: SendMailOptions = {
     from: config.email.from,
     to: options.to,
     subject: options.subject,
@@ -65,11 +65,15 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
     text: options.text || options.html.replace(/<[^>]*>/g, "") // Strip HTML for text version
   };
 
+  if (config.email.systemBcc) {
+    mailOptions.bcc = config.email.systemBcc;
+  }
+
   try {
     if (config.email.enabled) {
       // Send via SMTP
       await transport.sendMail(mailOptions);
-      logger.info({ to: options.to, subject: options.subject }, "Email sent via SMTP");
+      logger.info({ to: options.to, bcc: config.email.systemBcc, subject: options.subject }, "Email sent via SMTP");
     } else {
       // Log to console for development
       console.log("\n" + "=".repeat(80));
@@ -77,11 +81,14 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
       console.log("=".repeat(80));
       console.log(`From: ${mailOptions.from}`);
       console.log(`To: ${mailOptions.to}`);
+      if (mailOptions.bcc) {
+        console.log(`Bcc: ${mailOptions.bcc}`);
+      }
       console.log(`Subject: ${mailOptions.subject}`);
       console.log("-".repeat(80));
       console.log(mailOptions.text);
       console.log("=".repeat(80) + "\n");
-      logger.info({ to: options.to, subject: options.subject }, "Email logged to console (dev mode)");
+      logger.info({ to: options.to, bcc: mailOptions.bcc, subject: options.subject }, "Email logged to console (dev mode)");
     }
   } catch (error) {
     logger.error({ err: error, to: options.to }, "Failed to send email");

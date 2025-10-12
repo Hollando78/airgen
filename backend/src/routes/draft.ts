@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { analyzeRequirement } from "@airgen/req-qa";
 import { draftCandidates } from "../services/drafting.js";
+import { INPUT_LIMITS } from "../lib/prompt-security.js";
 
 export default async function draftRoutes(app: FastifyInstance) {
   app.post("/draft/candidates", {
@@ -13,9 +14,9 @@ export default async function draftRoutes(app: FastifyInstance) {
         type: "object",
         required: ["user_input"],
         properties: {
-          user_input: { type: "string", minLength: 1, description: "Natural language description of the requirement need" },
-          glossary: { type: "string", description: "Optional glossary or domain terms to guide generation" },
-          constraints: { type: "string", description: "Optional constraints or context" },
+          user_input: { type: "string", minLength: 1, maxLength: INPUT_LIMITS.USER_INPUT, description: "Natural language description of the requirement need" },
+          glossary: { type: "string", maxLength: INPUT_LIMITS.GLOSSARY, description: "Optional glossary or domain terms to guide generation" },
+          constraints: { type: "string", maxLength: INPUT_LIMITS.CONSTRAINTS, description: "Optional constraints or context" },
           n: { type: "integer", minimum: 1, maximum: 10, description: "Number of candidates to generate (default: 5)" }
         }
       },
@@ -66,9 +67,9 @@ export default async function draftRoutes(app: FastifyInstance) {
     }
   }, async (req, reply) => {
     const schema = z.object({
-      user_input: z.string().min(1),
-      glossary: z.string().optional(),
-      constraints: z.string().optional(),
+      user_input: z.string().min(1).max(INPUT_LIMITS.USER_INPUT),
+      glossary: z.string().max(INPUT_LIMITS.GLOSSARY).optional(),
+      constraints: z.string().max(INPUT_LIMITS.CONSTRAINTS).optional(),
       n: z.number().int().min(1).max(10).optional()
     });
 

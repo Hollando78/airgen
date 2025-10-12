@@ -3,7 +3,7 @@ import { slugify } from "../workspace.js";
 import { getSession } from "./driver.js";
 import { mapRequirement } from "./requirements/index.js";
 import { getLinkset, addLinkToLinkset } from "./linksets.js";
-import { createTraceLinkVersion, generateTraceLinkContentHash } from "./trace-versions.js";
+import { createTraceLinkVersion, generateTraceLinkContentHash, type TraceLinkVersionRecord } from "./trace-versions.js";
 
 export type TraceLinkRecord = {
   id: string;
@@ -61,6 +61,7 @@ export async function createTraceLink(params: {
   targetRequirementId: string;
   linkType: TraceLinkRecord["linkType"];
   description?: string;
+  userId: string;
 }): Promise<TraceLinkRecord> {
   // First, look up the requirements to find their document slugs
   const tenantSlug = slugify(params.tenant);
@@ -203,7 +204,7 @@ export async function createTraceLink(params: {
         traceLinkId: linkId,
         tenantSlug,
         projectSlug,
-        changedBy: 'system', // TODO: Get from auth context
+        changedBy: params.userId,
         changeType: 'created',
         sourceRequirementId: params.sourceRequirementId,
         targetRequirementId: params.targetRequirementId,
@@ -317,6 +318,7 @@ export async function deleteTraceLink(params: {
   tenant: string;
   projectKey: string;
   linkId: string;
+  userId: string;
 }): Promise<void> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -347,7 +349,7 @@ export async function deleteTraceLink(params: {
           traceLinkId: params.linkId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: params.userId,
           changeType: 'deleted',
           sourceRequirementId: String(currentProps.sourceRequirementId),
           targetRequirementId: String(currentProps.targetRequirementId),

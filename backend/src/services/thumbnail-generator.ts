@@ -4,14 +4,28 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import sharp from "sharp";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
-import { createCanvas, Image } from "canvas";
 import { config } from "../config.js";
 import { getArchitectureBlocks, getArchitectureConnectors } from "./graph/architecture/index.js";
 
 const execAsync = promisify(exec);
 
-// Set global Image for pdfjs-dist
-(global as any).Image = Image;
+// Make canvas optional - PDF thumbnails will be disabled if canvas is not available
+let createCanvas: any;
+let Image: any;
+let canvasAvailable = false;
+
+(async () => {
+  try {
+    const canvas = await import("canvas");
+    createCanvas = canvas.createCanvas;
+    Image = canvas.Image;
+    canvasAvailable = true;
+    // Set global Image for pdfjs-dist
+    (global as any).Image = Image;
+  } catch (error) {
+    console.warn("[thumbnail-generator] Canvas module not available - PDF thumbnail generation will be disabled");
+  }
+})();
 
 // NodeCanvasFactory for pdfjs-dist to work with node-canvas
 class NodeCanvasFactory {
@@ -265,6 +279,10 @@ async function convertOfficeToPDF(inputPath: string, outputDir: string): Promise
  * Generate thumbnail from PDF using pdfjs-dist
  */
 async function generatePDFThumbnail(pdfPath: string, outputPath: string): Promise<void> {
+  if (!canvasAvailable) {
+    throw new Error("Canvas module not available - PDF thumbnail generation is disabled");
+  }
+
   // Read PDF file
   const pdfData = await fs.readFile(pdfPath);
 

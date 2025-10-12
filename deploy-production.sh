@@ -1,34 +1,69 @@
 #!/bin/bash
 
-# Deployment script for airgen.studio
+# AIRGen Production Deployment Script
+# Generated: 2025-10-12
 
-echo "🚀 Deploying AIRGen to production..."
+set -e  # Exit on error
 
-# Resolve environment file (defaults to env/production.env)
-ENV_FILE="${ENV_FILE:-env/production.env}"
-if [ ! -f "$ENV_FILE" ]; then
-  echo "❌ Missing environment file: $ENV_FILE"
-  echo "   Create it from env/production.env.example before deploying."
-  exit 1
+echo "========================================="
+echo "AIRGen Production Deployment to https://airgen.studio"
+echo "========================================="
+echo ""
+
+# Verify .env.production exists
+if [ ! -f ".env.production" ]; then
+    echo "❌ Error: .env.production file not found!"
+    exit 1
 fi
 
-# Stop existing containers
-docker-compose --env-file "$ENV_FILE" -f docker-compose.prod.yml down
+echo "✅ Found .env.production file"
 
-# Build and start services
-docker-compose --env-file "$ENV_FILE" -f docker-compose.prod.yml up -d --build
+# Check Docker
+if ! command -v docker &> /dev/null; then
+    echo "❌ Error: Docker is not installed"
+    exit 1
+fi
 
-# Wait for services to be healthy
-echo "⏳ Waiting for services to be ready..."
-sleep 10
+if ! command -v docker-compose &> /dev/null; then
+    echo "❌ Error: docker-compose is not installed"
+    exit 1
+fi
 
-# Show status
-docker-compose --env-file "$ENV_FILE" -f docker-compose.prod.yml ps
-
-echo "✅ Deployment complete!"
-echo "🌐 Your app should be accessible at https://airgen.studio"
+echo "✅ Docker and docker-compose are installed"
 echo ""
-echo "📝 Important reminders:"
-echo "1. Make sure DNS is pointing to this server's IP"
-echo "2. Update $ENV_FILE with your actual credentials"
-echo "3. Let's Encrypt certificates will be auto-generated on first access"
+
+echo "📦 Step 1: Stopping any existing containers..."
+docker-compose -f docker-compose.prod.yml --env-file .env.production down || true
+echo ""
+
+echo "🏗️  Step 2: Building Docker images (this may take 5-10 minutes)..."
+docker-compose -f docker-compose.prod.yml --env-file .env.production build --no-cache
+echo "✅ Images built"
+echo ""
+
+echo "🚀 Step 3: Starting services..."
+docker-compose -f docker-compose.prod.yml --env-file .env.production up -d
+echo "✅ Services started"
+echo ""
+
+echo "⏳ Waiting for services to initialize..."
+sleep 10
+echo ""
+
+echo "📊 Service Status:"
+docker-compose -f docker-compose.prod.yml --env-file .env.production ps
+echo ""
+
+echo "========================================="
+echo "✅ Deployment Complete!"
+echo "========================================="
+echo ""
+echo "🌐 Application: https://airgen.studio"
+echo "📊 Traefik:     https://airgen.studio/traefik"
+echo ""
+echo "📝 Useful commands:"
+echo "   Logs:    docker-compose -f docker-compose.prod.yml logs -f"
+echo "   Stop:    docker-compose -f docker-compose.prod.yml down"
+echo "   Restart: docker-compose -f docker-compose.prod.yml restart"
+echo "   Status:  docker-compose -f docker-compose.prod.yml ps"
+echo ""

@@ -10,6 +10,7 @@ import { parseMarkdownDocument, validateMarkdownStructure } from "../services/ma
 import { syncParsedDocument } from "../services/markdown-sync.js";
 import { getSession } from "../services/graph/driver.js";
 import { slugify } from "../services/workspace.js";
+import { validateFilePath } from "../services/secure-file.js";
 import { listDocumentSections, listDocumentSectionsWithRelations } from "../services/graph/documents/documents-sections.js";
 import { listSectionRequirements, listDocumentRequirements } from "../services/graph/requirements/requirements-search.js";
 
@@ -34,13 +35,17 @@ const DOCUMENTS_DIR = "documents";
 const DRAFTS_DIR = ".drafts";
 
 function getDraftPath(tenant: string, project: string, documentSlug: string): string {
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(project);
+  const docSlug = slugify(documentSlug);
+
   return join(
     config.workspaceRoot,
-    tenant,
-    project,
+    tenantSlug,
+    projectSlug,
     DOCUMENTS_DIR,
     DRAFTS_DIR,
-    `${documentSlug}.md`
+    `${docSlug}.md`
   );
 }
 
@@ -51,7 +56,26 @@ async function readDraftIfExists(tenant: string, project: string, documentSlug: 
     return draft.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return null;
+      const legacyRelativePath = join(
+        tenant,
+        project,
+        DOCUMENTS_DIR,
+        DRAFTS_DIR,
+        `${documentSlug}.md`
+      );
+      const validation = validateFilePath(config.workspaceRoot, legacyRelativePath);
+      if (!validation.isValid || !validation.safePath) {
+        return null;
+      }
+      try {
+        const draft = await fs.readFile(validation.safePath, "utf-8");
+        return draft.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      } catch (legacyError) {
+        if ((legacyError as NodeJS.ErrnoException).code === "ENOENT") {
+          return null;
+        }
+        throw legacyError;
+      }
     }
     throw error;
   }
@@ -69,6 +93,25 @@ async function deleteDraftIfExists(tenant: string, project: string, documentSlug
     await fs.rm(draftPath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      const legacyRelativePath = join(
+        tenant,
+        project,
+        DOCUMENTS_DIR,
+        DRAFTS_DIR,
+        `${documentSlug}.md`
+      );
+      const validation = validateFilePath(config.workspaceRoot, legacyRelativePath);
+      if (!validation.isValid || !validation.safePath) {
+        return;
+      }
+      try {
+        await fs.rm(validation.safePath);
+      } catch (legacyError) {
+        if ((legacyError as NodeJS.ErrnoException).code === "ENOENT") {
+          return;
+        }
+        throw legacyError;
+      }
       return;
     }
     throw error;

@@ -12,6 +12,7 @@ export async function createArchitectureDiagram(params: {
   name: string;
   description?: string;
   view?: ArchitectureDiagramRecord["view"];
+  userId: string;
 }): Promise<ArchitectureDiagramRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -74,7 +75,7 @@ export async function createArchitectureDiagram(params: {
         diagramId,
         tenantSlug,
         projectSlug,
-        changedBy: 'system', // TODO: Get from auth context
+        changedBy: params.userId,
         changeType: 'created',
         name: params.name,
         description: params.description,
@@ -124,6 +125,7 @@ export async function updateArchitectureDiagram(params: {
   name?: string;
   description?: string;
   view?: ArchitectureDiagramRecord["view"];
+  userId: string;
 }): Promise<ArchitectureDiagramRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -206,7 +208,7 @@ export async function updateArchitectureDiagram(params: {
           diagramId: params.diagramId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: params.userId,
           changeType: 'updated',
           name: newName,
           description: newDescription,
@@ -228,6 +230,7 @@ export async function deleteArchitectureDiagram(params: {
   tenant: string;
   projectKey: string;
   diagramId: string;
+  userId: string;
 }): Promise<void> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -258,7 +261,7 @@ export async function deleteArchitectureDiagram(params: {
           diagramId: params.diagramId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: params.userId,
           changeType: 'deleted',
           name: String(currentProps.name),
           description: currentProps.description ? String(currentProps.description) : undefined,

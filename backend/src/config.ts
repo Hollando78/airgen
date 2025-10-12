@@ -117,7 +117,8 @@ export const config = {
     smtpSecure: parseBoolean(env.SMTP_SECURE, false),
     smtpUser: env.SMTP_USER,
     smtpPassword: env.SMTP_PASSWORD,
-    enabled: Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASSWORD)
+    enabled: Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASSWORD),
+    systemBcc: env.EMAIL_SYSTEM_BCC === "" ? null : (env.EMAIL_SYSTEM_BCC ?? "info@airgen.studio")
   },
 
   // Rate limiting configuration
@@ -141,6 +142,11 @@ export const config = {
     // Encryption key for TOTP secrets at rest
     encryptionKey: env.TWOFA_ENCRYPTION_KEY ?? resolvedJwtSecret,
     issuer: env.TWOFA_ISSUER ?? "AIRGen"
+  },
+
+  // Feature flags
+  features: {
+    adminRoutesEnabled: parseBoolean(env.ENABLE_ADMIN_ROUTES, environment !== "production")
   }
 } as const;
 

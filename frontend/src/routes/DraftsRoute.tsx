@@ -125,7 +125,6 @@ export function DraftsRoute(): JSX.Element {
                       <SelectValue placeholder="Auto" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Auto</SelectItem>
                       {REQUIREMENT_PATTERNS.map(option => (
                         <SelectItem key={option} value={option}>
                           {option}

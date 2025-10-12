@@ -14,8 +14,8 @@ export interface LoginCredentials {
  */
 export function getDefaultCredentials(): LoginCredentials {
   return {
-    username: process.env.TEST_USERNAME || 'admin',
-    password: process.env.TEST_PASSWORD || 'admin123',
+    username: process.env.TEST_USERNAME || 'admin@dev.local',
+    password: process.env.TEST_PASSWORD || 'admin',
   };
 }
 
@@ -28,25 +28,34 @@ export async function login(
 ): Promise<void> {
   const creds = credentials || getDefaultCredentials();
 
-  // Navigate to login page
-  await page.goto('/login');
+  // Navigate to home (will show landing page if not logged in)
+  await page.goto('/');
+  await page.waitForLoadState('domcontentloaded');
 
-  // Wait for login form to be visible
-  await page.waitForSelector('input[name="username"], input[type="text"]', {
+  // Click "Sign In" button to open modal
+  const signInButton = page.locator('button:has-text("Sign In")');
+  if (await signInButton.isVisible({ timeout: 3000 })) {
+    await signInButton.click();
+    await page.waitForTimeout(500);
+  }
+
+  // Wait for login form to be visible (in modal)
+  await page.waitForSelector('input[name="username"], input[name="email"], input[type="text"], input[type="email"]', {
     state: 'visible',
+    timeout: 5000
   });
 
-  // Fill in credentials
-  await page.fill('input[name="username"], input[type="text"]', creds.username);
+  // Fill in credentials (try both username and email fields)
+  const usernameInput = page.locator('input[name="username"], input[name="email"], input[type="text"], input[type="email"]').first();
+  await usernameInput.fill(creds.username);
+
   await page.fill('input[name="password"], input[type="password"]', creds.password);
 
   // Submit the form
   await page.click('button[type="submit"]');
 
-  // Wait for navigation to complete
-  await page.waitForURL((url) => !url.pathname.includes('/login'), {
-    timeout: 10000,
-  });
+  // Wait for modal to close and page to load
+  await page.waitForTimeout(2000);
 }
 
 /**
@@ -114,7 +123,7 @@ export async function loginViaApi(
 
   const response = await page.request.post('/api/auth/login', {
     data: {
-      username: creds.username,
+      email: creds.username, // API expects 'email' field
       password: creds.password,
     },
   });

@@ -6,9 +6,10 @@ type LoginModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSwitchToSignup?: () => void;
+  onForgotPassword?: () => void;
 };
 
-export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProps): JSX.Element | null {
+export function LoginModal({ isOpen, onClose, onSwitchToSignup, onForgotPassword }: LoginModalProps): JSX.Element | null {
   const { login, isLoading, error, mfaRequired } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -148,6 +149,28 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
               autoComplete="current-password"
             />
           </label>
+
+          {onForgotPassword && (
+            <div style={{ marginTop: '-0.5rem', marginBottom: '0.5rem', textAlign: 'right' }}>
+              <button
+                type="button"
+                onClick={onForgotPassword}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#1f5eff',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0,
+                  fontSize: '0.875rem'
+                }}
+                disabled={isLoading}
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
 
           {(loginError || error) && (
             <p className="form-error">{loginError || error}</p>

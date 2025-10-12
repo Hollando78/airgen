@@ -94,6 +94,7 @@ function mapDocumentVersion(node: Neo4jNode): DocumentVersionRecord {
     slug: String(v.slug),
     name: String(v.name),
     description: v.description ? String(v.description) : undefined,
+    kind: (v.kind ? String(v.kind) : "structured") as import("./documents/documents-crud.js").DocumentKind,
     contentHash: String(v.contentHash)
   };
 }
@@ -110,7 +111,7 @@ function mapDocumentSectionVersion(node: Neo4jNode): DocumentSectionVersionRecor
     changeDescription: v.changeDescription ? String(v.changeDescription) : undefined,
     name: String(v.name),
     description: v.description ? String(v.description) : undefined,
-    order: v.order !== null && v.order !== undefined ? toNumber(v.order, 0) : undefined,
+    order: toNumber(v.order, 0),
     contentHash: String(v.contentHash)
   };
 }
@@ -162,10 +163,10 @@ function mapTraceLinkVersion(node: Neo4jNode): TraceLinkVersionRecord {
     changedBy: String(v.changedBy),
     changeType: String(v.changeType) as "created" | "updated" | "deleted",
     changeDescription: v.changeDescription ? String(v.changeDescription) : undefined,
-    fromRequirementId: String(v.fromRequirementId),
-    toRequirementId: String(v.toRequirementId),
-    linkType: String(v.linkType),
-    rationale: v.rationale ? String(v.rationale) : undefined,
+    sourceRequirementId: String(v.sourceRequirementId),
+    targetRequirementId: String(v.targetRequirementId),
+    linkType: String(v.linkType) as TraceLinkVersionRecord["linkType"],
+    description: v.description ? String(v.description) : undefined,
     contentHash: String(v.contentHash)
   };
 }
@@ -180,10 +181,9 @@ function mapDocumentLinksetVersion(node: Neo4jNode): DocumentLinksetVersionRecor
     changedBy: String(v.changedBy),
     changeType: String(v.changeType) as "created" | "updated" | "deleted",
     changeDescription: v.changeDescription ? String(v.changeDescription) : undefined,
-    fromDocumentSlug: String(v.fromDocumentSlug),
-    toDocumentSlug: String(v.toDocumentSlug),
-    linkType: String(v.linkType),
-    description: v.description ? String(v.description) : undefined,
+    sourceDocumentSlug: String(v.sourceDocumentSlug),
+    targetDocumentSlug: String(v.targetDocumentSlug),
+    defaultLinkType: v.defaultLinkType ? String(v.defaultLinkType) : undefined,
     contentHash: String(v.contentHash)
   };
 }
@@ -210,18 +210,19 @@ function mapArchitectureBlockVersion(node: Neo4jNode): ArchitectureBlockVersionR
   return {
     versionId: String(v.versionId),
     blockId: String(v.blockId),
+    diagramId: String(v.diagramId),
     versionNumber: toNumber(v.versionNumber, 0),
     timestamp: String(v.timestamp),
     changedBy: String(v.changedBy),
     changeType: String(v.changeType) as "created" | "updated" | "deleted",
     changeDescription: v.changeDescription ? String(v.changeDescription) : undefined,
-    label: String(v.label),
+    name: String(v.name),
+    kind: String(v.kind) as import("./architecture/types.js").BlockKind,
     description: v.description ? String(v.description) : undefined,
-    blockType: v.blockType ? String(v.blockType) : undefined,
-    x: v.x !== null && v.x !== undefined ? toNumber(v.x, 0) : undefined,
-    y: v.y !== null && v.y !== undefined ? toNumber(v.y, 0) : undefined,
-    width: v.width !== null && v.width !== undefined ? toNumber(v.width, 0) : undefined,
-    height: v.height !== null && v.height !== undefined ? toNumber(v.height, 0) : undefined,
+    positionX: toNumber(v.positionX, 0),
+    positionY: toNumber(v.positionY, 0),
+    sizeWidth: toNumber(v.sizeWidth, 220),
+    sizeHeight: toNumber(v.sizeHeight, 140),
     contentHash: String(v.contentHash)
   };
 }
@@ -236,10 +237,11 @@ function mapArchitectureConnectorVersion(node: Neo4jNode): ArchitectureConnector
     changedBy: String(v.changedBy),
     changeType: String(v.changeType) as "created" | "updated" | "deleted",
     changeDescription: v.changeDescription ? String(v.changeDescription) : undefined,
-    fromBlockId: String(v.fromBlockId),
-    toBlockId: String(v.toBlockId),
+    source: String(v.source),
+    target: String(v.target),
+    kind: String(v.kind) as import("./architecture/types.js").ConnectorKind,
     label: v.label ? String(v.label) : undefined,
-    connectorType: v.connectorType ? String(v.connectorType) : undefined,
+    diagramId: String(v.diagramId),
     contentHash: String(v.contentHash)
   };
 }

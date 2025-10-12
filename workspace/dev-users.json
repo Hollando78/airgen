@@ -10,7 +10,8 @@
       "admin-dev"
     ],
     "createdAt": "2025-09-25T20:18:14.063Z",
-    "updatedAt": "2025-09-25T20:18:14.063Z"
+    "updatedAt": "2025-10-12T21:42:20.648Z",
+    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$J75GGRb7n8ib+YkSFB8NUQ$jonrA0DtXkZRmRRBGvbdYw0sxb0SG95UExsH8ofpr/Q"
   },
   {
     "id": "98e6826a-fc83-4367-ba94-218811003be1",
@@ -50,5 +51,33 @@
     ],
     "createdAt": "2025-09-25T20:48:03.325Z",
     "updatedAt": "2025-09-25T20:48:03.325Z"
+  },
+  {
+    "id": "6651e488-f084-482b-ad8e-d97029822a93",
+    "email": "get_off_us@hotmail.com",
+    "name": "Steven Holland",
+    "roles": [
+      "user"
+    ],
+    "tenantSlugs": [],
+    "createdAt": "2025-10-12T16:26:01.096Z",
+    "updatedAt": "2025-10-12T16:26:01.096Z",
+    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$3ACUxPzHS5A0f6fu1JVB7Q$acBfP34Lazviv85ipcpjeX+2lLve9wwl6oOPIMJbyGc"
+  },
+  {
+    "id": "96205e63-970f-4b2b-b980-1cb69a0f7d48",
+    "email": "info@airgen.studio",
+    "name": "Steven Holland",
+    "roles": [
+      "admin",
+      "author",
+      "user"
+    ],
+    "tenantSlugs": [
+      "info-mgnzq4ln"
+    ],
+    "createdAt": "2025-10-12T17:40:55.116Z",
+    "updatedAt": "2025-10-12T17:40:55.116Z",
+    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$DVyGmuuH4+iCQQdSm8GZEg$bUMi5CEoTYsGnDygUXlOdjxKqCQlu23YPIk5TI1EHrQ"
   }
 ]

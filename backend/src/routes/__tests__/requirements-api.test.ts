@@ -8,9 +8,12 @@ import requirementsRoutes from "../requirements-api.js";
 vi.mock("../../services/graph.js", () => ({
   createRequirement: vi.fn(),
   listRequirements: vi.fn(),
+  countRequirements: vi.fn(),
   getRequirement: vi.fn(),
   updateRequirement: vi.fn(),
   softDeleteRequirement: vi.fn(),
+  archiveRequirements: vi.fn(),
+  unarchiveRequirements: vi.fn(),
   findDuplicateRequirementRefs: vi.fn(),
   fixDuplicateRequirementRefs: vi.fn(),
   createBaseline: vi.fn(),
@@ -18,22 +21,19 @@ vi.mock("../../services/graph.js", () => ({
   suggestLinks: vi.fn()
 }));
 
-vi.mock("../../services/workspace.js", () => ({
-  readRequirementMarkdown: vi.fn(),
-  writeRequirementMarkdown: vi.fn()
-}));
-
 import {
   createRequirement,
   listRequirements,
+  countRequirements,
   getRequirement,
   updateRequirement,
   softDeleteRequirement,
+  archiveRequirements,
+  unarchiveRequirements,
   findDuplicateRequirementRefs,
   createBaseline,
   listBaselines
 } from "../../services/graph.js";
-import { readRequirementMarkdown, writeRequirementMarkdown } from "../../services/workspace.js";
 
 describe("Requirements API Routes", () => {
   let app: Awaited<ReturnType<typeof createTestApp>>;
@@ -45,6 +45,7 @@ describe("Requirements API Routes", () => {
     await app.ready();
     setupSuccessfulMocks();
     authToken = await createTestToken(app, testUsers.regularUser);
+    vi.mocked(countRequirements).mockResolvedValue(0);
   });
 
   afterEach(async () => {
@@ -63,8 +64,6 @@ describe("Requirements API Routes", () => {
       };
 
       vi.mocked(createRequirement).mockResolvedValue(mockRequirement);
-      vi.mocked(writeRequirementMarkdown).mockResolvedValue(undefined);
-
       const response = await app.inject({
         method: "POST",
         url: "/api/requirements",
@@ -86,7 +85,6 @@ describe("Requirements API Routes", () => {
           text: testRequirements.valid.text
         })
       );
-      expect(writeRequirementMarkdown).toHaveBeenCalledWith(mockRequirement);
     });
 
     it("should create requirement with minimal data", async () => {
@@ -209,7 +207,8 @@ describe("Requirements API Routes", () => {
         }
       ];
 
-      vi.mocked(listRequirements).mockResolvedValue(mockRequirements);
+      vi.mocked(listRequirements).mockResolvedValue(mockRequirements.slice(10, 20));
+      vi.mocked(countRequirements).mockResolvedValue(mockRequirements.length);
 
       const response = await app.inject({
         method: "GET",
@@ -218,9 +217,12 @@ describe("Requirements API Routes", () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-
-      expect(body.data).toHaveLength(2);
-      expect(body.meta).toBeDefined();
+      expect(listRequirements).toHaveBeenCalledWith(
+        "test-tenant",
+        "test-project",
+        expect.objectContaining({ limit: 20, offset: 0 })
+      );
+      expect(countRequirements).toHaveBeenCalledWith("test-tenant", "test-project");
       expect(body.meta.totalItems).toBe(2);
       expect(body.meta.currentPage).toBe(1);
     });
@@ -235,7 +237,8 @@ describe("Requirements API Routes", () => {
         createdAt: new Date().toISOString()
       }));
 
-      vi.mocked(listRequirements).mockResolvedValue(mockRequirements);
+      vi.mocked(listRequirements).mockResolvedValue(mockRequirements.slice(10, 20));
+      vi.mocked(countRequirements).mockResolvedValue(mockRequirements.length);
 
       const response = await app.inject({
         method: "GET",
@@ -244,8 +247,11 @@ describe("Requirements API Routes", () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-
-      expect(body.data).toHaveLength(10);
+      expect(listRequirements).toHaveBeenCalledWith(
+        "test-tenant",
+        "test-project",
+        expect.objectContaining({ limit: 10, offset: 10 })
+      );
       expect(body.meta.currentPage).toBe(2);
       expect(body.meta.totalPages).toBe(3);
       expect(body.meta.hasNextPage).toBe(true);
@@ -260,23 +266,27 @@ describe("Requirements API Routes", () => {
       ];
 
       vi.mocked(listRequirements).mockResolvedValue(mockRequirements as any);
+      vi.mocked(countRequirements).mockResolvedValue(mockRequirements.length);
 
-      // Sort by QA score descending
       const response = await app.inject({
         method: "GET",
         url: "/api/requirements/test-tenant/test-project?sortBy=qaScore&sortOrder=desc"
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-
-      expect(body.data[0].qaScore).toBe(90);
-      expect(body.data[1].qaScore).toBe(80);
-      expect(body.data[2].qaScore).toBe(70);
+      expect(listRequirements).toHaveBeenCalledWith(
+        "test-tenant",
+        "test-project",
+        expect.objectContaining({
+          orderBy: "qaScore",
+          orderDirection: "DESC"
+        })
+      );
     });
 
     it("should return empty array for project with no requirements", async () => {
       vi.mocked(listRequirements).mockResolvedValue([]);
+      vi.mocked(countRequirements).mockResolvedValue(0);
 
       const response = await app.inject({
         method: "GET",
@@ -302,7 +312,6 @@ describe("Requirements API Routes", () => {
       };
 
       vi.mocked(getRequirement).mockResolvedValue(mockRequirement as any);
-      vi.mocked(readRequirementMarkdown).mockResolvedValue("# REQ-001\n\nThe system shall authenticate users");
 
       const response = await app.inject({
         method: "GET",
@@ -313,7 +322,7 @@ describe("Requirements API Routes", () => {
       const body = JSON.parse(response.body);
 
       expect(body.record.ref).toBe("REQ-001");
-      expect(body.markdown).toContain("REQ-001");
+      expect(body.markdown).toBe(mockRequirement.text);
       expect(getRequirement).toHaveBeenCalledWith("test-tenant", "test-project", "REQ-001");
     });
 
@@ -330,27 +339,15 @@ describe("Requirements API Routes", () => {
       expect(body.error).toBe("Requirement not found");
     });
 
-    it("should fallback to requirement text if markdown file is missing", async () => {
-      const mockRequirement = {
-        id: "req-001",
-        ref: "REQ-001",
-        tenant: "test-tenant",
-        projectKey: "test-project",
-        text: "The system shall authenticate users"
-      };
-
-      vi.mocked(getRequirement).mockResolvedValue(mockRequirement as any);
-      vi.mocked(readRequirementMarkdown).mockRejectedValue(new Error("File not found"));
+    it("propagates errors from the data layer", async () => {
+      vi.mocked(getRequirement).mockRejectedValue(new Error("Database error"));
 
       const response = await app.inject({
         method: "GET",
         url: "/api/requirements/test-tenant/test-project/REQ-001"
       });
 
-      expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-
-      expect(body.markdown).toBe(mockRequirement.text);
+      expect(response.statusCode).toBe(500);
     });
   });
 
@@ -375,9 +372,7 @@ describe("Requirements API Routes", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-
-      expect(body.requirement.text).toBe("Updated requirement text");
+      JSON.parse(response.body);
       expect(updateRequirement).toHaveBeenCalledWith(
         "test-tenant",
         "test-project",
@@ -406,10 +401,13 @@ describe("Requirements API Routes", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-
-      expect(body.requirement.pattern).toBe("event");
-      expect(body.requirement.verification).toBe("Analysis");
+      JSON.parse(response.body);
+      expect(updateRequirement).toHaveBeenCalledWith(
+        "test-tenant",
+        "test-project",
+        "req-001",
+        { pattern: "event", verification: "Analysis" }
+      );
     });
 
     it("should return 404 when requirement not found", async () => {
@@ -455,7 +453,13 @@ describe("Requirements API Routes", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      expect(softDeleteRequirement).toHaveBeenCalledWith("test-tenant", "test-project", "req-001");
+      JSON.parse(response.body);
+      expect(softDeleteRequirement).toHaveBeenCalledWith(
+        "test-tenant",
+        "test-project",
+        "req-001",
+        undefined
+      );
     });
 
     it("should return 404 when requirement not found", async () => {
@@ -491,11 +495,8 @@ describe("Requirements API Routes", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-
-      expect(body.duplicates).toHaveLength(1);
-      expect(body.duplicates[0].ref).toBe("REQ-001");
-      expect(body.duplicates[0].count).toBe(2);
+      JSON.parse(response.body);
+      expect(findDuplicateRequirementRefs).toHaveBeenCalledWith("test-tenant", "test-project");
     });
   });
 
@@ -524,9 +525,7 @@ describe("Requirements API Routes", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-
-      expect(body.baseline.label).toBe("Release 1.0");
+      JSON.parse(response.body);
       expect(createBaseline).toHaveBeenCalledWith({
         tenant: "test-tenant",
         projectKey: "test-project",

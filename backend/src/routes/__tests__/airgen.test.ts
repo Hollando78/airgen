@@ -50,11 +50,14 @@ import {
   listRequirementCandidates,
   getRequirementCandidate,
   updateRequirementCandidate,
-  createRequirement
+  createRequirement,
+  createArchitectureDiagram,
+  createArchitectureBlock,
+  createArchitectureConnector
 } from "../../services/graph.js";
 import { draftCandidates } from "../../services/drafting.js";
 import { generateDiagram } from "../../services/diagram-generation.js";
-import { createDiagramCandidate, getDiagramCandidate } from "../../services/graph/diagram-candidates.js";
+import { createDiagramCandidate, getDiagramCandidate, updateDiagramCandidate } from "../../services/graph/diagram-candidates.js";
 import { extractDocumentContent } from "../../services/document-content.js";
 
 describe("AIRGen Routes", () => {
@@ -505,7 +508,13 @@ describe("AIRGen Routes", () => {
         status: "rejected"
       };
 
+      const mockRequirement = {
+        id: "req-001",
+        ref: "REQ-001"
+      };
+
       vi.mocked(getRequirementCandidate).mockResolvedValue(mockCandidate as any);
+      vi.mocked(createRequirement).mockResolvedValue(mockRequirement as any);
       vi.mocked(updateRequirementCandidate).mockResolvedValue(rejectedCandidate as any);
 
       const response = await authenticatedInject(app, {
@@ -522,7 +531,15 @@ describe("AIRGen Routes", () => {
       const body = JSON.parse(response.body);
 
       expect(body.candidate.status).toBe("rejected");
-      expect(updateRequirementCandidate).toHaveBeenCalledWith("candidate-1", { status: "rejected" });
+      expect(body.requirement.ref).toBe("REQ-001");
+      expect(updateRequirementCandidate).toHaveBeenCalledWith(
+        "candidate-1",
+        expect.objectContaining({
+          status: "rejected",
+          requirementId: mockRequirement.id,
+          requirementRef: mockRequirement.ref
+        })
+      );
     });
 
     it("should not reject already rejected candidate", async () => {
@@ -549,6 +566,169 @@ describe("AIRGen Routes", () => {
       });
 
       expect(response.statusCode).toBe(400);
+    });
+  });
+
+  describe("POST /api/airgen/diagram-candidates/:id/accept", () => {
+    it("should create diagram artifacts and accept pending candidate", async () => {
+      const mockCandidate = {
+        id: "diagram-candidate-1",
+        tenant: "test-tenant",
+        projectKey: "test-project",
+        status: "pending",
+        action: "create",
+        diagramName: "Telemetry Flow",
+        diagramDescription: "Auto-generated diagram",
+        diagramView: "block",
+        blocks: [
+          { name: "Sensor Suite", kind: "component", positionX: 100, positionY: 200, ports: [] },
+          { name: "Telemetry Gateway", kind: "component", positionX: 400, positionY: 200, ports: [] }
+        ],
+        connectors: [
+          { source: "Sensor Suite", target: "Telemetry Gateway", kind: "flow", label: "Telemetry stream" }
+        ],
+        reasoning: "Ensures redundant telemetry path",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const diagramRecord = { id: "diagram-123" };
+
+      vi.mocked(getDiagramCandidate).mockResolvedValue(mockCandidate as any);
+      vi.mocked(createArchitectureDiagram).mockResolvedValue(diagramRecord as any);
+      vi.mocked(createArchitectureBlock).mockImplementation(async (params: any) => ({
+        id: `block-${String(params.name).replace(/\s+/g, "-").toLowerCase()}`
+      }) as any);
+      vi.mocked(createArchitectureConnector).mockResolvedValue({ id: "connector-1" } as any);
+      vi.mocked(updateDiagramCandidate).mockResolvedValue({
+        ...mockCandidate,
+        status: "accepted",
+        diagramId: diagramRecord.id
+      } as any);
+
+      const response = await authenticatedInject(app, {
+        method: "POST",
+        url: "/api/airgen/diagram-candidates/diagram-candidate-1/accept",
+        payload: {
+          tenant: "test-tenant",
+          projectKey: "test-project",
+          diagramName: "Telemetry Flow (Approved)",
+          diagramDescription: "Refined description"
+        },
+        token: authToken
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+
+      expect(body.candidate.status).toBe("accepted");
+      expect(body.diagramId).toBe("diagram-123");
+
+      expect(createArchitectureDiagram).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenant: "test-tenant",
+          projectKey: "test-project",
+          name: "Telemetry Flow (Approved)",
+          description: "Refined description",
+          view: "block"
+        })
+      );
+      expect(createArchitectureBlock).toHaveBeenCalledTimes(2);
+      expect(createArchitectureConnector).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "block-sensor-suite",
+          target: "block-telemetry-gateway",
+          kind: "flow",
+          label: "Telemetry stream"
+        })
+      );
+      expect(updateDiagramCandidate).toHaveBeenCalledWith("diagram-candidate-1", expect.objectContaining({
+        status: "accepted",
+        diagramId: "diagram-123"
+      }));
+    });
+
+    it("should reject non-pending diagram candidates", async () => {
+      const mockCandidate = {
+        id: "diagram-candidate-1",
+        tenant: "test-tenant",
+        projectKey: "test-project",
+        status: "accepted",
+        action: "create",
+        blocks: [],
+        connectors: [],
+        reasoning: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      vi.mocked(getDiagramCandidate).mockResolvedValue(mockCandidate as any);
+
+      const response = await authenticatedInject(app, {
+        method: "POST",
+        url: "/api/airgen/diagram-candidates/diagram-candidate-1/accept",
+        payload: {
+          tenant: "test-tenant",
+          projectKey: "test-project"
+        },
+        token: authToken
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.error).toContain("Only pending diagram candidates");
+      expect(updateDiagramCandidate).not.toHaveBeenCalled();
+    });
+
+    it("should reuse existing diagram for update action", async () => {
+      const mockCandidate = {
+        id: "diagram-candidate-2",
+        tenant: "test-tenant",
+        projectKey: "test-project",
+        status: "pending",
+        action: "update",
+        diagramId: "diagram-existing",
+        diagramName: "Existing Diagram",
+        diagramDescription: "Existing description",
+        diagramView: "block",
+        blocks: [
+          { name: "Control Unit", kind: "component", positionX: 150, positionY: 250, ports: [] }
+        ],
+        connectors: [],
+        reasoning: "Update existing diagram",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      vi.mocked(getDiagramCandidate).mockResolvedValue(mockCandidate as any);
+      vi.mocked(createArchitectureBlock).mockResolvedValue({ id: "block-control-unit" } as any);
+      vi.mocked(updateDiagramCandidate).mockResolvedValue({
+        ...mockCandidate,
+        status: "accepted"
+      } as any);
+
+      const response = await authenticatedInject(app, {
+        method: "POST",
+        url: "/api/airgen/diagram-candidates/diagram-candidate-2/accept",
+        payload: {
+          tenant: "test-tenant",
+          projectKey: "test-project",
+          diagramDescription: "Updated description"
+        },
+        token: authToken
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+
+      expect(body.diagramId).toBe("diagram-existing");
+      expect(createArchitectureDiagram).not.toHaveBeenCalled();
+      expect(createArchitectureBlock).toHaveBeenCalledTimes(1);
+      expect(updateDiagramCandidate).toHaveBeenCalledWith("diagram-candidate-2", expect.objectContaining({
+        status: "accepted",
+        diagramId: "diagram-existing",
+        diagramDescription: "Updated description"
+      }));
     });
   });
 

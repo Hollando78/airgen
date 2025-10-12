@@ -109,13 +109,22 @@ export function verifyTotpToken(token: string, secret: string): boolean {
 export function generateBackupCodes(count = 10): string[] {
   const codes: string[] = [];
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const charsetLength = chars.length;
+  const maxValidByte = Math.floor(256 / charsetLength) * charsetLength - 1;
+
+  function generateCode(): string {
+    let code = "";
+    while (code.length < 8) {
+      const [randomByte] = randomBytes(1);
+      if (randomByte <= maxValidByte) {
+        code += chars[randomByte % charsetLength];
+      }
+    }
+    return code;
+  }
 
   for (let i = 0; i < count; i++) {
-    let code = "";
-    for (let j = 0; j < 8; j++) {
-      code += chars[Math.floor(Math.random() * chars.length)];
-    }
-    codes.push(code);
+    codes.push(generateCode());
   }
 
   return codes;

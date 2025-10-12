@@ -78,6 +78,20 @@ services:
       LLM_MODEL: "${LLM_MODEL:-gpt-4o-mini}"
       LLM_BASE_URL: "${LLM_BASE_URL}"
       LLM_TEMPERATURE: "${LLM_TEMPERATURE:-0.2}"
+      APP_URL: "${APP_URL}"
+      CORS_ORIGINS: "${CORS_ORIGINS}"
+      EMAIL_FROM: "${EMAIL_FROM}"
+      SMTP_HOST: "${SMTP_HOST}"
+      SMTP_PORT: "${SMTP_PORT}"
+      SMTP_SECURE: "${SMTP_SECURE}"
+      SMTP_USER: "${SMTP_USER}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD}"
+      RATE_LIMIT_GLOBAL_MAX: "${RATE_LIMIT_GLOBAL_MAX:-100}"
+      RATE_LIMIT_GLOBAL_WINDOW: "${RATE_LIMIT_GLOBAL_WINDOW:-60000}"
+      RATE_LIMIT_AUTH_MAX: "${RATE_LIMIT_AUTH_MAX:-5}"
+      RATE_LIMIT_AUTH_WINDOW: "${RATE_LIMIT_AUTH_WINDOW:-300000}"
+      RATE_LIMIT_LLM_MAX: "${RATE_LIMIT_LLM_MAX:-20}"
+      RATE_LIMIT_LLM_WINDOW: "${RATE_LIMIT_LLM_WINDOW:-3600000}"
     depends_on:
       postgres:
         condition: service_started
@@ -92,8 +106,6 @@ services:
       - "traefik.http.routers.api.tls=true"
       - "traefik.http.routers.api.tls.certresolver=letsencrypt"
       - "traefik.http.services.api.loadbalancer.server.port=${API_PORT}"
-      - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
-      - "traefik.http.routers.api.middlewares=api-strip@docker"
     volumes:
       - ./workspace:/workspace
     restart: unless-stopped

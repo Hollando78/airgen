@@ -66,6 +66,11 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Docker-native** – Traefik + Neo4j + Fastify API + Redis compose stack for quick VPS deployment.
 - **Multi-tenant** – Full tenant and project isolation with RBAC.
 - **Automated backups** – Daily incremental and weekly full backups with encrypted remote storage, 12-week retention, and one-command restore.
+- **Optimized container builds** – Multi-stage backend Dockerfile leverages pnpm deploy and requires Docker BuildKit with the `docker-buildx` plugin (already installed in production). Run builds with `DOCKER_BUILDKIT=1 docker build ...` or enable BuildKit daemon-wide for best caching.
+
+### Operational feature flags
+- `ENABLE_ADMIN_ROUTES=true` – Opt-in switch that exposes admin routes (user management, requirements recovery) even in production. Defaults to `false` to keep the public surface minimal.
+- `EMAIL_SYSTEM_BCC` – Defaults to `info@airgen.studio`; every system email (verification, reset, password changed) BCCs this address for auditing. Override or clear the value if you need a different compliance inbox.
 
 ## Repository layout
 ```

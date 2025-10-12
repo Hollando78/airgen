@@ -5,6 +5,7 @@
 export const testUsers = {
   admin: {
     id: "test-admin-id",
+    sub: "test-admin-id",
     email: "admin@test.com",
     name: "Test Admin",
     roles: ["admin", "user"],
@@ -12,6 +13,7 @@ export const testUsers = {
   },
   regularUser: {
     id: "test-user-id",
+    sub: "test-user-id",
     email: "user@test.com",
     name: "Test User",
     roles: ["user"],
@@ -19,6 +21,7 @@ export const testUsers = {
   },
   multiTenantUser: {
     id: "test-multi-id",
+    sub: "test-multi-id",
     email: "multi@test.com",
     name: "Multi Tenant User",
     roles: ["user"],

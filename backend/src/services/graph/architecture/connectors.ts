@@ -16,8 +16,9 @@ async function syncConnectorLinksets(params: {
   tenant: string;
   projectKey: string;
   documentIds: string[];
+  userId: string;
 }): Promise<void> {
-  const { tenant, projectKey, documentIds } = params;
+  const { tenant, projectKey, documentIds, userId } = params;
 
   // If we have 2 or more documents, create pairwise linksets
   if (documentIds.length >= 2) {
@@ -41,7 +42,8 @@ async function syncConnectorLinksets(params: {
               tenant,
               projectKey,
               sourceDocumentSlug: sourceDocSlug,
-              targetDocumentSlug: targetDocSlug
+              targetDocumentSlug: targetDocSlug,
+              userId
             });
           }
         } catch (error) {
@@ -73,6 +75,7 @@ export async function createArchitectureConnector(params: {
   strokeWidth?: number;
   labelOffsetX?: number;
   labelOffsetY?: number;
+  userId: string;
 }): Promise<ArchitectureConnectorRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -186,7 +189,7 @@ export async function createArchitectureConnector(params: {
         connectorId: connectorId,
         tenantSlug,
         projectSlug,
-        changedBy: 'system', // TODO: Get from auth context
+        changedBy: params.userId,
         changeType: 'created',
         source: String(props.source),
         target: String(props.target),
@@ -213,7 +216,8 @@ export async function createArchitectureConnector(params: {
       await syncConnectorLinksets({
         tenant: params.tenant,
         projectKey: params.projectKey,
-        documentIds: params.documentIds
+        documentIds: params.documentIds,
+        userId: params.userId
       });
     }
 
@@ -272,6 +276,7 @@ export async function updateArchitectureConnector(params: {
   strokeWidth?: number;
   labelOffsetX?: number;
   labelOffsetY?: number;
+  userId: string;
 }): Promise<ArchitectureConnectorRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -450,7 +455,7 @@ export async function updateArchitectureConnector(params: {
           connectorId: params.connectorId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: params.userId,
           changeType: 'updated',
           source: String(updatedProps.source),
           target: String(updatedProps.target),
@@ -482,7 +487,8 @@ export async function updateArchitectureConnector(params: {
       await syncConnectorLinksets({
         tenant: params.tenant,
         projectKey: params.projectKey,
-        documentIds: params.documentIds
+        documentIds: params.documentIds,
+        userId: params.userId
       });
     }
 
@@ -497,6 +503,7 @@ export async function deleteArchitectureConnector(params: {
   projectKey: string;
   diagramId: string;
   connectorId: string;
+  userId: string;
 }): Promise<void> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -553,7 +560,7 @@ export async function deleteArchitectureConnector(params: {
           connectorId: params.connectorId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: params.userId,
           changeType: 'deleted',
           source: String(currentProps.source),
           target: String(currentProps.target),

@@ -12,9 +12,8 @@
       "admin-dev"
     ],
     "createdAt": "2025-09-26T13:18:47.880Z",
-    "updatedAt": "2025-09-26T13:18:47.880Z",
-    "passwordHash": "b4b5447b3ca365f5d1d81a4a6ead02181e42b7cc9488b60c429b2ea166cb7ba90f3e24a74cbcfbefcb81da7868cc8ce91ade13521b1c5f8f53d6aa4c7b34ec7e",
-    "passwordSalt": "07cd911bb74ca3f7b2f8f0b5a9002bea"
+    "updatedAt": "2025-10-11T22:31:40.529Z",
+    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$NdQCTCCHZFzHBY4maHNGew$ITqCCIdl3rarI8Uacw0lQnFlaOfbjEkCA3klUE2GS58"
   },
   {
     "id": "72930339-76fa-4d1a-8077-86654e3f3546",
@@ -44,9 +43,22 @@
       "hollando"
     ],
     "createdAt": "2025-09-26T17:00:29.960Z",
-    "updatedAt": "2025-09-26T17:00:29.960Z",
-    "passwordHash": "8949321de01c136eea1b30d9c36835474bb5d3bb052a04c4767be59966c7dc04985faa09df7d96b155ad00604f2b4c9c95c33cba44ace674a283d5eb0f6f4c93",
-    "passwordSalt": "ee45ba2b5e63ede69b0d09e6bcedc590"
+    "updatedAt": "2025-10-11T13:18:07.951Z",
+    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$5MWkGCm871pl92t2lesm+g$YOfy0llgZfoqO6jZmrTJWIxRF/8yr7DjLgio2/938P0",
+    "mfaSecret": "f126e07472a3f2d5755973520df23476:cc37c600e1a58743bc9a5590028ef6cf:79e3ed88730c6044e6af0ff51007dfb5",
+    "mfaEnabled": false,
+    "mfaBackupCodes": [
+      "0e80dd5bf84989c2c3086ee0f1b0e75d6bcc65adf2391a4f390364647684f843",
+      "8a337709d267ace3dcac411ab84ec26546f966cc10a74b884f97c583ad8f1bb1",
+      "3804effb4a02f50c7af4a8c2c57bda15abd46511c87f8733484f81237f592266",
+      "104efc9759740abc3b96017550fa6d0142efcef8beceac2f6ef22a692850fb85",
+      "c11a65ed12653eaeeb07b18512207d4b1060b248bad4efd6f930b9e4c92b702f",
+      "4a6e4115f4b30e95647443813a07287ee48aaa46e7ef145d60d08ef3f1fc6605",
+      "ee7b4a2584e4598cb215bf3e72c9fdbf6d794148d820e705c13b5de9f6c2723a",
+      "a4a55aca3b36aa6418b549b5190e08aea9207e37214a881229c74ba97e547e1e",
+      "a5ec7572d1aa1088e55479c0c37950154d628dc7ee8e8fc87a07e32488fb793f",
+      "2e8451c50d2f2a8d670a578daea5b5bc868e8669173269ef55b69118f156c2f1"
+    ]
   },
   {
     "id": "e5e05366-b5eb-4274-92e3-3e6fe5f0cd53",
@@ -64,5 +76,63 @@
     "updatedAt": "2025-09-27T11:30:24.682Z",
     "passwordHash": "0c1c9e2ca91b3b508e71b333cf22592db33038d4b821b2d8c448483e75bd9ec6f75bb61a17814d02cbb0665744265f83ae3092577dcc3629bd34ecd70dde9b90",
     "passwordSalt": "dee6f88a939f04d4d1cbecb9fe546362"
+  },
+  {
+    "id": "eaf4b79d-521a-4e37-b771-8347a0902b34",
+    "email": "testuser@example.com",
+    "name": "Test User New",
+    "passwordHash": "3d8967a58e17acfa620ca1c7cdecac662db76a54d87c8cdae16f74456e98d57dfd26043ad7a61f15318577df9a5b237dc2d8b6951bca64fa37cc25d6a09f113e",
+    "passwordSalt": "668cd372a430f2aa302cfcae64be31ee",
+    "roles": [
+      "admin",
+      "author",
+      "user"
+    ],
+    "tenantSlugs": [
+      "admin-dev"
+    ],
+    "createdAt": "2025-10-11T12:03:26.813Z",
+    "updatedAt": "2025-10-11T12:03:26.813Z"
+  },
+  {
+    "id": "6b14983d-591f-4f27-9cc1-2cf1ed2551f5",
+    "email": "test@secure.local",
+    "name": "Test Secure User",
+    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$H5GuG4NWeOzvKI0YNIyx5g$wZEPOOOnS2obEJ2GjHHc15RusTAGakBxeuYj1HuXeAc",
+    "roles": [
+      "admin",
+      "author",
+      "user"
+    ],
+    "tenantSlugs": [
+      "admin-dev"
+    ],
+    "createdAt": "2025-10-11T12:17:25.619Z",
+    "updatedAt": "2025-10-11T12:21:11.651Z"
+  },
+  {
+    "id": "28246da7-a312-47da-8bf3-a872d571667b",
+    "email": "testflow@airgen.local",
+    "name": "Test Flow User",
+    "roles": [
+      "user"
+    ],
+    "tenantSlugs": [],
+    "createdAt": "2025-10-11T13:04:17.765Z",
+    "updatedAt": "2025-10-11T13:11:26.403Z",
+    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$LtELU8xy77wghDEX2L6XbQ$+0OBGWFk7RJPiK68pXr6gumB3q1/c+kAnAWiAoZctoQ",
+    "mfaSecret": "b4f75ff9b1d02f8dc5cc2216aae54234:8f38bcb84447df40c974a175122d55fc:d3771cc4f23bb4b80da36f1ec1f4f973",
+    "mfaEnabled": true,
+    "mfaBackupCodes": [
+      "ab4511fc6d516aab1da6aece03f60f9229b40437b057253c445c315691ff411b",
+      "4c8f17d4a5ffbb990d00dfac904380f21181da0214efdb4ae4911646d6859bf6",
+      "7abeb948d8a39b689771916f5163621d4529ab2d232594e820bd543b1d8ca9e0",
+      "e55bf773a1e1108f18043b96dae2c8c23b93e756b7f75d7669130ffe538ec4fb",
+      "1d8db3df3da954309716d91f99134d155b81146de2f517a1954a80dcb84a13e8",
+      "637d83f352a2aee3215369747eed6133028282115b6942c00db6b871fd64ef7d",
+      "e37d965adeaa7e6e55909bedfedc860b393dd89e173b0f7d7fd127931f63990e",
+      "16c7368e6debb963a48e0d06694ed075565427af18e0dba293125775f5d6454f",
+      "d2a34768b55cbaea74ffa975bf51ebe39ff6976c325631424a1f41f0cc26dc43"
+    ]
   }
 ]

@@ -1,10 +1,24 @@
 import "@testing-library/jest-dom";
-import { expect, afterEach, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { setupServer } from "msw/node";
+import { baseHandlers } from "./msw/handlers";
 
 // Cleanup after each test
+export const server = setupServer();
+
+beforeAll(() => {
+  server.use(...baseHandlers);
+  server.listen({ onUnhandledRequest: "error" });
+});
+
 afterEach(() => {
+  server.resetHandlers();
   cleanup();
+});
+
+afterAll(() => {
+  server.close();
 });
 
 // Mock window.matchMedia

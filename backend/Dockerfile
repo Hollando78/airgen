@@ -1,37 +1,44 @@
-# Stage 1: Install workspace dependencies required for the backend service
-FROM node:20-alpine AS deps
+# syntax=docker/dockerfile:1.6
+
+FROM node:20-alpine AS base
 WORKDIR /workspace
 
-# Copy root manifests that help pnpm resolve the monorepo
+ENV PNPM_HOME=/root/.local/share/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+ARG PNPM_VERSION=10.17.1
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+
+# ---------------------------------------------------------------------------
+# Build stage - install dependencies and compile sources
+# ---------------------------------------------------------------------------
+FROM base AS build
+
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY backend/package.json backend/
 COPY packages/req-qa/package.json packages/req-qa/
 
-RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
-RUN pnpm install --filter @airgen/backend... --frozen-lockfile
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --filter @airgen/backend... --frozen-lockfile
 
-# Stage 2: Build TypeScript sources
-FROM node:20-alpine AS build
-WORKDIR /workspace
-
-# Reuse pnpm store + dependencies from previous stage
-COPY --from=deps /workspace/node_modules /workspace/node_modules
-COPY --from=deps /root/.local/share/pnpm /root/.local/share/pnpm
-ENV PNPM_HOME=/root/.local/share/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-
-# Copy the full repository context
+# Copy remaining source files
 COPY . .
 
-RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
-RUN pnpm -C packages/req-qa build && pnpm -C backend build
+RUN pnpm -C packages/req-qa build
+RUN pnpm -C backend build
 
-# Stage 3: Production runtime image
+# Prepare production bundle (node_modules + dist) in /app
+RUN pnpm --filter @airgen/backend deploy --prod --legacy /app
+
+# ---------------------------------------------------------------------------
+# Runtime stage - minimal production image
+# ---------------------------------------------------------------------------
 FROM node:20-alpine AS runner
 WORKDIR /app
+
 ENV NODE_ENV=production
 
-# Install LibreOffice, PDF tools, and fonts for document preview generation
+# Document preview dependencies
 RUN apk add --no-cache \
     build-base \
     python3 \
@@ -48,25 +55,8 @@ RUN apk add --no-cache \
     fontconfig \
     && fc-cache -f
 
-# Copy workspace pieces needed at runtime
-COPY --from=build /workspace/pnpm-lock.yaml ./pnpm-lock.yaml
-COPY --from=build /workspace/pnpm-workspace.yaml ./pnpm-workspace.yaml
-COPY --from=build /workspace/package.json ./package.json
-COPY --from=build /workspace/backend ./backend
-COPY --from=build /workspace/packages ./packages
-COPY --from=build /root/.local/share/pnpm /root/.local/share/pnpm
+COPY --from=build /app/ .
+COPY --from=build /workspace/backend/public ./public
 
-ENV PNPM_HOME=/root/.local/share/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-ENV HUSKY=0
-
-RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
-RUN pnpm install --filter @airgen/backend... --prod --frozen-lockfile --ignore-scripts
-
-# Rebuild canvas manually after ignoring scripts
-RUN cd /app/node_modules/.pnpm/canvas@3.2.0/node_modules/canvas && \
-    npx node-gyp rebuild
-
-WORKDIR /app/backend
 EXPOSE 8787
 CMD ["node", "dist/server.js"]

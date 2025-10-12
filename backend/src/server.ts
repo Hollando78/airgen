@@ -289,7 +289,7 @@ await app.register(airgenRoutes, { prefix: "/api" });
 await app.register(graphRoutes, { prefix: "/api" });
 await app.register(workersRoutes, { prefix: "/api" });
 
-if (config.environment !== "production") {
+if (config.features.adminRoutesEnabled) {
   const adminRoutes = await import("./routes/admin-users.js");
   await app.register(adminRoutes.default, { prefix: "/api/dev" });
   await app.register(adminRequirementsRoutes, { prefix: "/api" });

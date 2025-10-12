@@ -27,6 +27,7 @@
 - Node.js 20+ (check with `node --version`)
 - pnpm 9+ (enable with `corepack enable` or install globally)
 - Docker & Docker Compose (for Neo4j/Redis)
+- Docker BuildKit with the `docker-buildx` CLI plugin installed (verify with `docker buildx version`). Enable BuildKit globally by adding `{"features":{"buildkit":true}}` to `/etc/docker/daemon.json` or export `DOCKER_BUILDKIT=1` when building images.
 - Git
 
 ### Initial Setup

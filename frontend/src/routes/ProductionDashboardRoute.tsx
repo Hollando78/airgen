@@ -1,4 +1,4 @@
-import { PageLayout } from "../components/PageLayout";
+import { PageLayout } from "../components/layout/PageLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Wrench, Link2, GitBranch, Sparkles, Building2, FileText, Rocket } from "lucide-react";
 import { TenantProjectSelector } from "../components/TenantProjectSelector";

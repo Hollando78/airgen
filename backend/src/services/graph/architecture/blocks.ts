@@ -29,6 +29,7 @@ export async function createArchitectureBlock(params: {
   ports?: BlockPortRecord[];
   documentIds?: string[];
   existingBlockId?: string;
+  userId: string;
 }): Promise<ArchitectureBlockRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -214,7 +215,7 @@ export async function createArchitectureBlock(params: {
         diagramId: params.diagramId,
         tenantSlug,
         projectSlug,
-        changedBy: 'system', // TODO: Get from auth context
+        changedBy: params.userId,
         changeType: 'created',
         name: String(blockProps.name),
         kind: String(blockProps.kind) as BlockKind,
@@ -369,6 +370,7 @@ export async function updateArchitectureBlock(params: {
   fontWeight?: string;
   borderRadius?: number;
   portOverrides?: Record<string, BlockPortOverrideRecord>;
+  userId: string;
 }): Promise<ArchitectureBlockRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -664,7 +666,7 @@ export async function updateArchitectureBlock(params: {
           diagramId: params.diagramId,
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: params.userId,
           changeType: 'updated',
           name: String(finalBlockProps.name),
           kind: String(finalBlockProps.kind) as BlockKind,
@@ -710,6 +712,7 @@ export async function deleteArchitectureBlock(params: {
   projectKey: string;
   blockId: string;
   diagramId?: string;
+  userId: string;
 }): Promise<void> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -786,7 +789,7 @@ export async function deleteArchitectureBlock(params: {
             diagramId: params.diagramId,
             tenantSlug,
             projectSlug,
-            changedBy: 'system', // TODO: Get from auth context
+            changedBy: params.userId,
             changeType: 'deleted',
             name: String(currentBlockProps.name),
             kind: String(currentBlockProps.kind) as BlockKind,

@@ -40,7 +40,7 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
         };
       } catch (error) {
         app.log.error({ err: error }, "Daily backup failed");
-        return reply.status(500).send({
+        return (reply as any).code(500).send({
           success: false,
           message: "Daily backup failed",
           output: error instanceof Error ? error.message : "Unknown error",
@@ -82,7 +82,7 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
         };
       } catch (error) {
         app.log.error({ err: error }, "Weekly backup failed");
-        return reply.status(500).send({
+        return (reply as any).code(500).send({
           success: false,
           message: "Weekly backup failed",
           output: error instanceof Error ? error.message : "Unknown error",
@@ -205,7 +205,7 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
         return { daily, weekly };
       } catch (error) {
         app.log.error({ err: error }, "Failed to list backups");
-        return reply.status(500).send({
+        return (reply as any).code(500).send({
           error: "Failed to list backups",
           message: error instanceof Error ? error.message : "Unknown error",
         });
@@ -328,7 +328,7 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
         };
       } catch (error) {
         app.log.error({ err: error }, "Backup verification failed");
-        return reply.status(500).send({
+        return (reply as any).code(500).send({
           success: false,
           message: "Backup verification failed",
           output: error instanceof Error ? error.message : "Unknown error",
@@ -387,7 +387,7 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
         };
       } catch (error) {
         app.log.error({ err: error }, "Restore dry-run failed");
-        return reply.status(500).send({
+        return (reply as any).code(500).send({
           success: false,
           message: "Restore dry-run failed",
           output: error instanceof Error ? error.message : "Unknown error",
@@ -567,7 +567,7 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
         };
       } catch (error) {
         app.log.error({ err: error }, "Failed to get backup status");
-        return reply.status(500).send({
+        return (reply as any).code(500).send({
           error: "Failed to get backup status",
           message: error instanceof Error ? error.message : "Unknown error",
         });

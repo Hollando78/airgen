@@ -61,4 +61,34 @@ test-results/
 playwright-report/
 playwright/.cache/
 *.trace.zip
+coverage/
+
+# Backups
+backups/
+
+# Temporary debug/check scripts
+backend/check-*.ts
+backend/check-*.js
+backend/check-*.sh
+backend/test-*.ts
+backend/test-*.js
+backend/verify-*.ts
+backend/create-test-data.ts
+backend/delete-test-data.ts
+backend/fix-*.ts
+backend/cleanup-*.ts
+backend/orphan-*.ts
+backend/reset-password.ts
+backend/restore-*.ts
+backend/src/config.js
+backend/src/services/graph/driver.js
+
+# Workspace temp/undefined directories
+workspace/undefined/
+workspace/info-*/
+
+# Media files
+*.MOV
+*.mov
+*.mp4
 

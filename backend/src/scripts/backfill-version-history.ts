@@ -405,8 +405,8 @@ async function backfillRequirements(): Promise<number> {
           changeType: "created",
           changeDescription: "Backfilled initial version",
           text,
-          pattern: pattern ?? null,
-          verification: verification ?? null,
+          pattern: (pattern ?? null) as any,
+          verification: (verification ?? null) as any,
           rationale: rationale ?? null,
           complianceStatus: complianceStatus ?? null,
           complianceRationale: complianceRationale ?? null,
@@ -436,7 +436,7 @@ async function backfillDocuments(): Promise<number> {
         const name = asString(props.name);
         const description = props.description ? asString(props.description) : undefined;
         const shortCode = props.shortCode ? asString(props.shortCode) : undefined;
-        const kind = props.kind ? asString(props.kind) : "structured";
+        const kind = (props.kind ? asString(props.kind) : "structured") as import("../services/graph/documents/documents-crud.js").DocumentKind;
         const contentHash = generateDocumentContentHash({
           name,
           description,
@@ -488,7 +488,7 @@ async function backfillSections(): Promise<number> {
           name,
           description,
           shortCode,
-          order
+          order: order ?? 0
         });
         await createDocumentSectionVersion(tx, {
           sectionId: asString(props.id),
@@ -500,7 +500,7 @@ async function backfillSections(): Promise<number> {
           name,
           description: description ?? null,
           shortCode: shortCode ?? null,
-          order: order ?? null,
+          order: order ?? 0,
           contentHash
         });
       }
@@ -611,7 +611,7 @@ async function backfillTraceLinks(): Promise<number> {
           changeDescription: "Backfilled initial version",
           sourceRequirementId,
           targetRequirementId,
-          linkType: linkType as any,
+          linkType: linkType as "satisfies" | "derives" | "verifies" | "implements" | "refines" | "conflicts",
           description: description ?? null,
           contentHash
         });
@@ -684,7 +684,7 @@ async function backfillDiagrams(): Promise<number> {
           changeDescription: "Backfilled initial version",
           name,
           description: description ?? null,
-          view: view as any,
+          view: view as "block" | "internal" | "deployment" | "requirements_schema",
           contentHash
         });
       }
@@ -789,7 +789,7 @@ async function backfillBlocks(): Promise<number> {
           changeType: "created",
           changeDescription: "Backfilled initial version",
           name,
-          kind: kind as any,
+          kind: kind as import("../services/graph/architecture/types.js").BlockKind,
           stereotype: stereotype ?? null,
           description: description ?? null,
           ports: ports ?? null,
@@ -866,7 +866,7 @@ async function backfillConnectors(): Promise<number> {
           changeDescription: "Backfilled initial version",
           source,
           target,
-          kind: kind as any,
+          kind: kind as import("../services/graph/architecture/types.js").ConnectorKind,
           label: label ?? null,
           sourcePortId: sourcePortId ?? null,
           targetPortId: targetPortId ?? null,

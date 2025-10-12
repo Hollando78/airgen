@@ -54,15 +54,15 @@ export function sanitizePortOverrides(overrides: Record<string, BlockPortOverrid
 
   Object.entries(overrides).forEach(([portId, override]) => {
     if (!override) {return;}
-    const cleaned: BlockPortOverrideRecord = {};
+    const cleaned: Partial<BlockPortOverrideRecord> = {};
     (Object.keys(override) as Array<keyof BlockPortOverrideRecord>).forEach(key => {
       if (!PORT_OVERRIDE_KEYS.has(key)) {return;}
       const value = override[key];
       if (value === undefined) {return;}
-      cleaned[key] = value;
+      (cleaned as any)[key] = value;
     });
     if (Object.keys(cleaned).length > 0) {
-      sanitized[portId] = cleaned;
+      sanitized[portId] = cleaned as BlockPortOverrideRecord;
     }
   });
 
@@ -139,7 +139,7 @@ export function mapBlockWithPlacement(
         return;
       }
       if (key === "offset") {
-        merged.offset = value ?? undefined;
+        merged.offset = (value as number | null) ?? undefined;
       }
     });
 

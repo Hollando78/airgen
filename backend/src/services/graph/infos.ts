@@ -43,6 +43,7 @@ export async function createInfo(params: {
   title?: string;
   sectionId?: string;
   order?: number;
+  userId: string;
 }): Promise<InfoRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -101,7 +102,7 @@ export async function createInfo(params: {
         infoId,
         tenantSlug,
         projectSlug,
-        changedBy: 'system', // TODO: Get from auth context
+        changedBy: params.userId,
         changeType: 'created',
         ref: params.ref,
         text: params.text,
@@ -129,7 +130,8 @@ export async function updateInfo(
     title?: string;
     sectionId?: string;
     order?: number;
-  }
+  },
+  userId: string
 ): Promise<InfoRecord> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(project);
@@ -215,7 +217,7 @@ export async function updateInfo(
           infoId: String(currentProps.id),
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: userId,
           changeType: 'updated',
           ref: String(currentProps.ref),
           text: newText,
@@ -235,7 +237,7 @@ export async function updateInfo(
   }
 }
 
-export async function deleteInfo(tenant: string, project: string, ref: string): Promise<void> {
+export async function deleteInfo(tenant: string, project: string, ref: string, userId: string): Promise<void> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(project);
 
@@ -262,7 +264,7 @@ export async function deleteInfo(tenant: string, project: string, ref: string): 
           infoId: String(currentProps.id),
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: userId,
           changeType: 'deleted',
           ref: String(currentProps.ref),
           text: String(currentProps.text),

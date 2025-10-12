@@ -14,7 +14,7 @@ import { createHash, timingSafeEqual, scryptSync } from "node:crypto";
  * - Parallelism: 1 (to maximize memory-hardness on single thread)
  */
 
-const ARGON2_OPTIONS: argon2.Options & { type: argon2.argon2id } = {
+const ARGON2_OPTIONS: argon2.Options & { type: 2 } = {
   type: argon2.argon2id,
   memoryCost: 65536, // 64 MiB
   timeCost: 3,       // 3 iterations

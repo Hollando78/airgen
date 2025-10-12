@@ -117,6 +117,7 @@ export async function createDocument(params: {
   storagePath?: string;
   previewPath?: string;
   previewMimeType?: string;
+  userId: string;
 }): Promise<DocumentRecord> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
@@ -195,7 +196,7 @@ export async function createDocument(params: {
         documentId,
         tenantSlug,
         projectSlug,
-        changedBy: 'system', // TODO: Get from auth context
+        changedBy: params.userId,
         changeType: 'created',
         slug: resolvedSlug,
         name: params.name,
@@ -319,7 +320,8 @@ export async function updateDocument(
     name?: string;
     description?: string;
     shortCode?: string;
-  }
+  },
+  userId: string
 ): Promise<DocumentRecord | null> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(projectKey);
@@ -396,7 +398,7 @@ export async function updateDocument(
           documentId: String(currentProps.id),
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: userId,
           changeType: 'updated',
           slug: String(currentProps.slug),
           name: newName,
@@ -506,7 +508,8 @@ export async function updateDocumentFolder(
 export async function softDeleteDocument(
   tenant: string,
   projectKey: string,
-  documentSlug: string
+  documentSlug: string,
+  userId: string
 ): Promise<DocumentRecord | null> {
   const tenantSlug = slugify(tenant);
   const projectSlug = slugify(projectKey);
@@ -537,7 +540,7 @@ export async function softDeleteDocument(
           documentId: String(currentProps.id),
           tenantSlug,
           projectSlug,
-          changedBy: 'system', // TODO: Get from auth context
+          changedBy: userId,
           changeType: 'deleted',
           slug: String(currentProps.slug),
           name: String(currentProps.name),
