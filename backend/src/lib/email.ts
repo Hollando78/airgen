@@ -261,3 +261,87 @@ export async function sendFailedSignupNotification(
     html
   });
 }
+
+/**
+ * Send successful signup notification to admin
+ */
+export async function sendSuccessfulSignupNotification(
+  email: string,
+  name: string | undefined,
+  tenantSlug: string,
+  ip: string
+): Promise<void> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #059669;">✅ New User Signup</h2>
+      <p>A new user has successfully registered on AIRGen:</p>
+
+      <div style="background-color: #d1fae5; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0;"><strong>Email:</strong> ${email}</p>
+        <p style="margin: 5px 0 0 0;"><strong>Name:</strong> ${name || 'Not provided'}</p>
+        <p style="margin: 5px 0 0 0;"><strong>Tenant:</strong> ${tenantSlug}</p>
+        <p style="margin: 5px 0 0 0;"><strong>IP Address:</strong> ${ip}</p>
+        <p style="margin: 5px 0 0 0;"><strong>Time:</strong> ${new Date().toLocaleString('en-US', { timeZone: 'UTC' })} UTC</p>
+      </div>
+
+      <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">
+        This is an automated notification for early-stage user tracking.
+      </p>
+    </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to: "info@airgen.studio",
+    subject: `🎉 New Signup: ${email}`,
+    html
+  });
+}
+
+/**
+ * Send login notification to admin
+ */
+export async function sendLoginNotification(
+  email: string,
+  name: string | undefined,
+  ip: string,
+  mfaEnabled: boolean
+): Promise<void> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #2563eb;">🔐 User Login</h2>
+      <p>A user has logged in to AIRGen:</p>
+
+      <div style="background-color: #dbeafe; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0;"><strong>Email:</strong> ${email}</p>
+        <p style="margin: 5px 0 0 0;"><strong>Name:</strong> ${name || 'Not provided'}</p>
+        <p style="margin: 5px 0 0 0;"><strong>IP Address:</strong> ${ip}</p>
+        <p style="margin: 5px 0 0 0;"><strong>MFA Enabled:</strong> ${mfaEnabled ? 'Yes ✓' : 'No'}</p>
+        <p style="margin: 5px 0 0 0;"><strong>Time:</strong> ${new Date().toLocaleString('en-US', { timeZone: 'UTC' })} UTC</p>
+      </div>
+
+      <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">
+        This is an automated notification for early-stage user tracking.
+      </p>
+    </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to: "info@airgen.studio",
+    subject: `🔐 Login: ${email}`,
+    html
+  });
+}

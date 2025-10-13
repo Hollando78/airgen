@@ -18,7 +18,7 @@ import {
   revokeAllUserTokens
 } from "../lib/refresh-tokens.js";
 import { createToken, verifyAndConsumeToken, revokeUserTokens } from "../lib/tokens.js";
-import { sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail, sendFailedSignupNotification } from "../lib/email.js";
+import { sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail, sendFailedSignupNotification, sendSuccessfulSignupNotification, sendLoginNotification } from "../lib/email.js";
 import { hashPassword } from "../lib/password.js";
 import {
   verifyTotpToken,
@@ -215,6 +215,12 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         ip: req.ip
       }, "User logged in successfully");
 
+      // Send login notification to admin (fire and forget)
+      sendLoginNotification(user.email, user.name, req.ip, false)
+        .catch(emailError => {
+          app.log.error({ err: emailError }, "Failed to send login notification");
+        });
+
       // Return token and user info (without password)
       const { password: _legacy, passwordHash: _hash, passwordSalt: _salt, ...userWithoutPassword } = user;
       return {
@@ -332,6 +338,12 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         tenantSlug,
         ip: req.ip
       }, "User registered successfully");
+
+      // Send signup notification to admin (fire and forget)
+      sendSuccessfulSignupNotification(user.email, user.name, tenantSlug, req.ip)
+        .catch(emailError => {
+          app.log.error({ err: emailError }, "Failed to send signup notification");
+        });
 
       // Return success (user needs to login separately)
       return reply.code(201).send({
@@ -693,6 +705,12 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       usedBackupCode,
       ip: req.ip
     }, "MFA verification successful");
+
+    // Send login notification to admin (fire and forget)
+    sendLoginNotification(user.email, user.name, req.ip, true)
+      .catch(emailError => {
+        app.log.error({ err: emailError }, "Failed to send login notification");
+      });
 
     // Return token and user info
     const { password: _legacy, passwordHash: _hash, passwordSalt: _salt, mfaSecret: _secret, mfaBackupCodes: _codes, ...userWithoutSensitive } = user;
