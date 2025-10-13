@@ -12,8 +12,8 @@ export function MobileHome(): JSX.Element {
         <p className="mt-1 text-sm text-neutral-600">
           Choose a tenant and project to browse requirements and documents.
         </p>
-        <div className="mt-4">
-          <TenantProjectSelector />
+        <div className="mt-4 space-y-3">
+          <TenantProjectSelector compact />
         </div>
         {state.tenant && state.project && (
           <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">
@@ -49,7 +49,16 @@ export function MobileHome(): JSX.Element {
           >
             <h3 className="text-base font-semibold text-neutral-900">Admin Tools</h3>
             <p className="text-sm text-neutral-600">
-              Perform lightweight user management tasks on the go.
+            Perform lightweight user management tasks on the go.
+          </p>
+          </Link>
+          <Link
+            to="/mobile/airgen"
+            className="rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-sm transition hover:border-primary/40 hover:shadow-md"
+          >
+            <h3 className="text-base font-semibold text-neutral-900">AIRGen</h3>
+            <p className="text-sm text-neutral-600">
+              Generate requirement ideas with AIRGen&apos;s assistant, then finalize them on desktop.
             </p>
           </Link>
         </div>

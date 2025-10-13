@@ -5,6 +5,7 @@ WORKDIR /workspace
 
 ENV PNPM_HOME=/root/.local/share/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 ARG PNPM_VERSION=10.17.1
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate

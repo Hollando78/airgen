@@ -32,12 +32,17 @@ fi
 echo "✅ Docker and docker-compose are installed"
 echo ""
 
+# Enable BuildKit for optimized builds with cache mounts
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 echo "📦 Step 1: Stopping any existing containers..."
 docker-compose -f docker-compose.prod.yml --env-file .env.production down || true
 echo ""
 
-echo "🏗️  Step 2: Building Docker images (this may take 5-10 minutes)..."
-docker-compose -f docker-compose.prod.yml --env-file .env.production build --no-cache
+echo "🏗️  Step 2: Building Docker images (optimized with cache)..."
+echo "   Using BuildKit with layer caching and pnpm cache mounts"
+docker-compose -f docker-compose.prod.yml --env-file .env.production build --build-arg BUILDKIT_INLINE_CACHE=1
 echo "✅ Images built"
 echo ""
 

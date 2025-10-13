@@ -34,14 +34,14 @@ export function LandingPage(): JSX.Element {
                 variant="outline"
                 size="lg"
                 onClick={() => setShowLogin(true)}
-                className="text-neutral-900 font-semibold border-2 hover:bg-neutral-50"
+                className="w-full rounded-full text-neutral-900 font-semibold border-2 hover:bg-neutral-50 sm:w-auto"
               >
                 Sign In
               </Button>
               <Button
                 size="lg"
                 onClick={() => setShowSignup(true)}
-                className="font-semibold shadow-md hover:shadow-lg px-6"
+                className="hidden rounded-full font-semibold shadow-md hover:shadow-lg px-6 sm:inline-flex"
               >
                 Get Started
               </Button>
@@ -59,14 +59,14 @@ export function LandingPage(): JSX.Element {
                 alt="AIRGen Platform Interface"
                 className="w-full rounded-2xl border border-neutral-200/50 shadow-[0_30px_90px_-10px_rgba(0,0,0,0.5),0_20px_50px_-5px_rgba(59,130,246,0.4)] animate-in fade-in slide-in-from-bottom-4 duration-700 hover:scale-[1.02] transition-transform hover:duration-300"
               />
-              <p className="text-center text-xl text-neutral-700 mt-8 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-200 whitespace-nowrap">
+              <p className="px-2 text-center text-xl text-neutral-700 mt-8 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-200 sm:px-0">
                 Accelerate your systems engineering workflow with AIRGen's AI-powered studio
               </p>
               <div className="flex justify-center mt-6">
                 <Button
                   size="lg"
                   onClick={() => setShowSignup(true)}
-                  className="font-semibold shadow-lg hover:shadow-xl px-8 text-lg animate-in fade-in slide-in-from-bottom-2 duration-700 delay-300"
+                  className="w-full rounded-full font-semibold shadow-lg hover:shadow-xl px-6 text-base animate-in fade-in slide-in-from-bottom-2 duration-700 delay-300 sm:w-auto sm:px-8 sm:text-lg"
                 >
                   Try AIRGen Now
                 </Button>

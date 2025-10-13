@@ -48,7 +48,7 @@ export function MobileLoginSheet({
         <header className="text-center">
           <img src="/logo.png" alt="AIRGen Logo" className="mx-auto h-10 w-10" />
           <h2 className="mt-2 text-lg font-semibold text-neutral-900">Sign in to AIRGen</h2>
-          <p className="mt-1 text-xs text-neutral-500">
+          <p className="mt-2 text-xs leading-5 text-neutral-500">
             Enter your credentials to continue. Editing tools remain desktop-only.
           </p>
         </header>
@@ -117,20 +117,6 @@ export function MobileLoginSheet({
             {isLoading ? 'Signing in…' : 'Continue'}
           </button>
         </form>
-
-        {onSwitchToSignup && (
-          <div className="mt-5 text-center text-sm text-neutral-600">
-            New to AIRGen?{" "}
-            <button
-              type="button"
-              onClick={onSwitchToSignup}
-              className="font-semibold text-primary hover:underline"
-              disabled={isLoading}
-            >
-              Create account
-            </button>
-          </div>
-        )}
 
         {onViewDesktop && (
           <button

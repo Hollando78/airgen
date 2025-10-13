@@ -4,6 +4,7 @@ import { MobileHome } from "./screens/MobileHome";
 import { MobileRequirementsScreen } from "./screens/MobileRequirementsScreen";
 import { MobileDocumentsScreen } from "./screens/MobileDocumentsScreen";
 import { MobileAdminScreen } from "./screens/MobileAdminScreen";
+import { MobileAirGenScreen } from "./screens/MobileAirGenScreen";
 
 export default function MobileAppRoutes(): JSX.Element {
   return (
@@ -12,6 +13,7 @@ export default function MobileAppRoutes(): JSX.Element {
         <Route index element={<MobileHome />} />
         <Route path="requirements" element={<MobileRequirementsScreen />} />
         <Route path="documents" element={<MobileDocumentsScreen />} />
+        <Route path="airgen" element={<MobileAirGenScreen />} />
         <Route path="admin" element={<MobileAdminScreen />} />
         <Route path="*" element={<Navigate to="/mobile" replace />} />
       </Route>

@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { FileText, Home, Users, LayoutDashboard } from "lucide-react";
+import { FileText, Home, Users, LayoutDashboard, Wand2 } from "lucide-react";
 
 const NAV_ITEMS = [
   { to: "/mobile", label: "Home", icon: Home },
   { to: "/mobile/requirements", label: "Requirements", icon: FileText },
   { to: "/mobile/documents", label: "Documents", icon: LayoutDashboard },
+  { to: "/mobile/airgen", label: "AIRGen", icon: Wand2 },
   { to: "/mobile/admin", label: "Admin", icon: Users }
 ] as const;
 
