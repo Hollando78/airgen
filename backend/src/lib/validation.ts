@@ -25,10 +25,6 @@ export const passwordSchema = z
   .refine(
     (password) => /[0-9]/.test(password),
     "Password must contain at least one number"
-  )
-  .refine(
-    (password) => /[^a-zA-Z0-9]/.test(password),
-    "Password must contain at least one special character"
   );
 
 // Relaxed password schema (for development/testing)
