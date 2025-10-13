@@ -218,3 +218,46 @@ export async function sendPasswordChangedEmail(
     html
   });
 }
+
+/**
+ * Send failed signup notification to admin
+ */
+export async function sendFailedSignupNotification(
+  attemptedEmail: string,
+  validationErrors: Array<{ field: string; message: string }>,
+  ip: string
+): Promise<void> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #ea580c;">Failed Signup Attempt</h2>
+      <p>A user attempted to sign up but failed validation:</p>
+
+      <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0;"><strong>Email:</strong> ${attemptedEmail}</p>
+        <p style="margin: 5px 0 0 0;"><strong>IP Address:</strong> ${ip}</p>
+      </div>
+
+      <h3 style="color: #dc2626; margin-top: 30px;">Validation Errors:</h3>
+      <ul style="background-color: #fee2e2; padding: 15px 15px 15px 35px; border-radius: 4px; margin: 10px 0;">
+        ${validationErrors.map(err => `<li><strong>${err.field}:</strong> ${err.message}</li>`).join('\n        ')}
+      </ul>
+
+      <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">
+        This is an automated notification to help you track signup conversion issues.
+      </p>
+    </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to: "info@airgen.studio",
+    subject: `Failed Signup: ${attemptedEmail}`,
+    html
+  });
+}

@@ -18,7 +18,7 @@ import {
   revokeAllUserTokens
 } from "../lib/refresh-tokens.js";
 import { createToken, verifyAndConsumeToken, revokeUserTokens } from "../lib/tokens.js";
-import { sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail } from "../lib/email.js";
+import { sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail, sendFailedSignupNotification } from "../lib/email.js";
 import { hashPassword } from "../lib/password.js";
 import {
   verifyTotpToken,
@@ -282,9 +282,12 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       }
     }
   }, async (req, reply) => {
-    const { email, password, name } = validateInput(authSchemas.register, req.body);
+    let attemptedEmail: string | undefined;
 
     try {
+      const { email, password, name } = validateInput(authSchemas.register, req.body);
+      attemptedEmail = email;
+
       // Generate unique tenant slug for the new user
       const tenantSlug = generateTenantSlug(email);
 
@@ -342,14 +345,36 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     } catch (error) {
       // Handle duplicate email error
       if ((error as NodeJS.ErrnoException).code === 'EUSER_EXISTS') {
+        app.log.warn({
+          event: "auth.register.duplicate_email",
+          email: attemptedEmail,
+          ip: req.ip
+        }, "Registration attempt with existing email");
         return reply.code(409).send({ error: "An account with this email already exists" });
       }
 
-      // Handle validation errors
+      // Handle validation errors with enhanced logging and notification
       if ((error as any).statusCode === 400 && (error as any).validation) {
+        const validationErrors = (error as any).validation as Array<{ field: string; message: string }>;
+        const emailFromBody = attemptedEmail || (req.body as any)?.email || "unknown";
+
+        // Log detailed validation errors
+        app.log.warn({
+          event: "auth.register.validation_failed",
+          email: emailFromBody,
+          ip: req.ip,
+          errors: validationErrors
+        }, "Registration validation failed");
+
+        // Send notification email to admin (fire and forget - don't block response)
+        sendFailedSignupNotification(emailFromBody, validationErrors, req.ip)
+          .catch(emailError => {
+            app.log.error({ err: emailError }, "Failed to send signup failure notification");
+          });
+
         return (reply as any).code(400).send({
           error: "Validation failed",
-          details: (error as any).validation
+          details: validationErrors
         });
       }
 
