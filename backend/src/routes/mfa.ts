@@ -178,7 +178,7 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
     }, "2FA disabled for user");
 
     // Revoke all sessions for security
-    revokeAllUserTokens(user.id);
+    await revokeAllUserTokens(user.id);
 
     return {
       message: "2FA disabled successfully. Please log in again."

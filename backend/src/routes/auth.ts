@@ -469,7 +469,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     }
 
     // Verify refresh token (this also marks it as used)
-    const userId = verifyRefreshToken(refreshToken);
+    const userId = await verifyRefreshToken(refreshToken);
 
     if (!userId) {
       // Token invalid, expired, or already used
@@ -531,7 +531,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     // Revoke refresh token if present
     const refreshToken = req.cookies[config.cookies.refreshTokenName];
     if (refreshToken) {
-      revokeRefreshToken(refreshToken);
+      await revokeRefreshToken(refreshToken);
     }
 
     // Log logout event
@@ -572,7 +572,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     }
 
     // Revoke all refresh tokens for this user
-    revokeAllUserTokens(req.currentUser.sub);
+    await revokeAllUserTokens(req.currentUser.sub);
 
     // Clear refresh token cookie
     reply.clearCookie(config.cookies.refreshTokenName);
@@ -853,7 +853,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     await updateDevUser(user.id, { password: hashedPassword });
 
     // Revoke all refresh tokens (logout all devices)
-    revokeAllUserTokens(user.id);
+    await revokeAllUserTokens(user.id);
 
     // Revoke any remaining reset tokens
     revokeUserTokens(user.id, "password_reset");

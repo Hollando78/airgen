@@ -146,7 +146,7 @@ export const config = {
 
   // Feature flags
   features: {
-    adminRoutesEnabled: parseBoolean(env.ENABLE_ADMIN_ROUTES, environment !== "production")
+    adminRoutesEnabled: parseBoolean(env.ENABLE_ADMIN_ROUTES, true)
   }
 } as const;
 

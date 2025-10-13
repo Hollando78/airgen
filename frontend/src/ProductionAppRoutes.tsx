@@ -11,6 +11,8 @@ import { ArchitectureRoute } from "./routes/ArchitectureRoute";
 import { InterfaceRoute } from "./routes/InterfaceRoute";
 import { AirGenRoute } from "./routes/AirGenRoute";
 import { AdminUsersRoute } from "./routes/AdminUsersRoute";
+import { AdminRequirementsRoute } from "./routes/AdminRequirementsRoute";
+import AdminRecoveryRoute from "./routes/AdminRecoveryRoute";
 import { GraphViewerRoute } from "./routes/GraphViewerRoute";
 import { SettingsRoute } from "./routes/SettingsRoute";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -48,14 +50,32 @@ export default function ProductionAppRoutes(): JSX.Element {
 
         {/* Admin routes - only for admin users */}
         {user?.roles.includes('admin') && (
-          <Route
-            path="/admin/users"
-            element={
-              <ProtectedRoute requiredRoles={['admin']}>
-                <AdminUsersRoute />
-              </ProtectedRoute>
-            }
-          />
+          <>
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute requiredRoles={['admin']}>
+                  <AdminUsersRoute />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/requirements"
+              element={
+                <ProtectedRoute requiredRoles={['admin']}>
+                  <AdminRequirementsRoute />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/recovery"
+              element={
+                <ProtectedRoute requiredRoles={['admin']}>
+                  <AdminRecoveryRoute />
+                </ProtectedRoute>
+              }
+            />
+          </>
         )}
       </Routes>
     </AppLayout>

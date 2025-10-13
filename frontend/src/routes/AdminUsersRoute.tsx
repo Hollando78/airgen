@@ -49,7 +49,6 @@ function formatDate(timestamp: string): string {
 }
 
 export function AdminUsersRoute(): JSX.Element {
-  const isDevMode = import.meta.env.MODE !== "production";
   const api = useApiClient();
   const queryClient = useQueryClient();
 
@@ -61,8 +60,7 @@ export function AdminUsersRoute(): JSX.Element {
 
   const usersQuery = useQuery({
     queryKey: ["dev-users"],
-    queryFn: () => api.listDevUsers(),
-    enabled: isDevMode
+    queryFn: () => api.listDevUsers()
   });
 
   const createMutation = useMutation({
@@ -163,29 +161,10 @@ export function AdminUsersRoute(): JSX.Element {
     await deleteMutation.mutateAsync(id);
   };
 
-  if (!isDevMode) {
-    return (
-      <PageLayout
-        title="Admin Users"
-        description="This page is only available while running in development mode."
-      >
-        <Card>
-          <CardContent className="py-8">
-            <EmptyState
-              icon={Users}
-              title="Development Mode Only"
-              description="This page is only available while running in development mode."
-            />
-          </CardContent>
-        </Card>
-      </PageLayout>
-    );
-  }
-
   return (
     <PageLayout
       title="Admin Users"
-      description="Manage development-only user definitions for local testing."
+      description="Manage admin user accounts and their workspace access."
     >
       <div className="space-y-6">
         <Card>

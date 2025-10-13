@@ -18,7 +18,7 @@ import { logger } from "./lib/logger.js";
 import { initMetrics, metricsMiddleware, getMetrics, areMetricsAvailable } from "./lib/metrics.js";
 import { initSentry, sentryErrorHandler, isSentryEnabled, flush as flushSentry } from "./lib/sentry.js";
 import { closeCache } from "./lib/cache.js";
-import { startTokenCleanup, stopTokenCleanup } from "./lib/refresh-tokens.js";
+import { startTokenCleanup, stopTokenCleanup, closeRefreshTokenStore } from "./lib/refresh-tokens.js";
 import { sanitizeNeo4jResponse } from "./lib/neo4j-utils.js";
 import { setupRequestIdMiddleware } from "./lib/request-id.js";
 import draftRoutes from "./routes/draft.js";
@@ -252,6 +252,8 @@ startTokenCleanup();
 app.addHook("onClose", async () => {
   // Stop refresh token cleanup
   stopTokenCleanup();
+
+  await closeRefreshTokenStore();
 
   // Flush Sentry events before closing
   if (isSentryEnabled()) {

@@ -37,6 +37,7 @@ main() {
     # Backup Neo4j
     log "Step 1/4: Backing up Neo4j..."
     if neo4j_file=$(backup_neo4j "${backup_date_dir}"); then
+        neo4j_file=$(printf "%s" "${neo4j_file}" | tail -n 1)
         backup_files+=("${neo4j_file}")
         verify_backup "${neo4j_file}" || backup_success=false
     else
@@ -46,6 +47,7 @@ main() {
     # Backup PostgreSQL
     log "Step 2/4: Backing up PostgreSQL..."
     if postgres_file=$(backup_postgres "${backup_date_dir}"); then
+        postgres_file=$(printf "%s" "${postgres_file}" | tail -n 1)
         backup_files+=("${postgres_file}")
         verify_backup "${postgres_file}" || backup_success=false
     else
@@ -56,6 +58,7 @@ main() {
     # Workspace is no longer written to; Neo4j is single source of truth
     log "Step 3/4: Workspace backup (deprecated)..."
     if workspace_file=$(backup_workspace "${backup_date_dir}"); then
+        workspace_file=$(printf "%s" "${workspace_file}" | tail -n 1)
         backup_files+=("${workspace_file}")
         # Skip verification for deprecated workspace backup
     else
@@ -65,6 +68,7 @@ main() {
     # Backup Configuration
     log "Step 4/4: Backing up configuration..."
     if config_file=$(backup_config "${backup_date_dir}"); then
+        config_file=$(printf "%s" "${config_file}" | tail -n 1)
         backup_files+=("${config_file}")
         verify_backup "${config_file}" || backup_success=false
     else

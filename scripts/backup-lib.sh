@@ -4,26 +4,29 @@
 
 set -eo pipefail
 
-# Configuration
-BACKUP_ROOT="/root/airgen/backups"
+# Configuration (can be overridden via environment variables)
+PROJECT_ROOT="${PROJECT_ROOT:-/root/airgen}"
+BACKUP_ROOT="${BACKUP_ROOT:-${PROJECT_ROOT}/backups}"
 BACKUP_DAILY_DIR="${BACKUP_ROOT}/daily"
 BACKUP_WEEKLY_DIR="${BACKUP_ROOT}/weekly"
 BACKUP_LOG_DIR="${BACKUP_ROOT}/logs"
-PROJECT_ROOT="/root/airgen"
-WORKSPACE_DIR="${PROJECT_ROOT}/backend/workspace"
+WORKSPACE_DIR="${WORKSPACE_DIR:-${PROJECT_ROOT}/backend/workspace}"
+
+# Ensure required directories exist
+mkdir -p "${BACKUP_ROOT}" "${BACKUP_DAILY_DIR}" "${BACKUP_WEEKLY_DIR}" "${BACKUP_LOG_DIR}"
 
 # Date format for filenames
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 DATE_ONLY=$(date +%Y%m%d)
 
 # Container names
-NEO4J_CONTAINER="airgen_dev_neo4j_1"
-POSTGRES_CONTAINER="airgen_dev_postgres_1"
-REDIS_CONTAINER="airgen_dev_redis_1"
+NEO4J_CONTAINER="${NEO4J_CONTAINER:-airgen_dev_neo4j_1}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-airgen_dev_postgres_1}"
+REDIS_CONTAINER="${REDIS_CONTAINER:-airgen_dev_redis_1}"
 
 # Docker volumes
-NEO4J_VOLUME="airgen_neo4jdata_dev"
-POSTGRES_VOLUME="airgen_pgdata_dev"
+NEO4J_VOLUME="${NEO4J_VOLUME:-airgen_neo4jdata_dev}"
+POSTGRES_VOLUME="${POSTGRES_VOLUME:-airgen_pgdata_dev}"
 
 # Retention settings
 DAILY_RETENTION_DAYS=7
@@ -74,7 +77,7 @@ check_container_running() {
 
 check_disk_space() {
     local min_space_gb="${1:-2}"  # Minimum 2GB by default
-    local available=$(df /root/airgen/backups | tail -1 | awk '{print $4}')
+    local available=$(df "${BACKUP_ROOT}" | tail -1 | awk '{print $4}')
     local available_gb=$((available / 1024 / 1024))
 
     if [ $available_gb -lt $min_space_gb ]; then
@@ -276,7 +279,12 @@ verify_backup() {
 
     # Check if file is not empty
     local size=$(stat -f%z "${backup_file}" 2>/dev/null || stat -c%s "${backup_file}" 2>/dev/null)
-    if [ "$size" -lt 1000 ]; then
+    local min_size=1000
+    if [[ "${backup_file}" == *.sql.gz ]]; then
+        min_size=100
+    fi
+
+    if [ "$size" -lt "$min_size" ]; then
         log_error "Backup file too small (${size} bytes): ${backup_file}"
         return 1
     fi

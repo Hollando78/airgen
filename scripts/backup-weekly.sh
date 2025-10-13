@@ -63,6 +63,7 @@ main() {
     # Step 1: Backup Neo4j (database dump)
     log "Step 1/5: Backing up Neo4j database..."
     if neo4j_file=$(backup_neo4j "${backup_week_dir}"); then
+        neo4j_file=$(printf "%s" "${neo4j_file}" | tail -n 1)
         backup_files+=("${neo4j_file}")
     else
         backup_success=false
@@ -71,6 +72,7 @@ main() {
     # Step 2: Backup Neo4j Volume (full snapshot)
     log "Step 2/5: Creating Neo4j volume snapshot..."
     if neo4j_vol=$(backup_volume "${backup_week_dir}" "${NEO4J_VOLUME}" "neo4j-volume"); then
+        neo4j_vol=$(printf "%s" "${neo4j_vol}" | tail -n 1)
         backup_files+=("${neo4j_vol}")
     else
         backup_success=false
@@ -79,12 +81,14 @@ main() {
     # Step 3: Backup PostgreSQL
     log "Step 3/5: Backing up PostgreSQL..."
     if postgres_file=$(backup_postgres "${backup_week_dir}"); then
+        postgres_file=$(printf "%s" "${postgres_file}" | tail -n 1)
         backup_files+=("${postgres_file}")
     fi
 
     # Backup PostgreSQL volume if container is running
     if check_container_running "${POSTGRES_CONTAINER}"; then
         if postgres_vol=$(backup_volume "${backup_week_dir}" "${POSTGRES_VOLUME}" "postgres-volume"); then
+            postgres_vol=$(printf "%s" "${postgres_vol}" | tail -n 1)
             backup_files+=("${postgres_vol}")
         fi
     fi
@@ -93,6 +97,7 @@ main() {
     # Workspace is no longer written to; Neo4j is single source of truth
     log "Step 4/5: Workspace backup (deprecated)..."
     if workspace_file=$(backup_workspace "${backup_week_dir}"); then
+        workspace_file=$(printf "%s" "${workspace_file}" | tail -n 1)
         backup_files+=("${workspace_file}")
         # Skip verification for deprecated workspace backup
     else
@@ -102,6 +107,7 @@ main() {
     # Step 5: Backup Configuration
     log "Step 5/5: Backing up configuration..."
     if config_file=$(backup_config "${backup_week_dir}"); then
+        config_file=$(printf "%s" "${config_file}" | tail -n 1)
         backup_files+=("${config_file}")
     fi
 
@@ -206,10 +212,15 @@ upload_to_remote() {
 
         # Prune old backups (keep 12 weeks)
         log "Pruning old remote backups..."
-        restic forget \
+        restic unlock >/dev/null 2>&1 || log "No stale restic locks to clear"
+        if restic forget \
             --keep-weekly 12 \
             --prune \
-            --tag "weekly" 2>&1 | tee -a "${BACKUP_LOG_DIR}/backup.log"
+            --tag "weekly" 2>&1 | tee -a "${BACKUP_LOG_DIR}/backup.log"; then
+            log "Remote backup pruning completed"
+        else
+            log_error "Restic pruning encountered errors (see log)"
+        fi
 
         return 0
     else

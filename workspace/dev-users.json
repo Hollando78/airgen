@@ -10,47 +10,22 @@
       "admin-dev"
     ],
     "createdAt": "2025-09-25T20:18:14.063Z",
-    "updatedAt": "2025-10-12T21:42:20.648Z",
-    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$J75GGRb7n8ib+YkSFB8NUQ$jonrA0DtXkZRmRRBGvbdYw0sxb0SG95UExsH8ofpr/Q"
-  },
-  {
-    "id": "98e6826a-fc83-4367-ba94-218811003be1",
-    "email": "test@example.com",
-    "name": "Test User",
-    "password": "eaaa4a79c43019473cc37be32ede6ea36c962bdf821fafbecc573c6931f63ea7",
-    "roles": [
-      "user"
-    ],
-    "tenantSlugs": [],
-    "createdAt": "2025-09-25T20:23:13.921Z",
-    "updatedAt": "2025-09-25T20:24:11.473Z"
-  },
-  {
-    "id": "96f3550f-a45b-45b6-821e-73b687019cd6",
-    "email": "ui-test@example.com",
-    "name": "UI Test User",
-    "password": "8acf3001ebef5b77bc672aea9cdb5014ea478db5bff2c08f91bf703868ab9671",
-    "roles": [
-      "user"
-    ],
-    "tenantSlugs": [],
-    "createdAt": "2025-09-25T20:29:17.103Z",
-    "updatedAt": "2025-09-25T20:29:31.905Z"
-  },
-  {
-    "id": "37058687-cbd7-415b-bcf1-d2c21b65379a",
-    "email": "admin@airgen.studio",
-    "name": "Admin User",
-    "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
-    "roles": [
-      "admin",
-      "user"
-    ],
-    "tenantSlugs": [
-      "admin-dev"
-    ],
-    "createdAt": "2025-09-25T20:48:03.325Z",
-    "updatedAt": "2025-09-25T20:48:03.325Z"
+    "updatedAt": "2025-10-13T16:10:48.534Z",
+    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$HnD8iQJVWi6rKYv1zdMm2w$VYZKI/OlVmbUasgixjN02/yJechAm4UzU4GKxrwUzwg",
+    "mfaSecret": "f26a4e1bfea334dc6e5b0ff64b96fa35:654036999cc44c857615fb337f48f126:61ab76e1a4628002dcd1bb32f3ef759f",
+    "mfaEnabled": true,
+    "mfaBackupCodes": [
+      "c20caf763c5221d15c6aec0802d1aea27fc5db47b4ca449a6668ded80d8647f1",
+      "48157ef8834969064d45595b0923aa03dde0e358d552582a4eed2d195394044e",
+      "3504b3c8ccbf84b39a393474048c7870edb8e08ef626b86155f1369aef137943",
+      "5891399a3f2844cc7f28340c8a12a1eb000b3191c9005911fc589d96e44360a3",
+      "d2028f26ceafde5e685821b83ac2d14ac05b86245bb9a803306c753bbc3763e0",
+      "8ca76d8112bd4757ca0e22ae20aab2224f2578d1b103b66300dc5f22c80ab231",
+      "5535e98256e54c96f14992e683b2fd6fb320eb9a99c33fda9f6b6b43aaaf13bd",
+      "9e6dd992ec8c7231ffdf887bbf964a0f72c611c271bfd498514fadbca7f62a83",
+      "38d95a86ac65e474f4c6dcb276791668dab72a80ea2ba4498e2c915d717ee859",
+      "afc8a47e4af9ac38d3963853a4fe3f0998600aec28eee75827bd1f5a2fde4674"
+    ]
   },
   {
     "id": "6651e488-f084-482b-ad8e-d97029822a93",

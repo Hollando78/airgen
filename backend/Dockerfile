@@ -53,6 +53,10 @@ RUN apk add --no-cache \
     ttf-liberation \
     ttf-dejavu \
     fontconfig \
+    bash \
+    docker-cli \
+    git \
+    restic \
     && fc-cache -f
 
 COPY --from=build /app/ .

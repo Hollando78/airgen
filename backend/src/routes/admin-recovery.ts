@@ -1,10 +1,74 @@
 import { FastifyInstance } from "fastify";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { readdir, stat } from "fs/promises";
+import { readdir, stat, readFile } from "fs/promises";
 import { join } from "path";
 
 const execAsync = promisify(exec);
+
+const RESTIC_ENV_KEYS = [
+  "RESTIC_REPOSITORY",
+  "RESTIC_PASSWORD",
+  "AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+  "AWS_DEFAULT_REGION",
+  "AWS_ENDPOINT",
+];
+
+function mergeResticEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  source: Record<string, string>
+): NodeJS.ProcessEnv {
+  const merged = { ...baseEnv };
+  for (const key of RESTIC_ENV_KEYS) {
+    if (!merged[key] && source[key]) {
+      merged[key] = source[key];
+    }
+  }
+  return merged;
+}
+
+async function resolveResticEnv(): Promise<{
+  env: NodeJS.ProcessEnv;
+  configured: boolean;
+}> {
+  const baseEnv = { ...process.env } as NodeJS.ProcessEnv;
+  const hasProcessEnv =
+    Boolean(baseEnv.RESTIC_REPOSITORY) && Boolean(baseEnv.RESTIC_PASSWORD);
+  if (hasProcessEnv) {
+    return { env: baseEnv, configured: true };
+  }
+
+  try {
+    const environmentFile = await readFile("/etc/environment", "utf-8");
+    const fileEnv: Record<string, string> = {};
+
+    for (const rawLine of environmentFile.split("\n")) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+
+      const match =
+        line.match(
+          /^\s*([A-Z0-9_]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^#\s]+))\s*$/
+        );
+      if (!match) continue;
+
+      const [, key, doubleQuoted, singleQuoted, bare] = match;
+      const value = doubleQuoted ?? singleQuoted ?? bare ?? "";
+      fileEnv[key] = value;
+    }
+
+    const merged = mergeResticEnv(baseEnv, fileEnv);
+    const configured =
+      Boolean(merged.RESTIC_REPOSITORY) && Boolean(merged.RESTIC_PASSWORD);
+
+    return { env: merged, configured };
+  } catch {
+    // Fall back to process env only
+    return { env: baseEnv, configured: hasProcessEnv };
+  }
+}
 
 export default async function adminRecoveryRoutes(app: FastifyInstance) {
   // Trigger manual daily backup
@@ -28,8 +92,9 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       try {
+        const scriptRoot = process.env.BACKUP_SCRIPT_ROOT ?? "/root/airgen/scripts";
         const { stdout, stderr } = await execAsync(
-          "/root/airgen/scripts/backup-daily.sh",
+          `${scriptRoot}/backup-daily.sh`,
           { timeout: 300000 }
         );
 
@@ -70,8 +135,9 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       try {
+        const scriptRoot = process.env.BACKUP_SCRIPT_ROOT ?? "/root/airgen/scripts";
         const { stdout, stderr } = await execAsync(
-          "/root/airgen/scripts/backup-weekly.sh",
+          `${scriptRoot}/backup-weekly.sh`,
           { timeout: 600000 }
         );
 
@@ -251,21 +317,16 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       try {
-        // Check if remote backup is configured
-        const { stdout: repoCheck } = await execAsync(
-          "grep RESTIC_REPOSITORY /etc/environment || echo 'not_configured'",
-          { timeout: 5000 }
-        );
+        const restic = await resolveResticEnv();
 
-        if (repoCheck.includes("not_configured")) {
+        if (!restic.configured) {
           return { snapshots: [], configured: false };
         }
 
-        // Get remote snapshots (export env vars from /etc/environment)
-        const { stdout } = await execAsync(
-          "set -a && source /etc/environment && set +a && restic snapshots --json",
-          { timeout: 30000, shell: "/bin/bash" }
-        );
+        const { stdout } = await execAsync("restic snapshots --json", {
+          timeout: 30000,
+          env: restic.env,
+        });
 
         const snapshots = JSON.parse(stdout);
 
@@ -480,27 +541,29 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
         };
 
         try {
-          const { stdout: repoCheck } = await execAsync(
-            "grep RESTIC_REPOSITORY /etc/environment",
-            { timeout: 5000 }
-          );
+          const restic = await resolveResticEnv();
 
-          if (repoCheck) {
+          if (restic.configured) {
             remoteBackups.configured = true;
 
             const { stdout: snapshotsJson } = await execAsync(
-              "set -a && source /etc/environment && set +a && restic snapshots --json 2>/dev/null || echo '[]'",
-              { timeout: 30000, shell: "/bin/bash" }
+              "restic snapshots --json",
+              {
+                timeout: 30000,
+                env: restic.env,
+              }
             );
 
             const snapshots = JSON.parse(snapshotsJson);
             remoteBackups.count = snapshots.length;
 
             if (snapshots.length > 0) {
-              const latest = snapshots.sort(
-                (a: any, b: any) =>
-                  new Date(b.time).getTime() - new Date(a.time).getTime()
-              )[0];
+              const latest = snapshots
+                .slice()
+                .sort(
+                  (a: any, b: any) =>
+                    new Date(b.time).getTime() - new Date(a.time).getTime()
+                )[0];
               remoteBackups.lastSnapshot = latest.time;
             }
           }
@@ -508,24 +571,40 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           app.log.warn({ err: error }, "Could not check remote backups");
         }
 
-        // Get cron jobs
-        const { stdout: cronOutput } = await execAsync(
-          "crontab -l 2>/dev/null | grep backup || echo 'No cron jobs configured'"
-        );
+        // Get cron jobs (prefer host crontab mount)
+        let cronSource = "";
+        try {
+          cronSource = await readFile("/host-crontabs/root", "utf-8");
+        } catch {
+          try {
+            const { stdout } = await execAsync("crontab -l 2>/dev/null", {
+              timeout: 5000,
+            });
+            cronSource = stdout;
+          } catch {
+            cronSource = "";
+          }
+        }
 
-        const cronJobs = cronOutput
+        const cronJobs = cronSource
           .split("\n")
-          .filter((line) => line.trim() && !line.startsWith("#"))
+          .map((line) => line.trim())
+          .filter(
+            (line) =>
+              line &&
+              !line.startsWith("#") &&
+              line.includes("/root/airgen/scripts/")
+          )
           .map((line) => {
-            // Match: minute hour day month weekday command
-            const match = line.match(/^(\d+|\*)\s+(\d+|\*)\s+(\d+|\*)\s+(\d+|\*)\s+(\d+|\*)\s+(.+)$/);
+            const match = line.match(
+              /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.+)$/
+            );
             if (!match) return null;
 
-            const [_, minute, hour, day, month, weekday, command] = match;
+            const [, minute, hour, day, month, weekday, command] = match;
             const schedule = `${minute} ${hour} ${day} ${month} ${weekday}`;
 
-            // Determine backup type from command
-            let description = "Backup";
+            let description = command;
             if (command.includes("backup-daily.sh")) {
               description = "Daily Backup (Local)";
             } else if (command.includes("backup-weekly.sh")) {
@@ -539,7 +618,7 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
               command: description,
             };
           })
-          .filter((job) => job !== null);
+          .filter((job): job is { schedule: string; command: string } => job !== null);
 
         // Get disk space
         const { stdout: dfOutput } = await execAsync(

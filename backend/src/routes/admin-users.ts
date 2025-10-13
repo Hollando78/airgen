@@ -33,8 +33,8 @@ const updateSchema = z.object({
 });
 
 export default async function registerAdminUserRoutes(app: FastifyInstance): Promise<void> {
-  if (config.environment === "production") {
-    app.log.debug("Admin user routes skipped in production mode");
+  if (!config.features.adminRoutesEnabled) {
+    app.log.debug("Admin user routes disabled via configuration");
     return;
   }
 
@@ -42,7 +42,7 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
     schema: {
       tags: ["admin"],
       summary: "List all users",
-      description: "Lists all development users (dev environment only)",
+      description: "Lists all admin-managed users",
       response: {
         200: {
           type: "object",
@@ -73,7 +73,7 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
     schema: {
       tags: ["admin"],
       summary: "Create a new user",
-      description: "Creates a new development user (dev environment only)",
+      description: "Creates a new admin-managed user",
       body: {
         type: "object",
         required: ["email"],
@@ -126,7 +126,7 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
     schema: {
       tags: ["admin"],
       summary: "Update a user",
-      description: "Updates a development user (dev environment only)",
+      description: "Updates an admin-managed user",
       params: {
         type: "object",
         required: ["id"],
@@ -200,7 +200,7 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
     schema: {
       tags: ["admin"],
       summary: "Delete a user",
-      description: "Deletes a development user (dev environment only)",
+      description: "Deletes an admin-managed user",
       params: {
         type: "object",
         required: ["id"],
