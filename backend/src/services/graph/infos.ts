@@ -366,11 +366,13 @@ export async function reorderInfosWithOrder(
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
       // Update order for each info with explicit order value
+      // Update both relationship order and node property to keep them in sync
       for (const info of infos) {
         const query = `
           MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(info:Info {id: $infoId})
-          SET rel.order = $order
-          SET info.updatedAt = $now
+          SET rel.order = $order,
+              info.order = $order,
+              info.updatedAt = $now
         `;
         await tx.run(query, {
           sectionId,

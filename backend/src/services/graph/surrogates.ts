@@ -262,11 +262,13 @@ export async function reorderSurrogateReferencesWithOrder(
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
       // Update order for each surrogate reference with explicit order value
+      // Update both relationship order and node property to keep them in sync
       for (const surrogate of surrogates) {
         const query = `
           MATCH (section:DocumentSection {id: $sectionId})-[rel:CONTAINS]->(surrogate:SurrogateReference {id: $surrogateId})
-          SET rel.order = $order
-          SET surrogate.updatedAt = $now
+          SET rel.order = $order,
+              surrogate.order = $order,
+              surrogate.updatedAt = $now
         `;
         await tx.run(query, {
           sectionId,
