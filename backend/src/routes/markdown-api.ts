@@ -154,8 +154,37 @@ export async function generateMarkdownFromNeo4j(
         const prefix = section.shortCode ? `[${section.shortCode}] ` : "";
         markdown += `## ${prefix}${section.name}\n\n`;
 
-        if (section.requirements && section.requirements.length > 0) {
-          for (const req of section.requirements) {
+        // Merge requirements, infos, and surrogates into a single array and sort by order
+        type SectionItem =
+          | { type: 'requirement'; data: typeof section.requirements[number]; order: number }
+          | { type: 'info'; data: typeof section.infos[number]; order: number }
+          | { type: 'surrogate'; data: typeof section.surrogates[number]; order: number };
+
+        const items: SectionItem[] = [
+          ...(section.requirements || []).map(req => ({
+            type: 'requirement' as const,
+            data: req,
+            order: req.order ?? 999999
+          })),
+          ...(section.infos || []).map(info => ({
+            type: 'info' as const,
+            data: info,
+            order: info.order ?? 999999
+          })),
+          ...(section.surrogates || []).map(surrogate => ({
+            type: 'surrogate' as const,
+            data: surrogate,
+            order: surrogate.order ?? 999999
+          }))
+        ];
+
+        // Sort by order property to maintain interleaved ordering
+        items.sort((a, b) => a.order - b.order);
+
+        // Output items in the correct interleaved order
+        for (const item of items) {
+          if (item.type === 'requirement') {
+            const req = item.data;
             sectionedReqIds.add(req.id);
             markdown += `:::requirement{#${req.ref} title="${req.ref}"}\n`;
             markdown += `${req.text}\n`;
@@ -166,19 +195,13 @@ export async function generateMarkdownFromNeo4j(
               markdown += `**Verification:** ${req.verification}\n`;
             }
             markdown += `:::\n\n`;
-          }
-        }
-
-        if (section.infos && section.infos.length > 0) {
-          for (const info of section.infos) {
+          } else if (item.type === 'info') {
+            const info = item.data;
             markdown += `:::info\n`;
             markdown += `${info.text}\n`;
             markdown += `:::\n\n`;
-          }
-        }
-
-        if (section.surrogates && section.surrogates.length > 0) {
-          for (const surrogate of section.surrogates) {
+          } else if (item.type === 'surrogate') {
+            const surrogate = item.data;
             markdown += `:::surrogate{slug="${surrogate.slug}"}\n`;
             markdown += `:::\n\n`;
           }
