@@ -371,6 +371,7 @@ export function useApiClient() {
       reorderWithOrder: (
         sectionId: string,
         payload: {
+          tenant: string;
           requirements?: Array<{ id: string; order: number }>;
           infos?: Array<{ id: string; order: number }>;
           surrogates?: Array<{ id: string; order: number }>;

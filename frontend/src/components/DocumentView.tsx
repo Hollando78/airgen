@@ -360,10 +360,13 @@ export function DocumentView({
 
       // Prepare payload with explicit order values
       const payload: {
+        tenant: string;
         requirements?: Array<{ id: string; order: number }>;
         infos?: Array<{ id: string; order: number }>;
         surrogates?: Array<{ id: string; order: number }>;
-      } = {};
+      } = {
+        tenant
+      };
 
       // Only include arrays that have items, and filter out any items without valid IDs
       if (section.requirements && section.requirements.length > 0) {
