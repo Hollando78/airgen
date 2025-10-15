@@ -90,7 +90,7 @@ export function SurrogateRow({
           }}>
             {surrogate.slug.match(/\.(pdf|docx?|pptx?|xlsx?)$/i) ? (
               <embed
-                src={`/api/documents/${tenant}/${project}/${surrogate.slug}/view`}
+                src={`/api/thumbnails/surrogates/${tenant}/${project}/${surrogate.slug}`}
                 type="application/pdf"
                 style={{
                   width: `${currentWidth}px`,
@@ -104,7 +104,7 @@ export function SurrogateRow({
               />
             ) : (
               <img
-                src={`/api/documents/${tenant}/${project}/${surrogate.slug}/view`}
+                src={`/api/thumbnails/surrogates/${tenant}/${project}/${surrogate.slug}`}
                 alt={surrogate.caption || surrogate.slug}
                 style={{
                   width: `${currentWidth}px`,
