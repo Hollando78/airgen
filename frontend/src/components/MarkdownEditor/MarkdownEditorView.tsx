@@ -4,6 +4,7 @@ import { useApiClient } from "../../lib/client";
 import { useAutoSave } from "../../hooks/useAutoSave";
 import Editor from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
+import type * as Monaco from "monaco-editor";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -120,6 +121,7 @@ export function MarkdownEditorView({
   const scrollPositionRef = useRef<number | null>(null);
   const cursorPositionRef = useRef<number | null>(null);
   const lastValidatedContentRef = useRef<string>("");
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
   const autosaveKey = `airgen:draft:${tenant}:${project}:${documentSlug}`;
 
@@ -267,34 +269,34 @@ export function MarkdownEditorView({
   };
 
   const insertTemplate = (template: string) => {
-    const textarea = document.querySelector('.w-md-editor-text-input') as HTMLTextAreaElement;
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-
-      // Store scroll position and cursor position in refs
-      scrollPositionRef.current = textarea.scrollTop;
-      cursorPositionRef.current = start + template.length;
-
-      const newContent = content.substring(0, start) + template + content.substring(end);
-      setContent(newContent);
-      setIsDirty(true);
+    if (!editorRef.current) {
+      return;
     }
+
+    const editor = editorRef.current;
+    const selection = editor.getSelection();
+
+    if (selection) {
+      // Insert text at cursor position using Monaco API
+      editor.executeEdits("insert-template", [
+        {
+          range: selection,
+          text: template,
+          forceMoveMarkers: true
+        }
+      ]);
+
+      // Move cursor to end of inserted text
+      const endPosition = {
+        lineNumber: selection.startLineNumber,
+        column: selection.startColumn + template.length
+      };
+      editor.setPosition(endPosition);
+      editor.focus();
+    }
+
     setShowInsertMenu(false);
   };
-
-  // Effect to restore scroll and cursor position after content update
-  useEffect(() => {
-    if (scrollPositionRef.current !== null && cursorPositionRef.current !== null) {
-      const textarea = document.querySelector('.w-md-editor-text-input') as HTMLTextAreaElement;
-      if (textarea) {
-        textarea.scrollTop = scrollPositionRef.current;
-        textarea.setSelectionRange(cursorPositionRef.current, cursorPositionRef.current);
-        scrollPositionRef.current = null;
-        cursorPositionRef.current = null;
-      }
-    }
-  }, [content]);
 
   const insertTemplates = {
     heading1: '# Heading 1\n\n',
@@ -560,6 +562,9 @@ Warning message
               language="markdown"
               value={content}
               onChange={(value) => handleContentChange(value || "")}
+              onMount={(editor) => {
+                editorRef.current = editor;
+              }}
               theme="vs"
               options={{
                 minimap: { enabled: true },

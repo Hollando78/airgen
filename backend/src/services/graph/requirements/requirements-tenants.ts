@@ -9,7 +9,8 @@ function mapTenant(node: Neo4jNode, projectCount: number): TenantRecord {
     slug: String(props.slug),
     name: props.name ? String(props.name) : null,
     createdAt: props.createdAt ? String(props.createdAt) : null,
-    projectCount
+    projectCount,
+    isOwner: false
   };
 }
 
@@ -24,18 +25,34 @@ function mapProject(node: Neo4jNode, requirementCount: number): ProjectRecord {
   };
 }
 
-export async function listTenants(): Promise<TenantRecord[]> {
+export async function listTenants(filterSlugs?: string[]): Promise<TenantRecord[]> {
+  const normalizedSlugs = Array.isArray(filterSlugs)
+    ? Array.from(new Set(filterSlugs.map(slug => slugify(slug))))
+    : null;
+
+  if (normalizedSlugs && normalizedSlugs.length === 0) {
+    return [];
+  }
+
   const session = getSession();
 
   try {
-    const result = await session.run(
-      `
+    const query = normalizedSlugs
+      ? `
         MATCH (tenant:Tenant)
+        WHERE tenant.slug IN $tenantSlugs
         OPTIONAL MATCH (tenant)-[:OWNS]->(project:Project)
         RETURN tenant, count(project) AS projectCount
         ORDER BY tenant.slug
       `
-    );
+      : `
+        MATCH (tenant:Tenant)
+        OPTIONAL MATCH (tenant)-[:OWNS]->(project:Project)
+        RETURN tenant, count(project) AS projectCount
+        ORDER BY tenant.slug
+      `;
+
+    const result = await session.run(query, normalizedSlugs ? { tenantSlugs: normalizedSlugs } : undefined);
 
     const tenants: TenantRecord[] = [];
     for (const record of result.records) {

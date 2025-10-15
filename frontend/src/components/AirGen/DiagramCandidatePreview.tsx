@@ -21,6 +21,12 @@ export interface DiagramCandidateListProps {
   isRejectPending: boolean;
   /** Whether return mutation is pending */
   isReturnPending: boolean;
+  /** ID of the candidate currently being accepted (for preventing duplicate clicks) */
+  acceptingCandidateId?: string | null;
+  /** ID of the candidate currently being rejected (for preventing duplicate clicks) */
+  rejectingCandidateId?: string | null;
+  /** ID of the candidate currently being returned (for preventing duplicate clicks) */
+  returningCandidateId?: string | null;
 }
 
 /**
@@ -35,7 +41,10 @@ export function DiagramCandidateList({
   onReturnClick,
   isAcceptPending,
   isRejectPending,
-  isReturnPending
+  isReturnPending,
+  acceptingCandidateId,
+  rejectingCandidateId,
+  returningCandidateId
 }: DiagramCandidateListProps): JSX.Element {
   if (!disabled && candidates.length === 0) {
     return <p className="hint">No diagram candidates yet. Generate diagrams to populate this list.</p>;
@@ -85,17 +94,17 @@ export function DiagramCandidateList({
                 <button
                   type="button"
                   onClick={() => onAcceptClick(candidate)}
-                  disabled={isAcceptPending}
+                  disabled={isAcceptPending || acceptingCandidateId === candidate.id}
                 >
-                  {isAcceptPending ? "Accepting…" : "Accept"}
+                  {acceptingCandidateId === candidate.id ? "Accepting…" : "Accept"}
                 </button>
                 <button
                   type="button"
                   className="candidate-reject"
                   onClick={() => onRejectClick(candidate)}
-                  disabled={isRejectPending}
+                  disabled={isRejectPending || rejectingCandidateId === candidate.id}
                 >
-                  {isRejectPending ? "Rejecting…" : "Reject"}
+                  {rejectingCandidateId === candidate.id ? "Rejecting…" : "Reject"}
                 </button>
               </div>
             )}
@@ -110,9 +119,9 @@ export function DiagramCandidateList({
                   type="button"
                   className="candidate-return"
                   onClick={() => onReturnClick(candidate)}
-                  disabled={isReturnPending}
+                  disabled={isReturnPending || returningCandidateId === candidate.id}
                 >
-                  {isReturnPending ? "Returning…" : "Return to candidates"}
+                  {returningCandidateId === candidate.id ? "Returning…" : "Return to candidates"}
                 </button>
               </div>
             )}

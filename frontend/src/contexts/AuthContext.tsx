@@ -6,6 +6,7 @@ export type User = {
   name?: string;
   roles: string[];
   tenantSlugs: string[];
+  ownedTenantSlugs: string[];
 };
 
 type AuthContextType = {
@@ -19,11 +20,24 @@ type AuthContextType = {
   mfaRequired: boolean;
   mfaTempToken: string | null;
   verifyMfa: (code: string) => Promise<void>;
+  setSession: (token: string, user: User) => void;
+  refreshAccessToken: () => Promise<void>;
 };
 
 const STORAGE_TOKEN = "auth_token";
 const STORAGE_USER = "auth_user";
 const STORAGE_EXPIRY = "auth_token_expires_at";
+
+function normalizeUserPayload(raw: any): User {
+  return {
+    id: raw?.id ?? "",
+    email: raw?.email ?? "",
+    name: raw?.name,
+    roles: Array.isArray(raw?.roles) ? raw.roles : [],
+    tenantSlugs: Array.isArray(raw?.tenantSlugs) ? raw.tenantSlugs : [],
+    ownedTenantSlugs: Array.isArray(raw?.ownedTenantSlugs) ? raw.ownedTenantSlugs : []
+  };
+}
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -78,6 +92,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaTempToken, setMfaTempToken] = useState<string | null>(null);
 
+  const setSession = useCallback((newToken: string, rawUser: User) => {
+    const normalized = normalizeUserPayload(rawUser);
+    const expiry = decodeJwtExpiration(newToken);
+
+    localStorage.setItem(STORAGE_TOKEN, newToken);
+    localStorage.setItem(STORAGE_USER, JSON.stringify(normalized));
+    if (expiry) {
+      localStorage.setItem(STORAGE_EXPIRY, expiry.toString());
+    } else {
+      localStorage.removeItem(STORAGE_EXPIRY);
+    }
+
+    setToken(newToken);
+    setUser(normalized);
+    setTokenExpiresAt(expiry ?? null);
+    setError(null);
+  }, []);
+
   const clearStoredAuth = useCallback(() => {
     localStorage.removeItem(STORAGE_TOKEN);
     localStorage.removeItem(STORAGE_USER);
@@ -96,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     }
 
     try {
-      const parsedUser = JSON.parse(savedUser) as User;
+      const parsedUser = normalizeUserPayload(JSON.parse(savedUser));
       const expiry = savedExpiry ? Number(savedExpiry) : decodeJwtExpiration(savedToken);
 
       if (!expiry || Number.isNaN(expiry) || expiry <= Date.now()) {
@@ -139,7 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
 
         const data = (await response.json()) as { user: User };
         if (!cancelled) {
-          setUser(data.user);
+          const normalized = normalizeUserPayload(data.user);
+          setUser(normalized);
           setError(null);
 
           if (!tokenExpiresAt) {
@@ -207,8 +240,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
 
       if (meResponse.ok) {
         const meData = (await meResponse.json()) as { user: User };
-        setUser(meData.user);
-        localStorage.setItem(STORAGE_USER, JSON.stringify(meData.user));
+        const normalized = normalizeUserPayload(meData.user);
+        setUser(normalized);
+        localStorage.setItem(STORAGE_USER, JSON.stringify(normalized));
       }
     } catch (error) {
       // If refresh fails, log out the user
@@ -287,19 +321,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
         throw new Error("Invalid login response");
       }
 
-      const expiry = decodeJwtExpiration(data.token);
-
-      localStorage.setItem(STORAGE_TOKEN, data.token);
-      localStorage.setItem(STORAGE_USER, JSON.stringify(data.user));
-      if (expiry) {
-        localStorage.setItem(STORAGE_EXPIRY, expiry.toString());
-      } else {
-        localStorage.removeItem(STORAGE_EXPIRY);
-      }
-
-      setToken(data.token);
-      setUser(data.user);
-      setTokenExpiresAt(expiry ?? null);
+      setSession(data.token, data.user);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Login failed";
       setError(errorMessage);
@@ -307,7 +329,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setSession]);
 
   const verifyMfa = useCallback(async (code: string) => {
     if (!mfaTempToken) {
@@ -332,19 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
       }
 
       const data: { token: string; user: User } = await response.json();
-      const expiry = decodeJwtExpiration(data.token);
-
-      localStorage.setItem(STORAGE_TOKEN, data.token);
-      localStorage.setItem(STORAGE_USER, JSON.stringify(data.user));
-      if (expiry) {
-        localStorage.setItem(STORAGE_EXPIRY, expiry.toString());
-      } else {
-        localStorage.removeItem(STORAGE_EXPIRY);
-      }
-
-      setToken(data.token);
-      setUser(data.user);
-      setTokenExpiresAt(expiry ?? null);
+      setSession(data.token, data.user);
       setMfaRequired(false);
       setMfaTempToken(null);
     } catch (err) {
@@ -354,7 +364,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     } finally {
       setIsLoading(false);
     }
-  }, [mfaTempToken]);
+  }, [mfaTempToken, setSession]);
 
   const logout = useCallback(() => {
     clearStoredAuth();
@@ -376,8 +386,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     error,
     mfaRequired,
     mfaTempToken,
-    verifyMfa
-  }), [user, token, login, logout, isLoading, error, mfaRequired, mfaTempToken, verifyMfa]);
+    verifyMfa,
+    setSession,
+    refreshAccessToken
+  }), [user, token, login, logout, isLoading, error, mfaRequired, mfaTempToken, verifyMfa, setSession, refreshAccessToken]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

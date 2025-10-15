@@ -10,6 +10,7 @@ import { BlockDetailsPanel } from "../components/architecture/BlockDetailsPanel"
 import { ConnectorDetailsPanel } from "../components/architecture/ConnectorDetailsPanel";
 import { LinksetManagementPanel } from "../components/architecture/LinksetManagementPanel";
 import { isRequirementsSchemaDiagram } from "../lib/architectureDiagrams";
+import { toast } from "sonner";
 import type {
   ArchitectureBlockRecord,
   ArchitectureConnectorRecord,
@@ -789,7 +790,18 @@ export function RequirementsSchemaRoute(): JSX.Element {
             addConnector={addConnector}
             updateConnector={handleUpdateConnector}
             removeConnector={handleRemoveConnector}
-            onOpenDocument={() => {}}
+            onOpenDocument={(documentSlug) => {
+              const document = documentsQuery.data?.documents.find(d => d.slug === documentSlug);
+              if (document) {
+                openFloatingDocument({
+                  documentSlug: document.slug,
+                  documentName: document.name,
+                  tenant,
+                  project,
+                  kind: document.kind
+                });
+              }
+            }}
             onOpenFloatingDiagram={openFloatingDiagram}
             isLoading={diagramContentQuery.isLoading}
             mapConnectorToEdge={mapConnectorToEdge}
@@ -957,7 +969,7 @@ export function RequirementsSchemaRoute(): JSX.Element {
                     console.error("Failed to create linkset and connector:", error);
                     // Don't show alert if it's the special LINKSET_REQUIRED error
                     if (error instanceof Error && error.message !== "LINKSET_REQUIRED") {
-                      alert(`Failed to create linkset: ${error.message}`);
+                      toast.error(`Failed to create linkset: ${error.message}`);
                     }
                   }
                 }}

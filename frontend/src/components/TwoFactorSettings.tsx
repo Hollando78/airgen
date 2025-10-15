@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from "sonner";
 import { useAuth } from '../contexts/AuthContext';
 
 type MfaStatus = {
@@ -147,7 +148,7 @@ export function TwoFactorSettings(): JSX.Element {
       }
 
       setStatus({ mfaEnabled: false, backupCodesRemaining: 0 });
-      alert('Two-factor authentication has been disabled. You will need to log in again.');
+      toast.success('Two-factor authentication has been disabled. You will need to log in again.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disable 2FA');
     } finally {
@@ -170,8 +171,8 @@ export function TwoFactorSettings(): JSX.Element {
 
   const handleCopyBackupCodes = () => {
     navigator.clipboard.writeText(backupCodes.join('\n')).then(
-      () => alert('Backup codes copied to clipboard!'),
-      () => alert('Failed to copy backup codes')
+      () => toast.success('Backup codes copied to clipboard!'),
+      () => toast.error('Failed to copy backup codes')
     );
   };
 

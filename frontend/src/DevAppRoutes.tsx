@@ -18,6 +18,7 @@ const LinksRoute = lazy(() => import("./routes/LinksRoute").then(m => ({ default
 const RequirementsSchemaRoute = lazy(() => import("./routes/RequirementsSchemaRoute").then(m => ({ default: m.RequirementsSchemaRoute })));
 const GraphViewerRoute = lazy(() => import("./routes/GraphViewerRoute").then(m => ({ default: m.GraphViewerRoute })));
 const SettingsRoute = lazy(() => import("./routes/SettingsRoute").then(m => ({ default: m.SettingsRoute })));
+const AcceptInviteRoute = lazy(() => import("./routes/AcceptInviteRoute").then(m => ({ default: m.AcceptInviteRoute })));
 const AdminUsersRoute = lazy(() => import("./routes/AdminUsersRoute").then(m => ({ default: m.AdminUsersRoute })));
 const AdminRequirementsRoute = lazy(() => import("./routes/AdminRequirementsRoute").then(m => ({ default: m.AdminRequirementsRoute })));
 const AdminRecoveryRoute = lazy(() => import("./routes/AdminRecoveryRoute"));
@@ -30,6 +31,7 @@ export default function DevAppRoutes(): JSX.Element {
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardRoute />} />
+            <Route path="/invites/accept" element={<AcceptInviteRoute />} />
             <Route path="/airgen" element={<AirGenRoute />} />
             <Route path="/documents" element={<DocumentsRoute />} />
             <Route path="/architecture" element={<ArchitectureRoute />} />

@@ -52,8 +52,8 @@ describe("Validation Schemas", () => {
       expect(() => passwordSchema.parse("Password!")).toThrow("Password must contain at least one number");
     });
 
-    it("should reject passwords without special characters", () => {
-      expect(() => passwordSchema.parse("Password123")).toThrow("Password must contain at least one special character");
+    it("should allow passwords without special characters", () => {
+      expect(() => passwordSchema.parse("Password123")).not.toThrow();
     });
 
     it("should reject passwords shorter than 8 characters", () => {

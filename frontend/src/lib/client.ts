@@ -20,6 +20,10 @@ import type {
   BaselineResponse,
   BaselineListResponse,
   TenantsResponse,
+  TenantRecord,
+  TenantInvitationsResponse,
+  CreateTenantInvitationResponse,
+  AcceptInvitationResponse,
   ProjectsResponse,
   DocumentsResponse,
   DocumentResponse,
@@ -108,10 +112,22 @@ export function useApiClient() {
       health: () => request<{ ok: boolean; env: string; workspace: string; time: string }>(`/health`),
       listTenants: () => request<TenantsResponse>(`/tenants`),
       listProjects: (tenant: string) => request<ProjectsResponse>(`/tenants/${tenant}/projects`),
+      listTenantInvitations: (tenant: string) =>
+        request<TenantInvitationsResponse>(`/tenants/${tenant}/invitations`),
+      inviteToTenant: (tenant: string, data: { email: string }) =>
+        request<CreateTenantInvitationResponse>(`/tenants/${tenant}/invitations`, {
+          method: "POST",
+          body: JSON.stringify(data)
+        }),
+      acceptTenantInvitation: (token: string) =>
+        request<AcceptInvitationResponse>(`/auth/invitations/accept`, {
+          method: "POST",
+          body: JSON.stringify({ token })
+        }),
       
-      // Admin-only management functions
+      // Tenant management functions
       createTenant: (data: { slug: string; name?: string }) => 
-        request<{ tenant: any }>(`/tenants`, { method: "POST", body: JSON.stringify(data) }),
+        request<{ tenant: TenantRecord }>(`/tenants`, { method: "POST", body: JSON.stringify(data) }),
       deleteTenant: (tenant: string) => 
         request<{ success: boolean }>(`/tenants/${tenant}`, { method: "DELETE" }),
       createProject: (tenant: string, data: { slug: string; key?: string }) => 

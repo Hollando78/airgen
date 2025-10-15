@@ -21,6 +21,7 @@ vi.mock("../../services/graph/diagram-candidates.js", () => ({
   listDiagramCandidates: vi.fn(),
   getDiagramCandidate: vi.fn(),
   updateDiagramCandidate: vi.fn(),
+  transitionDiagramCandidateStatus: vi.fn(),
   mapDiagramCandidate: vi.fn()
 }));
 
@@ -57,7 +58,7 @@ import {
 } from "../../services/graph.js";
 import { draftCandidates } from "../../services/drafting.js";
 import { generateDiagram } from "../../services/diagram-generation.js";
-import { createDiagramCandidate, getDiagramCandidate, updateDiagramCandidate } from "../../services/graph/diagram-candidates.js";
+import { createDiagramCandidate, getDiagramCandidate, updateDiagramCandidate, transitionDiagramCandidateStatus } from "../../services/graph/diagram-candidates.js";
 import { extractDocumentContent } from "../../services/document-content.js";
 
 describe("AIRGen Routes", () => {
@@ -66,9 +67,21 @@ describe("AIRGen Routes", () => {
 
   beforeEach(async () => {
     app = await createTestApp();
+    app.addHook("preHandler", (request, _reply, done) => {
+      request.currentUser = {
+        sub: testUsers.regularUser.sub,
+        email: testUsers.regularUser.email,
+        name: testUsers.regularUser.name,
+        roles: testUsers.regularUser.roles,
+        tenantSlugs: testUsers.regularUser.tenantSlugs,
+        ownedTenantSlugs: testUsers.regularUser.ownedTenantSlugs
+      } as any;
+      done();
+    });
     await app.register(airgenRoutes, { prefix: "/api" });
     await app.ready();
     setupSuccessfulMocks();
+    vi.mocked(transitionDiagramCandidateStatus).mockResolvedValue(true as any);
     authToken = await createTestToken(app, testUsers.regularUser);
   });
 
@@ -642,10 +655,11 @@ describe("AIRGen Routes", () => {
           label: "Telemetry stream"
         })
       );
-      expect(updateDiagramCandidate).toHaveBeenCalledWith("diagram-candidate-1", expect.objectContaining({
-        status: "accepted",
-        diagramId: "diagram-123"
-      }));
+      expect(updateDiagramCandidate).toHaveBeenCalledWith("diagram-candidate-1", {
+        diagramId: "diagram-123",
+        diagramName: "Telemetry Flow (Approved)",
+        diagramDescription: "Refined description"
+      });
     });
 
     it("should reject non-pending diagram candidates", async () => {
@@ -724,11 +738,11 @@ describe("AIRGen Routes", () => {
       expect(body.diagramId).toBe("diagram-existing");
       expect(createArchitectureDiagram).not.toHaveBeenCalled();
       expect(createArchitectureBlock).toHaveBeenCalledTimes(1);
-      expect(updateDiagramCandidate).toHaveBeenCalledWith("diagram-candidate-2", expect.objectContaining({
-        status: "accepted",
+      expect(updateDiagramCandidate).toHaveBeenCalledWith("diagram-candidate-2", {
         diagramId: "diagram-existing",
+        diagramName: "Existing Diagram",
         diagramDescription: "Updated description"
-      }));
+      });
     });
   });
 

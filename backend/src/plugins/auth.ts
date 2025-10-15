@@ -8,6 +8,7 @@ export type AuthenticatedUser = {
   name?: string;
   roles: string[];
   tenantSlugs?: string[];
+  ownedTenantSlugs?: string[];
 };
 
 type JwtPayload = {
@@ -16,6 +17,7 @@ type JwtPayload = {
   name?: string;
   roles?: string[];
   tenantSlugs?: string[];
+  ownedTenantSlugs?: string[];
 };
 
 declare module "fastify" {
@@ -37,9 +39,10 @@ function normalizeUser(payload: JwtPayload): AuthenticatedUser {
   return {
     sub: payload.sub,
     email: payload.email,
-    name: payload.name,
+   name: payload.name,
     roles: Array.isArray(payload.roles) && payload.roles.length ? payload.roles : ["user"],
-    tenantSlugs: Array.isArray(payload.tenantSlugs) ? payload.tenantSlugs : undefined
+    tenantSlugs: Array.isArray(payload.tenantSlugs) ? payload.tenantSlugs : undefined,
+    ownedTenantSlugs: Array.isArray(payload.ownedTenantSlugs) ? payload.ownedTenantSlugs : undefined
   };
 }
 

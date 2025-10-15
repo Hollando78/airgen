@@ -53,7 +53,8 @@ vi.mock("../../contexts/AuthContext", () => ({
       id: "user-1",
       email: "qa@example.com",
       roles: ["user"],
-      tenantSlugs: ["hollando"]
+      tenantSlugs: ["hollando"],
+      ownedTenantSlugs: ["hollando"]
     },
     token: null,
     login: vi.fn(),
@@ -62,7 +63,8 @@ vi.mock("../../contexts/AuthContext", () => ({
     error: null,
     mfaRequired: false,
     mfaTempToken: null,
-    verifyMfa: vi.fn()
+    verifyMfa: vi.fn(),
+    setSession: vi.fn()
   })
 }));
 

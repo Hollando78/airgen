@@ -77,6 +77,7 @@ export const config = {
   port: parseNumber(env.API_PORT, 8787),
   jwtSecret: resolvedJwtSecret,
   environment,
+  trustProxy: parseBoolean(env.API_TRUST_PROXY, environment === "production"),
   appUrl: resolvedAppUrl ?? "http://localhost:5173",
   apiUrl: resolvedApiUrl ?? "http://localhost:8787",
   corsOrigins,
@@ -89,6 +90,12 @@ export const config = {
   cookies: {
     refreshTokenName: `${cookiePrefix}refreshToken`,
     prefix: cookiePrefix
+  },
+
+  // JWT token configuration
+  jwt: {
+    accessTokenExpiry: '15m',
+    refreshTokenMaxAge: 7 * 24 * 60 * 60, // 7 days in seconds
   },
 
   // Graph database (Neo4j)
@@ -161,4 +168,5 @@ if (environment !== "test") {
   console.log(`[CONFIG] Email: ${config.email.enabled ? "enabled" : "disabled (console mode)"}`);
   console.log(`[CONFIG] Graph: ${config.graph.url}`);
   console.log(`[CONFIG] Cookie Prefix: ${cookiePrefix || "(none)"}`);
+  console.log(`[CONFIG] Trust Proxy: ${config.trustProxy ? "enabled" : "disabled"}`);
 }

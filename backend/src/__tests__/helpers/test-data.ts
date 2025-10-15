@@ -9,7 +9,8 @@ export const testUsers = {
     email: "admin@test.com",
     name: "Test Admin",
     roles: ["admin", "user"],
-    tenantSlugs: ["test-tenant"]
+    tenantSlugs: ["test-tenant"],
+    ownedTenantSlugs: ["test-tenant"]
   },
   regularUser: {
     id: "test-user-id",
@@ -17,7 +18,8 @@ export const testUsers = {
     email: "user@test.com",
     name: "Test User",
     roles: ["user"],
-    tenantSlugs: ["test-tenant"]
+    tenantSlugs: ["test-tenant"],
+    ownedTenantSlugs: ["test-tenant"]
   },
   multiTenantUser: {
     id: "test-multi-id",
@@ -25,7 +27,8 @@ export const testUsers = {
     email: "multi@test.com",
     name: "Multi Tenant User",
     roles: ["user"],
-    tenantSlugs: ["tenant-one", "tenant-two"]
+    tenantSlugs: ["tenant-one", "tenant-two"],
+    ownedTenantSlugs: ["tenant-one"]
   }
 };
 

@@ -64,6 +64,7 @@ if (config.environment === "development") {
 }
 
 const app = Fastify({
+  trustProxy: config.trustProxy,
   logger: {
     level: config.environment === "production" ? "info" : "debug",
     serializers: {
@@ -77,7 +78,8 @@ const app = Fastify({
           headers: {
             host: request.headers.host,
             "user-agent": request.headers["user-agent"],
-            "content-type": request.headers["content-type"]
+            "content-type": request.headers["content-type"],
+            "x-forwarded-for": request.headers["x-forwarded-for"]
           }
         };
       },

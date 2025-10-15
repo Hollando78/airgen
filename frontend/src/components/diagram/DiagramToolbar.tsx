@@ -5,9 +5,11 @@ interface DiagramToolbarProps {
   onToggleConnectMode: () => void;
   diagramName?: string;
   onPopout?: () => void;
+  onAutoLayout?: () => void;
+  onAutoSize?: () => void;
 }
 
-export function DiagramToolbar({ isConnectMode, onToggleConnectMode, diagramName, onPopout }: DiagramToolbarProps): JSX.Element {
+export function DiagramToolbar({ isConnectMode, onToggleConnectMode, diagramName, onPopout, onAutoLayout, onAutoSize }: DiagramToolbarProps): JSX.Element {
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onToggleConnectMode();
@@ -17,6 +19,20 @@ export function DiagramToolbar({ isConnectMode, onToggleConnectMode, diagramName
     e.stopPropagation();
     if (onPopout) {
       onPopout();
+    }
+  };
+
+  const handleAutoLayout = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (onAutoLayout) {
+      onAutoLayout();
+    }
+  };
+
+  const handleAutoSize = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (onAutoSize) {
+      onAutoSize();
     }
   };
 
@@ -74,6 +90,75 @@ export function DiagramToolbar({ isConnectMode, onToggleConnectMode, diagramName
           <line x1="9" y1="12" x2="15" y2="12" />
         </svg>
         {isConnectMode ? "Connect Mode" : "Drag Mode"}
+      </button>
+
+      <button
+        onClick={handleAutoLayout}
+        style={{
+          background: "#f1f5f9",
+          color: "#475569",
+          border: "1px solid #cbd5e1",
+          borderRadius: "6px",
+          padding: "6px 12px",
+          fontSize: "13px",
+          fontWeight: 500,
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "#e2e8f0";
+          e.currentTarget.style.borderColor = "#94a3b8";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "#f1f5f9";
+          e.currentTarget.style.borderColor = "#cbd5e1";
+        }}
+        title="Arrange blocks hierarchically"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="5" r="2" />
+          <circle cx="6" cy="15" r="2" />
+          <circle cx="18" cy="15" r="2" />
+          <line x1="12" y1="7" x2="12" y2="11" />
+          <line x1="12" y1="11" x2="6" y2="13" />
+          <line x1="12" y1="11" x2="18" y2="13" />
+        </svg>
+        Auto-Layout
+      </button>
+
+      <button
+        onClick={handleAutoSize}
+        style={{
+          background: "#f1f5f9",
+          color: "#475569",
+          border: "1px solid #cbd5e1",
+          borderRadius: "6px",
+          padding: "6px 12px",
+          fontSize: "13px",
+          fontWeight: 500,
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "#e2e8f0";
+          e.currentTarget.style.borderColor = "#94a3b8";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "#f1f5f9";
+          e.currentTarget.style.borderColor = "#cbd5e1";
+        }}
+        title="Resize blocks to fit content"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+        </svg>
+        Auto-Size
       </button>
 
       <button

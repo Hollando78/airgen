@@ -22,10 +22,64 @@ export type SysmlBlockNodeData = {
   portContextMenu?: { blockId: string; portId: string; portName: string; hidden: boolean; direction: BlockPort["direction"]; x: number; y: number } | null;
   onPortContextMenu?: (blockId: string, portId: string, portName: string, hidden: boolean, direction: BlockPort["direction"], x: number, y: number) => void;
   onClosePortContextMenu?: () => void;
+  isPreview?: boolean; // Flag for AI diagram previews
+  useVanillaStyle?: boolean; // Use vanilla styling (clean, minimal appearance)
 };
 
+/**
+ * Get vanilla block styling for AI diagram previews
+ * Uses design tokens for consistent, clean appearance
+ */
+function getVanillaBlockStyle(
+  block: SysmlBlock,
+  selected: boolean,
+  isPreview: boolean = false
+): React.CSSProperties {
+  // For AI diagram previews, use minimal vanilla styling
+  if (isPreview) {
+    return {
+      width: block.size.width,
+      height: block.size.height,
+      background: "#ffffff",
+      border: "1px solid var(--border)",
+      borderRadius: "var(--radius-sm)",
+      boxShadow: "none",
+      fontFamily: "var(--font-sans)",
+      color: "var(--foreground)",
+      fontSize: "14px",
+      fontWeight: "normal",
+      position: "relative" as const,
+      overflow: "visible" as const,
+      cursor: "default"
+    };
+  }
+
+  // For interactive diagrams, allow customization but with cleaner defaults
+  return {
+    width: block.size.width,
+    height: block.size.height,
+    background: block.backgroundColor || "#ffffff",
+    border: selected
+      ? "2px solid var(--ring)"
+      : `1px solid ${block.borderColor || "var(--border)"}`,
+    borderRadius: "var(--radius-sm)",
+    boxShadow: selected
+      ? "var(--elevation-2)"
+      : "var(--elevation-1)",
+    outline: selected ? "2px solid var(--ring)" : "none",
+    outlineOffset: "2px",
+    fontFamily: "var(--font-sans)",
+    color: block.textColor || "var(--foreground)",
+    fontSize: `${block.fontSize || 14}px`,
+    fontWeight: block.fontWeight || "normal",
+    position: "relative" as const,
+    overflow: "visible" as const,
+    cursor: "pointer"
+  };
+}
+
 export function SysmlBlockNode({ id, data, selected }: NodeProps) {
-  const { block, documents = [], onOpenDocument, hideDefaultHandles = false, isConnectMode = false, selectedPortId, onSelectPort, updatePort, removePort, updateBlock, portContextMenu, onPortContextMenu, onClosePortContextMenu } = data as SysmlBlockNodeData;
+  const { block, documents = [], onOpenDocument, hideDefaultHandles = false, isConnectMode = false, selectedPortId, onSelectPort, updatePort, removePort, updateBlock, portContextMenu, onPortContextMenu, onClosePortContextMenu, isPreview = false, useVanillaStyle = false } = data as SysmlBlockNodeData;
 
   // Port dragging state
   const [draggingPort, setDraggingPort] = useState<{
@@ -292,26 +346,29 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
   const baseHeight = 56;
   const portSpacing = 22;
 
-  // Apply block styling properties with defaults
-  const blockStyle = {
-    width: block.size.width,
-    height: block.size.height,
-    background: block.backgroundColor || "#ffffff",
-    border: selected 
-      ? "2px solid #2563eb" 
-      : `${block.borderWidth || 1}px ${block.borderStyle || "solid"} ${block.borderColor || "#cbd5f5"}`,
-    borderRadius: `${block.borderRadius || 8}px`,
-    boxShadow: selected ? "0 8px 16px rgba(37, 99, 235, 0.25)" : "0 4px 12px rgba(15, 23, 42, 0.18)",
-    outline: selected ? "3px solid rgba(59, 130, 246, 0.35)" : "none",
-    outlineOffset: "4px",
-    fontFamily: "'Inter', sans-serif",
-    color: block.textColor || "#1f2937",
-    position: "relative" as const,
-    overflow: "visible" as const,
-    cursor: "pointer",
-    fontSize: `${block.fontSize || 14}px`,
-    fontWeight: block.fontWeight || "normal"
-  };
+  // Use vanilla styling for previews, or allow customization for interactive diagrams
+  const blockStyle = (isPreview || useVanillaStyle)
+    ? getVanillaBlockStyle(block, selected, isPreview)
+    : {
+        // Legacy styling for backward compatibility (interactive diagrams without vanilla flag)
+        width: block.size.width,
+        height: block.size.height,
+        background: block.backgroundColor || "#ffffff",
+        border: selected
+          ? "2px solid #2563eb"
+          : `${block.borderWidth || 1}px ${block.borderStyle || "solid"} ${block.borderColor || "#cbd5f5"}`,
+        borderRadius: `${block.borderRadius || 8}px`,
+        boxShadow: selected ? "0 8px 16px rgba(37, 99, 235, 0.25)" : "0 4px 12px rgba(15, 23, 42, 0.18)",
+        outline: selected ? "3px solid rgba(59, 130, 246, 0.35)" : "none",
+        outlineOffset: "4px",
+        fontFamily: "'Inter', sans-serif",
+        color: block.textColor || "#1f2937",
+        position: "relative" as const,
+        overflow: "visible" as const,
+        cursor: "pointer",
+        fontSize: `${block.fontSize || 14}px`,
+        fontWeight: block.fontWeight || "normal"
+      };
 
   const hiddenPortCount = block.ports.filter(port => port.hidden).length;
   const hidePortsVisually = !hideDefaultHandles; // Hide ports visually in Architecture view

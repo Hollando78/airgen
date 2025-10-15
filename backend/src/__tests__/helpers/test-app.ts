@@ -1,5 +1,6 @@
 import Fastify, { FastifyInstance } from "fastify";
 import { registerAuth } from "../../plugins/auth.js";
+import { config } from "../../config.js";
 
 /**
  * Creates a test Fastify instance with minimal configuration
@@ -29,9 +30,10 @@ export async function createTestToken(
     name?: string;
     roles?: string[];
     tenantSlugs?: string[];
+    ownedTenantSlugs?: string[];
   }
 ): Promise<string> {
-  return app.jwt.sign(payload, { expiresIn: "1h" });
+  return app.jwt.sign(payload, { expiresIn: config.jwt.accessTokenExpiry });
 }
 
 /**

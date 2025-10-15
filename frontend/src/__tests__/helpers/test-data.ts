@@ -8,14 +8,16 @@ export const testUsers = {
     email: "test@example.com",
     name: "Test User",
     roles: ["user"],
-    tenantSlugs: ["test-tenant"]
+    tenantSlugs: ["test-tenant"],
+    ownedTenantSlugs: ["test-tenant"]
   },
   adminUser: {
     id: "admin-123",
     email: "admin@example.com",
     name: "Admin User",
     roles: ["admin", "user"],
-    tenantSlugs: ["test-tenant", "other-tenant"]
+    tenantSlugs: ["test-tenant", "other-tenant"],
+    ownedTenantSlugs: ["test-tenant"]
   }
 };
 

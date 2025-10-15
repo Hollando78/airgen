@@ -1,0 +1,14 @@
+[
+  {
+    "id": "e9b3cb3d-90b0-484d-8161-28e0d85dc853",
+    "tenantSlug": "airgen-demo",
+    "email": "andrewrobb2@gmail.com",
+    "invitedBy": "96205e63-970f-4b2b-b980-1cb69a0f7d48",
+    "invitedByEmail": "info@airgen.studio",
+    "token": "7e860454-ee59-43e8-999e-95e9c47831c0",
+    "status": "accepted",
+    "createdAt": "2025-10-14T09:42:44.559Z",
+    "updatedAt": "2025-10-14T17:19:28.793Z",
+    "acceptedAt": "2025-10-14T17:19:28.793Z"
+  }
+]

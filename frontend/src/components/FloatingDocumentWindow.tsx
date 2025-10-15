@@ -7,6 +7,7 @@ import { RequirementContextMenu } from "./RequirementContextMenu";
 import { LinkTypeSelectionModal } from "./LinkTypeSelectionModal";
 import { useRequirementLinking } from "../contexts/RequirementLinkingContext";
 import type { RequirementRecord, TraceLinkType } from "../types";
+import { toast } from "sonner";
 
 interface FloatingDocumentWindowProps {
   tenant: string;
@@ -68,17 +69,17 @@ export function FloatingDocumentWindow({
     queryKey: ["document-requirements", tenant, project, documentSlug],
     queryFn: async () => {
       if (!sectionsQuery.data?.sections) {return [];}
-      
+
       const sectionRequirements = await Promise.all(
         sectionsQuery.data.sections.map(async (section) => {
-          const response = await api.listSectionRequirements(section.id);
+          const response = await api.listSectionRequirements(section.id, tenant);
           return {
             sectionId: section.id,
             requirements: response.requirements
           };
         })
       );
-      
+
       return sectionRequirements;
     },
     enabled: Boolean(sectionsQuery.data?.sections)
@@ -227,7 +228,7 @@ export function FloatingDocumentWindow({
         await completeLinking(linkModal.targetRequirement, linkType, description);
         setLinkModal(null);
       } catch (error) {
-        alert(`Failed to create link: ${error instanceof Error ? error.message : String(error)}`);
+        toast.error(`Failed to create link: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }, [linkModal, completeLinking]);
@@ -243,7 +244,7 @@ export function FloatingDocumentWindow({
       await traceLinksQuery.refetch();
     } catch (error) {
       console.error('[FloatingDocumentWindow] Failed to delete link:', error);
-      alert(`Failed to delete link: ${error instanceof Error ? error.message : String(error)}`);
+      toast.error(`Failed to delete link: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, [api, tenant, project, traceLinksQuery]);
 

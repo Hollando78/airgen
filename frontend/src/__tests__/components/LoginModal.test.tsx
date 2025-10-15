@@ -11,10 +11,16 @@ vi.mock("../../contexts/AuthContext", async () => {
   return {
     ...actual,
     useAuth: () => ({
+      user: null,
+      token: null,
       login: loginMock,
+      logout: vi.fn(),
       isLoading: false,
       error: null,
-      mfaRequired: false
+      mfaRequired: false,
+      mfaTempToken: null,
+      verifyMfa: vi.fn(),
+      setSession: vi.fn()
     })
   };
 });

@@ -15,6 +15,7 @@ export interface AuthUser {
   name?: string;
   roles: string[];
   tenantSlugs: string[]; // List of tenants user has access to
+  ownedTenantSlugs?: string[];
 }
 
 /**
@@ -25,14 +26,26 @@ export function hasTenantAccess(user: AuthUser | undefined, tenantSlug: string):
     return false;
   }
 
-  // Admin role has access to all tenants
-  if (user.roles.includes("admin")) {
+  // Check if user's tenant list includes this tenant
+  const normalizedTenant = slugify(tenantSlug);
+  if ((user.tenantSlugs ?? []).some(slug => slugify(slug) === normalizedTenant)) {
     return true;
   }
 
-  // Check if user's tenant list includes this tenant
+  // Owners implicitly have access, even if tenantSlugs is out of date
+  if ((user.ownedTenantSlugs ?? []).some(slug => slugify(slug) === normalizedTenant)) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isTenantOwner(user: AuthUser | undefined, tenantSlug: string): boolean {
+  if (!user || !Array.isArray(user.ownedTenantSlugs)) {
+    return false;
+  }
   const normalizedTenant = slugify(tenantSlug);
-  return user.tenantSlugs.some(slug => slugify(slug) === normalizedTenant);
+  return user.ownedTenantSlugs.some(slug => slugify(slug) === normalizedTenant);
 }
 
 /**

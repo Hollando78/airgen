@@ -6,6 +6,7 @@
  */
 
 import { useState } from "react";
+import { toast } from "sonner";
 import type { Core } from "cytoscape";
 
 export interface SavedView {
@@ -72,7 +73,7 @@ export function useSavedViews(tenant: string | null, project: string | null) {
     viewName: string
   ) => {
     if (!viewName.trim()) {
-      alert('Please enter a view name');
+      toast.warning("Please enter a view name");
       return;
     }
 

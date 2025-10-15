@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
@@ -11,6 +11,9 @@ import { Button } from "../components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { TenantProjectSelector } from "../components/TenantProjectSelector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { toast } from "sonner";
+import { Modal, TextInput as ModalTextInput, Button as ModalActionButton } from "../components/Modal";
+import { ConfirmDialog } from "../components/ui/confirm-dialog";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {return "—";}
@@ -27,7 +30,7 @@ function formatDate(value: string | null | undefined): string {
 export function DashboardRoute(): JSX.Element {
   const api = useApiClient();
   const { state } = useTenantProject();
-  const { user } = useAuth();
+  const { user, refreshAccessToken } = useAuth();
   const queryClient = useQueryClient();
   
   // Admin management state
@@ -36,15 +39,23 @@ export function DashboardRoute(): JSX.Element {
   const [selectedTenantForProject, setSelectedTenantForProject] = useState<string | null>(null);
   const [newTenantData, setNewTenantData] = useState({ slug: "", name: "" });
   const [newProjectData, setNewProjectData] = useState({ slug: "", key: "" });
+  const [inviteTenantSlug, setInviteTenantSlug] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [tenantSlugPendingDeletion, setTenantSlugPendingDeletion] = useState<string | null>(null);
   
-  const isAdmin = user?.roles.includes('admin');
-
   const healthQuery = useQuery({ queryKey: ["health"], queryFn: api.health });
   const tenantsQuery = useQuery({ queryKey: ["tenants"], queryFn: api.listTenants });
+  const tenants = tenantsQuery.data?.tenants ?? [];
+  const showOwnerActions = tenants.some(tenant => tenant.isOwner);
   const projectsQuery = useQuery({
     queryKey: ["projects", state.tenant],
     queryFn: () => api.listProjects(state.tenant ?? ""),
     enabled: Boolean(state.tenant)
+  });
+  const tenantInvitationsQuery = useQuery({
+    queryKey: ["tenantInvitations", inviteTenantSlug],
+    queryFn: () => api.listTenantInvitations(inviteTenantSlug ?? ""),
+    enabled: Boolean(inviteTenantSlug)
   });
   const baselinesQuery = useQuery({
     queryKey: ["baselines", state.tenant, state.project],
@@ -86,10 +97,18 @@ export function DashboardRoute(): JSX.Element {
   // Admin mutations
   const createTenantMutation = useMutation({
     mutationFn: api.createTenant,
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Refresh the access token to get updated ownedTenantSlugs
+      await refreshAccessToken();
+      // Then invalidate queries to refresh the UI with the new tenant
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
       setShowCreateTenant(false);
       setNewTenantData({ slug: "", name: "" });
+      toast.success("Tenant created successfully");
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Failed to create tenant";
+      toast.error(message);
     }
   });
 
@@ -97,17 +116,27 @@ export function DashboardRoute(): JSX.Element {
     mutationFn: api.deleteTenant,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      toast.success("Tenant deleted successfully");
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Failed to delete tenant";
+      toast.error(message);
     }
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: ({ tenant, data }: { tenant: string; data: { slug: string; key?: string } }) => 
+    mutationFn: ({ tenant, data }: { tenant: string; data: { slug: string; key?: string } }) =>
       api.createProject(tenant, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["projects", variables.tenant] });
       setShowCreateProject(false);
       setSelectedTenantForProject(null);
       setNewProjectData({ slug: "", key: "" });
+      toast.success("Project created successfully");
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Failed to create project";
+      toast.error(message);
     }
   });
 
@@ -116,6 +145,26 @@ export function DashboardRoute(): JSX.Element {
       api.deleteProject(tenant, project),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["projects", variables.tenant] });
+      toast.success("Project deleted successfully");
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Failed to delete project";
+      toast.error(message);
+    }
+  });
+
+  const inviteTenantMutation = useMutation({
+    mutationFn: ({ tenant, email }: { tenant: string; email: string }) =>
+      api.inviteToTenant(tenant, { email }),
+    onSuccess: (_, variables) => {
+      toast.success(`Invitation sent to ${variables.email}`);
+      queryClient.invalidateQueries({ queryKey: ["tenantInvitations", variables.tenant] });
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      setInviteEmail("");
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Failed to send invitation";
+      toast.error(message);
     }
   });
 
@@ -144,6 +193,18 @@ export function DashboardRoute(): JSX.Element {
       queryClient.invalidateQueries({ queryKey: ["graph-data", state.tenant, state.project] });
     }
   }, [qaScorerStatusQuery.data, queryClient, state.tenant, state.project]);
+
+  const closeInviteModal = useCallback(() => {
+    setInviteTenantSlug(null);
+    setInviteEmail("");
+  }, []);
+
+  const handleSendInvite = useCallback(() => {
+    if (!inviteTenantSlug || !inviteEmail) {
+      return;
+    }
+    inviteTenantMutation.mutate({ tenant: inviteTenantSlug, email: inviteEmail.trim() });
+  }, [inviteTenantSlug, inviteEmail, inviteTenantMutation]);
 
   const activeProject = useMemo(() => {
     if (!state.project || !projectsQuery.data) {return null;}
@@ -310,11 +371,11 @@ export function DashboardRoute(): JSX.Element {
       <PageHeader
         title="Tenants"
         description="Overview of tenant and project counts"
-        actions={isAdmin && (
+        actions={
           <Button onClick={() => setShowCreateTenant(true)}>
             + Create Tenant
           </Button>
-        )}
+        }
       />
       <div className="mb-8">
         {tenantsQuery.isLoading ? (
@@ -329,53 +390,62 @@ export function DashboardRoute(): JSX.Element {
                 <th>Name</th>
                 <th>Projects</th>
                 <th>Created</th>
-                {isAdmin && <th>Actions</th>}
+                {showOwnerActions && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {(tenantsQuery.data?.tenants ?? []).length === 0 ? (
+              {tenants.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 5 : 4} className="empty-row">
+                  <td colSpan={showOwnerActions ? 5 : 4} className="empty-row">
                     No tenants found yet.
                   </td>
                 </tr>
               ) : (
-                tenantsQuery.data!.tenants.map(tenant => (
+                tenants.map(tenant => (
                   <tr key={tenant.slug} className={tenant.slug === state.tenant ? "row-active" : undefined}>
                     <td>{tenant.slug}</td>
                     <td>{tenant.name ?? "—"}</td>
-                    <td>
-                      {tenant.projectCount}
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          className="ghost-button"
-                          style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}
-                          onClick={() => {
-                            setSelectedTenantForProject(tenant.slug);
-                            setShowCreateProject(true);
-                          }}
-                        >
-                          + Add Project
-                        </button>
-                      )}
-                    </td>
+                    <td>{tenant.projectCount}</td>
                     <td>{formatDate(tenant.createdAt)}</td>
-                    {isAdmin && (
+                    {showOwnerActions && (
                       <td>
-                        <button
-                          type="button"
-                          className="danger-button"
-                          style={{ fontSize: '0.8rem' }}
-                          onClick={() => {
-                            if (confirm(`Delete tenant "${tenant.slug}" and all its projects? This cannot be undone.`)) {
-                              deleteTenantMutation.mutate(tenant.slug);
-                            }
-                          }}
-                          disabled={deleteTenantMutation.isPending}
-                        >
-                          Delete
-                        </button>
+                        {tenant.isOwner ? (
+                          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              style={{ fontSize: '0.8rem' }}
+                              onClick={() => {
+                                setSelectedTenantForProject(tenant.slug);
+                                setShowCreateProject(true);
+                              }}
+                            >
+                              + Project
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              style={{ fontSize: '0.8rem' }}
+                              onClick={() => {
+                                setInviteTenantSlug(tenant.slug);
+                                setInviteEmail("");
+                              }}
+                            >
+                              Invite
+                            </button>
+                            <button
+                              type="button"
+                              className="danger-button"
+                              style={{ fontSize: '0.8rem' }}
+                              onClick={() => setTenantSlugPendingDeletion(tenant.slug)}
+                              disabled={deleteTenantMutation.isPending}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-neutral-500">—</span>
+                        )}
                       </td>
                     )}
                   </tr>
@@ -767,128 +837,191 @@ export function DashboardRoute(): JSX.Element {
         )}
       </div>
 
-      {/* Admin Management Modals */}
-      {isAdmin && showCreateTenant && (
-        <div className="modal-overlay" onClick={() => setShowCreateTenant(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Create New Tenant</h2>
-              <button 
-                type="button" 
-                className="modal-close"
-                onClick={() => setShowCreateTenant(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div>
-                  <label htmlFor="tenant-slug">Tenant Slug (required)</label>
-                  <input
-                    id="tenant-slug"
-                    type="text"
-                    value={newTenantData.slug}
-                    onChange={(e) => setNewTenantData({ ...newTenantData, slug: e.target.value })}
-                    placeholder="e.g., acme-corp"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="tenant-name">Display Name (optional)</label>
-                  <input
-                    id="tenant-name"
-                    type="text"
-                    value={newTenantData.name}
-                    onChange={(e) => setNewTenantData({ ...newTenantData, name: e.target.value })}
-                    placeholder="e.g., ACME Corporation"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button 
-                type="button" 
-                className="ghost-button"
-                onClick={() => setShowCreateTenant(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => createTenantMutation.mutate(newTenantData)}
-                disabled={!newTenantData.slug || createTenantMutation.isPending}
-              >
-                {createTenantMutation.isPending ? 'Creating...' : 'Create Tenant'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        isOpen={showCreateTenant}
+        onClose={() => setShowCreateTenant(false)}
+        title="Create New Tenant"
+        size="medium"
+        footer={(
+          <>
+            <ModalActionButton
+              type="button"
+              variant="secondary"
+              onClick={() => setShowCreateTenant(false)}
+            >
+              Cancel
+            </ModalActionButton>
+            <ModalActionButton
+              type="button"
+              onClick={() => createTenantMutation.mutate(newTenantData)}
+              loading={createTenantMutation.isPending}
+              disabled={!newTenantData.slug.trim()}
+            >
+              {createTenantMutation.isPending ? "Creating..." : "Create Tenant"}
+            </ModalActionButton>
+          </>
+        )}
+      >
+        <ModalTextInput
+          label="Tenant Slug"
+          required
+          placeholder="e.g., acme-corp"
+          value={newTenantData.slug}
+          onChange={(event) => setNewTenantData({ ...newTenantData, slug: event.target.value })}
+          autoFocus
+        />
+        <ModalTextInput
+          label="Display Name"
+          placeholder="e.g., ACME Corporation"
+          value={newTenantData.name}
+          onChange={(event) => setNewTenantData({ ...newTenantData, name: event.target.value })}
+        />
+      </Modal>
 
-      {isAdmin && showCreateProject && selectedTenantForProject && (
-        <div className="modal-overlay" onClick={() => setShowCreateProject(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Create New Project</h2>
-              <button 
-                type="button" 
-                className="modal-close"
-                onClick={() => setShowCreateProject(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div>
-                  <label>Tenant: <strong>{selectedTenantForProject}</strong></label>
-                </div>
-                <div>
-                  <label htmlFor="project-slug">Project Slug (required)</label>
-                  <input
-                    id="project-slug"
-                    type="text"
-                    value={newProjectData.slug}
-                    onChange={(e) => setNewProjectData({ ...newProjectData, slug: e.target.value })}
-                    placeholder="e.g., mobile-app"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="project-key">Project Key (optional)</label>
-                  <input
-                    id="project-key"
-                    type="text"
-                    value={newProjectData.key}
-                    onChange={(e) => setNewProjectData({ ...newProjectData, key: e.target.value })}
-                    placeholder="e.g., MOBILE"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button 
-                type="button" 
-                className="ghost-button"
-                onClick={() => setShowCreateProject(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => createProjectMutation.mutate({ 
-                  tenant: selectedTenantForProject, 
-                  data: newProjectData 
-                })}
-                disabled={!newProjectData.slug || createProjectMutation.isPending}
-              >
-                {createProjectMutation.isPending ? 'Creating...' : 'Create Project'}
-              </button>
-            </div>
-          </div>
+      <Modal
+        isOpen={showCreateProject && Boolean(selectedTenantForProject)}
+        onClose={() => setShowCreateProject(false)}
+        title="Create New Project"
+        size="medium"
+        footer={(
+          <>
+            <ModalActionButton
+              type="button"
+              variant="secondary"
+              onClick={() => setShowCreateProject(false)}
+            >
+              Cancel
+            </ModalActionButton>
+            <ModalActionButton
+              type="button"
+              onClick={() => {
+                if (!selectedTenantForProject) {return;}
+                createProjectMutation.mutate({
+                  tenant: selectedTenantForProject,
+                  data: newProjectData
+                });
+              }}
+              loading={createProjectMutation.isPending}
+              disabled={!newProjectData.slug.trim() || !selectedTenantForProject}
+            >
+              {createProjectMutation.isPending ? "Creating..." : "Create Project"}
+            </ModalActionButton>
+          </>
+        )}
+      >
+        <ModalTextInput
+          label="Tenant"
+          value={selectedTenantForProject ?? ""}
+          readOnly
+          disabled
+        />
+        <ModalTextInput
+          label="Project Slug"
+          required
+          placeholder="e.g., mobile-app"
+          value={newProjectData.slug}
+          onChange={(event) => setNewProjectData({ ...newProjectData, slug: event.target.value })}
+          autoFocus
+        />
+        <ModalTextInput
+          label="Project Key"
+          placeholder="e.g., MOBILE"
+          value={newProjectData.key}
+          onChange={(event) => setNewProjectData({ ...newProjectData, key: event.target.value })}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(inviteTenantSlug)}
+        onClose={closeInviteModal}
+        title="Invite Teammates"
+        size="large"
+        footer={(
+          <>
+            <ModalActionButton
+              type="button"
+              variant="secondary"
+              onClick={closeInviteModal}
+            >
+              Close
+            </ModalActionButton>
+            <ModalActionButton
+              type="button"
+              onClick={handleSendInvite}
+              loading={inviteTenantMutation.isPending}
+              disabled={!inviteEmail.trim()}
+            >
+              {inviteTenantMutation.isPending ? "Sending…" : "Send Invite"}
+            </ModalActionButton>
+          </>
+        )}
+      >
+        <ModalTextInput
+          label="Email Address"
+          type="email"
+          required
+          placeholder="e.g., teammate@company.com"
+          value={inviteEmail}
+          onChange={(event) => setInviteEmail(event.target.value)}
+          help={inviteTenantSlug ? `We'll email an acceptance link to join ${inviteTenantSlug}.` : undefined}
+        />
+
+        <div>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "0.5rem" }}>Recent Invitations</h3>
+          {tenantInvitationsQuery.isLoading ? (
+            <Spinner />
+          ) : tenantInvitationsQuery.isError ? (
+            <p className="error-text" style={{ color: "#dc2626" }}>
+              {(tenantInvitationsQuery.error as Error).message}
+            </p>
+          ) : tenantInvitationsQuery.data && tenantInvitationsQuery.data.invitations.length > 0 ? (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Status</th>
+                  <th>Invited</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tenantInvitationsQuery.data.invitations.map(invitation => (
+                  <tr key={invitation.id}>
+                    <td>{invitation.email}</td>
+                    <td style={{ textTransform: "capitalize" }}>{invitation.status}</td>
+                    <td>{formatDate(invitation.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="hint">No invitations sent yet.</p>
+          )}
         </div>
-      )}
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(tenantSlugPendingDeletion)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTenantSlugPendingDeletion(null);
+          }
+        }}
+        onConfirm={() => {
+          if (!tenantSlugPendingDeletion) {return;}
+          deleteTenantMutation.mutate(tenantSlugPendingDeletion, {
+            onSettled: () => setTenantSlugPendingDeletion(null)
+          });
+        }}
+        title="Delete tenant?"
+        description={
+          tenantSlugPendingDeletion
+            ? `This will permanently delete tenant "${tenantSlugPendingDeletion}" and all of its projects.`
+            : "This will permanently delete the tenant and all of its projects."
+        }
+        confirmText={deleteTenantMutation.isPending ? "Deleting..." : "Delete Tenant"}
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </PageLayout>
   );
 }

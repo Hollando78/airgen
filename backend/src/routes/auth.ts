@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { config } from "../config.js";
 import { authSchemas, validateInput } from "../lib/validation.js";
 import {
@@ -9,7 +10,8 @@ import {
   getDevUserByEmail,
   markEmailVerified,
   updateDevUser,
-  createDevUser
+  createDevUser,
+  addTenantAccess
 } from "../services/dev-users.js";
 import {
   createRefreshToken,
@@ -18,7 +20,18 @@ import {
   revokeAllUserTokens
 } from "../lib/refresh-tokens.js";
 import { createToken, verifyAndConsumeToken, revokeUserTokens } from "../lib/tokens.js";
-import { sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail, sendFailedSignupNotification, sendSuccessfulSignupNotification, sendLoginNotification } from "../lib/email.js";
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendPasswordChangedEmail,
+  sendFailedSignupNotification,
+  sendSuccessfulSignupNotification,
+  sendLoginNotification,
+  sendWelcomeEmail,
+  sendEmailVerifiedConfirmation,
+  sendLoginAlertEmail,
+  sendMfaBackupCodeUsedEmail
+} from "../lib/email.js";
 import { hashPassword } from "../lib/password.js";
 import {
   verifyTotpToken,
@@ -27,6 +40,10 @@ import {
   consumeBackupCode
 } from "../lib/mfa.js";
 import { createTenant } from "../services/graph.js";
+import {
+  acceptTenantInvitation,
+  findInvitationByToken
+} from "../services/tenant-invitations.js";
 
 /**
  * Generate a unique tenant slug from email address
@@ -189,9 +206,10 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
           email: user.email,
           name: user.name,
           roles: user.roles,
-          tenantSlugs: user.tenantSlugs
+          tenantSlugs: user.tenantSlugs,
+          ownedTenantSlugs: user.ownedTenantSlugs ?? []
         },
-        { expiresIn: '15m' }
+        { expiresIn: config.jwt.accessTokenExpiry }
       );
 
       // Generate long-lived refresh token (7 days)
@@ -203,7 +221,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         secure: config.environment === "production", // HTTPS only in production
         sameSite: "lax",
         path: "/",
-        maxAge: 7 * 24 * 60 * 60 // 7 days in seconds
+        maxAge: config.jwt.refreshTokenMaxAge // 7 days in seconds
       });
 
       // Log successful login
@@ -219,6 +237,10 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       sendLoginNotification(user.email, user.name, req.ip, false)
         .catch(emailError => {
           app.log.error({ err: emailError }, "Failed to send login notification");
+        });
+      sendLoginAlertEmail(user.email, user.name, req.ip, false)
+        .catch(emailError => {
+          app.log.error({ err: emailError }, "Failed to send login alert");
         });
 
       // Return token and user info (without password)
@@ -303,7 +325,8 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         password,
         name,
         roles: ['admin', 'author', 'user'],
-        tenantSlugs: [tenantSlug]
+        tenantSlugs: [tenantSlug],
+        ownedTenantSlugs: [tenantSlug]
       });
 
       // Create personal tenant for the user in Neo4j
@@ -339,11 +362,16 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         ip: req.ip
       }, "User registered successfully");
 
-      // Send signup notification to admin (fire and forget)
-      sendSuccessfulSignupNotification(user.email, user.name, tenantSlug, req.ip)
-        .catch(emailError => {
-          app.log.error({ err: emailError }, "Failed to send signup notification");
-        });
+      const verificationToken = createToken(user.id, user.email, "email_verification");
+
+      // Send onboarding emails (fire and forget)
+      Promise.all([
+        sendSuccessfulSignupNotification(user.email, user.name, tenantSlug, req.ip),
+        sendVerificationEmail(user.email, user.name, verificationToken),
+        sendWelcomeEmail(user.email, user.name)
+      ]).catch(emailError => {
+        app.log.error({ err: emailError }, "Failed to send onboarding email");
+      });
 
       // Return success (user needs to login separately)
       return reply.code(201).send({
@@ -413,7 +441,8 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
                 email: { type: "string" },
                 name: { type: "string" },
                 roles: { type: "array", items: { type: "string" } },
-                tenantSlugs: { type: "array", items: { type: "string" } }
+                tenantSlugs: { type: "array", items: { type: "string" } },
+                ownedTenantSlugs: { type: "array", items: { type: "string" }, nullable: true }
               }
             }
           }
@@ -432,7 +461,8 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         email: req.currentUser.email,
         name: req.currentUser.name,
         roles: req.currentUser.roles,
-        tenantSlugs: req.currentUser.tenantSlugs
+        tenantSlugs: req.currentUser.tenantSlugs ?? [],
+        ownedTenantSlugs: req.currentUser.ownedTenantSlugs ?? []
       }
     };
   });
@@ -491,9 +521,10 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         email: user.email,
         name: user.name,
         roles: user.roles,
-        tenantSlugs: user.tenantSlugs
+        tenantSlugs: user.tenantSlugs,
+        ownedTenantSlugs: user.ownedTenantSlugs ?? []
       },
-      { expiresIn: '15m' }
+      { expiresIn: config.jwt.accessTokenExpiry }
     );
 
     // Generate new refresh token (rotation)
@@ -505,7 +536,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       secure: config.environment === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 7 * 24 * 60 * 60 // 7 days in seconds
+      maxAge: config.jwt.refreshTokenMaxAge // 7 days in seconds
     });
 
     return { token };
@@ -671,6 +702,10 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       await updateDevUser(user.id, {
         mfaBackupCodes: remainingCodes
       });
+      sendMfaBackupCodeUsedEmail(user.email, user.name, remainingCodes.length)
+        .catch(emailError => {
+          app.log.error({ err: emailError }, "Failed to send backup code usage alert");
+        });
     }
 
     // Generate full access token
@@ -680,9 +715,10 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         email: user.email,
         name: user.name,
         roles: user.roles,
-        tenantSlugs: user.tenantSlugs
+        tenantSlugs: user.tenantSlugs,
+        ownedTenantSlugs: user.ownedTenantSlugs ?? []
       },
-      { expiresIn: '15m' }
+      { expiresIn: config.jwt.accessTokenExpiry }
     );
 
     // Generate refresh token
@@ -694,7 +730,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       secure: config.environment === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 7 * 24 * 60 * 60 // 7 days in seconds
+      maxAge: config.jwt.refreshTokenMaxAge // 7 days in seconds
     });
 
     // Log successful MFA verification
@@ -710,6 +746,10 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     sendLoginNotification(user.email, user.name, req.ip, true)
       .catch(emailError => {
         app.log.error({ err: emailError }, "Failed to send login notification");
+      });
+    sendLoginAlertEmail(user.email, user.name, req.ip, true)
+      .catch(emailError => {
+        app.log.error({ err: emailError }, "Failed to send login alert");
       });
 
     // Return token and user info
@@ -790,7 +830,127 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       ip: req.ip
     }, "Email verified successfully");
 
+    sendEmailVerifiedConfirmation(user.email, user.name)
+      .catch(emailError => {
+        app.log.error({ err: emailError }, "Failed to send email verification confirmation");
+      });
+
     return { message: "Email verified successfully" };
+  });
+
+  app.post("/auth/invitations/accept", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["authentication"],
+      summary: "Accept tenant invitation",
+      description: "Accept a tenant invitation using the provided token",
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: "object",
+        required: ["token"],
+        properties: {
+          token: { type: "string", description: "Invitation token" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+            tenantSlug: { type: "string" },
+            token: { type: "string" },
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                email: { type: "string" },
+                name: { type: "string", nullable: true },
+                roles: { type: "array", items: { type: "string" } },
+                tenantSlugs: { type: "array", items: { type: "string" } },
+                ownedTenantSlugs: { type: "array", items: { type: "string" } }
+              }
+            }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    if (!req.currentUser) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    const schema = z.object({ token: z.string().uuid() });
+    const { token } = schema.parse(req.body);
+
+    const invitation = await findInvitationByToken(token);
+    if (!invitation || invitation.status !== "pending") {
+      return reply.status(400).send({ error: "Invitation is invalid or no longer available" });
+    }
+
+    const currentEmail = req.currentUser.email?.toLowerCase();
+    if (!currentEmail || currentEmail !== invitation.email) {
+      return reply.status(403).send({ error: "This invitation is for a different user" });
+    }
+
+    const accepted = await acceptTenantInvitation(token);
+    if (!accepted) {
+      return reply.status(400).send({ error: "Unable to accept invitation" });
+    }
+
+    const updatedUser = await addTenantAccess(req.currentUser.sub, accepted.tenantSlug);
+    if (!updatedUser) {
+      return reply.status(500).send({ error: "Failed to update user access" });
+    }
+
+    const accessToken = await reply.jwtSign(
+      {
+        sub: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        roles: updatedUser.roles,
+        tenantSlugs: updatedUser.tenantSlugs,
+        ownedTenantSlugs: updatedUser.ownedTenantSlugs ?? []
+      },
+      { expiresIn: config.jwt.accessTokenExpiry }
+    );
+
+    return {
+      message: "Invitation accepted",
+      tenantSlug: accepted.tenantSlug,
+      token: accessToken,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        roles: updatedUser.roles,
+        tenantSlugs: updatedUser.tenantSlugs,
+        ownedTenantSlugs: updatedUser.ownedTenantSlugs ?? []
+      }
+    };
   });
 
   // Password reset - request

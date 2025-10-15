@@ -316,10 +316,46 @@ export type TenantRecord = {
   name: string | null;
   createdAt: string | null;
   projectCount: number;
+  isOwner: boolean;
 };
 
 export type TenantsResponse = {
   tenants: TenantRecord[];
+};
+
+export type TenantInvitationRecord = {
+  id: string;
+  tenantSlug: string;
+  email: string;
+  invitedBy: string;
+  invitedByEmail: string | null;
+  status: "pending" | "accepted" | "cancelled";
+  createdAt: string;
+  updatedAt: string;
+  acceptedAt?: string | null;
+  cancelledAt?: string | null;
+};
+
+export type TenantInvitationsResponse = {
+  invitations: TenantInvitationRecord[];
+};
+
+export type CreateTenantInvitationResponse = {
+  invitation: TenantInvitationRecord;
+};
+
+export type AcceptInvitationResponse = {
+  message: string;
+  tenantSlug: string;
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name?: string;
+    roles: string[];
+    tenantSlugs: string[];
+    ownedTenantSlugs: string[];
+  };
 };
 
 export type ProjectRecord = {

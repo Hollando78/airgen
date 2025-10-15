@@ -9,6 +9,9 @@
     "tenantSlugs": [
       "admin-dev"
     ],
+    "ownedTenantSlugs": [
+      "admin-dev"
+    ],
     "createdAt": "2025-09-25T20:18:14.063Z",
     "updatedAt": "2025-10-13T16:10:48.534Z",
     "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$HnD8iQJVWi6rKYv1zdMm2w$VYZKI/OlVmbUasgixjN02/yJechAm4UzU4GKxrwUzwg",
@@ -35,6 +38,7 @@
       "user"
     ],
     "tenantSlugs": [],
+    "ownedTenantSlugs": [],
     "createdAt": "2025-10-12T16:26:01.096Z",
     "updatedAt": "2025-10-12T16:26:01.096Z",
     "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$3ACUxPzHS5A0f6fu1JVB7Q$acBfP34Lazviv85ipcpjeX+2lLve9wwl6oOPIMJbyGc"
@@ -49,10 +53,35 @@
       "user"
     ],
     "tenantSlugs": [
-      "info-mgnzq4ln"
+      "info-mgnzq4ln",
+      "airgen-demo"
+    ],
+    "ownedTenantSlugs": [
+      "info-mgnzq4ln",
+      "airgen-demo"
     ],
     "createdAt": "2025-10-12T17:40:55.116Z",
-    "updatedAt": "2025-10-12T17:40:55.116Z",
+    "updatedAt": "2025-10-14T09:46:35.048Z",
     "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$DVyGmuuH4+iCQQdSm8GZEg$bUMi5CEoTYsGnDygUXlOdjxKqCQlu23YPIk5TI1EHrQ"
+  },
+  {
+    "id": "0ba7afee-7899-4d3f-a979-205177f3ca29",
+    "email": "andrewrobb2@gmail.com",
+    "name": "Andrew Robb",
+    "roles": [
+      "admin",
+      "author",
+      "user"
+    ],
+    "tenantSlugs": [
+      "andrewrobb2-mgphv8og",
+      "airgen-demo"
+    ],
+    "ownedTenantSlugs": [
+      "andrewrobb2-mgphv8og"
+    ],
+    "createdAt": "2025-10-13T18:56:32.945Z",
+    "updatedAt": "2025-10-14T17:19:28.807Z",
+    "passwordHash": "$argon2id$v=19$m=65536,t=3,p=1$4TxsXupFp6XEPvcgYXQ2wA$fUSNpVWkqd43opfsPx6pRIREi7ecz3DtOEaOok1ykY8"
   }
 ]

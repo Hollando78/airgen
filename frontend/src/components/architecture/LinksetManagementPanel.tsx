@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import type { DocumentLinkset, DocumentRecord } from "../../types";
 
 interface LinksetManagementPanelProps {
@@ -92,7 +93,7 @@ export function LinksetManagementPanel({
     }
 
     if (sourceDocSlug === targetDocSlug) {
-      alert("Source and target documents must be different");
+      toast.warning("Source and target documents must be different");
       return;
     }
 
@@ -104,7 +105,7 @@ export function LinksetManagementPanel({
       setLinkType("satisfies");
       setShowCreateDialog(false);
     } catch (error) {
-      alert(`Failed to create linkset: ${error instanceof Error ? error.message : String(error)}`);
+      toast.error(`Failed to create linkset: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsCreating(false);
     }
@@ -120,7 +121,7 @@ export function LinksetManagementPanel({
     try {
       await onDeleteLinkset(linksetId);
     } catch (error) {
-      alert(`Failed to delete linkset: ${error instanceof Error ? error.message : String(error)}`);
+      toast.error(`Failed to delete linkset: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsDeleting(null);
     }
@@ -136,7 +137,7 @@ export function LinksetManagementPanel({
       await onUpdateLinkset(linksetId, editDialog.linkType);
       setEditDialog({ isOpen: false, linkset: null, linkType: "satisfies" });
     } catch (error) {
-      alert(`Failed to update linkset: ${error instanceof Error ? error.message : String(error)}`);
+      toast.error(`Failed to update linkset: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsUpdating(null);
     }
@@ -310,7 +311,12 @@ export function LinksetManagementPanel({
             onClick={() => {
               const linkset = contextMenu.linkset;
               if (linkset) {
-                alert(`Linkset Details:\n\nSource: ${linkset.sourceDocument.name} (${linkset.sourceDocumentSlug})\nTarget: ${linkset.targetDocument.name} (${linkset.targetDocumentSlug})\nTrace Links: ${linkset.linkCount}\nCreated: ${new Date(linkset.createdAt).toLocaleString()}`);
+                toast.info("Linkset Details", {
+                  description: `Source: ${linkset.sourceDocument.name} (${linkset.sourceDocumentSlug})
+Target: ${linkset.targetDocument.name} (${linkset.targetDocumentSlug})
+Trace Links: ${linkset.linkCount}
+Created: ${new Date(linkset.createdAt).toLocaleString()}`
+                });
               }
               setContextMenu({ isOpen: false, x: 0, y: 0, linkset: null });
             }}

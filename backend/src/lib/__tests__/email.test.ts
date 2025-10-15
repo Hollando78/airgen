@@ -64,6 +64,7 @@ describe("Email Service", () => {
       expect(logs).toContain("test@example.com");
       expect(logs).toContain("Test Email");
       expect(logs).toContain("Test content");
+      expect(logs).toContain("info@airgen.studio");
     });
 
     it("should strip HTML tags for text version", async () => {
@@ -139,6 +140,19 @@ describe("Email Service", () => {
       });
 
       expect(consoleLogSpy).toHaveBeenCalled();
+    });
+
+    it("should merge custom bcc recipients with default", async () => {
+      await sendEmail({
+        to: "user@example.com",
+        subject: "With Bcc",
+        html: "<p>Test</p>",
+        bcc: ["security@example.com", "info@airgen.studio"]
+      });
+
+      const logs = consoleLogSpy.mock.calls.flat().join("\n");
+      expect(logs).toContain("security@example.com");
+      expect(logs.split("\n").some(line => line.startsWith("Bcc:") && line.includes("info@airgen.studio"))).toBe(true);
     });
   });
 

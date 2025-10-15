@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../../lib/client";
 import { Modal, Select, Button, TextInput } from "../Modal";
@@ -187,7 +188,7 @@ export function ImportModal({
         }
       }
     } catch (error) {
-      alert("Failed to parse file: " + (error as Error).message);
+      toast.error(`Failed to parse file: ${(error as Error).message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -329,7 +330,7 @@ export function ImportModal({
 
   const performImport = async () => {
     if (!targetSectionId) {
-      alert("Please select a target section");
+      toast.warning("Please select a target section");
       return;
     }
     
@@ -374,12 +375,12 @@ export function ImportModal({
       await queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
       await queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });
       
-      alert(`Successfully imported ${requirementsToImport.length} requirements`);
+      toast.success(`Successfully imported ${requirementsToImport.length} requirements`);
       onClose();
       onImportComplete?.();
       resetModal();
     } catch (error) {
-      alert("Import failed: " + (error as Error).message);
+      toast.error(`Import failed: ${(error as Error).message}`);
     } finally {
       setIsProcessing(false);
     }

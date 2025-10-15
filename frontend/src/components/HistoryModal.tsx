@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { diffWords, diffChars } from "diff";
 import { useApiClient } from "../lib/client";
 import type { RequirementVersionRecord, RequirementDiff } from "../types";
+import { toast } from "sonner";
 
 type HistoryModalProps = {
   isOpen: boolean;
@@ -94,11 +95,11 @@ export function HistoryModal({
     setRestoring(versionNumber);
     try {
       await client.restoreRequirementVersion(tenant, project, requirementId, versionNumber);
-      alert(`Successfully restored to version ${versionNumber}`);
+      toast.success(`Successfully restored to version ${versionNumber}`);
       loadHistory(); // Reload history to show new version
       onRestore?.();
     } catch (err: any) {
-      alert(`Failed to restore: ${err.message}`);
+      toast.error(`Failed to restore: ${err.message}`);
     } finally {
       setRestoring(null);
     }

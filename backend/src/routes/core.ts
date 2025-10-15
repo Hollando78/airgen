@@ -2,10 +2,11 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { analyzeRequirement, AMBIGUOUS } from "@airgen/req-qa";
 import { config } from "../config.js";
-import { requireTenantAccess, requireRole, type AuthUser } from "../lib/authorization.js";
-import type {
-  RequirementPattern,
-  VerificationMethod
+import { requireTenantAccess, type AuthUser, isTenantOwner } from "../lib/authorization.js";
+import {
+  slugify,
+  type RequirementPattern,
+  type VerificationMethod
 } from "../services/workspace.js";
 import {
   listTenants,
@@ -21,6 +22,21 @@ import { getErrorMessage } from "../lib/type-guards.js";
 import { getCacheStats } from "../lib/cache.js";
 import { areMetricsAvailable } from "../lib/metrics.js";
 import { getSentryStatus } from "../lib/sentry.js";
+import { addTenantAccess, getDevUserByEmail, removeTenantFromAllUsers } from "../services/dev-users.js";
+import {
+  createTenantInvitation,
+  listInvitationsForTenant,
+  type TenantInvitationRecord
+} from "../services/tenant-invitations.js";
+import { sendTenantInvitationEmail } from "../lib/email.js";
+
+function mapInvitationResponse(invitation: TenantInvitationRecord) {
+  const { token: _token, invitedByEmail, ...rest } = invitation;
+  return {
+    ...rest,
+    invitedByEmail: invitedByEmail ?? null
+  };
+}
 
 export type DraftBody = {
   need: string;
@@ -239,7 +255,8 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
                   slug: { type: "string" },
                   name: { type: "string", nullable: true },
                   createdAt: { type: "string", nullable: true },
-                  projectCount: { type: "number" }
+                  projectCount: { type: "number" },
+                  isOwner: { type: "boolean" }
                 }
               }
             }
@@ -247,9 +264,26 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
         }
       }
     }
-  }, async () => {
-    const tenants = await listTenants();
-    return { tenants };
+  }, async (req) => {
+    const user = req.currentUser as AuthUser | undefined;
+    const tenantAccess = new Set<string>();
+    if (user) {
+      for (const slug of user.tenantSlugs ?? []) {
+        tenantAccess.add(slugify(slug));
+      }
+      for (const slug of user.ownedTenantSlugs ?? []) {
+        tenantAccess.add(slugify(slug));
+      }
+    }
+
+    const tenants = await listTenants(Array.from(tenantAccess));
+    const ownedSlugs = new Set((user?.ownedTenantSlugs ?? []).map(slug => slugify(slug)));
+    const responseTenants = tenants.map(tenant => ({
+      ...tenant,
+      isOwner: ownedSlugs.has(tenant.slug)
+    }));
+
+    return { tenants: responseTenants };
   });
 
   app.get("/tenants/:tenant/projects", {
@@ -328,7 +362,96 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
             }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const user = req.currentUser as AuthUser | undefined;
+    if (!user) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    const schema = z.object({
+      slug: z.string().min(1),
+      name: z.string().optional()
+    });
+    const body = schema.parse(req.body);
+
+    try {
+      const tenant = await createTenant(body);
+      const updated = await addTenantAccess(user.sub, tenant.slug, { owner: true });
+      if (!updated) {
+        return reply.status(500).send({ error: "Failed to associate tenant with user" });
+      }
+
+      return { tenant: { ...tenant, isOwner: true } };
+    } catch (error) {
+      return reply.status(400).send({ error: getErrorMessage(error) });
+    }
+  });
+
+  app.get("/tenants/:tenant/invitations", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "List tenant invitations",
+      description: "Lists invitations issued for a tenant (owner only)",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        required: ["tenant"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            invitations: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  tenantSlug: { type: "string" },
+                  email: { type: "string" },
+                  invitedBy: { type: "string" },
+                  invitedByEmail: { type: "string", nullable: true },
+                  status: { type: "string" },
+                  createdAt: { type: "string" },
+                  updatedAt: { type: "string" },
+                  acceptedAt: { type: "string", nullable: true },
+                  cancelledAt: { type: "string", nullable: true }
+                }
+              }
+            }
+          }
+        },
+        401: {
           type: "object",
           properties: {
             error: { type: "string" }
@@ -343,19 +466,127 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
       }
     }
   }, async (req, reply) => {
-    if (!req.currentUser?.roles.includes('admin')) {
-      return reply.status(403).send({ error: "Admin access required" });
+    const user = req.currentUser as AuthUser | undefined;
+    if (!user) {
+      return reply.status(401).send({ error: "Authentication required" });
     }
 
-    const schema = z.object({
-      slug: z.string().min(1),
-      name: z.string().optional()
-    });
-    const body = schema.parse(req.body);
+    const paramsSchema = z.object({ tenant: z.string().min(1) });
+    const params = paramsSchema.parse(req.params);
+
+    if (!isTenantOwner(user, params.tenant)) {
+      return reply.status(403).send({ error: "Only the tenant owner can view invitations" });
+    }
+
+    const invitations = await listInvitationsForTenant(params.tenant);
+    return { invitations: invitations.map(mapInvitationResponse) };
+  });
+
+  app.post("/tenants/:tenant/invitations", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["core"],
+      summary: "Invite user to tenant",
+      description: "Send an invitation to join a tenant (owner only)",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        required: ["tenant"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" }
+        }
+      },
+      body: {
+        type: "object",
+        required: ["email"],
+        properties: {
+          email: { type: "string", format: "email", description: "Email address to invite" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            invitation: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                tenantSlug: { type: "string" },
+                email: { type: "string" },
+                invitedBy: { type: "string" },
+                invitedByEmail: { type: "string", nullable: true },
+                status: { type: "string" },
+                createdAt: { type: "string" },
+                updatedAt: { type: "string" }
+              }
+            }
+          }
+        },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        400: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        409: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const user = req.currentUser as AuthUser | undefined;
+    if (!user) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    const paramsSchema = z.object({ tenant: z.string().min(1) });
+    const params = paramsSchema.parse(req.params);
+
+    if (!isTenantOwner(user, params.tenant)) {
+      return reply.status(403).send({ error: "Only the tenant owner can send invitations" });
+    }
+
+    const bodySchema = z.object({ email: z.string().email() });
+    const body = bodySchema.parse(req.body);
+
+    const normalizedTenant = slugify(params.tenant);
+    const existingUser = await getDevUserByEmail(body.email);
+    if (existingUser) {
+      const alreadyMember = (existingUser.tenantSlugs ?? []).some(slug => slugify(slug) === normalizedTenant);
+      if (alreadyMember) {
+        return reply.status(409).send({ error: "User already has access to this tenant" });
+      }
+    }
 
     try {
-      const tenant = await createTenant(body);
-      return { tenant };
+      const invitation = await createTenantInvitation(normalizedTenant, body.email, user.sub, user.email);
+      try {
+        await sendTenantInvitationEmail(body.email, normalizedTenant, user.name, invitation.token);
+      } catch (emailError) {
+        req.log.error({ err: emailError }, "Failed to send tenant invitation email");
+      }
+      return { invitation: mapInvitationResponse(invitation) };
     } catch (error) {
       return reply.status(400).send({ error: getErrorMessage(error) });
     }
@@ -366,7 +597,7 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     schema: {
       tags: ["core"],
       summary: "Delete a tenant",
-      description: "Deletes a tenant and all associated data (admin only)",
+      description: "Deletes a tenant and all associated data (owner only)",
       security: [{ bearerAuth: [] }],
       params: {
         type: "object",
@@ -382,6 +613,12 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
             success: { type: "boolean" }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         403: {
           type: "object",
           properties: {
@@ -393,32 +630,44 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
           properties: {
             error: { type: "string" }
           }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
         }
       }
     }
   }, async (req, reply) => {
-    if (!req.currentUser?.roles.includes('admin')) {
-      return reply.status(403).send({ error: "Admin access required" });
+    const user = req.currentUser as AuthUser | undefined;
+    if (!user) {
+      return reply.status(401).send({ error: "Authentication required" });
     }
 
     const paramsSchema = z.object({ tenant: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
+
+    if (!isTenantOwner(user, params.tenant)) {
+      return reply.status(403).send({ error: "Only the tenant owner can delete this tenant" });
+    }
 
     const success = await deleteTenant(params.tenant);
     if (!success) {
       return reply.status(404).send({ error: "Tenant not found" });
     }
 
+    await removeTenantFromAllUsers(params.tenant);
     return { success: true };
   });
 
-  // Admin-only project management endpoints
+  // Tenant project management endpoints
   app.post("/tenants/:tenant/projects", {
     preHandler: [app.authenticate],
     schema: {
       tags: ["core"],
       summary: "Create a new project",
-      description: "Creates a new project within a tenant (admin only)",
+      description: "Creates a new project within a tenant (owner only)",
       security: [{ bearerAuth: [] }],
       params: {
         type: "object",
@@ -450,6 +699,12 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
             }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         400: {
           type: "object",
           properties: {
@@ -461,18 +716,27 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
           properties: {
             error: { type: "string" }
           }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
         }
       }
     }
   }, async (req, reply) => {
-    // Verify user has admin role
-    requireRole(req.currentUser as AuthUser, 'admin', reply);
+    const user = req.currentUser as AuthUser | undefined;
+    if (!user) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
 
     const paramsSchema = z.object({ tenant: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
 
-    // Verify user has access to this tenant (admins skip this check)
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+    if (!isTenantOwner(user, params.tenant)) {
+      return reply.status(403).send({ error: "Only the tenant owner can create projects" });
+    }
 
     const schema = z.object({
       slug: z.string().min(1),
@@ -497,7 +761,7 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     schema: {
       tags: ["core"],
       summary: "Delete a project",
-      description: "Deletes a project and all associated data (admin only)",
+      description: "Deletes a project and all associated data (owner only)",
       security: [{ bearerAuth: [] }],
       params: {
         type: "object",
@@ -514,6 +778,12 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
             success: { type: "boolean" }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         403: {
           type: "object",
           properties: {
@@ -525,12 +795,20 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
           properties: {
             error: { type: "string" }
           }
+        },
+        500: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
         }
       }
     }
   }, async (req, reply) => {
-    // Verify user has admin role
-    requireRole(req.currentUser as AuthUser, 'admin', reply);
+    const user = req.currentUser as AuthUser | undefined;
+    if (!user) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
 
     const paramsSchema = z.object({
       tenant: z.string().min(1),
@@ -538,8 +816,9 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     });
     const params = paramsSchema.parse(req.params);
 
-    // Verify user has access to this tenant (admins skip this check)
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+    if (!isTenantOwner(user, params.tenant)) {
+      return reply.status(403).send({ error: "Only the tenant owner can delete projects" });
+    }
 
     const success = await deleteProject(params.tenant, params.project);
     if (!success) {

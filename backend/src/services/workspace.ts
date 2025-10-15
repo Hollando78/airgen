@@ -108,6 +108,7 @@ export type TenantRecord = {
   name: string | null;
   createdAt: string | null;
   projectCount: number;
+  isOwner?: boolean;
 };
 
 export type ProjectRecord = {

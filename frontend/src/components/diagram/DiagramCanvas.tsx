@@ -37,6 +37,7 @@ import type {
   SysmlConnector
 } from "../../hooks/useArchitectureApi";
 import { useDiagramCanvasInteractions } from "../../hooks/useDiagramCanvasInteractions";
+import { applyAutoLayoutToNodes, calculateBlockSize } from "../../routes/ArchitectureRoute/utils/autoLayout";
 
 const nodeTypes = { sysmlBlock: SysmlBlockNode };
 const edgeTypes = {
@@ -261,6 +262,66 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       });
     }, [activeDiagram, activeDiagramId, reactFlowInstanceRef, onOpenFloatingDiagram]);
 
+    const handleAutoLayout = useCallback(() => {
+      if (!reactFlowInstanceRef.current) {
+        return;
+      }
+
+      const nodes = reactFlowInstanceRef.current.getNodes();
+      const edges = reactFlowInstanceRef.current.getEdges();
+
+      // Apply Dagre hierarchical layout
+      const layoutedNodes = applyAutoLayoutToNodes(nodes, edges, {
+        rankdir: 'TB',
+        ranksep: 120,
+        nodesep: 100
+      });
+
+      // Update ReactFlow
+      reactFlowInstanceRef.current.setNodes(layoutedNodes);
+
+      // Persist positions to backend
+      layoutedNodes.forEach(node => {
+        updateBlockPosition(node.id, node.position);
+      });
+
+      // Animate to fit all blocks in view
+      setTimeout(() => {
+        reactFlowInstanceRef.current?.fitView({
+          padding: 0.2,
+          duration: 400
+        });
+      }, 50);
+    }, [reactFlowInstanceRef, updateBlockPosition]);
+
+    const handleAutoSize = useCallback(() => {
+      if (!reactFlowInstanceRef.current) {
+        return;
+      }
+
+      const nodes = reactFlowInstanceRef.current.getNodes();
+
+      // Calculate optimal size for each block based on content
+      nodes.forEach(node => {
+        const block = architecture.blocks.find(b => b.id === node.id);
+        if (!block) return;
+
+        // Calculate size based on text content and linked documents
+        const optimalSize = calculateBlockSize(block, documents);
+
+        // Update block size in backend
+        updateBlockSize(node.id, optimalSize);
+      });
+
+      // Fit view after resize
+      setTimeout(() => {
+        reactFlowInstanceRef.current?.fitView({
+          padding: 0.2,
+          duration: 400
+        });
+      }, 100);
+    }, [reactFlowInstanceRef, architecture.blocks, documents, updateBlockSize]);
+
     const handleDrop = useCallback((event: React.DragEvent) => {
       event.preventDefault();
 
@@ -378,6 +439,8 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 onToggleConnectMode={() => setIsConnectMode(prev => !prev)}
                 diagramName={activeDiagram?.name}
                 onPopout={handlePopout}
+                onAutoLayout={handleAutoLayout}
+                onAutoSize={handleAutoSize}
               />
 
               <div className="architecture-canvas-toolbar">

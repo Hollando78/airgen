@@ -273,7 +273,7 @@ export function InterfaceWorkspace({
     const confirmed = window.confirm(`Delete diagram "${diagram.name}"? This removes its blocks and connectors.`);
     if (!confirmed) {return;}
     deleteDiagram(diagramId).catch(error => {
-      window.alert((error as Error).message);
+      toast.error((error as Error).message);
     });
   }, [deleteDiagram, diagrams]);
 

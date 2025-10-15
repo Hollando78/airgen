@@ -10,6 +10,7 @@ import { DocumentsRoute } from "./routes/DocumentsRoute";
 import { ArchitectureRoute } from "./routes/ArchitectureRoute";
 import { InterfaceRoute } from "./routes/InterfaceRoute";
 import { AirGenRoute } from "./routes/AirGenRoute";
+import { AcceptInviteRoute } from "./routes/AcceptInviteRoute";
 import { AdminUsersRoute } from "./routes/AdminUsersRoute";
 import { AdminRequirementsRoute } from "./routes/AdminRequirementsRoute";
 import AdminRecoveryRoute from "./routes/AdminRecoveryRoute";
@@ -26,6 +27,7 @@ export default function ProductionAppRoutes(): JSX.Element {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardRoute />} />
+        <Route path="/invites/accept" element={<AcceptInviteRoute />} />
         
         {/* AIRGen route - most critical to protect */}
         <Route 

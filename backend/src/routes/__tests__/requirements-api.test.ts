@@ -41,6 +41,17 @@ describe("Requirements API Routes", () => {
 
   beforeEach(async () => {
     app = await createTestApp();
+    app.addHook("preHandler", (request, _reply, done) => {
+      request.currentUser = {
+        sub: testUsers.regularUser.sub,
+        email: testUsers.regularUser.email,
+        name: testUsers.regularUser.name,
+        roles: testUsers.regularUser.roles,
+        tenantSlugs: testUsers.regularUser.tenantSlugs,
+        ownedTenantSlugs: testUsers.regularUser.ownedTenantSlugs
+      } as any;
+      done();
+    });
     await app.register(requirementsRoutes, { prefix: "/api" });
     await app.ready();
     setupSuccessfulMocks();

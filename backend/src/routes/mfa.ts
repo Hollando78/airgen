@@ -13,6 +13,7 @@ import {
   hashBackupCode
 } from "../lib/mfa.js";
 import { revokeAllUserTokens } from "../lib/refresh-tokens.js";
+import { sendMfaEnabledEmail, sendMfaDisabledEmail } from "../lib/email.js";
 
 export default async function registerMfaRoutes(app: FastifyInstance): Promise<void> {
   // Auth-specific rate limiter (stricter than global)
@@ -129,6 +130,11 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
       backupCodesGenerated: backupCodes.length
     }, "2FA enabled for user");
 
+    sendMfaEnabledEmail(user.email, user.name)
+      .catch(emailError => {
+        app.log.error({ err: emailError }, "Failed to send MFA enabled email");
+      });
+
     return {
       message: "2FA enabled successfully",
       backupCodes // Return plaintext codes ONCE for user to save
@@ -179,6 +185,11 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
 
     // Revoke all sessions for security
     await revokeAllUserTokens(user.id);
+
+    sendMfaDisabledEmail(user.email, user.name)
+      .catch(emailError => {
+        app.log.error({ err: emailError }, "Failed to send MFA disabled email");
+      });
 
     return {
       message: "2FA disabled successfully. Please log in again."

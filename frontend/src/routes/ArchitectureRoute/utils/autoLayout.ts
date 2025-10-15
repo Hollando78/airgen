@@ -10,6 +10,8 @@
 
 import dagre from 'dagre';
 import type { Node, Edge } from '@xyflow/react';
+import type { SysmlBlock } from '../../../hooks/useArchitectureApi';
+import type { DocumentRecord } from '../../../types';
 
 /**
  * Layout configuration options for Dagre algorithm
@@ -417,4 +419,77 @@ export function suggestLayoutDirection(
 
   // Otherwise, use vertical layout (traditional for architecture)
   return 'TB';
+}
+
+/**
+ * Calculate optimal block size based on content
+ *
+ * Analyzes block text content and linked documents to determine the minimum
+ * size needed to display everything without truncation or overflow.
+ *
+ * @param block - The SysML block to size
+ * @param documents - Array of all documents (to find linked ones)
+ * @returns Optimal size { width, height } in pixels
+ *
+ * @example
+ * ```typescript
+ * const optimalSize = calculateBlockSize(block, documents);
+ * updateBlockSize(block.id, optimalSize);
+ * ```
+ */
+export function calculateBlockSize(
+  block: SysmlBlock,
+  documents?: DocumentRecord[]
+): { width: number; height: number } {
+  const MIN_WIDTH = 150;
+  const MIN_HEIGHT = 100;
+  const PADDING = 32; // 16px horizontal padding × 2
+  const LINE_HEIGHT = 20;
+  const CHAR_WIDTH = 8; // Approximate average character width
+
+  let requiredWidth = MIN_WIDTH;
+  let requiredHeight = MIN_HEIGHT;
+
+  // 1. Calculate width based on text content
+  // Name is rendered at 115% of base fontSize
+  const baseFontSize = block.fontSize || 14;
+  const nameWidth = block.name.length * CHAR_WIDTH * 1.15;
+  const stereotypeWidth = block.stereotype.length * CHAR_WIDTH * 0.85;
+
+  requiredWidth = Math.max(requiredWidth, nameWidth + PADDING, stereotypeWidth + PADDING);
+
+  // Description may wrap, so we calculate based on a max width
+  let descriptionWidth = 0;
+  if (block.description) {
+    descriptionWidth = Math.min(block.description.length * CHAR_WIDTH * 0.85, 300);
+    requiredWidth = Math.max(requiredWidth, descriptionWidth + PADDING);
+  }
+
+  // 2. Calculate height based on content rows
+  let contentHeight = 56; // Base height (stereotype + name + padding)
+
+  if (block.description) {
+    // Multi-line descriptions (wrap at calculated width)
+    const descCharWidth = CHAR_WIDTH * 0.85;
+    const availableWidth = requiredWidth - PADDING;
+    const lines = Math.ceil((block.description.length * descCharWidth) / availableWidth);
+    contentHeight += lines * LINE_HEIGHT + 8; // 8px margin-top
+  }
+
+  // 3. Add height for linked documents section
+  const linkedDocs = documents?.filter(doc => block.documentIds?.includes(doc.id)) || [];
+  if (linkedDocs.length > 0) {
+    contentHeight += 12; // border-top + padding-top
+    contentHeight += 17; // "Documents (N)" label
+    contentHeight += 6; // margin-bottom
+    contentHeight += linkedDocs.length * 32; // Each doc button is ~32px (padding + text + gap)
+  }
+
+  requiredHeight = Math.max(MIN_HEIGHT, contentHeight + 24); // +24 for bottom padding
+
+  // Round to nearest 10 for cleaner values
+  return {
+    width: Math.ceil(requiredWidth / 10) * 10,
+    height: Math.ceil(requiredHeight / 10) * 10
+  };
 }

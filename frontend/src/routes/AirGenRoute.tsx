@@ -33,6 +33,11 @@ export function AirGenRoute(): JSX.Element {
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [textFilter, setTextFilter] = useState('');
 
+  // Track which specific diagram candidate is being processed (prevent duplicate clicks)
+  const [acceptingDiagramId, setAcceptingDiagramId] = useState<string | null>(null);
+  const [rejectingDiagramId, setRejectingDiagramId] = useState<string | null>(null);
+  const [returningDiagramId, setReturningDiagramId] = useState<string | null>(null);
+
   const tenant = state.tenant ?? "";
   const project = state.project ?? "";
 
@@ -103,6 +108,10 @@ export function AirGenRoute(): JSX.Element {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["airgen", "diagram-candidates", tenant, project] });
+    },
+    onSettled: () => {
+      // Clear the rejecting ID when done
+      setRejectingDiagramId(null);
     }
   });
 
@@ -113,6 +122,10 @@ export function AirGenRoute(): JSX.Element {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["airgen", "diagram-candidates", tenant, project] });
+    },
+    onSettled: () => {
+      // Clear the returning ID when done
+      setReturningDiagramId(null);
     }
   });
 
@@ -128,6 +141,10 @@ export function AirGenRoute(): JSX.Element {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["airgen", "diagram-candidates", tenant, project] });
+    },
+    onSettled: () => {
+      // Clear the accepting ID when done (success or error)
+      setAcceptingDiagramId(null);
     }
   });
 
@@ -302,12 +319,30 @@ export function AirGenRoute(): JSX.Element {
                 <DiagramCandidateList
                   candidates={diagramCandidatesQuery.data?.items ?? []}
                   disabled={disabled}
-                  onAcceptClick={(candidate) => acceptDiagramMutation.mutate({ candidate })}
-                  onRejectClick={(candidate) => rejectDiagramMutation.mutate(candidate)}
-                  onReturnClick={(candidate) => returnDiagramMutation.mutate(candidate)}
+                  onAcceptClick={(candidate) => {
+                    // Prevent duplicate clicks on the same candidate
+                    if (acceptingDiagramId === candidate.id) return;
+                    setAcceptingDiagramId(candidate.id);
+                    acceptDiagramMutation.mutate({ candidate });
+                  }}
+                  onRejectClick={(candidate) => {
+                    // Prevent duplicate clicks on the same candidate
+                    if (rejectingDiagramId === candidate.id) return;
+                    setRejectingDiagramId(candidate.id);
+                    rejectDiagramMutation.mutate(candidate);
+                  }}
+                  onReturnClick={(candidate) => {
+                    // Prevent duplicate clicks on the same candidate
+                    if (returningDiagramId === candidate.id) return;
+                    setReturningDiagramId(candidate.id);
+                    returnDiagramMutation.mutate(candidate);
+                  }}
                   isAcceptPending={acceptDiagramMutation.isPending}
                   isRejectPending={rejectDiagramMutation.isPending}
                   isReturnPending={returnDiagramMutation.isPending}
+                  acceptingCandidateId={acceptingDiagramId}
+                  rejectingCandidateId={rejectingDiagramId}
+                  returningCandidateId={returningDiagramId}
                 />
               )}
             </div>

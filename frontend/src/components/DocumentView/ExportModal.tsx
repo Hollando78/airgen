@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { Modal, Select, Button } from "../Modal";
 import type { DocumentSectionRecord, RequirementRecord } from "../../types";
 
@@ -76,7 +77,7 @@ export function ExportModal({
       onClose();
     } catch (error) {
       console.error("Export failed:", error);
-      alert("Export failed: " + (error as Error).message);
+      toast.error(`Export failed: ${(error as Error).message}`);
     } finally {
       setIsExporting(false);
     }

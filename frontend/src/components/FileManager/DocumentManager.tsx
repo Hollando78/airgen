@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../../lib/client";
 import type { DocumentRecord, FolderRecord } from "../../types";
@@ -392,7 +393,7 @@ export function DocumentManager({
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Failed to download surrogate document", error);
-      window.alert("Failed to download the selected document. Please try again.");
+      toast.error("Failed to download the selected document. Please try again.");
     } finally {
       setDownloadingItemId(null);
     }

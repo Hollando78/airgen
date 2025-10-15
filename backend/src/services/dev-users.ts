@@ -22,6 +22,7 @@ export type DevUserRecord = {
   mfaBackupCodes?: string[]; // Hashed backup codes
   roles: string[];
   tenantSlugs: string[];
+  ownedTenantSlugs?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -64,6 +65,7 @@ type CreateDevUserInput = {
   password?: string;
   roles?: string[];
   tenantSlugs?: string[];
+  ownedTenantSlugs?: string[];
 };
 
 /**
@@ -168,6 +170,7 @@ export async function createDevUser(input: CreateDevUserInput): Promise<DevUserR
     name: input.name,
     roles: Array.isArray(input.roles) && input.roles.length ? input.roles : ["user"],
     tenantSlugs: Array.isArray(input.tenantSlugs) ? input.tenantSlugs : [],
+    ownedTenantSlugs: Array.isArray(input.ownedTenantSlugs) ? input.ownedTenantSlugs : [],
     createdAt: now,
     updatedAt: now
   };
@@ -187,6 +190,7 @@ type UpdateDevUserInput = {
   password?: string;
   roles?: string[];
   tenantSlugs?: string[];
+  ownedTenantSlugs?: string[];
   emailVerified?: boolean;
   mfaEnabled?: boolean;
   mfaSecret?: string;
@@ -226,6 +230,10 @@ export async function updateDevUser(id: string, input: UpdateDevUserInput): Prom
 
   if (Array.isArray(input.tenantSlugs)) {
     user.tenantSlugs = input.tenantSlugs;
+  }
+
+  if (Array.isArray(input.ownedTenantSlugs)) {
+    user.ownedTenantSlugs = input.ownedTenantSlugs;
   }
 
   if (typeof input.emailVerified !== "undefined") {
@@ -290,4 +298,88 @@ export async function markEmailVerified(userId: string): Promise<DevUserRecord |
 export async function getDevUserByEmail(email: string): Promise<DevUserRecord | null> {
   const users = await loadUsers();
   return users.find(user => user.email.toLowerCase() === email.toLowerCase()) ?? null;
+}
+
+export async function addTenantAccess(
+  userId: string,
+  tenantSlug: string,
+  options: { owner?: boolean } = {}
+): Promise<DevUserRecord | null> {
+  const users = await loadUsers();
+  const index = users.findIndex(user => user.id === userId);
+  if (index === -1) {
+    return null;
+  }
+
+  const normalizedTenant = slugifyTenant(tenantSlug);
+  const user = users[index];
+  const tenantSet = new Set(user.tenantSlugs ?? []);
+  tenantSet.add(normalizedTenant);
+  user.tenantSlugs = Array.from(tenantSet);
+
+  if (options.owner) {
+    const ownedSet = new Set(user.ownedTenantSlugs ?? []);
+    ownedSet.add(normalizedTenant);
+    user.ownedTenantSlugs = Array.from(ownedSet);
+  }
+
+  user.updatedAt = new Date().toISOString();
+  users[index] = user;
+  await saveUsers(users);
+  return user;
+}
+
+export async function removeTenantAccess(
+  userId: string,
+  tenantSlug: string
+): Promise<DevUserRecord | null> {
+  const users = await loadUsers();
+  const index = users.findIndex(user => user.id === userId);
+  if (index === -1) {
+    return null;
+  }
+
+  const normalizedTenant = slugifyTenant(tenantSlug);
+  const user = users[index];
+  user.tenantSlugs = (user.tenantSlugs ?? []).filter(slug => slugifyTenant(slug) !== normalizedTenant);
+  if (Array.isArray(user.ownedTenantSlugs)) {
+    user.ownedTenantSlugs = user.ownedTenantSlugs.filter(slug => slugifyTenant(slug) !== normalizedTenant);
+  }
+  user.updatedAt = new Date().toISOString();
+  users[index] = user;
+  await saveUsers(users);
+  return user;
+}
+
+export async function removeTenantFromAllUsers(tenantSlug: string): Promise<void> {
+  const users = await loadUsers();
+  const normalizedTenant = slugifyTenant(tenantSlug);
+  const now = new Date().toISOString();
+  let changed = false;
+
+  for (const user of users) {
+    const originalTenantCount = user.tenantSlugs?.length ?? 0;
+    user.tenantSlugs = (user.tenantSlugs ?? []).filter(slug => slugifyTenant(slug) !== normalizedTenant);
+
+    if (Array.isArray(user.ownedTenantSlugs)) {
+      user.ownedTenantSlugs = user.ownedTenantSlugs.filter(slug => slugifyTenant(slug) !== normalizedTenant);
+    }
+
+    if ((user.tenantSlugs?.length ?? 0) !== originalTenantCount) {
+      user.updatedAt = now;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await saveUsers(users);
+  }
+}
+
+function slugifyTenant(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
