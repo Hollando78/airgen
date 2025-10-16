@@ -66,6 +66,21 @@ function generateTenantSlug(email: string): string {
   return `${sanitized}-${timestamp}`;
 }
 
+/**
+ * Ensure user object has legacy fields for JWT backward compatibility
+ * This prevents undefined arrays in JWT payload
+ */
+function ensureLegacyFields(user: any) {
+  return {
+    sub: user.id,
+    email: user.email,
+    name: user.name,
+    roles: Array.isArray(user.roles) ? user.roles : [],
+    tenantSlugs: Array.isArray(user.tenantSlugs) ? user.tenantSlugs : [],
+    ownedTenantSlugs: Array.isArray(user.ownedTenantSlugs) ? user.ownedTenantSlugs : []
+  };
+}
+
 export default async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   // Auth-specific rate limiter (stricter than global)
   const authRateLimitConfig = {
@@ -201,14 +216,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
 
       // Generate short-lived JWT access token (15 minutes)
       const token = await reply.jwtSign(
-        {
-          sub: user.id,
-          email: user.email,
-          name: user.name,
-          roles: user.roles,
-          tenantSlugs: user.tenantSlugs,
-          ownedTenantSlugs: user.ownedTenantSlugs ?? []
-        },
+        ensureLegacyFields(user),
         { expiresIn: config.jwt.accessTokenExpiry }
       );
 
@@ -454,15 +462,15 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       throw new Error("User not authenticated");
     }
 
-    // Return current user info
+    // Return current user info (ensure arrays are never undefined)
     return {
       user: {
         id: req.currentUser.sub,
         email: req.currentUser.email,
         name: req.currentUser.name,
-        roles: req.currentUser.roles,
-        tenantSlugs: req.currentUser.tenantSlugs ?? [],
-        ownedTenantSlugs: req.currentUser.ownedTenantSlugs ?? []
+        roles: Array.isArray(req.currentUser.roles) ? req.currentUser.roles : [],
+        tenantSlugs: Array.isArray(req.currentUser.tenantSlugs) ? req.currentUser.tenantSlugs : [],
+        ownedTenantSlugs: Array.isArray(req.currentUser.ownedTenantSlugs) ? req.currentUser.ownedTenantSlugs : []
       }
     };
   });
@@ -516,14 +524,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
 
     // Generate new access token
     const token = await reply.jwtSign(
-      {
-        sub: user.id,
-        email: user.email,
-        name: user.name,
-        roles: user.roles,
-        tenantSlugs: user.tenantSlugs,
-        ownedTenantSlugs: user.ownedTenantSlugs ?? []
-      },
+      ensureLegacyFields(user),
       { expiresIn: config.jwt.accessTokenExpiry }
     );
 
@@ -710,14 +711,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
 
     // Generate full access token
     const token = await reply.jwtSign(
-      {
-        sub: user.id,
-        email: user.email,
-        name: user.name,
-        roles: user.roles,
-        tenantSlugs: user.tenantSlugs,
-        ownedTenantSlugs: user.ownedTenantSlugs ?? []
-      },
+      ensureLegacyFields(user),
       { expiresIn: config.jwt.accessTokenExpiry }
     );
 
@@ -927,14 +921,7 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     }
 
     const accessToken = await reply.jwtSign(
-      {
-        sub: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        roles: updatedUser.roles,
-        tenantSlugs: updatedUser.tenantSlugs,
-        ownedTenantSlugs: updatedUser.ownedTenantSlugs ?? []
-      },
+      ensureLegacyFields(updatedUser),
       { expiresIn: config.jwt.accessTokenExpiry }
     );
 
