@@ -121,8 +121,8 @@ export function AdminUsersRoute(): JSX.Element {
       email: user.email,
       name: user.name ?? "",
       password: "",
-      roles: user.roles.join(", "),
-      tenantSlugs: user.tenantSlugs.join(", ")
+      roles: user.roles?.join(", ") || "",
+      tenantSlugs: user.tenantSlugs?.join(", ") || ""
     });
     setEditError(null);
   };
@@ -337,7 +337,7 @@ export function AdminUsersRoute(): JSX.Element {
                               className="h-8"
                             />
                           ) : (
-                            user.roles.join(", ")
+                            user.roles?.join(", ") || "—"
                           )}</TableCell>
                           <TableCell>{editingId === user.id ? (
                             <Input
@@ -347,7 +347,7 @@ export function AdminUsersRoute(): JSX.Element {
                               className="h-8"
                             />
                           ) : (
-                            user.tenantSlugs.length ? user.tenantSlugs.join(", ") : "—"
+                            user.tenantSlugs?.length ? user.tenantSlugs.join(", ") : "—"
                           )}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{formatDate(user.updatedAt)}</TableCell>
                           <TableCell>

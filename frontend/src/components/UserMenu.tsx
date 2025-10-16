@@ -57,7 +57,7 @@ export function UserMenu(): JSX.Element {
             {user.name || user.email.split('@')[0]}
           </div>
           <div style={{ fontSize: '0.75rem', opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {user.tenantSlugs.join(', ') || 'No tenant'}
+            {user.tenantSlugs?.join(', ') || 'No tenant'}
           </div>
         </div>
         <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
@@ -88,7 +88,7 @@ export function UserMenu(): JSX.Element {
               {user.email}
             </div>
             <div style={{ fontSize: '0.75rem', color: '#5d6b7a' }}>
-              Roles: {user.roles.join(', ')}
+              Roles: {user.roles?.join(', ') || 'None'}
             </div>
           </div>
           <div style={{ padding: '0.5rem' }}>

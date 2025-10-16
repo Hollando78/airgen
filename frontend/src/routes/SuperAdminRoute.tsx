@@ -122,12 +122,12 @@ export function SuperAdminRoute(): JSX.Element {
                         </TableCell>
                         <TableCell>
                           <span className="text-xs text-muted-foreground">
-                            {user.roles.length > 0 ? user.roles.join(", ") : "—"}
+                            {user.roles?.length > 0 ? user.roles.join(", ") : "—"}
                           </span>
                         </TableCell>
                         <TableCell>
                           <span className="text-xs text-muted-foreground">
-                            {user.tenantSlugs.length > 0 ? user.tenantSlugs.join(", ") : "—"}
+                            {user.tenantSlugs?.length > 0 ? user.tenantSlugs.join(", ") : "—"}
                           </span>
                         </TableCell>
                       </TableRow>

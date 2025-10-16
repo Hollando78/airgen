@@ -83,7 +83,7 @@ export function MobileAdminScreen(): JSX.Element {
               <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs text-neutral-500">
                 <div>
                   <dt className="font-medium text-neutral-600">Roles</dt>
-                  <dd>{user.roles.join(", ")}</dd>
+                  <dd>{user.roles?.join(", ") || "—"}</dd>
                 </div>
                 <div>
                   <dt className="font-medium text-neutral-600">Tenants</dt>
