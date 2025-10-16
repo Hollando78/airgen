@@ -42,16 +42,16 @@ async function toDevUserRecord(user: Awaited<ReturnType<typeof userRepo.findById
   } else if (permissions.tenantPermissions) {
     // Use the highest tenant role
     const tenantRoles = Object.values(permissions.tenantPermissions).map(p => p.role);
-    if (tenantRoles.some(r => r === "tenant-admin")) {
+    if (tenantRoles.some(r => r === UserRole.TENANT_ADMIN)) {
       roles.push("admin");
     }
-    if (tenantRoles.some(r => r === "admin")) {
+    if (tenantRoles.some(r => r === UserRole.ADMIN)) {
       roles.push("admin");
     }
-    if (tenantRoles.some(r => r === "approver")) {
+    if (tenantRoles.some(r => r === UserRole.APPROVER)) {
       roles.push("approver");
     }
-    if (tenantRoles.some(r => r === "author")) {
+    if (tenantRoles.some(r => r === UserRole.AUTHOR)) {
       roles.push("author");
     }
   }
@@ -138,7 +138,7 @@ export async function createUser(input: {
 
   // Grant permissions based on legacy roles and tenants
   if (input.tenantSlugs && input.tenantSlugs.length > 0) {
-    const role = input.roles?.includes("admin") ? UserRole.TENANT_ADMIN : UserRole.VIEWER;
+    const role: UserRole = input.roles?.includes("admin") ? UserRole.TENANT_ADMIN : UserRole.VIEWER;
 
     for (const tenantSlug of input.tenantSlugs) {
       const isOwner = input.ownedTenantSlugs?.includes(tenantSlug) ?? false;
