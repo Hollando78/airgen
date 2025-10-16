@@ -39,7 +39,7 @@ export function ProtectedRoute({
   }
 
   // Check tenant access if required
-  if (requiredTenant && !user.tenantSlugs.includes(requiredTenant)) {
+  if (requiredTenant && !user.tenantSlugs?.includes(requiredTenant)) {
     return (
       <div className="panel" style={{
         margin: '2rem',
@@ -53,7 +53,7 @@ export function ProtectedRoute({
   }
 
   // Check role access if required
-  if (requiredRoles.length > 0 && !requiredRoles.some(role => user.roles.includes(role))) {
+  if (requiredRoles.length > 0 && !requiredRoles.some(role => user.roles?.includes(role))) {
     return (
       <div className="panel" style={{
         margin: '2rem',

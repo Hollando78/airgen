@@ -40,7 +40,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
   }
 
   // Legacy admin links (for backward compatibility)
-  if (user?.roles.includes('admin')) {
+  if (user?.roles?.includes('admin')) {
     links.push({ to: "/admin/users", label: "Admin Users" });
     links.push({ to: "/admin/requirements", label: "Admin Requirements" });
     links.push({ to: "/admin/recovery", label: "Admin Recovery" });

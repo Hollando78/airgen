@@ -84,7 +84,7 @@ export default function ProductionAppRoutes(): JSX.Element {
         />
 
         {/* Legacy admin routes - only for admin users */}
-        {user?.roles.includes('admin') && (
+        {user?.roles?.includes('admin') && (
           <>
             <Route
               path="/admin/users"
