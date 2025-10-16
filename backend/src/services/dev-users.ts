@@ -8,6 +8,7 @@ import {
   verifyLegacySHA256,
   verifyLegacyScrypt
 } from "../lib/password.js";
+import type { UserPermissions } from "../types/permissions.js";
 
 export type DevUserRecord = {
   id: string;
@@ -20,9 +21,18 @@ export type DevUserRecord = {
   mfaEnabled?: boolean;     // 2FA enabled status
   mfaSecret?: string;       // Encrypted TOTP secret
   mfaBackupCodes?: string[]; // Hashed backup codes
+
+  // NEW: Structured permissions (preferred)
+  permissions?: UserPermissions;
+
+  // DEPRECATED: Legacy permission fields (kept for backward compatibility)
+  /** @deprecated Use permissions.tenantPermissions instead */
   roles: string[];
+  /** @deprecated Use permissions.tenantPermissions keys instead */
   tenantSlugs: string[];
+  /** @deprecated Use permissions.tenantPermissions[].isOwner instead */
   ownedTenantSlugs?: string[];
+
   createdAt: string;
   updatedAt: string;
 };
@@ -191,6 +201,7 @@ type UpdateDevUserInput = {
   roles?: string[];
   tenantSlugs?: string[];
   ownedTenantSlugs?: string[];
+  permissions?: UserPermissions;
   emailVerified?: boolean;
   mfaEnabled?: boolean;
   mfaSecret?: string;
@@ -234,6 +245,10 @@ export async function updateDevUser(id: string, input: UpdateDevUserInput): Prom
 
   if (Array.isArray(input.ownedTenantSlugs)) {
     user.ownedTenantSlugs = input.ownedTenantSlugs;
+  }
+
+  if (typeof input.permissions !== "undefined") {
+    user.permissions = input.permissions;
   }
 
   if (typeof input.emailVerified !== "undefined") {
