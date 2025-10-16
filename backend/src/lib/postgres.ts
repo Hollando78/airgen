@@ -5,6 +5,7 @@
  */
 
 import pg from "pg";
+import { readFileSync } from "node:fs";
 
 const { Pool } = pg;
 
@@ -17,7 +18,18 @@ let pool: pg.Pool | null = null;
 export function getPool(): pg.Pool {
   if (!pool) {
     // Read connection string directly from environment to avoid circular dependency
-    const connectionString = process.env.DATABASE_URL;
+    let connectionString = process.env.DATABASE_URL;
+
+    // If DATABASE_URL not set, construct it from template and Docker secret
+    if (!connectionString && process.env.DATABASE_URL_TEMPLATE) {
+      try {
+        const passwordFile = "/run/secrets/postgres_password";
+        const password = readFileSync(passwordFile, "utf-8").trim();
+        connectionString = process.env.DATABASE_URL_TEMPLATE.replace("__PASSWORD__", password);
+      } catch (error) {
+        console.error("[PostgreSQL] Failed to read postgres_password secret:", error);
+      }
+    }
 
     if (!connectionString) {
       throw new Error("DATABASE_URL is not configured. Check config.ts or environment variables.");
