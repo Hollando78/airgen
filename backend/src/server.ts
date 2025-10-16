@@ -37,6 +37,7 @@ import graphRoutes from "./routes/graph.js";
 import workersRoutes from "./routes/workers.js";
 import { adminRequirementsRoutes } from "./routes/admin-requirements.js";
 import adminRecoveryRoutes from "./routes/admin-recovery.js";
+import nlQueryRoutes from "./routes/nl-query.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -290,6 +291,7 @@ await app.register(traceRoutes, { prefix: "/api" });
 await app.register(linksetRoutes, { prefix: "/api" });
 await app.register(draftRoutes, { prefix: "/api" });
 await app.register(airgenRoutes, { prefix: "/api" });
+await app.register(nlQueryRoutes, { prefix: "/api" });
 await app.register(graphRoutes, { prefix: "/api" });
 await app.register(workersRoutes, { prefix: "/api" });
 

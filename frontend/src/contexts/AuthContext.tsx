@@ -297,6 +297,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
         headers: {
           "Content-Type": "application/json"
         },
+        credentials: "include", // Enable cookies for refresh tokens
         body: JSON.stringify({ email, password })
       });
 
@@ -345,6 +346,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
         headers: {
           "Content-Type": "application/json"
         },
+        credentials: "include", // Enable cookies for refresh tokens
         body: JSON.stringify({ tempToken: mfaTempToken, code })
       });
 

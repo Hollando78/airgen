@@ -60,7 +60,10 @@ import type {
   BackupListResponse,
   RemoteBackupListResponse,
   BackupOperationResponse,
-  BackupStatusResponse
+  BackupStatusResponse,
+  NLQueryRequest,
+  NLQueryResult,
+  ExampleQuery
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -99,7 +102,8 @@ export function useApiClient() {
 
       const response = await fetch(`${config.apiBaseUrl}${path}`, {
         ...options,
-        headers
+        headers,
+        credentials: "include" // Enable cookies for refresh tokens
       });
 
       return handleResponse<T>(response);
@@ -446,6 +450,15 @@ export function useApiClient() {
           method: "POST",
           body: JSON.stringify({ content })
         }),
+
+      // Natural Language Query API methods
+      naturalLanguageQuery: (body: NLQueryRequest) =>
+        request<NLQueryResult>(`/query/natural-language`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      getExampleQueries: () =>
+        request<{ examples: ExampleQuery[] }>(`/query/examples`),
 
       // Dev admin utilities (development only)
       listDevUsers: () => request<DevUserListResponse>(`/dev/admin/users`),

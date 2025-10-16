@@ -10,6 +10,7 @@ import { DocumentsRoute } from "./routes/DocumentsRoute";
 import { ArchitectureRoute } from "./routes/ArchitectureRoute";
 import { InterfaceRoute } from "./routes/InterfaceRoute";
 import { AirGenRoute } from "./routes/AirGenRoute";
+import { NaturalLanguageQuery } from "./pages/NaturalLanguageQuery";
 import { AcceptInviteRoute } from "./routes/AcceptInviteRoute";
 import { AdminUsersRoute } from "./routes/AdminUsersRoute";
 import { AdminRequirementsRoute } from "./routes/AdminRequirementsRoute";
@@ -38,7 +39,8 @@ export default function ProductionAppRoutes(): JSX.Element {
             </ProtectedRoute>
           } 
         />
-        
+
+        <Route path="/query" element={<NaturalLanguageQuery />} />
         <Route path="/documents" element={<DocumentsRoute />} />
         <Route path="/architecture" element={<ArchitectureRoute />} />
         <Route path="/interfaces" element={<InterfaceRoute />} />

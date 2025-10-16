@@ -859,3 +859,24 @@ export type BackupStatusResponse = {
     percentage: string;
   };
 };
+
+// Natural Language Query Types
+export type NLQueryRequest = {
+  tenant: string;
+  projectKey: string;
+  query: string;
+  includeExplanation?: boolean;
+};
+
+export type NLQueryResult = {
+  cypherQuery: string;
+  results: unknown[];
+  resultCount: number;
+  executionTime: number;
+  explanation?: string;
+};
+
+export type ExampleQuery = {
+  natural: string;
+  category: string;
+};
