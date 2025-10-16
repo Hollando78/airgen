@@ -14,6 +14,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    secrets:
+      - traefik_basic_auth_users
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./letsencrypt:/letsencrypt
@@ -30,8 +32,10 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_DB: ${POSTGRES_DB}
+    secrets:
+      - postgres_password
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -44,6 +48,8 @@ services:
     image: neo4j:5.25
     environment:
       NEO4J_AUTH: "${GRAPH_USERNAME}/${GRAPH_PASSWORD}"
+    secrets:
+      - neo4j_password
     volumes:
       - neo4jdata:/data
     healthcheck:
@@ -60,21 +66,24 @@ services:
     environment:
       API_HOST: ${API_HOST:-0.0.0.0}
       API_PORT: ${API_PORT}
-      API_JWT_SECRET: ${API_JWT_SECRET}
       API_ENV: production
-      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      # Removed: API_JWT_SECRET (use Docker secret)
+      # Removed: GRAPH_PASSWORD (use Docker secret)
+      # Removed: LLM_API_KEY (use Docker secret)
+      # Removed: SMTP_PASSWORD (use Docker secret)
+      # Removed: RESTIC_PASSWORD (use Docker secret)
+      # Removed: AWS_SECRET_ACCESS_KEY (use Docker secret)
+      # DATABASE_URL password will be read from secret
+      DATABASE_URL_TEMPLATE: "postgresql://${POSTGRES_USER}:__PASSWORD__@postgres:5432/${POSTGRES_DB}"
       REDIS_URL: "redis://redis:6379"
       WORKSPACE_ROOT: /workspace
       AI_DRAFT_LIMIT: ${AI_DRAFT_LIMIT:-5}
       AI_DRAFT_CACHE_TTL: ${AI_DRAFT_CACHE_TTL:-900}
       GRAPH_URL: bolt://neo4j:7687
       GRAPH_USERNAME: ${GRAPH_USERNAME}
-      GRAPH_PASSWORD: ${GRAPH_PASSWORD}
       GRAPH_DATABASE: ${GRAPH_DATABASE:-neo4j}
       GRAPH_ENCRYPTED: ${GRAPH_ENCRYPTED:-false}
       LLM_PROVIDER: "${LLM_PROVIDER}"
-      LLM_API_KEY: "${LLM_API_KEY}"
-      OPENAI_API_KEY: "${LLM_API_KEY}"
       LLM_MODEL: "${LLM_MODEL:-gpt-4o-mini}"
       LLM_BASE_URL: "${LLM_BASE_URL}"
       LLM_TEMPERATURE: "${LLM_TEMPERATURE:-0.2}"
@@ -85,7 +94,6 @@ services:
       SMTP_PORT: "${SMTP_PORT}"
       SMTP_SECURE: "${SMTP_SECURE}"
       SMTP_USER: "${SMTP_USER}"
-      SMTP_PASSWORD: "${SMTP_PASSWORD}"
       RATE_LIMIT_GLOBAL_MAX: "${RATE_LIMIT_GLOBAL_MAX:-100}"
       RATE_LIMIT_GLOBAL_WINDOW: "${RATE_LIMIT_GLOBAL_WINDOW:-60000}"
       RATE_LIMIT_AUTH_MAX: "${RATE_LIMIT_AUTH_MAX:-5}"
@@ -102,9 +110,15 @@ services:
       NEO4J_VOLUME: airgen_neo4jdata
       POSTGRES_VOLUME: airgen_pgdata
       RESTIC_REPOSITORY: "${RESTIC_REPOSITORY}"
-      RESTIC_PASSWORD: "${RESTIC_PASSWORD}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+    secrets:
+      - postgres_password
+      - neo4j_password
+      - api_jwt_secret
+      - llm_api_key
+      - smtp_password
+      - restic_password
+      - aws_secret_access_key
     depends_on:
       postgres:
         condition: service_started
@@ -147,3 +161,21 @@ services:
 volumes:
   pgdata:
   neo4jdata:
+
+secrets:
+  postgres_password:
+    file: /root/airgen-secrets/postgres_password
+  neo4j_password:
+    file: /root/airgen-secrets/neo4j_password
+  api_jwt_secret:
+    file: /root/airgen-secrets/api_jwt_secret
+  llm_api_key:
+    file: /root/airgen-secrets/llm_api_key
+  smtp_password:
+    file: /root/airgen-secrets/smtp_password
+  restic_password:
+    file: /root/airgen-secrets/restic_password
+  aws_secret_access_key:
+    file: /root/airgen-secrets/aws_secret_access_key
+  traefik_basic_auth_users:
+    file: /root/airgen-secrets/traefik_basic_auth_users

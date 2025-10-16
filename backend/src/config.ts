@@ -1,4 +1,5 @@
 import { resolve } from "path";
+import { readFileSync, existsSync } from "fs";
 
 type Environment = "development" | "staging" | "production" | "test";
 
@@ -20,27 +21,73 @@ function parseList(value: string | undefined, fallback: string[]): string[] {
   return value.split(",").map(s => s.trim()).filter(Boolean);
 }
 
+/**
+ * Read secret from Docker secret file or environment variable.
+ * Checks /run/secrets/{secretName} first, then falls back to env var.
+ * Strips trailing newlines from file contents.
+ */
+function getSecret(secretName: string, envVarName?: string): string | undefined {
+  const secretPath = `/run/secrets/${secretName}`;
+
+  // Try Docker secret file first
+  if (existsSync(secretPath)) {
+    try {
+      const content = readFileSync(secretPath, 'utf8').trim();
+      if (content) {
+        return content;
+      }
+    } catch (error) {
+      console.warn(`[CONFIG] Failed to read Docker secret ${secretName}:`, error);
+    }
+  }
+
+  // Fallback to environment variable
+  if (envVarName) {
+    return process.env[envVarName];
+  }
+
+  return undefined;
+}
+
 const env = process.env;
 const environment = (env.API_ENV ?? env.NODE_ENV ?? "development") as Environment;
 
+// Read secrets from Docker secrets or environment variables
+const jwtSecret = getSecret('api_jwt_secret', 'API_JWT_SECRET');
+const graphPassword = getSecret('neo4j_password', 'GRAPH_PASSWORD');
+const llmApiKey = getSecret('llm_api_key', 'LLM_API_KEY') || getSecret('llm_api_key', 'OPENAI_API_KEY');
+const smtpPassword = getSecret('smtp_password', 'SMTP_PASSWORD');
+const postgresPassword = getSecret('postgres_password', 'POSTGRES_PASSWORD');
+const resticPassword = getSecret('restic_password', 'RESTIC_PASSWORD');
+const awsSecretAccessKey = getSecret('aws_secret_access_key', 'AWS_SECRET_ACCESS_KEY');
+
+// Build DATABASE_URL from template or use env var directly
+let databaseUrl = env.DATABASE_URL;
+if (!databaseUrl && env.DATABASE_URL_TEMPLATE && postgresPassword) {
+  databaseUrl = env.DATABASE_URL_TEMPLATE.replace('__PASSWORD__', postgresPassword);
+}
+
 // Validate required secrets in production
-const requiredProductionSecrets = [
-  "API_JWT_SECRET",
-  "GRAPH_PASSWORD"
+const requiredSecrets = [
+  { name: 'API_JWT_SECRET', value: jwtSecret },
+  { name: 'GRAPH_PASSWORD', value: graphPassword }
 ];
 
 if (environment === "production") {
-  const missingSecrets = requiredProductionSecrets.filter(key => !env[key]);
+  const missingSecrets = requiredSecrets
+    .filter(({ value }) => !value)
+    .map(({ name }) => name);
+
   if (missingSecrets.length > 0) {
     throw new Error(
       `[SECURITY] Required secrets missing in production: ${missingSecrets.join(", ")}\n` +
-      `Set these environment variables before starting the server.`
+      `Ensure Docker secrets are mounted or environment variables are set.`
     );
   }
 }
 
 // JWT Secret (required in prod, default in dev)
-const resolvedJwtSecret = env.API_JWT_SECRET ?? (environment === "production" ? undefined : "dev_secret_DO_NOT_USE_IN_PROD");
+const resolvedJwtSecret = jwtSecret ?? (environment === "production" ? undefined : "dev_secret_DO_NOT_USE_IN_PROD");
 
 if (!resolvedJwtSecret) {
   throw new Error("API_JWT_SECRET must be configured when running in production.");
@@ -98,11 +145,14 @@ export const config = {
     refreshTokenMaxAge: 7 * 24 * 60 * 60, // 7 days in seconds
   },
 
+  // Database URL (with secret password)
+  databaseUrl: databaseUrl,
+
   // Graph database (Neo4j)
   graph: {
     url: env.GRAPH_URL ?? "bolt://localhost:7687",
     username: env.GRAPH_USERNAME ?? "neo4j",
-    password: env.GRAPH_PASSWORD ?? "neo4j",
+    password: graphPassword ?? "neo4j",
     database: env.GRAPH_DATABASE ?? "neo4j",
     encrypted: parseBoolean(env.GRAPH_ENCRYPTED, false)
   },
@@ -110,7 +160,7 @@ export const config = {
   // LLM configuration
   llm: {
     provider: env.LLM_PROVIDER ?? null,
-    apiKey: env.LLM_API_KEY ?? env.OPENAI_API_KEY ?? null,
+    apiKey: llmApiKey ?? null,
     baseUrl: env.LLM_BASE_URL ?? null,
     model: env.LLM_MODEL ?? "gpt-4o-mini",
     temperature: parseNumber(env.LLM_TEMPERATURE, 0.2)
@@ -123,9 +173,15 @@ export const config = {
     smtpPort: parseNumber(env.SMTP_PORT, 587),
     smtpSecure: parseBoolean(env.SMTP_SECURE, false),
     smtpUser: env.SMTP_USER,
-    smtpPassword: env.SMTP_PASSWORD,
-    enabled: Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASSWORD),
+    smtpPassword: smtpPassword,
+    enabled: Boolean(env.SMTP_HOST && env.SMTP_USER && smtpPassword),
     systemBcc: env.EMAIL_SYSTEM_BCC === "" ? null : (env.EMAIL_SYSTEM_BCC ?? "info@airgen.studio")
+  },
+
+  // Backup configuration (with secrets)
+  backup: {
+    resticPassword: resticPassword,
+    awsSecretAccessKey: awsSecretAccessKey
   },
 
   // Rate limiting configuration

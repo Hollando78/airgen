@@ -106,6 +106,7 @@ See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 
 ### Authentication & Security
 - **[Security Documentation](./docs/SECURITY.md)** – Complete security foundation guide: authentication, 2FA, sessions, security headers, observability.
+- **[Secrets Management](./SECRETS_MANAGEMENT.md)** – Docker secrets implementation, rotation procedures, disaster recovery, and migration from .env files.
 - **[Security Test Checklist](./docs/SECURITY-TEST-CHECKLIST.md)** – Manual testing checklist for all security features.
 
 ### Backup & Operations

@@ -56,6 +56,10 @@ workspace/**/.DS_Store
 **/*secret*.json
 **/*password*.txt
 
+# Docker secrets directory (NEVER COMMIT!)
+/root/airgen-secrets/
+airgen-secrets/
+
 # Testing
 test-results/
 playwright-report/

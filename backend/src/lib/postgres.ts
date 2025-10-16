@@ -12,13 +12,16 @@ let pool: pg.Pool | null = null;
 
 /**
  * Get or create the PostgreSQL connection pool.
+ * Reads connection string from config (which supports Docker secrets).
  */
 export function getPool(): pg.Pool {
   if (!pool) {
-    const connectionString = process.env.DATABASE_URL;
+    // Import here to avoid circular dependency
+    const { config } = require("../config.js");
+    const connectionString = config.databaseUrl || process.env.DATABASE_URL;
 
     if (!connectionString) {
-      throw new Error("DATABASE_URL environment variable is not set");
+      throw new Error("DATABASE_URL is not configured. Check config.ts or environment variables.");
     }
 
     pool = new Pool({
