@@ -14,7 +14,17 @@
     "test:smoke": "vitest run src/services/__tests__/drafts.test.ts src/services/__tests__/llm.test.ts --runInBand",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "backfill:content": "tsx src/scripts/backfill-content-blocks.ts"
+    "backfill:content": "tsx src/scripts/backfill-content-blocks.ts",
+    "migrate:permissions": "tsx scripts/migrate-user-permissions.ts",
+    "migrate:permissions:dry-run": "tsx scripts/migrate-user-permissions.ts --dry-run",
+    "grant:super-admin": "tsx scripts/grant-super-admin.ts",
+    "migrate:postgres": "tsx src/cli/migrate-postgres.ts up",
+    "migrate:postgres:status": "tsx src/cli/migrate-postgres.ts list",
+    "migrate:users": "tsx scripts/migrate-users-to-database.ts",
+    "migrate:users:dry-run": "tsx scripts/migrate-users-to-database.ts --dry-run",
+    "migrate:users:grant-super-admin": "tsx scripts/migrate-users-to-database.ts --grant-super-admin",
+    "deploy:user-database": "tsx scripts/deploy-user-database.ts",
+    "deploy:user-database:dry-run": "tsx scripts/deploy-user-database.ts --dry-run"
   },
   "dependencies": {
     "@airgen/req-qa": "file:../packages/req-qa",

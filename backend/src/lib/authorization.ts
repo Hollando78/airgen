@@ -5,6 +5,10 @@
 
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { slugify } from "../services/workspace.js";
+import { UserRole } from "../types/roles.js";
+import type { UserPermissions } from "../types/permissions.js";
+import * as rbac from "./rbac.js";
+import type { DevUserRecord } from "../services/dev-users.js";
 
 /**
  * User information from JWT token
@@ -13,8 +17,16 @@ export interface AuthUser {
   sub: string;          // User ID
   email: string;
   name?: string;
+
+  // NEW: Structured permissions
+  permissions?: UserPermissions;
+
+  // DEPRECATED: Legacy fields (kept for backward compatibility)
+  /** @deprecated Use permissions instead */
   roles: string[];
+  /** @deprecated Use permissions.tenantPermissions instead */
   tenantSlugs: string[]; // List of tenants user has access to
+  /** @deprecated Use permissions.tenantPermissions[].isOwner instead */
   ownedTenantSlugs?: string[];
 }
 
@@ -240,5 +252,194 @@ export function createTenantAuthMiddleware(paramName: string = "tenant") {
       });
       return;
     }
+  };
+}
+
+// ============================================================================
+// NEW: Role-Based Authorization Middleware
+// ============================================================================
+
+/**
+ * Convert AuthUser to DevUserRecord for RBAC checks
+ * This bridges the JWT payload with the RBAC system
+ */
+function authUserToDevUserRecord(user: AuthUser): DevUserRecord {
+  return {
+    id: user.sub,
+    email: user.email,
+    name: user.name,
+    permissions: user.permissions,
+    roles: user.roles ?? [],
+    tenantSlugs: user.tenantSlugs ?? [],
+    ownedTenantSlugs: user.ownedTenantSlugs,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+/**
+ * Require user to be Super-Admin
+ */
+export function requireSuperAdmin(
+  user: AuthUser | undefined,
+  reply: FastifyReply
+): asserts user is AuthUser {
+  if (!user) {
+    reply.code(401).send({
+      error: "Unauthorized",
+      message: "Authentication required"
+    });
+    throw new Error("Unauthorized");
+  }
+
+  const devUser = authUserToDevUserRecord(user);
+  if (!rbac.isSuperAdmin(devUser)) {
+    reply.code(403).send({
+      error: "Forbidden",
+      message: "This action requires Super Administrator privileges"
+    });
+    throw new Error("Forbidden");
+  }
+}
+
+/**
+ * Require user to be Tenant-Admin for a specific tenant
+ */
+export function requireTenantAdmin(
+  user: AuthUser | undefined,
+  tenantSlug: string,
+  reply: FastifyReply
+): asserts user is AuthUser {
+  if (!user) {
+    reply.code(401).send({
+      error: "Unauthorized",
+      message: "Authentication required"
+    });
+    throw new Error("Unauthorized");
+  }
+
+  const devUser = authUserToDevUserRecord(user);
+  if (!rbac.isTenantAdmin(devUser, tenantSlug)) {
+    reply.code(403).send({
+      error: "Forbidden",
+      message: `This action requires Tenant Administrator privileges for '${tenantSlug}'`
+    });
+    throw new Error("Forbidden");
+  }
+}
+
+/**
+ * Require user to be Project-Admin for a specific project
+ */
+export function requireProjectAdmin(
+  user: AuthUser | undefined,
+  tenantSlug: string,
+  projectKey: string,
+  reply: FastifyReply
+): asserts user is AuthUser {
+  if (!user) {
+    reply.code(401).send({
+      error: "Unauthorized",
+      message: "Authentication required"
+    });
+    throw new Error("Unauthorized");
+  }
+
+  const devUser = authUserToDevUserRecord(user);
+  if (!rbac.isProjectAdmin(devUser, tenantSlug, projectKey)) {
+    reply.code(403).send({
+      error: "Forbidden",
+      message: `This action requires Project Administrator privileges for '${tenantSlug}/${projectKey}'`
+    });
+    throw new Error("Forbidden");
+  }
+}
+
+/**
+ * Require user to have at least a minimum role in a context
+ */
+export function requireMinimumRole(
+  user: AuthUser | undefined,
+  minimumRole: UserRole,
+  tenantSlug?: string,
+  projectKey?: string,
+  reply?: FastifyReply
+): asserts user is AuthUser {
+  if (!user) {
+    reply?.code(401).send({
+      error: "Unauthorized",
+      message: "Authentication required"
+    });
+    throw new Error("Unauthorized");
+  }
+
+  const devUser = authUserToDevUserRecord(user);
+  if (!rbac.hasMinimumRole(devUser, minimumRole, tenantSlug, projectKey)) {
+    reply?.code(403).send({
+      error: "Forbidden",
+      message: `This action requires at least '${minimumRole}' role`
+    });
+    throw new Error("Forbidden");
+  }
+}
+
+/**
+ * Middleware: Require Super-Admin
+ */
+export async function requireSuperAdminMiddleware(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const user = request.currentUser as AuthUser | undefined;
+  requireSuperAdmin(user, reply);
+}
+
+/**
+ * Middleware factory: Require Tenant-Admin for tenant in route params
+ */
+export function createRequireTenantAdminMiddleware(paramName: string = "tenant") {
+  return async (
+    request: FastifyRequest<{ Params: Record<string, string> }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    const user = request.currentUser as AuthUser | undefined;
+    const tenant = request.params[paramName];
+
+    if (!tenant) {
+      reply.code(400).send({
+        error: "Bad Request",
+        message: `${paramName} parameter is required`
+      });
+      return;
+    }
+
+    requireTenantAdmin(user, tenant, reply);
+  };
+}
+
+/**
+ * Middleware factory: Require Project-Admin for project in route params
+ */
+export function createRequireProjectAdminMiddleware(
+  tenantParam: string = "tenant",
+  projectParam: string = "project"
+) {
+  return async (
+    request: FastifyRequest<{ Params: Record<string, string> }>,
+    reply: FastifyReply
+  ): Promise<void> => {
+    const user = request.currentUser as AuthUser | undefined;
+    const tenant = request.params[tenantParam];
+    const project = request.params[projectParam];
+
+    if (!tenant || !project) {
+      reply.code(400).send({
+        error: "Bad Request",
+        message: "Tenant and project parameters are required"
+      });
+      return;
+    }
+
+    requireProjectAdmin(user, tenant, project, reply);
   };
 }

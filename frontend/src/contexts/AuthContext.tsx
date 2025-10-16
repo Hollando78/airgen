@@ -1,11 +1,20 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import type { UserPermissions } from "../lib/rbac";
 
 export type User = {
   id: string;
   email: string;
   name?: string;
+
+  // NEW: Structured permissions (preferred)
+  permissions?: UserPermissions;
+
+  // DEPRECATED: Legacy fields (kept for backward compatibility)
+  /** @deprecated Use permissions instead */
   roles: string[];
+  /** @deprecated Use permissions.tenantPermissions instead */
   tenantSlugs: string[];
+  /** @deprecated Use permissions.tenantPermissions[].isOwner instead */
   ownedTenantSlugs: string[];
 };
 
@@ -33,6 +42,7 @@ function normalizeUserPayload(raw: any): User {
     id: raw?.id ?? "",
     email: raw?.email ?? "",
     name: raw?.name,
+    permissions: raw?.permissions,
     roles: Array.isArray(raw?.roles) ? raw.roles : [],
     tenantSlugs: Array.isArray(raw?.tenantSlugs) ? raw.tenantSlugs : [],
     ownedTenantSlugs: Array.isArray(raw?.ownedTenantSlugs) ? raw.ownedTenantSlugs : []

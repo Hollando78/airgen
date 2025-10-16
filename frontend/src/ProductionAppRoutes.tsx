@@ -17,7 +17,11 @@ import { AdminRequirementsRoute } from "./routes/AdminRequirementsRoute";
 import AdminRecoveryRoute from "./routes/AdminRecoveryRoute";
 import { GraphViewerRoute } from "./routes/GraphViewerRoute";
 import { SettingsRoute } from "./routes/SettingsRoute";
+import { SuperAdminRoute } from "./routes/SuperAdminRoute";
+import { TenantAdminRoute } from "./routes/TenantAdminRoute";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { RoleGuard } from "./components/RoleGuard";
+import { UserRole } from "./lib/rbac";
 import { useAuth } from "./contexts/AuthContext";
 
 export default function ProductionAppRoutes(): JSX.Element {
@@ -52,7 +56,34 @@ export default function ProductionAppRoutes(): JSX.Element {
         <Route path="/graph-viewer" element={<GraphViewerRoute />} />
         <Route path="/settings" element={<SettingsRoute />} />
 
-        {/* Admin routes - only for admin users */}
+        {/* Super-Admin routes - only for Super-Admin users */}
+        <Route
+          path="/super-admin"
+          element={
+            <ProtectedRoute>
+              <RoleGuard requireSuperAdmin fallback={<Navigate to="/dashboard" replace />}>
+                <SuperAdminRoute />
+              </RoleGuard>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Tenant-Admin routes - only for Tenant-Admin users */}
+        <Route
+          path="/tenant-admin"
+          element={
+            <ProtectedRoute>
+              <RoleGuard
+                requireRole={UserRole.TENANT_ADMIN}
+                fallback={<Navigate to="/dashboard" replace />}
+              >
+                <TenantAdminRoute />
+              </RoleGuard>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Legacy admin routes - only for admin users */}
         {user?.roles.includes('admin') && (
           <>
             <Route

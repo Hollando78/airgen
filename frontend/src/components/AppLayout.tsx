@@ -3,6 +3,8 @@ import { TenantProjectProvider } from "../hooks/useTenantProject";
 import { TokenControls } from "./TokenControls";
 import { UserMenu } from "./UserMenu";
 import { useAuth } from "../contexts/AuthContext";
+import { useUserRole } from "../hooks/useUserRole";
+import { UserRole } from "../lib/rbac";
 import { FloatingDocumentsProvider } from "../contexts/FloatingDocumentsContext";
 import { FloatingDocumentsManager } from "./FloatingDocumentsManager";
 import { MobileViewToggle } from "../mobile/components/MobileViewToggle";
@@ -10,6 +12,8 @@ import { MobileViewToggle } from "../mobile/components/MobileViewToggle";
 export function AppLayout({ children }: { children: React.ReactNode }): JSX.Element {
   const isDevMode = import.meta.env.MODE !== "production";
   const { user } = useAuth();
+  const { isSuperAdmin, hasRole } = useUserRole();
+
   const links = [
     { to: "/dashboard", label: "Dashboard" },
     { to: "/airgen", label: "AIRGen" },
@@ -25,6 +29,17 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
     { to: "/graph-viewer", label: "Graph Viewer" }
   ];
 
+  // Add Super-Admin navigation (highest priority)
+  if (isSuperAdmin()) {
+    links.push({ to: "/super-admin", label: "Super Admin" });
+  }
+
+  // Add Tenant-Admin navigation
+  if (hasRole(UserRole.TENANT_ADMIN)) {
+    links.push({ to: "/tenant-admin", label: "Tenant Admin" });
+  }
+
+  // Legacy admin links (for backward compatibility)
   if (user?.roles.includes('admin')) {
     links.push({ to: "/admin/users", label: "Admin Users" });
     links.push({ to: "/admin/requirements", label: "Admin Requirements" });

@@ -791,6 +791,7 @@ export type DevUser = {
   name?: string;
   roles: string[];
   tenantSlugs: string[];
+  permissions?: import("./lib/rbac").UserPermissions;
   createdAt: string;
   updatedAt: string;
 };

@@ -565,7 +565,62 @@ export function useApiClient() {
           body: JSON.stringify({ backupPath, component })
         }),
       getBackupStatus: () =>
-        request<BackupStatusResponse>(`/admin/recovery/status`)
+        request<BackupStatusResponse>(`/admin/recovery/status`),
+
+      // Super-Admin API methods
+      listAllSuperAdminUsers: () =>
+        request<DevUserListResponse>(`/super-admin/users`),
+      getSuperAdminUser: (id: string) =>
+        request<DevUserResponse>(`/super-admin/users/${id}`),
+      createSuperAdminUser: (body: { email: string; name?: string; password?: string; permissions?: any }) =>
+        request<DevUserResponse>(`/super-admin/users`, { method: "POST", body: JSON.stringify(body) }),
+      updateSuperAdminUserPermissions: (id: string, permissions: any) =>
+        request<DevUserResponse>(`/super-admin/users/${id}/permissions`, { method: "PATCH", body: JSON.stringify({ permissions }) }),
+      deleteSuperAdminUser: (id: string) =>
+        request<{ success: boolean }>(`/super-admin/users/${id}`, { method: "DELETE" }),
+      listAllSuperAdminTenants: () =>
+        request<TenantsResponse>(`/super-admin/tenants`),
+      grantPermission: (body: {
+        userId: string;
+        tenantSlug?: string;
+        projectKey?: string;
+        role: string;
+        grantedBy?: string;
+      }) =>
+        request<{ success: boolean; user: any }>(`/super-admin/permissions/grant`, { method: "POST", body: JSON.stringify(body) }),
+      revokePermission: (body: {
+        userId: string;
+        tenantSlug?: string;
+        projectKey?: string;
+      }) =>
+        request<{ success: boolean; user: any }>(`/super-admin/permissions/revoke`, { method: "POST", body: JSON.stringify(body) }),
+
+      // Tenant-Admin API methods
+      listTenantUsers: (tenant: string) =>
+        request<DevUserListResponse>(`/tenant-admin/${tenant}/users`),
+      getTenantUser: (tenant: string, id: string) =>
+        request<DevUserResponse>(`/tenant-admin/${tenant}/users/${id}`),
+      grantTenantUserAccess: (tenant: string, userId: string, role: string) =>
+        request<{ success: boolean; user: any }>(`/tenant-admin/${tenant}/users/${userId}/grant-access`, {
+          method: "POST",
+          body: JSON.stringify({ role })
+        }),
+      revokeTenantUserAccess: (tenant: string, userId: string) =>
+        request<{ success: boolean; user: any }>(`/tenant-admin/${tenant}/users/${userId}/revoke-access`, {
+          method: "POST"
+        }),
+      grantProjectUserAccess: (tenant: string, project: string, userId: string, role: string) =>
+        request<{ success: boolean; user: any }>(`/tenant-admin/${tenant}/projects/${project}/grant-access`, {
+          method: "POST",
+          body: JSON.stringify({ userId, role })
+        }),
+      revokeProjectUserAccess: (tenant: string, project: string, userId: string) =>
+        request<{ success: boolean; user: any }>(`/tenant-admin/${tenant}/projects/${project}/revoke-access`, {
+          method: "POST",
+          body: JSON.stringify({ userId })
+        }),
+      listTenantProjects: (tenant: string) =>
+        request<ProjectsResponse>(`/tenant-admin/${tenant}/projects`)
     }),
     [request]
   );

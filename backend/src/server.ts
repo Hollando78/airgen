@@ -190,7 +190,10 @@ await app.register(swagger, {
       { name: "trace", description: "Traceability links" },
       { name: "linksets", description: "Document linksets" },
       { name: "draft", description: "Requirement drafting" },
-      { name: "airgen", description: "AI-powered generation" }
+      { name: "airgen", description: "AI-powered generation" },
+      { name: "super-admin", description: "Super-Admin system administration" },
+      { name: "tenant-admin", description: "Tenant-Admin tenant management" },
+      { name: "admin", description: "Administrative operations" }
     ],
     components: {
       securitySchemes: {
@@ -298,7 +301,11 @@ await app.register(workersRoutes, { prefix: "/api" });
 
 if (config.features.adminRoutesEnabled) {
   const adminRoutes = await import("./routes/admin-users.js");
+  const superAdminRoutes = await import("./routes/super-admin.js");
+  const tenantAdminRoutes = await import("./routes/tenant-admin.js");
   await app.register(adminRoutes.default, { prefix: "/api/dev" });
+  await app.register(superAdminRoutes.default, { prefix: "/api" });
+  await app.register(tenantAdminRoutes.default, { prefix: "/api" });
   await app.register(adminRequirementsRoutes, { prefix: "/api" });
   await app.register(adminRecoveryRoutes, { prefix: "/api" });
   await app.register(projectBackupRoutes, { prefix: "/api" });

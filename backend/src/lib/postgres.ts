@@ -16,9 +16,8 @@ let pool: pg.Pool | null = null;
  */
 export function getPool(): pg.Pool {
   if (!pool) {
-    // Import here to avoid circular dependency
-    const { config } = require("../config.js");
-    const connectionString = config.databaseUrl || process.env.DATABASE_URL;
+    // Read connection string directly from environment to avoid circular dependency
+    const connectionString = process.env.DATABASE_URL;
 
     if (!connectionString) {
       throw new Error("DATABASE_URL is not configured. Check config.ts or environment variables.");
