@@ -37,6 +37,7 @@ import graphRoutes from "./routes/graph.js";
 import workersRoutes from "./routes/workers.js";
 import { adminRequirementsRoutes } from "./routes/admin-requirements.js";
 import adminRecoveryRoutes from "./routes/admin-recovery.js";
+import projectBackupRoutes from "./routes/project-backup-routes.js";
 import nlQueryRoutes from "./routes/nl-query.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -300,6 +301,7 @@ if (config.features.adminRoutesEnabled) {
   await app.register(adminRoutes.default, { prefix: "/api/dev" });
   await app.register(adminRequirementsRoutes, { prefix: "/api" });
   await app.register(adminRecoveryRoutes, { prefix: "/api" });
+  await app.register(projectBackupRoutes, { prefix: "/api" });
 }
 
 const port = config.port;
