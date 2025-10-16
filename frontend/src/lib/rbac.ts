@@ -287,8 +287,8 @@ export function getUserTenants(permissions: UserPermissions | undefined): string
  * For backward compatibility with old user objects
  */
 export function migrateLegacyPermissions(
-  roles: string[],
-  tenantSlugs: string[],
+  roles?: string[],
+  tenantSlugs?: string[],
   ownedTenantSlugs?: string[]
 ): UserPermissions {
   const permissions: UserPermissions = {};
