@@ -11,11 +11,11 @@ export type User = {
 
   // DEPRECATED: Legacy fields (kept for backward compatibility)
   /** @deprecated Use permissions instead */
-  roles: string[];
+  roles?: string[];
   /** @deprecated Use permissions.tenantPermissions instead */
-  tenantSlugs: string[];
+  tenantSlugs?: string[];
   /** @deprecated Use permissions.tenantPermissions[].isOwner instead */
-  ownedTenantSlugs: string[];
+  ownedTenantSlugs?: string[];
 };
 
 type AuthContextType = {
