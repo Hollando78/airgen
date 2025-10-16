@@ -29,6 +29,7 @@ import {
   type TenantInvitationRecord
 } from "../services/tenant-invitations.js";
 import { sendTenantInvitationEmail } from "../lib/email.js";
+import { UserRole } from "../types/roles.js";
 
 function mapInvitationResponse(invitation: TenantInvitationRecord) {
   const { token: _token, invitedByEmail, ...rest } = invitation;
@@ -266,18 +267,65 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     }
   }, async (req) => {
     const user = req.currentUser as AuthUser | undefined;
+
+    if (!user) {
+      return { tenants: [] };
+    }
+
+    // Track all tenant slugs the user can access
     const tenantAccess = new Set<string>();
-    if (user) {
-      for (const slug of user.tenantSlugs ?? []) {
-        tenantAccess.add(slugify(slug));
+
+    if (user.permissions) {
+      if (user.permissions.globalRole === UserRole.SUPER_ADMIN) {
+        const tenants = await listTenants();
+        const ownedSlugs = new Set<string>();
+
+        for (const slug of user.ownedTenantSlugs ?? []) {
+          ownedSlugs.add(slugify(slug));
+        }
+        for (const [tenantSlug, permission] of Object.entries(user.permissions.tenantPermissions ?? {})) {
+          if (permission.isOwner) {
+            ownedSlugs.add(slugify(tenantSlug));
+          }
+        }
+
+        const responseTenants = tenants.map(tenant => ({
+          ...tenant,
+          isOwner: ownedSlugs.has(tenant.slug) || user.permissions?.globalRole === UserRole.SUPER_ADMIN
+        }));
+
+        return { tenants: responseTenants };
       }
-      for (const slug of user.ownedTenantSlugs ?? []) {
-        tenantAccess.add(slugify(slug));
+
+      for (const tenantSlug of Object.keys(user.permissions.tenantPermissions ?? {})) {
+        tenantAccess.add(slugify(tenantSlug));
+      }
+
+      for (const tenantSlug of Object.keys(user.permissions.projectPermissions ?? {})) {
+        tenantAccess.add(slugify(tenantSlug));
       }
     }
 
-    const tenants = await listTenants(Array.from(tenantAccess));
-    const ownedSlugs = new Set((user?.ownedTenantSlugs ?? []).map(slug => slugify(slug)));
+    for (const slug of user.tenantSlugs ?? []) {
+      tenantAccess.add(slugify(slug));
+    }
+    for (const slug of user.ownedTenantSlugs ?? []) {
+      tenantAccess.add(slugify(slug));
+    }
+
+    const tenantFilter = tenantAccess.size > 0 ? Array.from(tenantAccess) : null;
+    const tenants = tenantFilter ? await listTenants(tenantFilter) : [];
+
+    const ownedSlugs = new Set<string>();
+    for (const slug of user.ownedTenantSlugs ?? []) {
+      ownedSlugs.add(slugify(slug));
+    }
+    for (const [tenantSlug, permission] of Object.entries(user.permissions?.tenantPermissions ?? {})) {
+      if (permission.isOwner) {
+        ownedSlugs.add(slugify(tenantSlug));
+      }
+    }
+
     const responseTenants = tenants.map(tenant => ({
       ...tenant,
       isOwner: ownedSlugs.has(tenant.slug)

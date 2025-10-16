@@ -1,4 +1,11 @@
-import type { FormEvent} from "react";
+/**
+ * Super-Admin Users Management
+ *
+ * Full CRUD interface for managing all users across the entire system.
+ * Only accessible to Super-Admin users.
+ */
+
+import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
@@ -13,7 +20,7 @@ import { EmptyState } from "../components/ui/empty-state";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../components/ui/table";
 import { Badge } from "../components/ui/badge";
 import { RoleSelector } from "../components/RoleSelector";
-import { RefreshCw, Users } from "lucide-react";
+import { RefreshCw, Users, Shield } from "lucide-react";
 import { UserRole } from "../lib/rbac";
 import type { DevUser } from "../types";
 
@@ -51,7 +58,7 @@ function formatDate(timestamp: string): string {
   }
 }
 
-export function AdminUsersRoute(): JSX.Element {
+export function SuperAdminUsersRoute(): JSX.Element {
   const api = useApiClient();
   const queryClient = useQueryClient();
 
@@ -62,17 +69,17 @@ export function AdminUsersRoute(): JSX.Element {
   const [editError, setEditError] = useState<string | null>(null);
 
   const usersQuery = useQuery({
-    queryKey: ["dev-users"],
-    queryFn: () => api.listDevUsers()
+    queryKey: ["super-admin-users"],
+    queryFn: () => api.listAllSuperAdminUsers()
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: { email: string; name?: string; password?: string; roles?: string[]; tenantSlugs?: string[] }) =>
-      api.createDevUser(payload),
+    mutationFn: (payload: { email: string; name?: string; password?: string; permissions?: any }) =>
+      api.createSuperAdminUser(payload),
     onSuccess: () => {
       setCreateForm(EMPTY_FORM);
       setCreateError(null);
-      void queryClient.invalidateQueries({ queryKey: ["dev-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["super-admin-users"] });
     },
     onError: (error: unknown) => {
       setCreateError(error instanceof Error ? error.message : "Failed to create user");
@@ -80,12 +87,12 @@ export function AdminUsersRoute(): JSX.Element {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (payload: { id: string; data: { email?: string; name?: string | null; password?: string; roles?: string[]; tenantSlugs?: string[] } }) =>
-      api.updateDevUser(payload.id, payload.data),
+    mutationFn: (payload: { id: string; permissions: any }) =>
+      api.updateSuperAdminUserPermissions(payload.id, payload.permissions),
     onSuccess: () => {
       setEditingId(null);
       setEditError(null);
-      void queryClient.invalidateQueries({ queryKey: ["dev-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["super-admin-users"] });
     },
     onError: (error: unknown) => {
       setEditError(error instanceof Error ? error.message : "Failed to update user");
@@ -93,9 +100,9 @@ export function AdminUsersRoute(): JSX.Element {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteDevUser(id),
+    mutationFn: (id: string) => api.deleteSuperAdminUser(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dev-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["super-admin-users"] });
     }
   });
 
@@ -109,22 +116,57 @@ export function AdminUsersRoute(): JSX.Element {
       setCreateError("Email is required");
       return;
     }
+
+    // Build permissions object from selected roles
+    const permissions: any = {};
+    const tenants = splitList(createForm.tenantSlugs);
+
+    // If user has a global role (super-admin, tenant-admin), set it
+    if (createForm.roles.includes(UserRole.SUPER_ADMIN)) {
+      permissions.globalRole = UserRole.SUPER_ADMIN;
+    } else if (createForm.roles.includes(UserRole.TENANT_ADMIN)) {
+      permissions.globalRole = UserRole.TENANT_ADMIN;
+    } else {
+      // Otherwise, assign tenant-specific roles
+      permissions.tenantPermissions = {};
+      tenants.forEach(tenant => {
+        const tenantRole = createForm.roles[0] || UserRole.VIEWER;
+        permissions.tenantPermissions[tenant] = {
+          role: tenantRole,
+          isOwner: false
+        };
+      });
+    }
+
     await createMutation.mutateAsync({
       email,
       name: createForm.name.trim() || undefined,
       password: createForm.password.trim() || undefined,
-      roles: createForm.roles,
-      tenantSlugs: splitList(createForm.tenantSlugs)
+      permissions
     });
   };
 
   const beginEdit = (user: DevUser) => {
     setEditingId(user.id);
+
+    // Extract roles from permissions
+    let roles: string[] = [];
+    if (user.permissions?.globalRole) {
+      roles = [user.permissions.globalRole];
+    } else if (user.permissions?.tenantPermissions) {
+      // Get unique roles from tenant permissions
+      const tenantRoles = Object.values(user.permissions.tenantPermissions).map((p: any) => p.role);
+      roles = Array.from(new Set(tenantRoles));
+    } else if (user.roles) {
+      // Fallback to legacy roles
+      roles = user.roles;
+    }
+
     setEditForm({
       email: user.email,
       name: user.name ?? "",
       password: "",
-      roles: user.roles || [],
+      roles,
       tenantSlugs: user.tenantSlugs?.join(", ") || ""
     });
     setEditError(null);
@@ -137,39 +179,58 @@ export function AdminUsersRoute(): JSX.Element {
 
   const handleUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!editingId) {return;}
+    if (!editingId) return;
     setEditError(null);
-    const email = editForm.email.trim();
-    if (!email) {
-      setEditError("Email is required");
-      return;
+
+    const tenants = splitList(editForm.tenantSlugs);
+    const permissions: any = {};
+
+    // Build permissions based on selected roles
+    if (editForm.roles.includes(UserRole.SUPER_ADMIN)) {
+      permissions.globalRole = UserRole.SUPER_ADMIN;
+    } else if (editForm.roles.includes(UserRole.TENANT_ADMIN)) {
+      permissions.globalRole = UserRole.TENANT_ADMIN;
+    } else {
+      permissions.tenantPermissions = {};
+      tenants.forEach(tenant => {
+        const tenantRole = editForm.roles[0] || UserRole.VIEWER;
+        permissions.tenantPermissions[tenant] = {
+          role: tenantRole,
+          isOwner: false
+        };
+      });
     }
-    const updateData: any = {
-      email,
-      name: editForm.name.trim() || null,
-      roles: editForm.roles,
-      tenantSlugs: splitList(editForm.tenantSlugs)
-    };
-    if (editForm.password.trim()) {
-      updateData.password = editForm.password.trim();
-    }
+
     await updateMutation.mutateAsync({
       id: editingId,
-      data: updateData
+      permissions
     });
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this user?")) {return;}
+    if (!window.confirm("Delete this user? This action cannot be undone.")) return;
     await deleteMutation.mutateAsync(id);
   };
 
   return (
     <PageLayout
-      title="Admin Users"
-      description="Manage admin user accounts and their workspace access."
+      title="Super Admin - User Management"
+      description="Manage all users across the entire system."
     >
       <div className="space-y-6">
+        {/* Info Banner */}
+        <Card className="border-purple-200 bg-purple-50">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-2 text-purple-900">
+              <Shield className="h-5 w-5" />
+              <p className="text-sm font-medium">
+                Super-Admin Access: You can create, edit, and delete all users system-wide.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Create User Form */}
         <Card>
           <CardHeader>
             <CardTitle>Create User</CardTitle>
@@ -231,7 +292,7 @@ export function AdminUsersRoute(): JSX.Element {
                 <FormField
                   label="Tenant Slugs"
                   htmlFor="create-tenant-slugs"
-                  hint="Comma separated"
+                  hint="Comma separated (not needed for Super-Admin or Tenant-Admin global roles)"
                   className="md:col-span-2"
                 >
                   <Input
@@ -252,10 +313,11 @@ export function AdminUsersRoute(): JSX.Element {
           </CardContent>
         </Card>
 
+        {/* Users Table */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Existing Users</CardTitle>
+              <CardTitle>All Users</CardTitle>
               <Button
                 variant="secondary"
                 size="sm"
@@ -277,7 +339,7 @@ export function AdminUsersRoute(): JSX.Element {
             ) : users.length === 0 ? (
               <EmptyState
                 icon={Users}
-                title="No users defined yet"
+                title="No users found"
                 description="Create your first user using the form above."
               />
             ) : (
@@ -288,8 +350,7 @@ export function AdminUsersRoute(): JSX.Element {
                       <TableRow>
                         <TableHead>Email</TableHead>
                         <TableHead>Name</TableHead>
-                        <TableHead>Password</TableHead>
-                        <TableHead>Roles</TableHead>
+                        <TableHead>Roles / Permissions</TableHead>
                         <TableHead>Tenants</TableHead>
                         <TableHead>Updated</TableHead>
                         <TableHead className="w-[180px]">Actions</TableHead>
@@ -298,38 +359,8 @@ export function AdminUsersRoute(): JSX.Element {
                     <TableBody>
                       {users.map(user => (
                         <TableRow key={user.id}>
-                          <TableCell>{editingId === user.id ? (
-                            <Input
-                              type="email"
-                              value={editForm.email}
-                              onChange={event => setEditForm(current => ({ ...current, email: event.target.value }))}
-                              className="h-8"
-                            />
-                          ) : (
-                            user.email
-                          )}</TableCell>
-                          <TableCell>{editingId === user.id ? (
-                            <Input
-                              type="text"
-                              value={editForm.name}
-                              onChange={event => setEditForm(current => ({ ...current, name: event.target.value }))}
-                              placeholder="Optional"
-                              className="h-8"
-                            />
-                          ) : (
-                            user.name ?? "—"
-                          )}</TableCell>
-                          <TableCell>{editingId === user.id ? (
-                            <Input
-                              type="password"
-                              value={editForm.password}
-                              onChange={event => setEditForm(current => ({ ...current, password: event.target.value }))}
-                              placeholder="Leave blank to keep current"
-                              className="h-8"
-                            />
-                          ) : (
-                            "••••••••"
-                          )}</TableCell>
+                          <TableCell className="font-medium">{user.email}</TableCell>
+                          <TableCell>{user.name ?? "—"}</TableCell>
                           <TableCell>{editingId === user.id ? (
                             <div className="min-w-[200px]">
                               <RoleSelector
@@ -339,7 +370,17 @@ export function AdminUsersRoute(): JSX.Element {
                             </div>
                           ) : (
                             <div className="flex flex-wrap gap-1">
-                              {user.roles?.length ? (
+                              {user.permissions?.globalRole ? (
+                                <Badge variant="warning">
+                                  {user.permissions.globalRole}
+                                </Badge>
+                              ) : user.permissions?.tenantPermissions ? (
+                                Object.entries(user.permissions.tenantPermissions).map(([tenant, perm]: [string, any]) => (
+                                  <Badge key={tenant} variant="info" className="text-xs">
+                                    {tenant}: {perm.role}
+                                  </Badge>
+                                ))
+                              ) : user.roles?.length ? (
                                 user.roles.map(role => (
                                   <Badge
                                     key={role}

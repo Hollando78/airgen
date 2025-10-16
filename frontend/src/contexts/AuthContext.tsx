@@ -39,10 +39,10 @@ const STORAGE_EXPIRY = "auth_token_expires_at";
 
 function normalizeUserPayload(raw: any): User {
   return {
-    id: raw?.id ?? "",
+    id: raw?.id ?? raw?.sub ?? "",
     email: raw?.email ?? "",
     name: raw?.name,
-    permissions: raw?.permissions,
+    permissions: raw?.permissions && typeof raw.permissions === "object" ? raw.permissions : undefined,
     roles: Array.isArray(raw?.roles) ? raw.roles : [],
     tenantSlugs: Array.isArray(raw?.tenantSlugs) ? raw.tenantSlugs : [],
     ownedTenantSlugs: Array.isArray(raw?.ownedTenantSlugs) ? raw.ownedTenantSlugs : []

@@ -8,9 +8,8 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { LandingPage } from "./LandingPage";
 import { ResetPasswordPage } from "./components/ResetPasswordPage";
 
-const ProductionAppRoutes = lazy(() => import("./ProductionAppRoutes"));
+const AppRoutes = lazy(() => import("./AppRoutes"));
 const MobileAppRoutes = lazy(() => import("./mobile/MobileAppRoutes"));
-const DevAppRoutes = import.meta.env.PROD ? null : lazy(() => import("./DevAppRoutes"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,17 +40,11 @@ export default function App(): JSX.Element {
               } />
 
               <Route path="/*" element={
-                import.meta.env.PROD || !DevAppRoutes ? (
-                  <ProtectedRoute fallback={<LandingPage />}>
-                    <Suspense fallback={null}>
-                      <ProductionAppRoutes />
-                    </Suspense>
-                  </ProtectedRoute>
-                ) : (
+                <ProtectedRoute fallback={<LandingPage />}>
                   <Suspense fallback={null}>
-                    <DevAppRoutes />
+                    <AppRoutes />
                   </Suspense>
-                )
+                </ProtectedRoute>
               } />
             </Routes>
           </RequirementLinkingProvider>

@@ -14,6 +14,11 @@ import {
   addTenantAccess
 } from "../services/dev-users.js";
 import {
+  authenticateUserPostgres,
+  buildJwtPayloadFromPostgres,
+  getUserWithPermissions
+} from "../services/auth-postgres.js";
+import {
   createRefreshToken,
   verifyRefreshToken,
   revokeRefreshToken,
@@ -44,6 +49,7 @@ import {
   acceptTenantInvitation,
   findInvitationByToken
 } from "../services/tenant-invitations.js";
+import { migrateLegacyPermissions } from "../types/permissions.js";
 
 /**
  * Generate a unique tenant slug from email address
@@ -71,13 +77,25 @@ function generateTenantSlug(email: string): string {
  * This prevents undefined arrays in JWT payload
  */
 function ensureLegacyFields(user: any) {
+  const legacyRoles = Array.isArray(user.roles) ? user.roles : [];
+  const legacyTenantSlugs = Array.isArray(user.tenantSlugs) ? user.tenantSlugs : [];
+  const legacyOwnedTenantSlugs = Array.isArray(user.ownedTenantSlugs) ? user.ownedTenantSlugs : [];
+
+  const permissions = user.permissions ?? migrateLegacyPermissions({
+    roles: legacyRoles,
+    tenantSlugs: legacyTenantSlugs,
+    ownedTenantSlugs: legacyOwnedTenantSlugs
+  });
+
   return {
     sub: user.id,
+    id: user.id,
     email: user.email,
     name: user.name,
-    roles: Array.isArray(user.roles) ? user.roles : [],
-    tenantSlugs: Array.isArray(user.tenantSlugs) ? user.tenantSlugs : [],
-    ownedTenantSlugs: Array.isArray(user.ownedTenantSlugs) ? user.ownedTenantSlugs : []
+    roles: legacyRoles,
+    tenantSlugs: legacyTenantSlugs,
+    ownedTenantSlugs: legacyOwnedTenantSlugs,
+    permissions
   };
 }
 
@@ -124,7 +142,8 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
                     email: { type: "string" },
                     name: { type: "string" },
                     roles: { type: "array", items: { type: "string" } },
-                    tenantSlugs: { type: "array", items: { type: "string" } }
+                    tenantSlugs: { type: "array", items: { type: "string" } },
+                    permissions: { type: "object", nullable: true }
                   }
                 }
               },
@@ -160,7 +179,88 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
     const { email, password } = validateInput(authSchemas.login, req.body);
 
     try {
-      // Find user by email
+      // Try PostgreSQL authentication first
+      const postgresUser = await authenticateUserPostgres(email, password);
+
+      if (postgresUser) {
+        // User authenticated via PostgreSQL
+
+        // Check if MFA is enabled
+        if (postgresUser.mfaEnabled) {
+          // Generate temporary session token for MFA verification (5 minutes)
+          const tempToken = await reply.jwtSign(
+            {
+              sub: postgresUser.id,
+              email: postgresUser.email,
+              mfaPending: true
+            },
+            { expiresIn: '5m' }
+          );
+
+          // Log MFA challenge issued
+          app.log.info({
+            event: "auth.mfa.challenge_issued",
+            userId: postgresUser.id,
+            email: postgresUser.email,
+            ip: req.ip
+          }, "MFA challenge issued for user");
+
+          return {
+            status: "MFA_REQUIRED",
+            tempToken,
+            message: "Please provide your 2FA code"
+          };
+        }
+
+        // Generate JWT with PostgreSQL permissions
+        const jwtPayload = await buildJwtPayloadFromPostgres(postgresUser.id);
+
+        // Generate short-lived JWT access token (15 minutes)
+        const token = await reply.jwtSign(
+          jwtPayload,
+          { expiresIn: config.jwt.accessTokenExpiry }
+        );
+
+        // Generate long-lived refresh token (7 days)
+        const refreshToken = createRefreshToken(postgresUser.id);
+
+        // Set refresh token as httpOnly cookie (secure in production)
+        reply.setCookie(config.cookies.refreshTokenName, refreshToken, {
+          httpOnly: true,
+          secure: config.environment === "production", // HTTPS only in production
+          sameSite: "lax",
+          path: "/",
+          maxAge: config.jwt.refreshTokenMaxAge // 7 days in seconds
+        });
+
+        // Log successful login
+        app.log.info({
+          event: "auth.login.success",
+          userId: postgresUser.id,
+          email: postgresUser.email,
+          mfaEnabled: false,
+          ip: req.ip,
+          authMethod: "postgresql"
+        }, "User logged in successfully via PostgreSQL");
+
+        // Send login notifications (fire and forget)
+        sendLoginNotification(postgresUser.email, postgresUser.name || postgresUser.email, req.ip, false)
+          .catch(emailError => {
+            app.log.error({ err: emailError }, "Failed to send login notification");
+          });
+        sendLoginAlertEmail(postgresUser.email, postgresUser.name || postgresUser.email, req.ip, false)
+          .catch(emailError => {
+            app.log.error({ err: emailError }, "Failed to send login alert");
+          });
+
+        // Return token and user info (without sensitive data)
+        return {
+          token,
+          user: jwtPayload
+        };
+      }
+
+      // Fallback to legacy dev-users.json authentication
       const users = await listDevUsers();
       const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
@@ -253,9 +353,17 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
 
       // Return token and user info (without password)
       const { password: _legacy, passwordHash: _hash, passwordSalt: _salt, ...userWithoutPassword } = user;
+      const normalizedUser = {
+        ...userWithoutPassword,
+        permissions: user.permissions ?? migrateLegacyPermissions({
+          roles: Array.isArray(user.roles) ? user.roles : [],
+          tenantSlugs: Array.isArray(user.tenantSlugs) ? user.tenantSlugs : [],
+          ownedTenantSlugs: Array.isArray(user.ownedTenantSlugs) ? user.ownedTenantSlugs : []
+        })
+      };
       return {
         token,
-        user: userWithoutPassword
+        user: normalizedUser
       };
     } catch (error) {
       // Handle validation errors
@@ -450,7 +558,8 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
                 name: { type: "string" },
                 roles: { type: "array", items: { type: "string" } },
                 tenantSlugs: { type: "array", items: { type: "string" } },
-                ownedTenantSlugs: { type: "array", items: { type: "string" }, nullable: true }
+                ownedTenantSlugs: { type: "array", items: { type: "string" }, nullable: true },
+                permissions: { type: "object", nullable: true }
               }
             }
           }
@@ -470,7 +579,8 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
         name: req.currentUser.name,
         roles: Array.isArray(req.currentUser.roles) ? req.currentUser.roles : [],
         tenantSlugs: Array.isArray(req.currentUser.tenantSlugs) ? req.currentUser.tenantSlugs : [],
-        ownedTenantSlugs: Array.isArray(req.currentUser.ownedTenantSlugs) ? req.currentUser.ownedTenantSlugs : []
+        ownedTenantSlugs: Array.isArray(req.currentUser.ownedTenantSlugs) ? req.currentUser.ownedTenantSlugs : [],
+        permissions: req.currentUser.permissions
       }
     };
   });
@@ -515,7 +625,35 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       return reply.code(401).send({ error: "Invalid or expired refresh token" });
     }
 
-    // Get user from database
+    // Try to get user from PostgreSQL first
+    const userWithPermissions = await getUserWithPermissions(userId);
+
+    if (userWithPermissions) {
+      // Generate JWT with PostgreSQL permissions
+      const jwtPayload = await buildJwtPayloadFromPostgres(userId);
+
+      // Generate new access token
+      const token = await reply.jwtSign(
+        jwtPayload,
+        { expiresIn: config.jwt.accessTokenExpiry }
+      );
+
+      // Generate new refresh token (rotation)
+      const newRefreshToken = createRefreshToken(userId);
+
+      // Set new refresh token as httpOnly cookie
+      reply.setCookie(config.cookies.refreshTokenName, newRefreshToken, {
+        httpOnly: true,
+        secure: config.environment === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: config.jwt.refreshTokenMaxAge // 7 days in seconds
+      });
+
+      return { token };
+    }
+
+    // Fallback to dev-users.json
     const user = await getDevUser(userId);
     if (!user) {
       reply.clearCookie(config.cookies.refreshTokenName);
@@ -663,7 +801,85 @@ export default async function registerAuthRoutes(app: FastifyInstance): Promise<
       return reply.code(401).send({ error: "Invalid session token" });
     }
 
-    // Get user
+    // Try to get user from PostgreSQL first
+    const postgresUser = await getUserWithPermissions(decoded.sub);
+
+    if (postgresUser) {
+      // User found in PostgreSQL
+      if (!postgresUser.mfaEnabled || !postgresUser.mfaSecret) {
+        return (reply as any).code(400).send({ error: "2FA not enabled for this user" });
+      }
+
+      let isValid = false;
+      let usedBackupCode = false;
+
+      // Try TOTP first
+      const secret = decryptSecret(postgresUser.mfaSecret);
+      isValid = verifyTotpToken(code, secret);
+
+      // TODO: Implement backup codes in PostgreSQL
+      // For now, we'll skip backup code verification for PostgreSQL users
+
+      if (!isValid) {
+        // Log failed MFA verification
+        app.log.warn({
+          event: "auth.mfa.verification_failed",
+          userId: postgresUser.id,
+          email: postgresUser.email,
+          ip: req.ip
+        }, "Failed MFA verification attempt");
+        return (reply as any).code(400).send({ error: "Invalid 2FA code" });
+      }
+
+      // Generate JWT with PostgreSQL permissions
+      const jwtPayload = await buildJwtPayloadFromPostgres(postgresUser.id);
+
+      // Generate full access token
+      const token = await reply.jwtSign(
+        jwtPayload,
+        { expiresIn: config.jwt.accessTokenExpiry }
+      );
+
+      // Generate refresh token
+      const refreshToken = createRefreshToken(postgresUser.id);
+
+      // Set refresh token as httpOnly cookie
+      reply.setCookie(config.cookies.refreshTokenName, refreshToken, {
+        httpOnly: true,
+        secure: config.environment === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: config.jwt.refreshTokenMaxAge // 7 days in seconds
+      });
+
+      // Log successful MFA verification
+      app.log.info({
+        event: "auth.mfa.verification_success",
+        userId: postgresUser.id,
+        email: postgresUser.email,
+        usedBackupCode: false,
+        ip: req.ip,
+        authMethod: "postgresql"
+      }, "MFA verification successful");
+
+      // Send login notifications (fire and forget)
+      sendLoginNotification(postgresUser.email, postgresUser.name || postgresUser.email, req.ip, true)
+        .catch(emailError => {
+          app.log.error({ err: emailError }, "Failed to send login notification");
+        });
+      sendLoginAlertEmail(postgresUser.email, postgresUser.name || postgresUser.email, req.ip, true)
+        .catch(emailError => {
+          app.log.error({ err: emailError }, "Failed to send login alert");
+        });
+
+      // Return token and user info
+      return {
+        token,
+        user: jwtPayload
+      };
+    }
+
+    // Fallback to dev-users.json
     const user = await getDevUser(decoded.sub);
     if (!user) {
       return (reply as any).code(404).send({ error: "User not found" });

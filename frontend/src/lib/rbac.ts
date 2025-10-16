@@ -161,8 +161,28 @@ export function getEffectiveRole(
   }
 
   if (!tenantSlug) {
-    // No context provided, return null
-    return null;
+    // Return highest role across all assigned permissions
+    let highestRole: UserRole | null = null;
+
+    if (permissions.tenantPermissions) {
+      for (const permission of Object.values(permissions.tenantPermissions)) {
+        highestRole = highestRole
+          ? (ROLE_HIERARCHY[permission.role] >= ROLE_HIERARCHY[highestRole] ? permission.role : highestRole)
+          : permission.role;
+      }
+    }
+
+    if (permissions.projectPermissions) {
+      for (const projects of Object.values(permissions.projectPermissions)) {
+        for (const permission of Object.values(projects)) {
+          highestRole = highestRole
+            ? (ROLE_HIERARCHY[permission.role] >= ROLE_HIERARCHY[highestRole] ? permission.role : highestRole)
+            : permission.role;
+        }
+      }
+    }
+
+    return highestRole;
   }
 
   // Check project-level permission

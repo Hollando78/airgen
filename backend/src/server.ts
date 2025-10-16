@@ -303,7 +303,7 @@ if (config.features.adminRoutesEnabled) {
   const adminRoutes = await import("./routes/admin-users.js");
   const superAdminRoutes = await import("./routes/super-admin.js");
   const tenantAdminRoutes = await import("./routes/tenant-admin.js");
-  await app.register(adminRoutes.default, { prefix: "/api/dev" });
+  await app.register(adminRoutes.default, { prefix: "/api" });
   await app.register(superAdminRoutes.default, { prefix: "/api" });
   await app.register(tenantAdminRoutes.default, { prefix: "/api" });
   await app.register(adminRequirementsRoutes, { prefix: "/api" });

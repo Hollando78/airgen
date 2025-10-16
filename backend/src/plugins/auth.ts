@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import jwt from "@fastify/jwt";
 import { config } from "../config.js";
+import type { UserPermissions } from "../types/permissions.js";
 
 export type AuthenticatedUser = {
   sub: string;
@@ -9,15 +10,18 @@ export type AuthenticatedUser = {
   roles: string[];
   tenantSlugs?: string[];
   ownedTenantSlugs?: string[];
+  permissions?: UserPermissions;
 };
 
 type JwtPayload = {
   sub?: string;
+  id?: string;
   email?: string;
   name?: string;
   roles?: string[];
   tenantSlugs?: string[];
   ownedTenantSlugs?: string[];
+  permissions?: UserPermissions;
 };
 
 declare module "fastify" {
@@ -36,13 +40,48 @@ function normalizeUser(payload: JwtPayload): AuthenticatedUser {
     throw new Error("JWT payload missing 'sub' claim");
   }
 
+  const roles = Array.isArray(payload.roles) && payload.roles.length ? payload.roles : ["user"];
+  const permissions = payload.permissions;
+
+  const tenantSlugSet = new Set<string>();
+  if (Array.isArray(payload.tenantSlugs)) {
+    for (const slug of payload.tenantSlugs) {
+      tenantSlugSet.add(slug);
+    }
+  }
+  if (permissions?.tenantPermissions) {
+    for (const slug of Object.keys(permissions.tenantPermissions)) {
+      tenantSlugSet.add(slug);
+    }
+  }
+  if (permissions?.projectPermissions) {
+    for (const slug of Object.keys(permissions.projectPermissions)) {
+      tenantSlugSet.add(slug);
+    }
+  }
+
+  const ownedTenantSlugs = new Set<string>();
+  if (Array.isArray(payload.ownedTenantSlugs)) {
+    for (const slug of payload.ownedTenantSlugs) {
+      ownedTenantSlugs.add(slug);
+    }
+  }
+  if (permissions?.tenantPermissions) {
+    for (const [slug, permission] of Object.entries(permissions.tenantPermissions)) {
+      if (permission.isOwner) {
+        ownedTenantSlugs.add(slug);
+      }
+    }
+  }
+
   return {
     sub: payload.sub,
     email: payload.email,
-   name: payload.name,
-    roles: Array.isArray(payload.roles) && payload.roles.length ? payload.roles : ["user"],
-    tenantSlugs: Array.isArray(payload.tenantSlugs) ? payload.tenantSlugs : undefined,
-    ownedTenantSlugs: Array.isArray(payload.ownedTenantSlugs) ? payload.ownedTenantSlugs : undefined
+    name: payload.name,
+    roles,
+    tenantSlugs: Array.from(tenantSlugSet),
+    ownedTenantSlugs: Array.from(ownedTenantSlugs),
+    permissions
   };
 }
 

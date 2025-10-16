@@ -40,6 +40,24 @@ export function hasTenantAccess(user: AuthUser | undefined, tenantSlug: string):
 
   // Check if user's tenant list includes this tenant
   const normalizedTenant = slugify(tenantSlug);
+
+  // Permissions-based checks (new RBAC)
+  if (user.permissions) {
+    if (user.permissions.globalRole === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
+    if (user.permissions.tenantPermissions?.[normalizedTenant]) {
+      return true;
+    }
+
+    const projectPermissions = user.permissions.projectPermissions?.[normalizedTenant];
+    if (projectPermissions && Object.keys(projectPermissions).length > 0) {
+      return true;
+    }
+  }
+
+  // Legacy fallback
   if ((user.tenantSlugs ?? []).some(slug => slugify(slug) === normalizedTenant)) {
     return true;
   }
@@ -54,10 +72,20 @@ export function hasTenantAccess(user: AuthUser | undefined, tenantSlug: string):
 
 export function isTenantOwner(user: AuthUser | undefined, tenantSlug: string): boolean {
   if (!user || !Array.isArray(user.ownedTenantSlugs)) {
+    // Fall through to check new permissions structure
+  } else {
+    const normalizedTenant = slugify(tenantSlug);
+    if (user.ownedTenantSlugs.some(slug => slugify(slug) === normalizedTenant)) {
+      return true;
+    }
+  }
+
+  if (!user || !user.permissions?.tenantPermissions) {
     return false;
   }
+
   const normalizedTenant = slugify(tenantSlug);
-  return user.ownedTenantSlugs.some(slug => slugify(slug) === normalizedTenant);
+  return Boolean(user.permissions.tenantPermissions[normalizedTenant]?.isOwner);
 }
 
 /**

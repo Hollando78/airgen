@@ -31,12 +31,12 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
 
   // Add Super-Admin navigation (highest priority)
   if (isSuperAdmin()) {
-    links.push({ to: "/super-admin", label: "Super Admin" });
+    links.push({ to: "/super-admin/users", label: "Super Admin Users" });
   }
 
   // Add Tenant-Admin navigation
   if (hasRole(UserRole.TENANT_ADMIN)) {
-    links.push({ to: "/tenant-admin", label: "Tenant Admin" });
+    links.push({ to: "/tenant-admin/users", label: "Tenant Admin Users" });
   }
 
   // Legacy admin links (for backward compatibility)

@@ -460,16 +460,16 @@ export function useApiClient() {
       getExampleQueries: () =>
         request<{ examples: ExampleQuery[] }>(`/query/examples`),
 
-      // Dev admin utilities (development only)
-      listDevUsers: () => request<DevUserListResponse>(`/dev/admin/users`),
+      // Admin user utilities
+      listDevUsers: () => request<DevUserListResponse>(`/admin/users`),
       createDevUser: (body: { email: string; name?: string; password?: string; roles?: string[]; tenantSlugs?: string[] }) =>
-        request<DevUserResponse>(`/dev/admin/users`, { method: "POST", body: JSON.stringify(body) }),
+        request<DevUserResponse>(`/admin/users`, { method: "POST", body: JSON.stringify(body) }),
       updateDevUser: (
         id: string,
         body: { email?: string; name?: string | null; password?: string; roles?: string[]; tenantSlugs?: string[] }
-      ) => request<DevUserResponse>(`/dev/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      ) => request<DevUserResponse>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteDevUser: (id: string) =>
-        request<{ success: boolean }>(`/dev/admin/users/${id}`, { method: "DELETE" }),
+        request<{ success: boolean }>(`/admin/users/${id}`, { method: "DELETE" }),
 
       // Admin requirements management (development only)
       listDeletedRequirements: (tenant: string, project: string, limit?: number, offset?: number) => {

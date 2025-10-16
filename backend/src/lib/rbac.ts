@@ -6,7 +6,7 @@
  */
 
 import type { DevUserRecord } from "../services/dev-users.js";
-import { UserRole, ROLE_HIERARCHY, hasMinimumRole as checkMinimumRole } from "../types/roles.js";
+import { UserRole, ROLE_HIERARCHY, hasMinimumRole as checkMinimumRole, getHigherRole } from "../types/roles.js";
 import type { UserPermissions, PermissionCheckResult } from "../types/permissions.js";
 import { slugify } from "../services/workspace.js";
 
@@ -76,8 +76,24 @@ export function getEffectiveRole(
   }
 
   if (!tenantSlug) {
-    // No context provided, return null
-    return null;
+    // Return the highest role across all tenant/project permissions (if any)
+    let highestRole: UserRole | null = null;
+
+    if (permissions.tenantPermissions) {
+      for (const permission of Object.values(permissions.tenantPermissions)) {
+        highestRole = highestRole ? getHigherRole(highestRole, permission.role) : permission.role;
+      }
+    }
+
+    if (permissions.projectPermissions) {
+      for (const projects of Object.values(permissions.projectPermissions)) {
+        for (const permission of Object.values(projects)) {
+          highestRole = highestRole ? getHigherRole(highestRole, permission.role) : permission.role;
+        }
+      }
+    }
+
+    return highestRole;
   }
 
   const normalizedTenant = slugify(tenantSlug);
