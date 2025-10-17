@@ -681,6 +681,7 @@
 .tree-item-title .tree-icon {
   font-size: 1rem;
   flex-shrink: 0;
+  width: 1.25rem;
 }
 
 .tree-item-title .tree-label {
@@ -690,6 +691,8 @@
   text-overflow: ellipsis;
   font-weight: 500;
   color: #1e293b;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tree-item-title.section .tree-label {
