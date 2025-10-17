@@ -83,8 +83,12 @@ export function DiagramCandidatePreview({
         isPreview: true
       },
       style: {
-        stroke: connector.kind === "composition" ? "#16a34a" : "#64748b",
+        stroke: "#64748b", // Plain neutral color for all connectors
         strokeWidth: 2
+      },
+      markerEnd: {
+        type: "arrowclosed", // Single arrow pointing to target (child)
+        color: "#64748b"
       },
       selectable: false
     }));

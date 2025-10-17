@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { BlockDetailsPanel } from "../../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../../components/architecture/ConnectorDetailsPanel";
+import { MultiBlockPanel } from "../../components/architecture/MultiBlockPanel";
 import { ArchitectureTreeBrowser } from "../../components/architecture/ArchitectureTreeBrowser";
 import type {
   ArchitectureBlockLibraryRecord,
@@ -111,6 +112,7 @@ export function ArchitectureWorkspace({
   documents: documentList
 }: ArchitectureWorkspaceProps): JSX.Element {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [diagramViewports, setDiagramViewports] = useState<Record<string, { x: number; y: number; zoom: number }>>({});
   const canvasRef = useRef<DiagramCanvasHandle>(null);
@@ -358,10 +360,27 @@ export function ArchitectureWorkspace({
     [architecture.blocks, selectedBlockId]
   );
 
+  const selectedBlocks = useMemo(
+    () => architecture.blocks.filter(block => selectedBlockIds.includes(block.id)),
+    [architecture.blocks, selectedBlockIds]
+  );
+
   const selectedConnector = useMemo(
     () => architecture.connectors.find(connector => connector.id === selectedConnectorId) ?? null,
     [architecture.connectors, selectedConnectorId]
   );
+
+  const handleMultiBlockSelection = useCallback((blockIds: string[]) => {
+    setSelectedBlockIds(blockIds);
+    if (blockIds.length === 1) {
+      setSelectedBlockId(blockIds[0]);
+    } else if (blockIds.length === 0) {
+      setSelectedBlockId(null);
+    } else {
+      // Multiple blocks selected - clear single selection
+      setSelectedBlockId(null);
+    }
+  }, []);
 
   return (
     <div className="architecture-shell">
@@ -419,8 +438,10 @@ export function ArchitectureWorkspace({
           activeDiagramId={activeDiagramId}
           documents={documents}
           selectedBlockId={selectedBlockId}
+          selectedBlockIds={selectedBlockIds}
           selectedConnectorId={selectedConnectorId}
           onSelectBlock={setSelectedBlockId}
+          onSelectBlocks={handleMultiBlockSelection}
           onSelectConnector={setSelectedConnectorId}
           addBlock={addBlock}
           reuseBlock={reuseBlock}
@@ -442,7 +463,16 @@ export function ArchitectureWorkspace({
         />
 
         <aside className="architecture-pane inspector-pane">
-          {selectedBlock && (
+          {selectedBlocks.length > 1 && (
+            <MultiBlockPanel
+              blocks={selectedBlocks}
+              onUpdateBlockPosition={updateBlockPosition}
+              onUpdateBlockSize={updateBlockSize}
+              onUpdateBlock={updateBlock}
+            />
+          )}
+
+          {selectedBlock && selectedBlocks.length <= 1 && (
             <BlockDetailsPanel
               block={selectedBlock}
               onUpdate={updates => updateBlock(selectedBlock.id, updates)}
@@ -466,7 +496,7 @@ export function ArchitectureWorkspace({
             />
           )}
 
-          {!selectedBlock && !selectedConnector && (
+          {!selectedBlock && selectedBlocks.length <= 1 && !selectedConnector && (
             <div className="architecture-hint">
               <h3>Workspace tips</h3>
               <ul>

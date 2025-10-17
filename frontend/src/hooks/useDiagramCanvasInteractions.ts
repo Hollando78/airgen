@@ -61,9 +61,11 @@ interface UseCanvasInteractionsParams {
   activeDiagramId: string | null;
   documents: DocumentRecord[];
   selectedBlockId: string | null;
+  selectedBlockIds: string[];
   selectedConnectorId: string | null;
   selectedPortId?: string | null;
   onSelectBlock: (id: string | null) => void;
+  onSelectBlocks?: (ids: string[]) => void;
   onSelectConnector: (id: string | null) => void;
   onSelectPort?: (blockId: string, portId: string | null) => void;
   blockPresets: DiagramBlockPreset[];
@@ -152,9 +154,11 @@ export function useDiagramCanvasInteractions({
   activeDiagramId,
   documents,
   selectedBlockId,
+  selectedBlockIds,
   selectedConnectorId,
   selectedPortId,
   onSelectBlock,
+  onSelectBlocks,
   onSelectConnector,
   onSelectPort,
   blockPresets,
@@ -344,24 +348,38 @@ export function useDiagramCanvasInteractions({
 
   const handleSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: OnSelectionChangeParams) => {
-      const firstNodeId = selectedNodes[0]?.id ?? null;
+      const selectedNodeIds = selectedNodes.map(n => n.id);
       const firstEdgeId = selectedEdges[0]?.id ?? null;
 
       closeContextMenu();
       closePortContextMenu();
 
-      if (firstNodeId) {
-        onSelectBlock(firstNodeId);
+      // Handle multi-selection
+      if (selectedNodeIds.length > 0) {
+        if (onSelectBlocks) {
+          onSelectBlocks(selectedNodeIds);
+        }
+        if (selectedNodeIds.length === 1) {
+          onSelectBlock(selectedNodeIds[0]);
+        } else {
+          onSelectBlock(null);
+        }
         onSelectConnector(null);
       } else if (firstEdgeId) {
         onSelectConnector(firstEdgeId);
         onSelectBlock(null);
+        if (onSelectBlocks) {
+          onSelectBlocks([]);
+        }
       } else {
         onSelectBlock(null);
         onSelectConnector(null);
+        if (onSelectBlocks) {
+          onSelectBlocks([]);
+        }
       }
     },
-    [closeContextMenu, closePortContextMenu, onSelectBlock, onSelectConnector]
+    [closeContextMenu, closePortContextMenu, onSelectBlock, onSelectBlocks, onSelectConnector]
   );
 
   const handleNodesChange = useCallback(
@@ -674,10 +692,13 @@ export function useDiagramCanvasInteractions({
           ? { ...block, size: resizeOverride }
           : block;
 
+        // Node is selected if it's in the selectedBlockIds array OR is the single selectedBlockId
+        const isSelected = selectedBlockIds.includes(block.id) || block.id === selectedBlockId;
+
         // Only update node if block data changed or it's a new node
         const needsUpdate = !prev || hasStructuralChanges ||
           prev.data.block !== effectiveBlock ||
-          prev.selected !== (block.id === selectedBlockId);
+          prev.selected !== isSelected;
 
         if (prev && !needsUpdate && shouldPreservePosition) {
           // Return existing node to avoid unnecessary re-render during drag
@@ -700,13 +721,13 @@ export function useDiagramCanvasInteractions({
             border: "none",
             background: "transparent"
           },
-          width: prev?.width,
-          height: prev?.height,
-          selected: block.id === selectedBlockId
+          width: effectiveBlock.size.width,
+          height: effectiveBlock.size.height,
+          selected: isSelected
         } satisfies Node;
       });
     });
-  }, [architecture.blocks, selectedBlockId, nodeDataTemplate]);
+  }, [architecture.blocks, selectedBlockId, selectedBlockIds, nodeDataTemplate]);
 
   /**
    * SMART EDGE SYNCHRONIZATION:

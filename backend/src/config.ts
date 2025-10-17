@@ -61,6 +61,11 @@ const postgresPassword = getSecret('postgres_password', 'POSTGRES_PASSWORD');
 const resticPassword = getSecret('restic_password', 'RESTIC_PASSWORD');
 const awsSecretAccessKey = getSecret('aws_secret_access_key', 'AWS_SECRET_ACCESS_KEY');
 
+// Set LLM_API_KEY in process.env if loaded from secret (for openai.ts to use)
+if (llmApiKey && !process.env.LLM_API_KEY && !process.env.OPENAI_API_KEY) {
+  process.env.LLM_API_KEY = llmApiKey;
+}
+
 // Build DATABASE_URL from template or use env var directly
 let databaseUrl = env.DATABASE_URL;
 if (!databaseUrl && env.DATABASE_URL_TEMPLATE && postgresPassword) {
@@ -187,7 +192,7 @@ export const config = {
   // Rate limiting configuration
   rateLimit: {
     global: {
-      max: parseNumber(env.RATE_LIMIT_GLOBAL_MAX, environment === "production" ? 100 : 500),
+      max: parseNumber(env.RATE_LIMIT_GLOBAL_MAX, environment === "production" ? 1000 : 2000),
       timeWindow: parseNumber(env.RATE_LIMIT_GLOBAL_WINDOW, 60000) // 1 minute
     },
     auth: {

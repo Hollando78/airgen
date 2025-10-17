@@ -68,9 +68,11 @@ interface DiagramCanvasProps {
   activeDiagramId: string | null;
   documents: DocumentRecord[];
   selectedBlockId: string | null;
+  selectedBlockIds?: string[];
   selectedConnectorId: string | null;
   selectedPortId?: string | null;
   onSelectBlock: (blockId: string | null) => void;
+  onSelectBlocks?: (blockIds: string[]) => void;
   onSelectConnector: (connectorId: string | null) => void;
   onSelectPort?: (blockId: string, portId: string | null) => void;
   blockPresets: DiagramBlockPreset[];
@@ -134,9 +136,11 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       activeDiagramId,
       documents,
       selectedBlockId,
+      selectedBlockIds = [],
       selectedConnectorId,
       selectedPortId,
       onSelectBlock,
+      onSelectBlocks,
       onSelectConnector,
       onSelectPort,
       addBlock,
@@ -202,9 +206,11 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       activeDiagramId,
       documents,
       selectedBlockId,
+      selectedBlockIds,
       selectedConnectorId,
       selectedPortId,
       onSelectBlock,
+      onSelectBlocks,
       onSelectConnector,
       onSelectPort,
       blockPresets,
@@ -368,6 +374,9 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 onEdgeContextMenu={handleEdgeContextMenu}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
+                selectionMode="partial"
+                panOnDrag={[1, 2]}
+                selectionOnDrag
                 onNodeClick={(event: ReactMouseEvent, node: Node) => {
                   event.stopPropagation();
                   closeContextMenu();

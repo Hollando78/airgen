@@ -28,7 +28,9 @@ import {
 import {
   createArchitectureDiagram,
   createArchitectureBlock,
-  createArchitectureConnector
+  createArchitectureConnector,
+  getArchitectureBlockLibrary,
+  getArchitectureConnectors
 } from "../services/graph.js";
 import { slugify } from "../services/workspace.js";
 import { extractDocumentContent } from "../services/document-content.js";
@@ -544,6 +546,7 @@ export default async function airgenRoutes(app: FastifyInstance) {
   const acceptDiagramBody = z.object({
     tenant: z.string().min(1),
     projectKey: z.string().min(1),
+    diagramId: z.string().optional(), // Target diagram ID for update mode
     diagramName: z.string().optional(),
     diagramDescription: z.string().optional()
   });
@@ -587,10 +590,11 @@ export default async function airgenRoutes(app: FastifyInstance) {
         });
       }
 
-      let diagramId = candidate.diagramId;
+      // Determine diagram ID: use provided diagramId (update mode) or create new
+      let diagramId = body.diagramId || candidate.diagramId;
 
-      // Create new diagram if action is "create"
-      if (candidate.action === "create") {
+      // Create new diagram if no diagramId provided (new mode)
+      if (!diagramId) {
         const newDiagram = await createArchitectureDiagram({
           tenant: body.tenant,
           projectKey: body.projectKey,
@@ -604,11 +608,26 @@ export default async function airgenRoutes(app: FastifyInstance) {
 
       // Create blocks and connectors if we have a diagram ID
       if (diagramId && candidate.blocks && candidate.connectors) {
+        // Query existing blocks in the project to enable re-use
+        const existingBlocks = await getArchitectureBlockLibrary({
+          tenant: body.tenant,
+          projectKey: body.projectKey
+        });
+
+        // Create a map of existing block names to their IDs
+        const existingBlockMap = new Map<string, string>();
+        for (const existingBlock of existingBlocks) {
+          existingBlockMap.set(existingBlock.name.toLowerCase(), existingBlock.id);
+        }
+
         // Create blocks first and track their IDs
         const blockIdMap = new Map<string, string>(); // original name -> created ID
 
         for (const block of candidate.blocks) {
           if (!block.action || block.action === "create") {
+            // Check if a block with this name already exists
+            const existingBlockId = existingBlockMap.get(block.name.toLowerCase());
+
             const createdBlock = await createArchitectureBlock({
               tenant: body.tenant,
               projectKey: body.projectKey,
@@ -623,31 +642,54 @@ export default async function airgenRoutes(app: FastifyInstance) {
               sizeHeight: block.sizeHeight || 100,
               ports: block.ports?.map(p => ({ ...p, direction: p.direction as "in" | "out" | "inout" })) || [],
               documentIds: [],
+              existingBlockId: existingBlockId || undefined, // Re-use existing block if found
               userId: req.currentUser!.sub
             });
             blockIdMap.set(block.name, createdBlock.id);
           }
         }
 
-        // Create connectors using the mapped block IDs
+        // Query existing connectors in the diagram to enable re-use
+        const existingConnectors = await getArchitectureConnectors({
+          tenant: body.tenant,
+          projectKey: body.projectKey,
+          diagramId
+        });
+
+        // Create a map of existing connector signatures (source-target-kind) to check for duplicates
+        const existingConnectorSignatures = new Set<string>();
+        for (const existingConnector of existingConnectors) {
+          const signature = `${existingConnector.source}-${existingConnector.target}-${existingConnector.kind}`;
+          existingConnectorSignatures.add(signature);
+        }
+
+        // Create connectors using the mapped block IDs, skip duplicates
         for (const connector of candidate.connectors) {
           if (!connector.action || connector.action === "create") {
             const sourceBlockId = blockIdMap.get(connector.source);
             const targetBlockId = blockIdMap.get(connector.target);
 
             if (sourceBlockId && targetBlockId) {
-              await createArchitectureConnector({
-                tenant: body.tenant,
-                projectKey: body.projectKey,
-                diagramId,
-                source: sourceBlockId,
-                target: targetBlockId,
-                kind: connector.kind as any,
-                label: connector.label,
-                sourcePortId: connector.sourcePortId,
-                targetPortId: connector.targetPortId,
-                userId: req.currentUser!.sub
-              });
+              // Check if this connector already exists
+              const signature = `${sourceBlockId}-${targetBlockId}-${connector.kind}`;
+
+              if (!existingConnectorSignatures.has(signature)) {
+                await createArchitectureConnector({
+                  tenant: body.tenant,
+                  projectKey: body.projectKey,
+                  diagramId,
+                  source: sourceBlockId,
+                  target: targetBlockId,
+                  kind: connector.kind as any,
+                  label: connector.label,
+                  sourcePortId: connector.sourcePortId,
+                  targetPortId: connector.targetPortId,
+                  userId: req.currentUser!.sub
+                });
+
+                // Add to set to prevent duplicates within this batch
+                existingConnectorSignatures.add(signature);
+              }
             }
           }
         }

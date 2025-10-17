@@ -5,6 +5,7 @@ import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
 import { AcceptCandidateModal } from "../components/AirGen/AcceptCandidateModal";
+import { AcceptDiagramModal } from "../components/AirGen/AcceptDiagramModal";
 import { QueryForm } from "../components/AirGen/QueryForm";
 import { CandidateFilters } from "../components/AirGen/CandidateFilters";
 import { RequirementCandidateList } from "../components/AirGen/RequirementCandidateList";
@@ -29,6 +30,8 @@ export function AirGenRoute(): JSX.Element {
   // UI state
   const [selectedCandidate, setSelectedCandidate] = useState<RequirementCandidate | null>(null);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
+  const [selectedDiagramCandidate, setSelectedDiagramCandidate] = useState<DiagramCandidate | null>(null);
+  const [showAcceptDiagramModal, setShowAcceptDiagramModal] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [textFilter, setTextFilter] = useState('');
@@ -130,17 +133,21 @@ export function AirGenRoute(): JSX.Element {
   });
 
   const acceptDiagramMutation = useMutation({
-    mutationFn: async (params: { candidate: DiagramCandidate; diagramName?: string; diagramDescription?: string }) => {
+    mutationFn: async (params: { candidate: DiagramCandidate; mode: "new" | "update"; targetDiagramId?: string; diagramName?: string; diagramDescription?: string }) => {
       if (!tenant || !project) {throw new Error("Select a tenant/project first");}
       return api.acceptDiagramCandidate(params.candidate.id, {
         tenant,
         projectKey: project,
-        diagramName: params.diagramName,
-        diagramDescription: params.diagramDescription
+        diagramId: params.mode === "update" ? params.targetDiagramId : undefined,
+        diagramName: params.mode === "new" ? params.diagramName : undefined,
+        diagramDescription: params.mode === "new" ? params.diagramDescription : undefined
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["airgen", "diagram-candidates", tenant, project] });
+      queryClient.invalidateQueries({ queryKey: ["architecture", "diagrams", tenant, project] });
+      setShowAcceptDiagramModal(false);
+      setSelectedDiagramCandidate(null);
     },
     onSettled: () => {
       // Clear the accepting ID when done (success or error)
@@ -320,10 +327,9 @@ export function AirGenRoute(): JSX.Element {
                   candidates={diagramCandidatesQuery.data?.items ?? []}
                   disabled={disabled}
                   onAcceptClick={(candidate) => {
-                    // Prevent duplicate clicks on the same candidate
-                    if (acceptingDiagramId === candidate.id) return;
-                    setAcceptingDiagramId(candidate.id);
-                    acceptDiagramMutation.mutate({ candidate });
+                    // Open modal to choose between new or update
+                    setSelectedDiagramCandidate(candidate);
+                    setShowAcceptDiagramModal(true);
                   }}
                   onRejectClick={(candidate) => {
                     // Prevent duplicate clicks on the same candidate
@@ -362,6 +368,21 @@ export function AirGenRoute(): JSX.Element {
         onAccepted={() => {
           setSelectedCandidate(null);
           queryClient.invalidateQueries({ queryKey: ["airgen", "candidates", "grouped", tenant, project] });
+        }}
+      />
+
+      <AcceptDiagramModal
+        isOpen={showAcceptDiagramModal}
+        candidate={selectedDiagramCandidate}
+        tenant={tenant}
+        project={project}
+        onClose={() => {
+          setShowAcceptDiagramModal(false);
+          setSelectedDiagramCandidate(null);
+        }}
+        onAccept={(params) => {
+          setAcceptingDiagramId(params.candidate.id);
+          acceptDiagramMutation.mutate(params);
         }}
       />
 
