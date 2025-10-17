@@ -3,10 +3,11 @@ import { toast } from "sonner";
 import { BlockDetailsPanel } from "../../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../../components/architecture/ConnectorDetailsPanel";
 import { MultiBlockPanel } from "../../components/architecture/MultiBlockPanel";
-import { ArchitectureTreeBrowser } from "../../components/architecture/ArchitectureTreeBrowser";
+import { ArchitectureBrowserTree } from "../../components/architecture/ArchitectureBrowserTree";
 import type {
   ArchitectureBlockLibraryRecord,
   ArchitectureDiagramRecord,
+  ArchitectureConnectorRecord,
   DocumentRecord
 } from "../../types";
 import type {
@@ -26,6 +27,18 @@ import type { BlockPreset } from "./types";
 import { useFloatingDocuments } from "../../contexts/FloatingDocumentsContext";
 import { PromptDialog } from "../../components/ui/prompt-dialog";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
+
+interface Package {
+  id: string;
+  name: string;
+  description?: string | null;
+  tenant: string;
+  projectKey: string;
+  parentId?: string | null;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface ArchitectureWorkspaceProps {
   tenant: string;
@@ -72,8 +85,18 @@ interface ArchitectureWorkspaceProps {
   addDocumentToConnector: (connectorId: string, documentId: string) => void;
   removeDocumentFromConnector: (connectorId: string, documentId: string) => void;
   blocksLibrary: ArchitectureBlockLibraryRecord[];
+  packages: Package[];
+  connectors: ArchitectureConnectorRecord[];
+  createPackage: (name: string, parentId?: string | null) => Promise<void>;
+  renamePackage: (packageId: string, name: string) => Promise<void>;
+  deletePackage: (packageId: string) => Promise<void>;
+  moveToPackage: (itemId: string, itemType: 'package' | 'block' | 'diagram', targetPackageId: string | null) => Promise<void>;
+  createDiagramInPackage: (name: string, packageId?: string | null) => Promise<void>;
+  deleteDiagramFromBrowser: (diagramId: string) => Promise<void>;
   isLibraryLoading: boolean;
+  isPackagesLoading: boolean;
   libraryError: unknown;
+  packagesError: unknown;
   hasChanges: boolean;
   isLoading: boolean;
   documents: DocumentRecord[];
@@ -105,8 +128,18 @@ export function ArchitectureWorkspace({
   addDocumentToConnector,
   removeDocumentFromConnector,
   blocksLibrary,
+  packages,
+  connectors,
+  createPackage,
+  renamePackage,
+  deletePackage,
+  moveToPackage,
+  createDiagramInPackage,
+  deleteDiagramFromBrowser,
   isLibraryLoading,
+  isPackagesLoading,
   libraryError,
+  packagesError,
   hasChanges,
   isLoading,
   documents: documentList
@@ -418,12 +451,22 @@ export function ArchitectureWorkspace({
             onAddPreset={preset => handlePaletteAdd(preset)}
             disabled={!activeDiagramId}
           />
-          <ArchitectureTreeBrowser
+          <ArchitectureBrowserTree
             blocks={blocksLibrary}
+            diagrams={diagrams}
+            connectors={connectors}
+            packages={packages}
             disabled={!activeDiagramId}
-            isLoading={isLibraryLoading}
-            error={libraryError}
-            onInsert={handleReuseExistingBlock}
+            isLoading={isLibraryLoading || isPackagesLoading}
+            error={libraryError || packagesError}
+            onInsertBlock={handleReuseExistingBlock}
+            onOpenDiagram={setActiveDiagramId}
+            onCreatePackage={createPackage}
+            onDeletePackage={deletePackage}
+            onRenamePackage={renamePackage}
+            onMoveToPackage={moveToPackage}
+            onCreateDiagram={createDiagramInPackage}
+            onDeleteDiagram={deleteDiagramFromBrowser}
             currentDiagramId={activeDiagramId}
             blocksInDiagram={blocksInDiagram}
           />

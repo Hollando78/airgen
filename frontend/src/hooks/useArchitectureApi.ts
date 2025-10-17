@@ -220,6 +220,80 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     });
   }, [diagrams]);
 
+  // Packages query and mutations
+  const packagesQuery = useQuery({
+    queryKey: ["architecture-packages", tenant, project],
+    queryFn: () => api.listArchitecturePackages(tenant!, project!),
+    enabled: Boolean(tenant && project)
+  });
+
+  const packages = useMemo(
+    () => packagesQuery.data?.packages ?? [],
+    [packagesQuery.data?.packages]
+  );
+
+  const createPackageMutation = useMutation({
+    mutationFn: (input: { name: string; description?: string; parentId?: string | null; order?: number }) =>
+      api.createArchitecturePackage({
+        tenant: tenant!,
+        projectKey: project!,
+        name: input.name,
+        description: input.description,
+        parentId: input.parentId,
+        order: input.order
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["architecture-packages", tenant, project] });
+    }
+  });
+
+  const updatePackageMutation = useMutation({
+    mutationFn: ({ packageId, updates }: { packageId: string; updates: { name?: string; description?: string; order?: number } }) =>
+      api.updateArchitecturePackage(tenant!, project!, packageId, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["architecture-packages", tenant, project] });
+    }
+  });
+
+  const deletePackageMutation = useMutation({
+    mutationFn: ({ packageId, cascade }: { packageId: string; cascade?: boolean }) =>
+      api.deleteArchitecturePackage(tenant!, project!, packageId, cascade),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["architecture-packages", tenant, project] });
+    }
+  });
+
+  const moveToPackageMutation = useMutation({
+    mutationFn: (input: { itemId: string; itemType: "package" | "block" | "diagram"; targetPackageId: string | null; order?: number }) =>
+      api.moveToArchitecturePackage({
+        tenant: tenant!,
+        projectKey: project!,
+        itemId: input.itemId,
+        itemType: input.itemType,
+        targetPackageId: input.targetPackageId,
+        order: input.order
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["architecture-packages", tenant, project] });
+      // Invalidate diagrams and blocks since they may have moved
+      queryClient.invalidateQueries({ queryKey: ["architecture-diagrams", tenant, project] });
+      queryClient.invalidateQueries({ queryKey: ["architecture-block-library", tenant, project] });
+    }
+  });
+
+  const reorderInPackageMutation = useMutation({
+    mutationFn: (input: { packageId: string | null; itemIds: string[] }) =>
+      api.reorderInArchitecturePackage({
+        tenant: tenant!,
+        projectKey: project!,
+        packageId: input.packageId,
+        itemIds: input.itemIds
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["architecture-packages", tenant, project] });
+    }
+  });
+
   const activeDiagram = useMemo(
     () => (activeDiagramId ? diagrams.find(diagram => diagram.id === activeDiagramId) ?? null : null),
     [diagrams, activeDiagramId]
@@ -881,6 +955,28 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     return deleteDiagramMutation.mutateAsync(diagramId);
   }, [activeDiagramId, deleteDiagramMutation, diagrams.length]);
 
+  // Package callback functions
+  const createPackage = useCallback((input: { name: string; description?: string; parentId?: string | null; order?: number }) => {
+    if (!tenant || !project) {return Promise.reject(new Error("Missing tenant or project"));}
+    return createPackageMutation.mutateAsync(input);
+  }, [createPackageMutation, tenant, project]);
+
+  const updatePackage = useCallback((packageId: string, updates: { name?: string; description?: string; order?: number }) => {
+    return updatePackageMutation.mutateAsync({ packageId, updates });
+  }, [updatePackageMutation]);
+
+  const deletePackage = useCallback((packageId: string, cascade?: boolean) => {
+    return deletePackageMutation.mutateAsync({ packageId, cascade });
+  }, [deletePackageMutation]);
+
+  const moveToPackage = useCallback((itemId: string, itemType: "package" | "block" | "diagram", targetPackageId: string | null, order?: number) => {
+    return moveToPackageMutation.mutateAsync({ itemId, itemType, targetPackageId, order });
+  }, [moveToPackageMutation]);
+
+  const reorderInPackage = useCallback((packageId: string | null, itemIds: string[]) => {
+    return reorderInPackageMutation.mutateAsync({ packageId, itemIds });
+  }, [reorderInPackageMutation]);
+
   return {
     architecture,
     diagrams,
@@ -910,12 +1006,21 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     removeDocumentFromConnector,
     setConnectorDocuments,
     blocksLibrary,
+    packages,
+    connectors,
+    createPackage,
+    updatePackage,
+    deletePackage,
+    moveToPackage,
+    reorderInPackage,
     hasChanges: blocks.length > 0 || connectors.length > 0,
     isLoading:
       diagramsQuery.isLoading ||
       (Boolean(activeDiagramId) && (blocksQuery.isLoading || connectorsQuery.isLoading)),
     isLibraryLoading: blockLibraryQuery.isLoading,
+    isPackagesLoading: packagesQuery.isLoading,
     error: diagramsQuery.error || blocksQuery.error || connectorsQuery.error,
-    libraryError: blockLibraryQuery.error
+    libraryError: blockLibraryQuery.error,
+    packagesError: packagesQuery.error
   };
 }

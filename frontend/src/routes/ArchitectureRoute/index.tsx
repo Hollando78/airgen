@@ -6,6 +6,7 @@ import { useArchitecture } from "../../hooks/useArchitectureApi";
 import { ArchitectureWorkspace } from "./ArchitectureWorkspace";
 import { isArchitectureDiagram } from "../../lib/architectureDiagrams";
 import type { ArchitectureDiagramRecord } from "../../types";
+import { toast } from "sonner";
 
 export function ArchitectureRoute(): JSX.Element {
   const { tenant, project } = useTenantProjectDocument();
@@ -36,8 +37,17 @@ export function ArchitectureRoute(): JSX.Element {
     addDocumentToConnector,
     removeDocumentFromConnector,
     blocksLibrary,
+    packages,
+    connectors,
+    createPackage,
+    updatePackage,
+    deletePackage,
+    moveToPackage,
+    reorderInPackage,
     isLibraryLoading,
+    isPackagesLoading,
     libraryError,
+    packagesError,
     hasChanges,
     isLoading
   } = useArchitecture(tenant, project);
@@ -81,6 +91,67 @@ export function ArchitectureRoute(): JSX.Element {
     };
     return baseCreateDiagram(payload);
   }, [baseCreateDiagram]);
+
+  // Package management callbacks with toast notifications
+  const handleCreatePackage = useCallback(async (name: string, parentId?: string | null) => {
+    try {
+      await createPackage({ name, parentId });
+      toast.success('Package created successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [createPackage]);
+
+  const handleRenamePackage = useCallback(async (packageId: string, name: string) => {
+    try {
+      await updatePackage(packageId, { name });
+      toast.success('Package renamed successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [updatePackage]);
+
+  const handleDeletePackage = useCallback(async (packageId: string) => {
+    try {
+      await deletePackage(packageId, false);
+      toast.success('Package deleted successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [deletePackage]);
+
+  const handleMoveToPackage = useCallback(async (itemId: string, itemType: 'package' | 'block' | 'diagram', targetPackageId: string | null) => {
+    try {
+      await moveToPackage(itemId, itemType, targetPackageId);
+      toast.success('Item moved successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [moveToPackage]);
+
+  const handleCreateDiagramInPackage = useCallback(async (name: string, packageId?: string | null) => {
+    try {
+      await createDiagram({ name, view: "block" });
+      toast.success('Diagram created successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [createDiagram]);
+
+  const handleDeleteDiagram = useCallback(async (diagramId: string) => {
+    try {
+      await deleteDiagram(diagramId);
+      toast.success('Diagram hidden successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [deleteDiagram]);
 
   const documentsQuery = useQuery({
     queryKey: ["documents", tenant, project],
@@ -129,8 +200,18 @@ export function ArchitectureRoute(): JSX.Element {
       addDocumentToConnector={addDocumentToConnector}
       removeDocumentFromConnector={removeDocumentFromConnector}
       blocksLibrary={blocksLibrary}
+      packages={packages}
+      connectors={connectors}
+      createPackage={handleCreatePackage}
+      renamePackage={handleRenamePackage}
+      deletePackage={handleDeletePackage}
+      moveToPackage={handleMoveToPackage}
+      createDiagramInPackage={handleCreateDiagramInPackage}
+      deleteDiagramFromBrowser={handleDeleteDiagram}
       isLibraryLoading={isLibraryLoading}
+      isPackagesLoading={isPackagesLoading}
       libraryError={libraryError}
+      packagesError={packagesError}
       hasChanges={hasChanges}
       isLoading={isLoading || documentsQuery.isLoading}
       documents={documents}
