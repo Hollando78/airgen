@@ -44,9 +44,8 @@
 }
 
 .architecture-body {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 320px;
-  gap: 1rem;
+  display: flex;
+  gap: 0;
   flex: 1;
   min-height: 0;
 }
@@ -60,11 +59,40 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  flex-shrink: 0;
 }
 
-.palette-pane,
+.palette-pane {
+  overflow: auto;
+  min-width: 200px;
+  max-width: 500px;
+}
+
 .inspector-pane {
   overflow: auto;
+  min-width: 200px;
+  max-width: 500px;
+}
+
+.resize-handle {
+  width: 8px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.resize-handle:hover::before,
+.resize-handle.resizing::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background-color: #2563eb;
+  transform: translateX(-50%);
 }
 
 .architecture-palette {

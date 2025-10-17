@@ -148,6 +148,16 @@ export function ArchitectureWorkspace({
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [diagramViewports, setDiagramViewports] = useState<Record<string, { x: number; y: number; zoom: number }>>({});
+  const [leftPaneWidth, setLeftPaneWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('airgen:leftPaneWidth');
+    return saved ? parseInt(saved, 10) : 300;
+  });
+  const [rightPaneWidth, setRightPaneWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('airgen:rightPaneWidth');
+    return saved ? parseInt(saved, 10) : 320;
+  });
+  const [isResizingLeft, setIsResizingLeft] = useState(false);
+  const [isResizingRight, setIsResizingRight] = useState(false);
   const canvasRef = useRef<DiagramCanvasHandle>(null);
   const activeDiagramIdRef = useRef<string | null>(null);
 
@@ -415,6 +425,49 @@ export function ArchitectureWorkspace({
     }
   }, []);
 
+  // Resize handlers for panes
+  const handleLeftResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingLeft(true);
+  }, []);
+
+  const handleRightResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingRight(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizingLeft && !isResizingRight) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingLeft) {
+        const newWidth = Math.max(200, Math.min(500, e.clientX));
+        setLeftPaneWidth(newWidth);
+      } else if (isResizingRight) {
+        const newWidth = Math.max(200, Math.min(500, window.innerWidth - e.clientX));
+        setRightPaneWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingLeft) {
+        localStorage.setItem('airgen:leftPaneWidth', leftPaneWidth.toString());
+        setIsResizingLeft(false);
+      } else if (isResizingRight) {
+        localStorage.setItem('airgen:rightPaneWidth', rightPaneWidth.toString());
+        setIsResizingRight(false);
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingLeft, isResizingRight, leftPaneWidth, rightPaneWidth]);
+
   return (
     <div className="architecture-shell">
       <header className="architecture-header">
@@ -445,7 +498,7 @@ export function ArchitectureWorkspace({
       />
 
       <div className="architecture-body">
-        <aside className="architecture-pane palette-pane">
+        <aside className="architecture-pane palette-pane" style={{ width: `${leftPaneWidth}px` }}>
           <ArchitecturePalette
             presets={BLOCK_PRESETS}
             onAddPreset={preset => handlePaletteAdd(preset)}
@@ -471,6 +524,11 @@ export function ArchitectureWorkspace({
             blocksInDiagram={blocksInDiagram}
           />
         </aside>
+
+        <div
+          className={`resize-handle ${isResizingLeft ? 'resizing' : ''}`}
+          onMouseDown={handleLeftResizeStart}
+        />
 
         <DiagramCanvas
           ref={canvasRef}
@@ -505,7 +563,12 @@ export function ArchitectureWorkspace({
           mapConnectorToEdge={mapConnectorToEdge}
         />
 
-        <aside className="architecture-pane inspector-pane">
+        <div
+          className={`resize-handle ${isResizingRight ? 'resizing' : ''}`}
+          onMouseDown={handleRightResizeStart}
+        />
+
+        <aside className="architecture-pane inspector-pane" style={{ width: `${rightPaneWidth}px` }}>
           {selectedBlocks.length > 1 && (
             <MultiBlockPanel
               blocks={selectedBlocks}
