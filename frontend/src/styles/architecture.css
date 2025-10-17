@@ -138,6 +138,19 @@
   transform: translateY(-2px);
 }
 
+.palette-item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.palette-item-icon {
+  display: flex;
+  align-items: center;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
 .palette-item-label {
   color: var(--text);
 }
@@ -374,33 +387,6 @@
   flex-shrink: 0;
 }
 
-.tree-add-button {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.375rem;
-  padding: 0.2rem 0.45rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #2563eb;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-  min-width: 28px;
-  text-align: center;
-  margin-top: 0.1rem;
-}
-
-.tree-add-button:hover:not(:disabled) {
-  background: #eff6ff;
-  border-color: #2563eb;
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
-}
-
-.tree-add-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  color: #16a34a;
-}
 
 .tree-children {
   padding-left: 0;
