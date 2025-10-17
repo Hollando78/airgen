@@ -41,6 +41,7 @@ import {
   type TenantAssignment
 } from "./utils/userPermissions";
 import { TenantAssignmentsEditor } from "./components/TenantAssignmentsEditor";
+import { useUserRole } from "../hooks/useUserRole";
 
 type UserFormState = {
   email: string;
@@ -88,6 +89,7 @@ function formatDate(timestamp: string): string {
 export function AdminUsersRoute(): JSX.Element {
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const { isSuperAdmin } = useUserRole();
 
   const [modalMode, setModalMode] = useState<ModalMode>("create");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -116,6 +118,15 @@ export function AdminUsersRoute(): JSX.Element {
       label: tenant.name ? `${tenant.name} (${tenant.slug})` : tenant.slug
     }));
   }, [tenantsQuery.data]);
+
+  // Filter global role options based on current user's permissions
+  const availableGlobalRoleOptions = useMemo(() => {
+    if (isSuperAdmin) {
+      return GLOBAL_ROLE_OPTIONS;
+    }
+    // Non-super-admins cannot assign super-admin role
+    return GLOBAL_ROLE_OPTIONS.filter(option => option.value !== UserRole.SUPER_ADMIN);
+  }, [isSuperAdmin]);
 
   const users = useMemo<DevUser[]>(() => usersQuery.data?.users ?? [], [usersQuery.data]);
 
@@ -522,7 +533,7 @@ export function AdminUsersRoute(): JSX.Element {
                       <SelectValue placeholder="Select global role" />
                     </SelectTrigger>
                     <SelectContent>
-                      {GLOBAL_ROLE_OPTIONS.map(option => (
+                      {availableGlobalRoleOptions.map(option => (
                         <SelectItem key={option.value || "none"} value={option.value}>
                           {option.label}
                         </SelectItem>
@@ -627,12 +638,13 @@ export function AdminUsersRoute(): JSX.Element {
                           : [createAssignmentRow()]
                     }));
                   }}
+                  disabled={!isSuperAdmin && editForm.globalRole === UserRole.SUPER_ADMIN}
                 >
                   <SelectTrigger id="admin-edit-global-role" className="w-full">
                     <SelectValue placeholder="Select global role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {GLOBAL_ROLE_OPTIONS.map(option => (
+                    {availableGlobalRoleOptions.map(option => (
                       <SelectItem key={option.value || "none"} value={option.value}>
                         {option.label}
                       </SelectItem>

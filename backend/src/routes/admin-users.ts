@@ -18,6 +18,7 @@ import {
   sendRoleChangedEmail
 } from "../lib/email.js";
 import { hashPassword } from "../lib/password.js";
+import type { AuthUser } from "../lib/authorization.js";
 
 // ============================================================================
 // Types
@@ -99,6 +100,78 @@ const revokePermissionSchema = z.object({
 // ============================================================================
 
 /**
+ * Check if current user is a super-admin
+ */
+function isSuperAdmin(user: AuthUser | undefined): boolean {
+  if (!user) return false;
+  return user.permissions?.globalRole === UserRole.SUPER_ADMIN || user.roles?.includes(UserRole.SUPER_ADMIN);
+}
+
+/**
+ * Get all tenant slugs that the user administers (tenant-admin or owner)
+ */
+function getAdministeredTenants(user: AuthUser | undefined): Set<string> {
+  const tenants = new Set<string>();
+
+  if (!user || !user.permissions) return tenants;
+
+  // Check tenant permissions
+  if (user.permissions.tenantPermissions) {
+    for (const [tenantSlug, permission] of Object.entries(user.permissions.tenantPermissions)) {
+      if (permission.role === UserRole.TENANT_ADMIN || permission.isOwner) {
+        tenants.add(tenantSlug);
+      }
+    }
+  }
+
+  return tenants;
+}
+
+/**
+ * Check if current user can manage target user
+ * Super-admins can manage anyone
+ * Tenant-admins can only manage users in their tenants
+ */
+async function canManageUser(
+  currentUser: AuthUser,
+  targetUserId: string,
+  permRepo: PermissionRepository
+): Promise<boolean> {
+  // Super-admins can manage anyone
+  if (isSuperAdmin(currentUser)) {
+    return true;
+  }
+
+  // Get tenants the current user administers
+  const administeredTenants = getAdministeredTenants(currentUser);
+  if (administeredTenants.size === 0) {
+    return false;
+  }
+
+  // Get target user's tenant access
+  const targetPermissions = await permRepo.getUserPermissions(targetUserId);
+
+  // Check if target user has access to any of the administered tenants
+  if (targetPermissions.tenantPermissions) {
+    for (const tenantSlug of Object.keys(targetPermissions.tenantPermissions)) {
+      if (administeredTenants.has(tenantSlug)) {
+        return true;
+      }
+    }
+  }
+
+  if (targetPermissions.projectPermissions) {
+    for (const tenantSlug of Object.keys(targetPermissions.projectPermissions)) {
+      if (administeredTenants.has(tenantSlug)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Convert database User + Permissions to EnhancedUser format
  */
 async function toEnhancedUser(
@@ -144,12 +217,15 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
   /**
    * GET /admin/users
    * List all users with their permissions
+   * Super-admins see all users, tenant-admins see only users in their tenants
    */
   app.get("/admin/users", {
+    preHandler: [app.authenticate],
     schema: {
       tags: ["admin"],
       summary: "List all users",
-      description: "Lists all users with detailed permission information",
+      description: "Lists all users with detailed permission information (filtered by tenant access)",
+      security: [{ bearerAuth: [] }],
       response: {
         200: {
           type: "object",
@@ -174,16 +250,71 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
               }
             }
           }
+        },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
         }
       }
     }
-  }, async () => {
+  }, async (req, reply) => {
+    const currentUser = req.currentUser as AuthUser | undefined;
+
+    if (!currentUser) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    // Check if user has admin privileges
+    const isSuper = isSuperAdmin(currentUser);
+    const administeredTenants = getAdministeredTenants(currentUser);
+
+    if (!isSuper && administeredTenants.size === 0) {
+      return reply.status(403).send({ error: "Insufficient permissions to view users" });
+    }
+
     const users = await userRepo.list();
     const enhancedUsers: EnhancedUser[] = [];
 
     for (const user of users) {
       const enhanced = await toEnhancedUser(user, permRepo);
-      if (enhanced) {
+      if (!enhanced) continue;
+
+      // Super-admins see all users
+      if (isSuper) {
+        enhancedUsers.push(enhanced);
+        continue;
+      }
+
+      // Tenant-admins only see users who have access to their tenants
+      let hasCommonTenant = false;
+
+      if (enhanced.permissions.tenantPermissions) {
+        for (const tenantSlug of Object.keys(enhanced.permissions.tenantPermissions)) {
+          if (administeredTenants.has(tenantSlug)) {
+            hasCommonTenant = true;
+            break;
+          }
+        }
+      }
+
+      if (!hasCommonTenant && enhanced.permissions.projectPermissions) {
+        for (const tenantSlug of Object.keys(enhanced.permissions.projectPermissions)) {
+          if (administeredTenants.has(tenantSlug)) {
+            hasCommonTenant = true;
+            break;
+          }
+        }
+      }
+
+      if (hasCommonTenant) {
         enhancedUsers.push(enhanced);
       }
     }
@@ -199,10 +330,12 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
    * Get detailed information about a specific user
    */
   app.get<{ Params: { id: string } }>("/admin/users/:id", {
+    preHandler: [app.authenticate],
     schema: {
       tags: ["admin"],
       summary: "Get user details",
       description: "Get detailed information about a specific user",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["id"],
@@ -220,6 +353,18 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
             }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         404: {
           type: "object",
           properties: {
@@ -229,8 +374,20 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
       }
     }
   }, async (req, reply) => {
+    const currentUser = req.currentUser as AuthUser | undefined;
+
+    if (!currentUser) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
     const paramsSchema = z.object({ id: z.string().uuid() });
     const params = paramsSchema.parse(req.params);
+
+    // Check if current user can manage this user
+    const canManage = await canManageUser(currentUser, params.id, permRepo);
+    if (!canManage) {
+      return reply.status(403).send({ error: "Insufficient permissions to view this user" });
+    }
 
     const user = await userRepo.findById(params.id);
     const enhanced = await toEnhancedUser(user, permRepo);
@@ -247,10 +404,12 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
    * Create a new user with permissions
    */
   app.post("/admin/users", {
+    preHandler: [app.authenticate],
     schema: {
       tags: ["admin"],
       summary: "Create a new user",
       description: "Creates a new user with specified permissions",
+      security: [{ bearerAuth: [] }],
       body: {
         type: "object",
         required: ["email"],
@@ -284,6 +443,18 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
             error: { type: "string" }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         409: {
           type: "object",
           properties: {
@@ -293,7 +464,37 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
       }
     }
   }, async (req, reply) => {
+    const currentUser = req.currentUser as AuthUser | undefined;
+
+    if (!currentUser) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    // Check if user has admin privileges
+    const isSuper = isSuperAdmin(currentUser);
+    const administeredTenants = getAdministeredTenants(currentUser);
+
+    if (!isSuper && administeredTenants.size === 0) {
+      return reply.status(403).send({ error: "Insufficient permissions to create users" });
+    }
+
     const body = createUserSchema.parse(req.body);
+
+    // Prevent non-super-admins from creating super-admins
+    if (body.permissions?.globalRole === UserRole.SUPER_ADMIN && !isSuper) {
+      return reply.status(403).send({ error: "Only super-admins can create super-admin users" });
+    }
+
+    // Verify tenant-admins can only grant access to their own tenants
+    if (!isSuper && body.permissions?.tenantPermissions) {
+      for (const tenantSlug of Object.keys(body.permissions.tenantPermissions)) {
+        if (!administeredTenants.has(tenantSlug)) {
+          return reply.status(403).send({
+            error: `You do not have permission to grant access to tenant '${tenantSlug}'`
+          });
+        }
+      }
+    }
 
     try {
       // Create user in database (require password for now)
@@ -379,10 +580,12 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
    * Update user basic information (email, name, password)
    */
   app.patch<{ Params: { id: string } }>("/admin/users/:id", {
+    preHandler: [app.authenticate],
     schema: {
       tags: ["admin"],
       summary: "Update user information",
       description: "Updates user's basic information (email, name, password)",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["id"],
@@ -409,6 +612,18 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
             }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         404: {
           type: "object",
           properties: {
@@ -424,8 +639,21 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
       }
     }
   }, async (req, reply) => {
+    const currentUser = req.currentUser as AuthUser | undefined;
+
+    if (!currentUser) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
     const paramsSchema = z.object({ id: z.string().uuid() });
     const params = paramsSchema.parse(req.params);
+
+    // Check if current user can manage this user
+    const canManage = await canManageUser(currentUser, params.id, permRepo);
+    if (!canManage) {
+      return reply.status(403).send({ error: "Insufficient permissions to update this user" });
+    }
+
     const body = updateUserSchema.parse(req.body);
 
     try {
@@ -468,10 +696,12 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
    * Update user's permissions (replaces entire permission structure)
    */
   app.patch<{ Params: { id: string } }>("/admin/users/:id/permissions", {
+    preHandler: [app.authenticate],
     schema: {
       tags: ["admin"],
       summary: "Update user permissions",
       description: "Updates a user's complete permission structure",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["id"],
@@ -503,6 +733,18 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
             }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         404: {
           type: "object",
           properties: {
@@ -512,17 +754,56 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
       }
     }
   }, async (req, reply) => {
+    const currentUser = req.currentUser as AuthUser | undefined;
+
+    if (!currentUser) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
     const paramsSchema = z.object({ id: z.string().uuid() });
     const params = paramsSchema.parse(req.params);
+
+    // Check if current user can manage this user
+    const canManage = await canManageUser(currentUser, params.id, permRepo);
+    if (!canManage) {
+      return reply.status(403).send({ error: "Insufficient permissions to update this user's permissions" });
+    }
+
     const body = updatePermissionsSchema.parse(req.body);
 
+    // Check if user is trying to grant/modify super-admin role
+    const isSuper = isSuperAdmin(currentUser);
+    const administeredTenants = getAdministeredTenants(currentUser);
+
+    // Get old permissions for change detection
     const user = await userRepo.findById(params.id);
     if (!user) {
       return reply.status(404).send({ error: "User not found" });
     }
 
-    // Get old permissions for change detection
     const oldPermissions = await permRepo.getUserPermissions(user.id);
+
+    // Prevent non-super-admins from granting super-admin role
+    if (body.permissions.globalRole === UserRole.SUPER_ADMIN && !isSuper) {
+      return reply.status(403).send({ error: "Only super-admins can grant super-admin privileges" });
+    }
+
+    // Prevent non-super-admins from revoking super-admin role
+    if (oldPermissions.globalRole === UserRole.SUPER_ADMIN && body.permissions.globalRole !== UserRole.SUPER_ADMIN && !isSuper) {
+      return reply.status(403).send({ error: "Only super-admins can revoke super-admin privileges" });
+    }
+
+    // Verify tenant-admins can only modify permissions for their own tenants
+    if (!isSuper && body.permissions.tenantPermissions) {
+      for (const tenantSlug of Object.keys(body.permissions.tenantPermissions)) {
+        if (!administeredTenants.has(tenantSlug)) {
+          return reply.status(403).send({
+            error: `You do not have permission to grant access to tenant '${tenantSlug}'`
+          });
+        }
+      }
+    }
+
     const oldTenants = oldPermissions.tenantPermissions ? Object.keys(oldPermissions.tenantPermissions) : [];
 
     // Clear all existing permissions (we're doing a full replace)
@@ -613,10 +894,12 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
    * Grant a specific permission to a user
    */
   app.post<{ Params: { id: string } }>("/admin/users/:id/permissions/grant", {
+    preHandler: [app.authenticate],
     schema: {
       tags: ["admin"],
       summary: "Grant permission",
       description: "Grants a specific permission to a user",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["id"],
@@ -650,6 +933,18 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
             error: { type: "string" }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         404: {
           type: "object",
           properties: {
@@ -659,14 +954,30 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
       }
     }
   }, async (req, reply) => {
+    const currentUser = req.currentUser as AuthUser | undefined;
+
+    if (!currentUser) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
     const paramsSchema = z.object({ id: z.string().uuid() });
     const params = paramsSchema.parse(req.params);
+
+    // Check if current user can manage this user
+    const canManage = await canManageUser(currentUser, params.id, permRepo);
+    if (!canManage) {
+      return reply.status(403).send({ error: "Insufficient permissions to modify this user's permissions" });
+    }
+
     const body = grantPermissionSchema.parse(req.body);
 
     const user = await userRepo.findById(params.id);
     if (!user) {
       return reply.status(404).send({ error: "User not found" });
     }
+
+    const isSuper = isSuperAdmin(currentUser);
+    const administeredTenants = getAdministeredTenants(currentUser);
 
     // Determine permission scope
     if (!body.tenantSlug && !body.projectKey) {
@@ -676,13 +987,22 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
           error: "Only Super-Admin role can be granted globally"
         });
       }
+      // Only super-admins can grant super-admin role
+      if (!isSuper) {
+        return reply.status(403).send({ error: "Only super-admins can grant super-admin privileges" });
+      }
       await permRepo.grantPermission({
         userId: user.id,
         scopeType: "global",
         role: UserRole.SUPER_ADMIN
       });
     } else if (body.tenantSlug && !body.projectKey) {
-      // Tenant-level permission
+      // Tenant-level permission - verify tenant-admin has access to this tenant
+      if (!isSuper && !administeredTenants.has(body.tenantSlug)) {
+        return reply.status(403).send({
+          error: `You do not have permission to grant access to tenant '${body.tenantSlug}'`
+        });
+      }
       await permRepo.grantPermission({
         userId: user.id,
         scopeType: "tenant",
@@ -692,6 +1012,11 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
       });
     } else if (body.tenantSlug && body.projectKey) {
       // Project-level permission
+      if (!isSuper && !administeredTenants.has(body.tenantSlug)) {
+        return reply.status(403).send({
+          error: `You do not have permission to grant access to tenant '${body.tenantSlug}'`
+        });
+      }
       await permRepo.grantPermission({
         userId: user.id,
         scopeType: "project",
@@ -717,10 +1042,12 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
    * Revoke a specific permission from a user
    */
   app.post<{ Params: { id: string } }>("/admin/users/:id/permissions/revoke", {
+    preHandler: [app.authenticate],
     schema: {
       tags: ["admin"],
       summary: "Revoke permission",
       description: "Revokes a specific permission from a user",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["id"],
@@ -751,6 +1078,18 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
             error: { type: "string" }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         404: {
           type: "object",
           properties: {
@@ -760,8 +1099,21 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
       }
     }
   }, async (req, reply) => {
+    const currentUser = req.currentUser as AuthUser | undefined;
+
+    if (!currentUser) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
     const paramsSchema = z.object({ id: z.string().uuid() });
     const params = paramsSchema.parse(req.params);
+
+    // Check if current user can manage this user
+    const canManage = await canManageUser(currentUser, params.id, permRepo);
+    if (!canManage) {
+      return reply.status(403).send({ error: "Insufficient permissions to modify this user's permissions" });
+    }
+
     const body = revokePermissionSchema.parse(req.body);
 
     const user = await userRepo.findById(params.id);
@@ -769,15 +1121,31 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
       return reply.status(404).send({ error: "User not found" });
     }
 
+    const isSuper = isSuperAdmin(currentUser);
+    const administeredTenants = getAdministeredTenants(currentUser);
+
     // Determine what to revoke
     if (!body.tenantSlug && !body.projectKey) {
-      // Revoke global role
+      // Revoke global role - only super-admins can do this
+      if (!isSuper) {
+        return reply.status(403).send({ error: "Only super-admins can revoke super-admin privileges" });
+      }
       await permRepo.revokePermission(user.id, "global");
     } else if (body.tenantSlug && !body.projectKey) {
       // Revoke tenant-level permission
+      if (!isSuper && !administeredTenants.has(body.tenantSlug)) {
+        return reply.status(403).send({
+          error: `You do not have permission to revoke access to tenant '${body.tenantSlug}'`
+        });
+      }
       await permRepo.revokePermission(user.id, "tenant", body.tenantSlug);
     } else if (body.tenantSlug && body.projectKey) {
       // Revoke project-level permission
+      if (!isSuper && !administeredTenants.has(body.tenantSlug)) {
+        return reply.status(403).send({
+          error: `You do not have permission to revoke access to tenant '${body.tenantSlug}'`
+        });
+      }
       await permRepo.revokePermission(user.id, "project", `${body.tenantSlug}:${body.projectKey}`);
     } else {
       return reply.status(400).send({
@@ -798,10 +1166,12 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
    * Delete a user (soft delete)
    */
   app.delete<{ Params: { id: string } }>("/admin/users/:id", {
+    preHandler: [app.authenticate],
     schema: {
       tags: ["admin"],
       summary: "Delete a user",
       description: "Deletes a user from the system (soft delete)",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["id"],
@@ -816,6 +1186,18 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
             success: { type: "boolean" }
           }
         },
+        401: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
+        403: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        },
         404: {
           type: "object",
           properties: {
@@ -825,8 +1207,20 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
       }
     }
   }, async (req, reply) => {
+    const currentUser = req.currentUser as AuthUser | undefined;
+
+    if (!currentUser) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
     const paramsSchema = z.object({ id: z.string().uuid() });
     const params = paramsSchema.parse(req.params);
+
+    // Check if current user can manage this user
+    const canManage = await canManageUser(currentUser, params.id, permRepo);
+    if (!canManage) {
+      return reply.status(403).send({ error: "Insufficient permissions to delete this user" });
+    }
 
     const deleted = await userRepo.delete(params.id);
     if (!deleted) {
