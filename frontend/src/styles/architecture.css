@@ -714,6 +714,7 @@
   justify-content: center;
   vertical-align: middle;
   line-height: 1;
+  margin-left: 0.5rem;
 }
 
 .tree-item-title .tree-add-button:hover:not(:disabled),
