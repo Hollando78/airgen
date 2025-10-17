@@ -81,6 +81,9 @@ deploy_service() {
     echo -e "${BLUE}🏗️  Building $service...${NC}"
     docker-compose -f $COMPOSE_FILE --env-file $ENV_FILE build --build-arg BUILDKIT_INLINE_CACHE=1 $service
 
+    echo -e "${BLUE}🧹 Removing old $service container...${NC}"
+    docker-compose -f $COMPOSE_FILE --env-file $ENV_FILE rm -sf $service 2>/dev/null || true
+
     echo -e "${BLUE}🚀 Deploying $service...${NC}"
     docker-compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d --no-deps $service
 
@@ -123,6 +126,10 @@ case $DEPLOY_MODE in
 
         wait $BUILD_PID
 
+        # Remove old containers to prevent metadata corruption
+        echo -e "${BLUE}🧹 Removing old containers...${NC}"
+        docker-compose -f $COMPOSE_FILE --env-file $ENV_FILE rm -sf api frontend 2>/dev/null || true
+
         # Deploy API first, then frontend
         echo -e "${BLUE}🚀 Deploying API...${NC}"
         docker-compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d --no-deps api
@@ -143,9 +150,9 @@ case $DEPLOY_MODE in
         echo -e "${YELLOW}📦 Full deployment (all services)${NC}"
         echo ""
 
-        echo -e "${BLUE}📦 Step 1: Stopping existing application services...${NC}"
-        # Only stop app services, keep databases running
-        docker-compose -f $COMPOSE_FILE --env-file $ENV_FILE stop api frontend 2>/dev/null || true
+        echo -e "${BLUE}📦 Step 1: Stopping and removing existing application containers...${NC}"
+        # Stop and remove app services to prevent metadata corruption
+        docker-compose -f $COMPOSE_FILE --env-file $ENV_FILE rm -sf api frontend 2>/dev/null || true
         echo ""
 
         echo -e "${BLUE}🏗️  Step 2: Building Docker images (optimized with cache)...${NC}"

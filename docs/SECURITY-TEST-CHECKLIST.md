@@ -258,15 +258,18 @@ This checklist helps verify that all security features are working correctly.
 - [ ] Verify `HttpOnly` flag set
 - [ ] Verify no `dev_` prefix
 
-## 12. Legacy Password Migration
+## 12. Credential Storage & Migration
 
-### Create Legacy User (for testing)
-- [ ] Manually edit `dev-users.json`
-- [ ] Add user with old password field (SHA256 or scrypt)
-- [ ] Login with that user
-- [ ] Verify successful login
-- [ ] Check `dev-users.json` again
-- [ ] Verify password upgraded to Argon2id (`passwordHash` field, no `passwordSalt`)
+### Verify Argon2id Hashing
+- [ ] Create a disposable user through `/api/admin/users` or the UI
+- [ ] Inspect `users.password_hash` in Postgres (`SELECT password_hash FROM users WHERE email='example@airgen.studio';`)
+- [ ] Confirm the hash is Argon2id (`$argon2id$` prefix) and no legacy fields (`password`, `password_salt`) exist
+- [ ] Repeat with a password reset flow; confirm the stored hash changes and is still Argon2id
+
+### Verify Legacy Imports No Longer Apply
+- [ ] Confirm `backend/src/services/dev-users.ts` and `workspace/dev-users.json` are absent
+- [ ] Attempt to access `/api/dev/admin/users`; ensure the route no longer exists (expect 404)
+- [ ] Confirm super-admin and tenant-admin flows operate purely through RBAC-backed endpoints (`/api/super-admin/*`, `/api/tenant-admin/*`)
 
 ## 13. Edge Cases
 

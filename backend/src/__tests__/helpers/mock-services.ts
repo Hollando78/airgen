@@ -24,13 +24,6 @@ export const mockWorkspaceOperations = {
   ensureWorkspace: vi.fn()
 };
 
-// Mock dev users operations
-export const mockDevUsersOperations = {
-  listDevUsers: vi.fn(),
-  verifyDevUserPassword: vi.fn(),
-  ensureLegacyPasswordUpgrade: vi.fn()
-};
-
 // Mock OpenAI operations
 export const mockOpenAI = {
   chat: {
@@ -46,7 +39,6 @@ export const mockOpenAI = {
 export function resetAllMocks() {
   Object.values(mockGraphOperations).forEach(mock => mock.mockReset());
   Object.values(mockWorkspaceOperations).forEach(mock => mock.mockReset());
-  Object.values(mockDevUsersOperations).forEach(mock => mock.mockReset());
   vi.clearAllMocks();
 }
 
@@ -66,11 +58,6 @@ export function setupSuccessfulMocks() {
 
   mockGraphOperations.listRequirements.mockResolvedValue([]);
   mockGraphOperations.getRequirement.mockResolvedValue(null);
-
-  // Default user responses
-  mockDevUsersOperations.listDevUsers.mockResolvedValue([]);
-  mockDevUsersOperations.verifyDevUserPassword.mockReturnValue(false);
-  mockDevUsersOperations.ensureLegacyPasswordUpgrade.mockResolvedValue(undefined);
 
   // Default workspace responses
   mockWorkspaceOperations.readRequirementMarkdown.mockResolvedValue("# Test Requirement");

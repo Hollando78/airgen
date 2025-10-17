@@ -164,7 +164,10 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
                   name: { type: "string", nullable: true },
                   emailVerified: { type: "boolean" },
                   mfaEnabled: { type: "boolean" },
-                  permissions: { type: "object" },
+                  permissions: {
+                    type: "object",
+                    additionalProperties: true
+                  },
                   createdAt: { type: "string" },
                   updatedAt: { type: "string" }
                 }
@@ -211,7 +214,10 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
         200: {
           type: "object",
           properties: {
-            user: { type: "object" }
+            user: {
+              type: "object",
+              additionalProperties: true
+            }
           }
         },
         404: {
@@ -266,7 +272,10 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
         200: {
           type: "object",
           properties: {
-            user: { type: "object" }
+            user: {
+              type: "object",
+              additionalProperties: true
+            }
           }
         },
         400: {
@@ -394,7 +403,10 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
         200: {
           type: "object",
           properties: {
-            user: { type: "object" }
+            user: {
+              type: "object",
+              additionalProperties: true
+            }
           }
         },
         404: {
@@ -485,7 +497,10 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
         200: {
           type: "object",
           properties: {
-            user: { type: "object" }
+            user: {
+              type: "object",
+              additionalProperties: true
+            }
           }
         },
         404: {
@@ -540,7 +555,9 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
     }
 
     if (body.permissions.tenantPermissions) {
+      console.log('[admin-users] Processing tenant permissions:', body.permissions.tenantPermissions);
       for (const [tenantSlug, permission] of Object.entries(body.permissions.tenantPermissions)) {
+        console.log('[admin-users] Granting permission for tenant:', tenantSlug, 'role:', permission.role, 'isOwner:', permission.isOwner);
         await permRepo.grantPermission({
           userId: user.id,
           scopeType: "tenant",
@@ -548,7 +565,9 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
           role: permission.role,
           isOwner: permission.isOwner ?? false
         });
+        console.log('[admin-users] Permission granted for tenant:', tenantSlug);
       }
+      console.log('[admin-users] Finished processing all tenant permissions');
     }
 
     if (body.permissions.projectPermissions) {
@@ -619,7 +638,10 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
         200: {
           type: "object",
           properties: {
-            user: { type: "object" }
+            user: {
+              type: "object",
+              additionalProperties: true
+            }
           }
         },
         400: {
@@ -717,7 +739,10 @@ export default async function registerAdminUserRoutes(app: FastifyInstance): Pro
         200: {
           type: "object",
           properties: {
-            user: { type: "object" }
+            user: {
+              type: "object",
+              additionalProperties: true
+            }
           }
         },
         400: {

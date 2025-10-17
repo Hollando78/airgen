@@ -22,7 +22,6 @@ import { getErrorMessage } from "../lib/type-guards.js";
 import { getCacheStats } from "../lib/cache.js";
 import { areMetricsAvailable } from "../lib/metrics.js";
 import { getSentryStatus } from "../lib/sentry.js";
-import { addTenantAccess, getDevUserByEmail, removeTenantFromAllUsers } from "../services/dev-users.js";
 import {
   createTenantInvitation,
   listInvitationsForTenant,
@@ -30,6 +29,8 @@ import {
 } from "../services/tenant-invitations.js";
 import { sendTenantInvitationEmail } from "../lib/email.js";
 import { UserRole } from "../types/roles.js";
+import { userRepository } from "../repositories/UserRepository.js";
+import { PermissionRepository } from "../repositories/PermissionRepository.js";
 
 function mapInvitationResponse(invitation: TenantInvitationRecord) {
   const { token: _token, invitedByEmail, ...rest } = invitation;
@@ -66,6 +67,7 @@ const draftSchema = z.object({
 });
 
 export default async function registerCoreRoutes(app: FastifyInstance): Promise<void> {
+  const permissionRepo = new PermissionRepository();
   // Liveness probe - simple check that the server is running
   app.get("/healthz", {
     schema: {
@@ -450,10 +452,19 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
 
     try {
       const tenant = await createTenant(body);
-      const updated = await addTenantAccess(user.sub, tenant.slug, { owner: true });
-      if (!updated) {
-        return reply.status(500).send({ error: "Failed to associate tenant with user" });
+
+      const creator = await userRepository.findById(user.sub);
+      if (!creator) {
+        return reply.status(500).send({ error: "Failed to load user" });
       }
+
+      await permissionRepo.grantPermission({
+        userId: creator.id,
+        scopeType: "tenant",
+        scopeId: tenant.slug,
+        role: UserRole.TENANT_ADMIN,
+        isOwner: true
+      });
 
       return { tenant: { ...tenant, isOwner: true } };
     } catch (error) {
@@ -619,10 +630,12 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
     const body = bodySchema.parse(req.body);
 
     const normalizedTenant = slugify(params.tenant);
-    const existingUser = await getDevUserByEmail(body.email);
+    const existingUser = await userRepository.findByEmail(body.email);
     if (existingUser) {
-      const alreadyMember = (existingUser.tenantSlugs ?? []).some(slug => slugify(slug) === normalizedTenant);
-      if (alreadyMember) {
+      const permissions = await permissionRepo.getUserPermissions(existingUser.id);
+      const tenantPermission = permissions.tenantPermissions?.[normalizedTenant];
+      const projectPermissions = permissions.projectPermissions?.[normalizedTenant];
+      if (tenantPermission || (projectPermissions && Object.keys(projectPermissions).length > 0)) {
         return reply.status(409).send({ error: "User already has access to this tenant" });
       }
     }
@@ -705,7 +718,7 @@ export default async function registerCoreRoutes(app: FastifyInstance): Promise<
       return reply.status(404).send({ error: "Tenant not found" });
     }
 
-    await removeTenantFromAllUsers(params.tenant);
+    await permissionRepo.removeTenantFromAllUsers(params.tenant);
     return { success: true };
   });
 

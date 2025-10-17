@@ -23,31 +23,33 @@ This guide documents common issues and their solutions for the AIRGen developmen
 - Error message: `"This action requires the 'author' role"`
 
 **Root Cause:**
-RBAC middleware requires `"author"` role for write operations, but dev users only have `["admin", "user"]` roles.
+RBAC middleware requires at least the `author` role for write operations. The account in question is missing that role (or only has viewer access) in Postgres.
 
 **Location of Problem:**
-- `backend/src/routes/*.ts` - Routes using `app.requireRole("author")`
-- `backend/workspace/dev-users.json` - User role definitions
+- `backend/src/routes/*.ts` – Routes using `requireMinimumRole(UserRole.AUTHOR, …)`
+- `user_permissions` table – Tenant/project scopes granted to the account
 
 **Solution:**
-Add `"author"` role to all dev users in `backend/workspace/dev-users.json`:
+Grant the correct role through the admin APIs:
 
-```json
-{
-  "roles": [
-    "admin",
-    "author",  // ← Add this
-    "user"
-  ]
-}
+```bash
+# Example: promote a user to tenant author via API (requires super-admin token)
+curl -X POST \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  https://api.airgen.studio/api/tenant-admin/<tenant>/users/<userId>/grant-access \
+  -d '{"role":"author"}'
 ```
 
+You can also use the Super Admin → Users screen in the UI to set the tenant/project roles. Changes persist immediately in Postgres.
+
 **Prevention:**
-When creating new dev users, ensure they have the `"author"` role. The role hierarchy is:
-- `"admin"` - Full system access
-- `"author"` - Can create/edit/delete content
-- `"reviewer"` - Can approve baselines
-- `"user"` - Read-only access
+Make sure onboarding flows assign an appropriate role:
+- `super-admin` – Global access
+- `tenant-admin` – Full tenant access (implies author)
+- `admin` – Project administrator
+- `author` – Create/edit/delete content
+- `viewer` – Read only
 
 ---
 
@@ -69,10 +71,10 @@ app.requireAnyRole(["author", "admin"])  // Requires at least one
 **Finding RBAC Issues:**
 ```bash
 # Search for role requirements
-grep -r "requireRole\|requireAnyRole" backend/src/routes/
+rg "requireMinimumRole" backend/src/routes
 
-# Check current user roles
-cat backend/workspace/dev-users.json | grep -A 5 "roles"
+# Inspect permissions in Postgres
+psql "$DATABASE_URL" -c "SELECT * FROM user_permissions WHERE user_id='<uuid>'"
 ```
 
 ---
@@ -371,13 +373,11 @@ User is not logged in. All API routes (including GET requests) require JWT authe
      -H "Authorization: Bearer $TOKEN"
    ```
 
-**Available Dev Users:**
-- `steven.holland@outlook.com` (password: Tynebridge001!) - admin, author, user (hollando, admin-dev tenants)
-- `test@dev.local` (password: test123) - admin, author, user (admin-dev tenant)
-- `admin@dev.local` (password: admin123) - admin, author, user (admin-dev tenant)
-- `user@dev.local` (password: user123) - author, user
+**Developer Accounts:**
+- Use the Super Admin → Users screen or `pnpm dev admin:create-user` (if scripted) to provision local accounts.
+- In CI/dev containers, the seed script creates `admin@dev.local` / `dev-admin` (password shown in logs) with super-admin rights. Rotate or disable before sharing builds.
 
-**Note:** If login fails, check backend logs for authentication errors and verify dev-users.json has the expected user records.
+**Note:** If login fails, check backend logs for authentication errors and inspect the `users` and `user_permissions` tables in Postgres to confirm the account exists with the expected roles.
 
 ---
 
@@ -653,8 +653,8 @@ If you encounter issues not covered here:
    });
    ```
 
-2. **Update dev users if needed:**
-   - Add required roles to `backend/workspace/dev-users.json`
+2. **Update RBAC expectations if needed:**
+   - Document required roles/tenants and ensure the admin UI or seed scripts grant them
 
 3. **Document role requirements** in route comments
 

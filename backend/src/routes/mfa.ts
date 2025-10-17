@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { config } from "../config.js";
 import { authSchemas, validateInput } from "../lib/validation.js";
-import { getDevUser, updateDevUser } from "../services/dev-users.js";
+import { userRepository } from "../repositories/UserRepository.js";
 import {
   generateSecret,
   generateTotpUri,
@@ -43,7 +43,7 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
       return reply.status(401).send({ error: "User not authenticated" });
     }
 
-    const user = await getDevUser(req.currentUser.sub);
+    const user = await userRepository.findById(req.currentUser.sub);
     if (!user) {
       return reply.status(404).send({ error: "User not found" });
     }
@@ -59,9 +59,7 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
 
     // Store encrypted secret temporarily (not yet enabled)
     const encryptedSecret = encryptSecret(secret);
-    await updateDevUser(user.id, {
-      mfaSecret: encryptedSecret
-    });
+    await userRepository.update(user.id, { mfaSecret: encryptedSecret });
 
     return {
       qrCode,
@@ -91,7 +89,7 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
 
     const { code } = validateInput(authSchemas.verifyMfa, req.body);
 
-    const user = await getDevUser(req.currentUser.sub);
+    const user = await userRepository.findById(req.currentUser.sub);
     if (!user) {
       return reply.status(404).send({ error: "User not found" });
     }
@@ -117,10 +115,10 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
     const hashedBackupCodes = backupCodes.map(hashBackupCode);
 
     // Enable 2FA
-    await updateDevUser(user.id, {
-      mfaEnabled: true,
-      mfaBackupCodes: hashedBackupCodes
+    await userRepository.update(user.id, {
+      mfaEnabled: true
     });
+    await userRepository.addMfaBackupCodes(user.id, hashedBackupCodes);
 
     // Log MFA enabled
     app.log.info({
@@ -130,7 +128,7 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
       backupCodesGenerated: backupCodes.length
     }, "2FA enabled for user");
 
-    sendMfaEnabledEmail(user.email, user.name)
+    sendMfaEnabledEmail(user.email, user.name ?? undefined)
       .catch(emailError => {
         app.log.error({ err: emailError }, "Failed to send MFA enabled email");
       });
@@ -160,7 +158,7 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
       return reply.status(401).send({ error: "User not authenticated" });
     }
 
-    const user = await getDevUser(req.currentUser.sub);
+    const user = await userRepository.findById(req.currentUser.sub);
     if (!user) {
       return reply.status(404).send({ error: "User not found" });
     }
@@ -170,11 +168,11 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
     }
 
     // Disable 2FA
-    await updateDevUser(user.id, {
+    await userRepository.update(user.id, {
       mfaEnabled: false,
-      mfaSecret: undefined,
-      mfaBackupCodes: undefined
+      mfaSecret: null
     });
+    await userRepository.addMfaBackupCodes(user.id, []);
 
     // Log MFA disabled
     app.log.info({
@@ -186,7 +184,7 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
     // Revoke all sessions for security
     await revokeAllUserTokens(user.id);
 
-    sendMfaDisabledEmail(user.email, user.name)
+    sendMfaDisabledEmail(user.email, user.name ?? undefined)
       .catch(emailError => {
         app.log.error({ err: emailError }, "Failed to send MFA disabled email");
       });
@@ -212,14 +210,18 @@ export default async function registerMfaRoutes(app: FastifyInstance): Promise<v
       throw new Error("User not authenticated");
     }
 
-    const user = await getDevUser(req.currentUser.sub);
+    const user = await userRepository.findById(req.currentUser.sub);
     if (!user) {
       throw new Error("User not found");
     }
 
+    const backupCodes = user.mfaEnabled
+      ? await userRepository.getMfaBackupCodes(user.id)
+      : [];
+
     return {
       mfaEnabled: user.mfaEnabled || false,
-      backupCodesRemaining: user.mfaBackupCodes?.length || 0
+      backupCodesRemaining: backupCodes.length
     };
   });
 }

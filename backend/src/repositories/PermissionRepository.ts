@@ -50,15 +50,21 @@ export class PermissionRepository {
    * Get all permissions for a user in structured format
    */
   async getUserPermissions(userId: string): Promise<UserPermissions> {
+    console.log('[PermissionRepository.getUserPermissions] Getting permissions for user:', userId);
+
     const result = await this.pool.query(
       `SELECT * FROM user_permissions WHERE user_id = $1 ORDER BY granted_at`,
       [userId]
     );
 
+    console.log('[PermissionRepository.getUserPermissions] Found', result.rows.length, 'permission rows');
+    console.log('[PermissionRepository.getUserPermissions] Raw rows:', result.rows);
+
     const permissions: UserPermissions = {};
 
     for (const row of result.rows) {
       const record = this.mapRowToPermissionRecord(row);
+      console.log('[PermissionRepository.getUserPermissions] Processing record:', record);
 
       if (record.scopeType === "global") {
         permissions.globalRole = UserRole.SUPER_ADMIN;
@@ -91,6 +97,7 @@ export class PermissionRepository {
       }
     }
 
+    console.log('[PermissionRepository.getUserPermissions] Final permissions object:', permissions);
     return permissions;
   }
 
@@ -98,6 +105,8 @@ export class PermissionRepository {
    * Grant a permission to a user
    */
   async grantPermission(input: GrantPermissionInput): Promise<PermissionRecord> {
+    console.log('[PermissionRepository.grantPermission] Input:', input);
+
     // Validate scope constraints
     if (input.scopeType === "global" && input.scopeId) {
       throw new Error("Global permissions cannot have a scopeId");
@@ -112,6 +121,16 @@ export class PermissionRepository {
     }
 
     // Upsert the permission (update if exists, insert if not)
+    const queryParams = [
+      input.userId,
+      input.scopeType,
+      input.scopeId || null,
+      input.role,
+      input.isOwner ?? false,
+      input.grantedBy || null
+    ];
+    console.log('[PermissionRepository.grantPermission] Query params:', queryParams);
+
     const result = await this.pool.query(
       `INSERT INTO user_permissions (user_id, scope_type, scope_id, role, is_owner, granted_by)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -122,16 +141,10 @@ export class PermissionRepository {
          granted_by = EXCLUDED.granted_by,
          granted_at = NOW()
        RETURNING *`,
-      [
-        input.userId,
-        input.scopeType,
-        input.scopeId || null,
-        input.role,
-        input.isOwner ?? false,
-        input.grantedBy || null
-      ]
+      queryParams
     );
 
+    console.log('[PermissionRepository.grantPermission] Result row:', result.rows[0]);
     return this.mapRowToPermissionRecord(result.rows[0]);
   }
 
@@ -151,6 +164,43 @@ export class PermissionRepository {
     );
 
     return result.rows.length > 0;
+  }
+
+  /**
+   * Remove all permissions for a user
+   */
+  async removeAllPermissionsForUser(userId: string): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM user_permissions WHERE user_id = $1`,
+      [userId]
+    );
+  }
+
+  /**
+   * Remove tenant and related project permissions for a user
+   */
+  async removeTenantPermissionsForUser(userId: string, tenantSlug: string): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM user_permissions
+       WHERE user_id = $1
+         AND (
+           (scope_type = 'tenant' AND scope_id = $2)
+           OR (scope_type = 'project' AND scope_id LIKE $2 || ':%')
+         )`,
+      [userId, tenantSlug]
+    );
+  }
+
+  /**
+   * Remove all permissions associated with a tenant across all users
+   */
+  async removeTenantFromAllUsers(tenantSlug: string): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM user_permissions
+       WHERE (scope_type = 'tenant' AND scope_id = $1)
+          OR (scope_type = 'project' AND scope_id LIKE $1 || ':%')`,
+      [tenantSlug]
+    );
   }
 
   /**

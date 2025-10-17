@@ -948,7 +948,7 @@ GET    /metrics                - Prometheus metrics (unauthenticated)
 - **Storage**: LocalStorage on client (future: HttpOnly cookies)
 
 **Dev Users:**
-- File-based user registry: `backend/workspace/dev-users.json`
+- User management persists in Postgres (`users`, `user_permissions` tables); the former `dev-users.json` file has been removed.
 - Bcrypt password hashing
 - Multi-tenant support
 

@@ -788,9 +788,9 @@ export type ArchitectureDiagramResponse = {
 export type DevUser = {
   id: string;
   email: string;
-  name?: string;
-  roles: string[];
-  tenantSlugs: string[];
+  name?: string | null;
+  emailVerified: boolean;
+  mfaEnabled: boolean;
   permissions?: import("./lib/rbac").UserPermissions;
   createdAt: string;
   updatedAt: string;

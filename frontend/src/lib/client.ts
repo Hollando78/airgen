@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { config } from "../config";
 import { useAuth } from "../contexts/AuthContext";
+import type { UserPermissions } from "./rbac";
 import type {
   DraftResponse,
   DraftRequest,
@@ -462,12 +463,17 @@ export function useApiClient() {
 
       // Admin user utilities
       listDevUsers: () => request<DevUserListResponse>(`/admin/users`),
-      createDevUser: (body: { email: string; name?: string; password?: string; roles?: string[]; tenantSlugs?: string[] }) =>
+      createDevUser: (body: { email: string; name?: string; password: string; permissions?: UserPermissions }) =>
         request<DevUserResponse>(`/admin/users`, { method: "POST", body: JSON.stringify(body) }),
       updateDevUser: (
         id: string,
-        body: { email?: string; name?: string | null; password?: string; roles?: string[]; tenantSlugs?: string[] }
+        body: { email?: string; name?: string | null; password?: string; emailVerified?: boolean }
       ) => request<DevUserResponse>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      updateDevUserPermissions: (id: string, permissions: UserPermissions) =>
+        request<DevUserResponse>(`/admin/users/${id}/permissions`, {
+          method: "PATCH",
+          body: JSON.stringify({ permissions })
+        }),
       deleteDevUser: (id: string) =>
         request<{ success: boolean }>(`/admin/users/${id}`, { method: "DELETE" }),
 
@@ -600,10 +606,10 @@ export function useApiClient() {
         request<DevUserListResponse>(`/tenant-admin/${tenant}/users`),
       getTenantUser: (tenant: string, id: string) =>
         request<DevUserResponse>(`/tenant-admin/${tenant}/users/${id}`),
-      grantTenantUserAccess: (tenant: string, userId: string, role: string) =>
+      grantTenantUserAccess: (tenant: string, userId: string, role: string, isOwner?: boolean) =>
         request<{ success: boolean; user: any }>(`/tenant-admin/${tenant}/users/${userId}/grant-access`, {
           method: "POST",
-          body: JSON.stringify({ role })
+          body: JSON.stringify({ role, isOwner })
         }),
       revokeTenantUserAccess: (tenant: string, userId: string) =>
         request<{ success: boolean; user: any }>(`/tenant-admin/${tenant}/users/${userId}/revoke-access`, {

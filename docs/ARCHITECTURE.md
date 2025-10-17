@@ -77,7 +77,7 @@ This structure allows future expansion for needs, risks, or test cases as additi
 
 ## Authentication & Authorization Roadmap
 - A dedicated Fastify auth plugin now wraps `@fastify/jwt`, attaches a normalized `request.currentUser`, and exposes `app.authenticate` for protected routes while keeping `app.optionalAuthenticate` for public flows. This makes it straightforward to ratchet up enforcement route-by-route once account onboarding is complete.
-- During development, `/api/dev/admin/users` provides a file-backed user registry (mirrored in `workspace/dev-users.json`) with a matching `/admin/users` React view for quick CRUD without touching production systems.
+- Super-admin, tenant-admin, and workspace-admin features now read/write exclusively to Postgres via the user and permission repositories; the legacy `dev-users.json` registry has been removed.
 - Production builds of the React client ship only the static landing page; the interactive workspace routes are tree-shaken behind a dev-only `lazy()` import so no internal tooling ships to prod.
 - User principals are expected to arrive via JWTs (OIDC, Auth0, etc.). The payload should include `sub`, `email`, and optional role/tenant claims (`roles`, `tenantSlugs`) so authorization checks can be done without extra hops.
 - Multi-tenant scoping will align with Neo4j tenant slugs. Once account management lands, guarded routes can validate that `request.currentUser.tenantSlugs` contains the tenant in the request path before continuing.

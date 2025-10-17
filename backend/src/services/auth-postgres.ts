@@ -1,8 +1,7 @@
 /**
  * PostgreSQL-based Authentication Service
  *
- * Handles authentication using PostgreSQL users and permissions tables
- * instead of the legacy dev-users.json file.
+ * Handles authentication using PostgreSQL users and permissions tables.
  */
 
 import { userRepository } from "../repositories/UserRepository.js";
@@ -11,8 +10,6 @@ import type { UserPermissions } from "../types/permissions.js";
 import { UserRole } from "../types/roles.js";
 import * as argon2 from "argon2";
 import * as crypto from "crypto";
-import { getDevUserByEmail } from "./dev-users.js";
-import { migrateLegacyPermissions } from "../types/permissions.js";
 import { logger } from "../lib/logger.js";
 
 function hasAnyPermissions(permissions: UserPermissions): boolean {
@@ -33,29 +30,7 @@ export async function buildJwtPayloadFromPostgres(userId: string) {
     throw new Error("User not found");
   }
 
-  // Get permissions from PostgreSQL
-  let permissions = await permissionRepository.getUserPermissions(userId);
-
-  // Fallback: if no structured permissions yet, try legacy dev-users.json
-  if (!hasAnyPermissions(permissions)) {
-    const legacyUser = await getDevUserByEmail(user.email);
-    if (legacyUser) {
-      const migrated = migrateLegacyPermissions({
-        roles: legacyUser.roles,
-        tenantSlugs: legacyUser.tenantSlugs,
-        ownedTenantSlugs: legacyUser.ownedTenantSlugs
-      });
-
-      if (hasAnyPermissions(migrated)) {
-        permissions = migrated;
-        logger.warn({
-          event: "auth.permissions.fallback",
-          userId: user.id,
-          email: user.email
-        }, "Using legacy dev-users.json permissions fallback for JWT payload");
-      }
-    }
-  }
+  const permissions = await permissionRepository.getUserPermissions(userId);
 
   // Build tenantSlugs array from tenant permissions
   const tenantSlugs: string[] = [];
@@ -105,14 +80,14 @@ export async function buildJwtPayloadFromPostgres(userId: string) {
     let hasAdmin = false;
     let hasAuthor = false;
 
-    if (permissions.tenantPermissions) {
-      for (const permission of Object.values(permissions.tenantPermissions)) {
-        if (permission.role === UserRole.TENANT_ADMIN || permission.role === UserRole.ADMIN) {
-          hasAdmin = true;
-        } else if (permission.role === UserRole.APPROVER || permission.role === UserRole.AUTHOR) {
-          hasAuthor = true;
-        }
+  if (permissions.tenantPermissions) {
+    for (const permission of Object.values(permissions.tenantPermissions)) {
+      if (permission.role === UserRole.TENANT_ADMIN || permission.role === UserRole.ADMIN) {
+        hasAdmin = true;
+      } else if (permission.role === UserRole.APPROVER || permission.role === UserRole.AUTHOR) {
+        hasAuthor = true;
       }
+    }
     }
 
     // Check project permissions too
@@ -131,7 +106,7 @@ export async function buildJwtPayloadFromPostgres(userId: string) {
     // Build roles array based on highest permission
     if (hasAdmin) {
       roles.push('admin', 'author', 'user');
-    } else if (hasAuthor) {
+  } else if (hasAuthor) {
       roles.push('author', 'user');
     } else {
       roles.push('user');

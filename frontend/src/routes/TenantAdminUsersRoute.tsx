@@ -21,20 +21,22 @@ import { FormField } from "../components/ui/form-field";
 import { EmptyState } from "../components/ui/empty-state";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../components/ui/table";
 import { Badge } from "../components/ui/badge";
-import { RoleSelector } from "../components/RoleSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { RefreshCw, Users, Building2, UserPlus } from "lucide-react";
 import { UserRole } from "../lib/rbac";
+import { ROLE_LABELS, TENANT_ROLE_OPTIONS } from "./utils/userPermissions";
 import type { DevUser } from "../types";
 
 type GrantAccessFormState = {
   email: string;
-  roles: string[];
+  role: UserRole;
+  isOwner: boolean;
 };
 
 const EMPTY_GRANT_FORM: GrantAccessFormState = {
   email: "",
-  roles: [UserRole.VIEWER]
+  role: UserRole.VIEWER,
+  isOwner: false
 };
 
 function formatDate(timestamp: string): string {
@@ -60,7 +62,8 @@ export function TenantAdminUsersRoute(): JSX.Element {
   const [grantForm, setGrantForm] = useState<GrantAccessFormState>(EMPTY_GRANT_FORM);
   const [grantError, setGrantError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editRoles, setEditRoles] = useState<string[]>([]);
+  const [editRole, setEditRole] = useState<UserRole>(UserRole.VIEWER);
+  const [editIsOwner, setEditIsOwner] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
 
   const usersQuery = useQuery({
@@ -70,9 +73,8 @@ export function TenantAdminUsersRoute(): JSX.Element {
   });
 
   const grantAccessMutation = useMutation({
-    mutationFn: (payload: { tenant: string; email: string; role: string }) =>
-      // Note: API expects email but internally looks up userId
-      api.grantTenantUserAccess(payload.tenant, payload.email, payload.role),
+    mutationFn: (payload: { tenant: string; userId: string; role: UserRole; isOwner: boolean }) =>
+      api.grantTenantUserAccess(payload.tenant, payload.userId, payload.role, payload.isOwner),
     onSuccess: () => {
       setGrantForm(EMPTY_GRANT_FORM);
       setGrantError(null);
@@ -84,11 +86,13 @@ export function TenantAdminUsersRoute(): JSX.Element {
   });
 
   const updateAccessMutation = useMutation({
-    mutationFn: (payload: { tenant: string; userId: string; role: string }) =>
-      api.grantTenantUserAccess(payload.tenant, payload.userId, payload.role),
+    mutationFn: (payload: { tenant: string; userId: string; role: UserRole; isOwner: boolean }) =>
+      api.grantTenantUserAccess(payload.tenant, payload.userId, payload.role, payload.isOwner),
     onSuccess: () => {
       setEditingId(null);
       setEditError(null);
+      setEditRole(UserRole.VIEWER);
+      setEditIsOwner(false);
       void queryClient.invalidateQueries({ queryKey: ["tenant-admin-users", selectedTenant] });
     },
     onError: (error: unknown) => {
@@ -119,30 +123,27 @@ export function TenantAdminUsersRoute(): JSX.Element {
       return;
     }
 
-    // Use the first selected role
-    const role = grantForm.roles[0] || UserRole.VIEWER;
-
     await grantAccessMutation.mutateAsync({
       tenant: selectedTenant,
-      email,
-      role
+      userId: email,
+      role: grantForm.role,
+      isOwner: grantForm.isOwner
     });
   };
 
   const beginEdit = (user: DevUser) => {
     setEditingId(user.id);
-
-    // Extract roles from tenant permissions
     const tenantPerm = user.permissions?.tenantPermissions?.[selectedTenant];
-    const roles = tenantPerm ? [tenantPerm.role] : user.roles || [UserRole.VIEWER];
-
-    setEditRoles(roles);
+    setEditRole(tenantPerm?.role ?? UserRole.VIEWER);
+    setEditIsOwner(Boolean(tenantPerm?.isOwner));
     setEditError(null);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditError(null);
+    setEditRole(UserRole.VIEWER);
+    setEditIsOwner(false);
   };
 
   const handleUpdateAccess = async (event: FormEvent<HTMLFormElement>) => {
@@ -151,12 +152,11 @@ export function TenantAdminUsersRoute(): JSX.Element {
     if (!selectedTenant) return;
     setEditError(null);
 
-    const role = editRoles[0] || UserRole.VIEWER;
-
     await updateAccessMutation.mutateAsync({
       tenant: selectedTenant,
       userId: editingId,
-      role
+      role: editRole,
+      isOwner: editIsOwner
     });
   };
 
@@ -258,13 +258,34 @@ export function TenantAdminUsersRoute(): JSX.Element {
                   </FormField>
                   <FormField
                     label="Role"
-                    htmlFor="grant-roles"
+                    htmlFor="grant-role"
                     hint="Select the role for this user within the tenant"
                   >
-                    <RoleSelector
-                      value={grantForm.roles}
-                      onChange={roles => setGrantForm(current => ({ ...current, roles }))}
-                    />
+                    <select
+                      id="grant-role"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={grantForm.role}
+                      onChange={event => setGrantForm(current => ({ ...current, role: event.target.value as UserRole }))}
+                    >
+                      {TENANT_ROLE_OPTIONS.map(option => (
+                        <option key={option} value={option}>{ROLE_LABELS[option]}</option>
+                      ))}
+                    </select>
+                  </FormField>
+                  <FormField
+                    label="Owner"
+                    htmlFor="grant-owner"
+                    hint="Owners can manage tenant settings"
+                  >
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        id="grant-owner"
+                        type="checkbox"
+                        checked={grantForm.isOwner}
+                        onChange={event => setGrantForm(current => ({ ...current, isOwner: event.target.checked }))}
+                      />
+                      Mark as Tenant Owner
+                    </label>
                   </FormField>
                 </div>
                 <div className="flex justify-end">
@@ -323,31 +344,51 @@ export function TenantAdminUsersRoute(): JSX.Element {
                       <TableBody>
                         {users.map(user => {
                           const tenantPerm = user.permissions?.tenantPermissions?.[selectedTenant];
-                          const displayRole = tenantPerm?.role || user.roles?.[0] || "—";
+                          const displayRole = tenantPerm?.role ?? UserRole.VIEWER;
+                          const displayOwner = Boolean(tenantPerm?.isOwner);
 
                           return (
                             <TableRow key={user.id}>
                               <TableCell className="font-medium">{user.email}</TableCell>
                               <TableCell>{user.name ?? "—"}</TableCell>
                               <TableCell>{editingId === user.id ? (
-                                <div className="min-w-[200px]">
-                                  <RoleSelector
-                                    value={editRoles}
-                                    onChange={setEditRoles}
-                                  />
+                                <div className="flex flex-col gap-2 min-w-[220px]">
+                                  <Select value={editRole} onValueChange={value => setEditRole(value as UserRole)}>
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Select role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {TENANT_ROLE_OPTIONS.map(option => (
+                                        <SelectItem key={option} value={option}>{ROLE_LABELS[option]}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <label className="flex items-center gap-2 text-xs">
+                                    <input
+                                      type="checkbox"
+                                      checked={editIsOwner}
+                                      onChange={event => setEditIsOwner(event.target.checked)}
+                                    />
+                                    Owner
+                                  </label>
                                 </div>
                               ) : (
-                                <Badge
-                                  variant={
-                                    displayRole === UserRole.ADMIN
-                                      ? "info"
-                                      : displayRole === UserRole.APPROVER
-                                      ? "success"
-                                      : "secondary"
-                                  }
-                                >
-                                  {displayRole}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant={
+                                      displayRole === UserRole.ADMIN
+                                        ? "info"
+                                        : displayRole === UserRole.APPROVER
+                                        ? "success"
+                                        : displayRole === UserRole.TENANT_ADMIN
+                                        ? "warning"
+                                        : "secondary"
+                                    }
+                                  >
+                                    {ROLE_LABELS[displayRole]}
+                                  </Badge>
+                                  {displayOwner && <Badge variant="outline">Owner</Badge>}
+                                </div>
                               )}</TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {user.updatedAt ? formatDate(user.updatedAt) : "—"}

@@ -5,10 +5,8 @@
 
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { slugify } from "../services/workspace.js";
-import { UserRole } from "../types/roles.js";
+import { UserRole, getHigherRole, hasMinimumRole as roleHasMinimum } from "../types/roles.js";
 import type { UserPermissions } from "../types/permissions.js";
-import * as rbac from "./rbac.js";
-import type { DevUserRecord } from "../services/dev-users.js";
 
 /**
  * User information from JWT token
@@ -34,24 +32,20 @@ export interface AuthUser {
  * Check if user has access to a specific tenant
  */
 export function hasTenantAccess(user: AuthUser | undefined, tenantSlug: string): boolean {
-  if (!user) {
-    return false;
-  }
-
-  // Check if user's tenant list includes this tenant
+  if (!user) return false;
   const normalizedTenant = slugify(tenantSlug);
 
-  // Permissions-based checks (new RBAC)
-  if (user.permissions) {
-    if (user.permissions.globalRole === UserRole.SUPER_ADMIN) {
+  if (isSuperAdmin(user)) {
+    return true;
+  }
+
+  const permissions = user.permissions;
+  if (permissions) {
+    if (permissions.tenantPermissions?.[normalizedTenant]) {
       return true;
     }
 
-    if (user.permissions.tenantPermissions?.[normalizedTenant]) {
-      return true;
-    }
-
-    const projectPermissions = user.permissions.projectPermissions?.[normalizedTenant];
+    const projectPermissions = permissions.projectPermissions?.[normalizedTenant];
     if (projectPermissions && Object.keys(projectPermissions).length > 0) {
       return true;
     }
@@ -62,7 +56,6 @@ export function hasTenantAccess(user: AuthUser | undefined, tenantSlug: string):
     return true;
   }
 
-  // Owners implicitly have access, even if tenantSlugs is out of date
   if ((user.ownedTenantSlugs ?? []).some(slug => slugify(slug) === normalizedTenant)) {
     return true;
   }
@@ -71,31 +64,60 @@ export function hasTenantAccess(user: AuthUser | undefined, tenantSlug: string):
 }
 
 export function isTenantOwner(user: AuthUser | undefined, tenantSlug: string): boolean {
-  if (!user || !Array.isArray(user.ownedTenantSlugs)) {
-    // Fall through to check new permissions structure
-  } else {
-    const normalizedTenant = slugify(tenantSlug);
-    if (user.ownedTenantSlugs.some(slug => slugify(slug) === normalizedTenant)) {
-      return true;
-    }
-  }
-
-  if (!user || !user.permissions?.tenantPermissions) {
-    return false;
-  }
+  if (!user) return false;
 
   const normalizedTenant = slugify(tenantSlug);
-  return Boolean(user.permissions.tenantPermissions[normalizedTenant]?.isOwner);
+
+  if (user.permissions?.tenantPermissions?.[normalizedTenant]?.isOwner) {
+    return true;
+  }
+
+  if (Array.isArray(user.ownedTenantSlugs)) {
+    return user.ownedTenantSlugs.some(slug => slugify(slug) === normalizedTenant);
+  }
+
+  return false;
 }
 
 /**
  * Check if user has a specific role
  */
 export function hasRole(user: AuthUser | undefined, role: string): boolean {
-  if (!user) {
+  if (!user) return false;
+
+  if (user.roles.includes(role)) {
+    return true;
+  }
+
+  if (!user.permissions) {
     return false;
   }
-  return user.roles.includes(role);
+
+  if (role === UserRole.SUPER_ADMIN) {
+    return user.permissions.globalRole === UserRole.SUPER_ADMIN;
+  }
+
+  const normalizedRole = role as UserRole;
+
+  if (user.permissions.tenantPermissions) {
+    for (const permission of Object.values(user.permissions.tenantPermissions)) {
+      if (permission.role === normalizedRole) {
+        return true;
+      }
+    }
+  }
+
+  if (user.permissions.projectPermissions) {
+    for (const projects of Object.values(user.permissions.projectPermissions)) {
+      for (const permission of Object.values(projects)) {
+        if (permission.role === normalizedRole) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -287,22 +309,9 @@ export function createTenantAuthMiddleware(paramName: string = "tenant") {
 // NEW: Role-Based Authorization Middleware
 // ============================================================================
 
-/**
- * Convert AuthUser to DevUserRecord for RBAC checks
- * This bridges the JWT payload with the RBAC system
- */
-function authUserToDevUserRecord(user: AuthUser): DevUserRecord {
-  return {
-    id: user.sub,
-    email: user.email,
-    name: user.name,
-    permissions: user.permissions,
-    roles: user.roles ?? [],
-    tenantSlugs: user.tenantSlugs ?? [],
-    ownedTenantSlugs: user.ownedTenantSlugs,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
+function isSuperAdmin(user: AuthUser | undefined): boolean {
+  if (!user) return false;
+  return user.permissions?.globalRole === UserRole.SUPER_ADMIN || user.roles.includes(UserRole.SUPER_ADMIN);
 }
 
 /**
@@ -320,14 +329,79 @@ export function requireSuperAdmin(
     throw new Error("Unauthorized");
   }
 
-  const devUser = authUserToDevUserRecord(user);
-  if (!rbac.isSuperAdmin(devUser)) {
+  if (!isSuperAdmin(user)) {
     reply.code(403).send({
       error: "Forbidden",
       message: "This action requires Super Administrator privileges"
     });
     throw new Error("Forbidden");
   }
+}
+
+function getEffectiveRole(
+  user: AuthUser | undefined,
+  tenantSlug?: string,
+  projectKey?: string
+): UserRole | null {
+  if (!user || !user.permissions) {
+    return null;
+  }
+
+  const permissions = user.permissions;
+
+  if (permissions.globalRole) {
+    return permissions.globalRole;
+  }
+
+  let highestRole: UserRole | null = null;
+
+  if (tenantSlug) {
+    const normalizedTenant = slugify(tenantSlug);
+    const tenantPermission = permissions.tenantPermissions?.[normalizedTenant];
+
+    if (tenantPermission?.role) {
+      highestRole = tenantPermission.role;
+    }
+
+    if (projectKey) {
+      const normalizedProject = slugify(projectKey);
+      const projectPermission = permissions.projectPermissions?.[normalizedTenant]?.[normalizedProject];
+      if (projectPermission?.role) {
+        highestRole = highestRole
+          ? getHigherRole(highestRole, projectPermission.role)
+          : projectPermission.role;
+      }
+    } else {
+      const projectPermissions = permissions.projectPermissions?.[normalizedTenant];
+      if (projectPermissions) {
+        for (const permission of Object.values(projectPermissions)) {
+          highestRole = highestRole
+            ? getHigherRole(highestRole, permission.role)
+            : permission.role;
+        }
+      }
+    }
+  } else {
+    if (permissions.tenantPermissions) {
+      for (const permission of Object.values(permissions.tenantPermissions)) {
+        highestRole = highestRole
+          ? getHigherRole(highestRole, permission.role)
+          : permission.role;
+      }
+    }
+
+    if (permissions.projectPermissions) {
+      for (const projects of Object.values(permissions.projectPermissions)) {
+        for (const permission of Object.values(projects)) {
+          highestRole = highestRole
+            ? getHigherRole(highestRole, permission.role)
+            : permission.role;
+        }
+      }
+    }
+  }
+
+  return highestRole;
 }
 
 /**
@@ -346,8 +420,12 @@ export function requireTenantAdmin(
     throw new Error("Unauthorized");
   }
 
-  const devUser = authUserToDevUserRecord(user);
-  if (!rbac.isTenantAdmin(devUser, tenantSlug)) {
+  if (isSuperAdmin(user)) {
+    return;
+  }
+
+  const role = getEffectiveRole(user, tenantSlug);
+  if (!role || !roleHasMinimum(role, UserRole.TENANT_ADMIN)) {
     reply.code(403).send({
       error: "Forbidden",
       message: `This action requires Tenant Administrator privileges for '${tenantSlug}'`
@@ -373,8 +451,12 @@ export function requireProjectAdmin(
     throw new Error("Unauthorized");
   }
 
-  const devUser = authUserToDevUserRecord(user);
-  if (!rbac.isProjectAdmin(devUser, tenantSlug, projectKey)) {
+  if (isSuperAdmin(user)) {
+    return;
+  }
+
+  const role = getEffectiveRole(user, tenantSlug, projectKey);
+  if (!role || !roleHasMinimum(role, UserRole.ADMIN)) {
     reply.code(403).send({
       error: "Forbidden",
       message: `This action requires Project Administrator privileges for '${tenantSlug}/${projectKey}'`
@@ -401,8 +483,12 @@ export function requireMinimumRole(
     throw new Error("Unauthorized");
   }
 
-  const devUser = authUserToDevUserRecord(user);
-  if (!rbac.hasMinimumRole(devUser, minimumRole, tenantSlug, projectKey)) {
+  if (isSuperAdmin(user)) {
+    return;
+  }
+
+  const role = getEffectiveRole(user, tenantSlug, projectKey);
+  if (!role || !roleHasMinimum(role, minimumRole)) {
     reply?.code(403).send({
       error: "Forbidden",
       message: `This action requires at least '${minimumRole}' role`
