@@ -672,7 +672,8 @@
   font-size: 1rem;
   flex-shrink: 0;
   width: 1.25rem;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
 }
 
 .tree-item-title .tree-label {
@@ -683,7 +684,8 @@
   font-weight: 500;
   color: #1e293b;
   max-width: 100%;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
 }
 
 .tree-item-title.section .tree-label {
