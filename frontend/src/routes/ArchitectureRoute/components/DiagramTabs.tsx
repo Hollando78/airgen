@@ -1,3 +1,5 @@
+import { X } from "lucide-react";
+
 interface DiagramTab {
   id: string;
   name: string;
@@ -36,7 +38,7 @@ export function DiagramTabs({ diagrams, activeDiagramId, onSelect, onRename, onD
             onClick={() => onDelete(diagram.id)}
             title="Hide diagram (can be restored from browser)"
           >
-            ×
+            <X className="w-4 h-4" strokeWidth={2} />
           </button>
         </div>
       ))}

@@ -6,6 +6,21 @@ import {
   TreeItemIndex,
   TreeDataProvider
 } from "react-complex-tree";
+import {
+  Package as PackageIcon,
+  BarChart3,
+  Box,
+  Boxes,
+  Wrench,
+  User,
+  Globe,
+  Plug,
+  Folder,
+  Link,
+  Plus,
+  Check,
+  ExternalLink
+} from "lucide-react";
 import type {
   ArchitectureBlockLibraryRecord,
   ArchitectureDiagramRecord,
@@ -49,7 +64,7 @@ type TreeItemData = {
   id: string;
   type: 'root' | 'section' | 'package' | 'block' | 'diagram' | 'connector';
   name: string;
-  icon?: string;
+  icon?: React.ReactNode;
   parentId?: string | null;
   children: string[];
   isFolder: boolean;
@@ -83,15 +98,16 @@ export function ArchitectureBrowserTree({
   const [selectedItems, setSelectedItems] = useState<TreeItemIndex[]>([]);
 
   // Helper function to get block icon (must be defined before treeData)
-  const getBlockIcon = useCallback((kind: string): string => {
+  const getBlockIcon = useCallback((kind: string): React.ReactNode => {
+    const iconProps = { className: "w-4 h-4", strokeWidth: 2 };
     switch (kind) {
-      case 'system': return '🔷';
-      case 'subsystem': return '🔶';
-      case 'component': return '🔧';
-      case 'actor': return '👤';
-      case 'external': return '🌐';
-      case 'interface': return '🔌';
-      default: return '🔷';
+      case 'system': return <Box {...iconProps} />;
+      case 'subsystem': return <Boxes {...iconProps} />;
+      case 'component': return <Wrench {...iconProps} />;
+      case 'actor': return <User {...iconProps} />;
+      case 'external': return <Globe {...iconProps} />;
+      case 'interface': return <Plug {...iconProps} />;
+      default: return <Box {...iconProps} />;
     }
   }, []);
 
@@ -112,7 +128,8 @@ export function ArchitectureBrowserTree({
     items['packages-section'] = {
       id: 'packages-section',
       type: 'section',
-      name: '📦 Packages',
+      name: 'Packages',
+      icon: <PackageIcon className="w-4 h-4" strokeWidth={2} />,
       children: [],
       isFolder: true
     };
@@ -121,7 +138,8 @@ export function ArchitectureBrowserTree({
     items['diagrams-section'] = {
       id: 'diagrams-section',
       type: 'section',
-      name: '📊 Diagrams',
+      name: 'Diagrams',
+      icon: <BarChart3 className="w-4 h-4" strokeWidth={2} />,
       children: [],
       isFolder: true
     };
@@ -130,7 +148,8 @@ export function ArchitectureBrowserTree({
     items['blocks-section'] = {
       id: 'blocks-section',
       type: 'section',
-      name: '🔷 Blocks',
+      name: 'Blocks',
+      icon: <Box className="w-4 h-4" strokeWidth={2} />,
       children: [],
       isFolder: true
     };
@@ -188,7 +207,7 @@ export function ArchitectureBrowserTree({
         id: pkg.id,
         type: 'package',
         name: pkg.name,
-        icon: '📁',
+        icon: <Folder className="w-4 h-4" strokeWidth={2} />,
         parentId: pkg.parentId,
         children,
         isFolder: true,
@@ -216,7 +235,7 @@ export function ArchitectureBrowserTree({
         id: diagram.id,
         type: 'diagram',
         name: diagram.name,
-        icon: '📊',
+        icon: <BarChart3 className="w-4 h-4" strokeWidth={2} />,
         children,
         isFolder: diagramConnectors.length > 0,
         canRename: false,
@@ -234,7 +253,7 @@ export function ArchitectureBrowserTree({
           id: connector.id,
           type: 'connector',
           name: connector.label || `${connector.source} → ${connector.target}`,
-          icon: '🔗',
+          icon: <Link className="w-4 h-4" strokeWidth={2} />,
           children: [],
           isFolder: false,
           canRename: false,
@@ -457,7 +476,8 @@ export function ArchitectureBrowserTree({
             title="Create new package"
             disabled={disabled}
           >
-            📁+
+            <Folder className="w-4 h-4" strokeWidth={2} />
+            <Plus className="w-3 h-3" strokeWidth={2.5} />
           </button>
           <button
             className="create-diagram-button"
@@ -468,7 +488,8 @@ export function ArchitectureBrowserTree({
             title="Create new diagram"
             disabled={disabled}
           >
-            📊+
+            <BarChart3 className="w-4 h-4" strokeWidth={2} />
+            <Plus className="w-3 h-3" strokeWidth={2.5} />
           </button>
         </div>
       </div>
@@ -552,7 +573,7 @@ export function ArchitectureBrowserTree({
                     disabled={disabled || alreadyInDiagram}
                     title={alreadyInDiagram ? "Already in diagram" : "Add to diagram"}
                   >
-                    {alreadyInDiagram ? '✓' : '+'}
+                    {alreadyInDiagram ? <Check className="w-3.5 h-3.5" strokeWidth={2.5} /> : <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />}
                   </button>
                 )}
                 {data.type === 'diagram' && (
@@ -565,7 +586,7 @@ export function ArchitectureBrowserTree({
                     disabled={disabled}
                     title="Open diagram"
                   >
-                    ↗
+                    <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
                   </button>
                 )}
               </div>
