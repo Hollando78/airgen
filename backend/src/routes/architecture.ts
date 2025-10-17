@@ -13,7 +13,13 @@ import {
   createArchitectureDiagram,
   getArchitectureDiagrams,
   updateArchitectureDiagram,
-  deleteArchitectureDiagram
+  deleteArchitectureDiagram,
+  createPackage,
+  getPackages,
+  updatePackage,
+  moveToPackage,
+  reorderInPackage,
+  deletePackage
 } from "../services/graph.js";
 import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
 
@@ -484,5 +490,164 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
     } catch {
       return reply.status(404).send({ error: "Architecture connector not found" });
     }
+  });
+
+  // Package routes
+  app.post("/architecture/packages", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
+    const schema = z.object({
+      tenant: z.string().min(1),
+      projectKey: z.string().min(1),
+      name: z.string().min(1),
+      description: z.string().optional(),
+      parentId: z.string().nullable().optional(),
+      order: z.number().optional()
+    });
+    const payload = schema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
+    try {
+      const pkg = await createPackage(payload);
+      return { package: pkg };
+    } catch (error) {
+      if ((error as Error).message.includes("not found")) {
+        return reply.status(404).send({ error: (error as Error).message });
+      }
+      throw error;
+    }
+  });
+
+  app.get("/architecture/packages/:tenant/:project", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
+    const packages = await getPackages({
+      tenant: params.tenant,
+      projectKey: params.project
+    });
+    return { packages };
+  });
+
+  app.patch("/architecture/packages/:tenant/:project/:packageId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      packageId: z.string().min(1)
+    });
+    const bodySchema = z.object({
+      name: z.string().min(1).optional(),
+      description: z.string().optional(),
+      order: z.number().optional()
+    });
+
+    const params = paramsSchema.parse(req.params);
+    const body = bodySchema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
+    try {
+      const pkg = await updatePackage({
+        tenant: params.tenant,
+        projectKey: params.project,
+        packageId: params.packageId,
+        ...body
+      });
+      return { package: pkg };
+    } catch (error) {
+      if ((error as Error).message === "Package not found") {
+        return reply.status(404).send({ error: "Package not found" });
+      }
+      throw error;
+    }
+  });
+
+  app.delete("/architecture/packages/:tenant/:project/:packageId", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      packageId: z.string().min(1)
+    });
+    const querySchema = z.object({
+      cascade: z.enum(["true", "false"]).optional()
+    });
+
+    const params = paramsSchema.parse(req.params);
+    const query = querySchema.parse(req.query);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
+    try {
+      await deletePackage({
+        tenant: params.tenant,
+        projectKey: params.project,
+        packageId: params.packageId,
+        cascade: query.cascade === "true"
+      });
+      return { success: true };
+    } catch (error) {
+      if ((error as Error).message.includes("Cannot delete package")) {
+        return reply.status(400).send({ error: (error as Error).message });
+      }
+      return reply.status(404).send({ error: "Package not found" });
+    }
+  });
+
+  app.post("/architecture/packages/move", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
+    const schema = z.object({
+      tenant: z.string().min(1),
+      projectKey: z.string().min(1),
+      itemId: z.string().min(1),
+      itemType: z.enum(["package", "block", "diagram"]),
+      targetPackageId: z.string().nullable(),
+      order: z.number().optional()
+    });
+    const payload = schema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
+    try {
+      await moveToPackage(payload);
+      return { success: true };
+    } catch (error) {
+      return reply.status(404).send({ error: (error as Error).message });
+    }
+  });
+
+  app.post("/architecture/packages/reorder", {
+    onRequest: [app.authenticate]
+  }, async (req, reply) => {
+    const schema = z.object({
+      tenant: z.string().min(1),
+      projectKey: z.string().min(1),
+      packageId: z.string().nullable(),
+      itemIds: z.array(z.string().min(1))
+    });
+    const payload = schema.parse(req.body);
+
+    // Verify tenant access
+    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
+
+    await reorderInPackage(payload);
+    return { success: true };
   });
 }

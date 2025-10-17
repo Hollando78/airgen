@@ -28,3 +28,13 @@ export {
   updateArchitectureDiagram,
   deleteArchitectureDiagram
 } from "./diagrams.js";
+
+// Re-export all package operations
+export {
+  createPackage,
+  getPackages,
+  updatePackage,
+  moveToPackage,
+  reorderInPackage,
+  deletePackage
+} from "./packages.js";
