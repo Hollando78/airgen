@@ -45,6 +45,11 @@ export async function createDatabaseIndexes(): Promise<void> {
         // Architecture Diagram indexes
         'CREATE INDEX diagram_id IF NOT EXISTS FOR (d:ArchitectureDiagram) ON (d.id)',
         'CREATE INDEX diagram_tenant_project IF NOT EXISTS FOR (d:ArchitectureDiagram) ON (d.tenant, d.projectKey)',
+        'CREATE INDEX diagram_visibility IF NOT EXISTS FOR (d:ArchitectureDiagram) ON (d.isVisible)',
+
+        // Package indexes
+        'CREATE INDEX package_id IF NOT EXISTS FOR (p:Package) ON (p.id)',
+        'CREATE INDEX package_tenant_project IF NOT EXISTS FOR (p:Package) ON (p.tenant, p.projectKey)',
 
         // Baseline indexes
         'CREATE INDEX baseline_ref IF NOT EXISTS FOR (b:Baseline) ON (b.ref)',
@@ -57,6 +62,7 @@ export async function createDatabaseIndexes(): Promise<void> {
         'CREATE CONSTRAINT document_id_unique IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE',
         'CREATE CONSTRAINT content_block_id_unique IF NOT EXISTS FOR (cb:DocumentContentBlock) REQUIRE cb.id IS UNIQUE',
         'CREATE CONSTRAINT baseline_id_unique IF NOT EXISTS FOR (b:Baseline) REQUIRE b.id IS UNIQUE',
+        'CREATE CONSTRAINT package_id_unique IF NOT EXISTS FOR (p:Package) REQUIRE p.id IS UNIQUE',
       ];
 
       // Execute all operations in a single transaction

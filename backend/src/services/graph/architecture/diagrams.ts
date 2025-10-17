@@ -36,6 +36,7 @@ export async function createArchitectureDiagram(params: {
           view: $view,
           tenant: $tenant,
           projectKey: $projectKey,
+          isVisible: true,
           createdAt: $now,
           updatedAt: $now
         })
@@ -93,16 +94,20 @@ export async function createArchitectureDiagram(params: {
 export async function getArchitectureDiagrams(params: {
   tenant: string;
   projectKey: string;
+  includeHidden?: boolean;
 }): Promise<ArchitectureDiagramRecord[]> {
   const tenantSlug = slugify(params.tenant);
   const projectSlug = slugify(params.projectKey);
 
   const session = getSession();
   try {
+    const visibilityFilter = params.includeHidden ? '' : 'AND (diagram.isVisible = true OR diagram.isVisible IS NULL)';
+
     const result = await session.run(
       `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
         OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram)
+        WHERE diagram IS NOT NULL ${visibilityFilter}
         RETURN DISTINCT diagram
         ORDER BY diagram.createdAt
       `,
@@ -226,7 +231,72 @@ export async function updateArchitectureDiagram(params: {
   }
 }
 
+/**
+ * Soft delete: Hide diagram by setting isVisible = false
+ * Diagram and its contents remain in database for potential recovery
+ */
 export async function deleteArchitectureDiagram(params: {
+  tenant: string;
+  projectKey: string;
+  diagramId: string;
+  userId: string;
+}): Promise<void> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+
+  const session = getSession();
+
+  try {
+    await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})
+        SET diagram.isVisible = false, diagram.updatedAt = $now
+        RETURN diagram
+      `;
+
+      const res = await tx.run(query, {
+        tenantSlug,
+        projectSlug,
+        diagramId: params.diagramId,
+        now: new Date().toISOString()
+      });
+
+      if (res.records.length === 0) {
+        throw new Error("Architecture diagram not found");
+      }
+
+      // Create version tracking the hide action
+      const diagram = res.records[0].get("diagram");
+      const props = diagram.properties;
+
+      const contentHash = generateArchitectureDiagramContentHash({
+        name: String(props.name),
+        description: props.description ? String(props.description) : undefined,
+        view: String(props.view)
+      });
+
+      await createArchitectureDiagramVersion(tx, {
+        diagramId: params.diagramId,
+        tenantSlug,
+        projectSlug,
+        changedBy: params.userId,
+        changeType: 'updated',
+        name: String(props.name),
+        description: props.description ? String(props.description) : undefined,
+        view: String(props.view) as ArchitectureDiagramRecord["view"],
+        contentHash
+      });
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Hard delete: Permanently remove diagram and all its contents from database
+ * This action cannot be undone
+ */
+export async function permanentlyDeleteArchitectureDiagram(params: {
   tenant: string;
   projectKey: string;
   diagramId: string;
@@ -291,6 +361,41 @@ export async function deleteArchitectureDiagram(params: {
         throw new Error("Architecture diagram not found");
       }
     });
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Show/restore a hidden diagram
+ */
+export async function showArchitectureDiagram(params: {
+  tenant: string;
+  projectKey: string;
+  diagramId: string;
+}): Promise<void> {
+  const tenantSlug = slugify(params.tenant);
+  const projectSlug = slugify(params.projectKey);
+
+  const session = getSession();
+
+  try {
+    const query = `
+      MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram {id: $diagramId})
+      SET diagram.isVisible = true, diagram.updatedAt = $now
+      RETURN diagram
+    `;
+
+    const res = await session.run(query, {
+      tenantSlug,
+      projectSlug,
+      diagramId: params.diagramId,
+      now: new Date().toISOString()
+    });
+
+    if (res.records.length === 0) {
+      throw new Error("Architecture diagram not found");
+    }
   } finally {
     await session.close();
   }
