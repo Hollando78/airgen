@@ -34,7 +34,7 @@ export function DiagramTabs({ diagrams, activeDiagramId, onSelect, onRename, onD
           <button
             className="diagram-tab-close"
             onClick={() => onDelete(diagram.id)}
-            title="Delete diagram"
+            title="Hide diagram (can be restored from browser)"
           >
             ×
           </button>

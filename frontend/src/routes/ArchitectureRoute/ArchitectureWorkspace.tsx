@@ -362,7 +362,7 @@ export function ArchitectureWorkspace({
     if (!deleteDialog.diagramId) {return;}
     try {
       await deleteDiagram(deleteDialog.diagramId);
-      toast.success('Diagram deleted successfully');
+      toast.success('Diagram hidden successfully');
       setDeleteDialog({ open: false, diagramId: null, diagramName: '' });
     } catch (error) {
       toast.error((error as Error).message);
@@ -579,9 +579,9 @@ export function ArchitectureWorkspace({
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}
         onConfirm={handleConfirmDeleteDiagram}
-        title="Delete Diagram"
-        description={`Delete diagram "${deleteDialog.diagramName}"? This removes its blocks and connectors.`}
-        confirmText="Delete"
+        title="Hide Diagram"
+        description={`Hide diagram "${deleteDialog.diagramName}"? The diagram will be hidden from the workspace but can be restored later. Its blocks and connectors will remain saved.`}
+        confirmText="Hide"
         variant="destructive"
       />
 
