@@ -234,11 +234,14 @@ export async function moveToPackage(params: {
 
       if (params.targetPackageId) {
         // Add to target package
+        const setClause = params.itemType === 'package'
+          ? 'SET item.order = $order, item.updatedAt = $now, item.parentId = $targetPackageId'
+          : 'SET item.order = $order, item.updatedAt = $now';
+
         const query = `
           MATCH (item:${itemLabel} {id: $itemId, tenant: $tenant, projectKey: $projectKey})
           MATCH (target:Package {id: $targetPackageId, tenant: $tenant, projectKey: $projectKey})
-          SET item.order = $order, item.updatedAt = $now
-          ${params.itemType === 'package' ? ', item.parentId = $targetPackageId' : ''}
+          ${setClause}
           MERGE (target)-[:CONTAINS]->(item)
         `;
 
@@ -259,11 +262,14 @@ export async function moveToPackage(params: {
                                : params.itemType === 'block' ? 'HAS_BLOCK_DEFINITION'
                                : 'HAS_ARCHITECTURE_DIAGRAM';
 
+        const setClause = params.itemType === 'package'
+          ? 'SET item.order = $order, item.updatedAt = $now, item.parentId = null'
+          : 'SET item.order = $order, item.updatedAt = $now';
+
         const query = `
           MATCH (item:${itemLabel} {id: $itemId, tenant: $tenant, projectKey: $projectKey})
           MATCH (project:Project {slug: $projectSlug, tenantSlug: $tenantSlug})
-          SET item.order = $order, item.updatedAt = $now
-          ${params.itemType === 'package' ? ', item.parentId = null' : ''}
+          ${setClause}
           MERGE (project)-[:${relationshipType}]->(item)
         `;
 
