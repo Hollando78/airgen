@@ -412,6 +412,21 @@ export function useApiClient() {
         request<ArchitectureConnectorResponse>(`/architecture/connectors/${tenant}/${project}/${connectorId}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteArchitectureConnector: (tenant: string, project: string, diagramId: string, connectorId: string) =>
         request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}?diagramId=${diagramId}`, { method: "DELETE" }),
+
+      // Package API methods
+      listArchitecturePackages: (tenant: string, project: string) =>
+        request<{ packages: Array<{ id: string; name: string; description?: string | null; tenant: string; projectKey: string; parentId?: string | null; order: number; createdAt: string; updatedAt: string }> }>(`/architecture/packages/${tenant}/${project}`),
+      createArchitecturePackage: (body: { tenant: string; projectKey: string; name: string; description?: string; parentId?: string | null; order?: number }) =>
+        request<{ package: { id: string; name: string; description?: string | null; tenant: string; projectKey: string; parentId?: string | null; order: number; createdAt: string; updatedAt: string } }>(`/architecture/packages`, { method: "POST", body: JSON.stringify(body) }),
+      updateArchitecturePackage: (tenant: string, project: string, packageId: string, body: { name?: string; description?: string; order?: number }) =>
+        request<{ package: { id: string; name: string; description?: string | null; tenant: string; projectKey: string; parentId?: string | null; order: number; createdAt: string; updatedAt: string } }>(`/architecture/packages/${tenant}/${project}/${packageId}`, { method: "PATCH", body: JSON.stringify(body) }),
+      deleteArchitecturePackage: (tenant: string, project: string, packageId: string, cascade?: boolean) =>
+        request<{ success: boolean }>(`/architecture/packages/${tenant}/${project}/${packageId}${cascade ? "?cascade=true" : ""}`, { method: "DELETE" }),
+      moveToArchitecturePackage: (body: { tenant: string; projectKey: string; itemId: string; itemType: "package" | "block" | "diagram"; targetPackageId: string | null; order?: number }) =>
+        request<{ success: boolean }>(`/architecture/packages/move`, { method: "POST", body: JSON.stringify(body) }),
+      reorderInArchitecturePackage: (body: { tenant: string; projectKey: string; packageId: string | null; itemIds: string[] }) =>
+        request<{ success: boolean }>(`/architecture/packages/reorder`, { method: "POST", body: JSON.stringify(body) }),
+
       // Trace Links API methods
       createTraceLink: (tenant: string, project: string, body: CreateTraceLinkRequest) =>
         request<{ traceLink: TraceLink }>(`/trace-links`, { method: "POST", body: JSON.stringify({ ...body, tenant, projectKey: project }) }),
