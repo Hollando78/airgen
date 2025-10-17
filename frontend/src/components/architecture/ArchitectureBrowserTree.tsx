@@ -289,30 +289,50 @@ export function ArchitectureBrowserTree({
     },
 
     async onChangeItemChildren(itemId: TreeItemIndex, newChildren: TreeItemIndex[]): Promise<void> {
-      // Handle reordering within a package
+      // Handle moving items to a new parent and reordering
       const parentItem = treeData[itemId];
 
       if (!parentItem) return;
 
-      // Extract IDs from the tree item keys
-      const itemIds = newChildren.map(key => {
-        const keyStr = String(key);
-        if (keyStr.startsWith('package-')) return keyStr.substring(8);
-        if (keyStr.startsWith('diagram-')) return keyStr.substring(8);
-        if (keyStr.startsWith('block-')) return keyStr.substring(6);
-        return keyStr;
-      });
-
-      // Determine parent package ID
-      let packageId: string | null = null;
+      // Determine target package ID
+      let targetPackageId: string | null = null;
       if (parentItem.type === 'package') {
-        packageId = parentItem.id;
+        targetPackageId = parentItem.id;
       } else if (parentItem.type === 'section' && parentItem.id === 'packages-section') {
-        packageId = null; // Root level packages
+        targetPackageId = null; // Root level packages
+      } else if (parentItem.type === 'section' && parentItem.id === 'diagrams-section') {
+        targetPackageId = null; // Root level diagrams
+      } else {
+        // Can't move to other sections
+        return;
       }
 
-      // TODO: Call reorderInPackage API when implemented
-      console.log(`Reorder in package ${packageId}:`, itemIds);
+      // Find items that are newly added to this parent (not in original children)
+      const originalChildren = new Set(parentItem.children);
+      const newlyAddedChildren = newChildren.filter(child => !originalChildren.has(String(child)));
+
+      // Move each newly added item to this package
+      for (const childKey of newlyAddedChildren) {
+        const childKeyStr = String(childKey);
+        let itemId: string;
+        let itemType: 'package' | 'block' | 'diagram';
+
+        if (childKeyStr.startsWith('package-')) {
+          itemId = childKeyStr.substring(8);
+          itemType = 'package';
+        } else if (childKeyStr.startsWith('diagram-')) {
+          itemId = childKeyStr.substring(8);
+          itemType = 'diagram';
+        } else if (childKeyStr.startsWith('block-')) {
+          itemId = childKeyStr.substring(6);
+          itemType = 'block';
+        } else {
+          continue;
+        }
+
+        // Call the move handler
+        await onMoveToPackage(itemId, itemType, targetPackageId);
+      }
     },
 
     async onRenameItem(item: TreeItem<TreeItemData>, name: string): Promise<void> {
@@ -324,7 +344,7 @@ export function ArchitectureBrowserTree({
     async onDidSelectItems(items: TreeItemIndex[]): Promise<void> {
       setSelectedItems(items);
     }
-  }), [treeData, onRenamePackage]);
+  }), [treeData, onRenamePackage, onMoveToPackage]);
 
   // Handle item click/activation
   const handlePrimaryAction = useCallback((items: TreeItem<TreeItemData>[]) => {
