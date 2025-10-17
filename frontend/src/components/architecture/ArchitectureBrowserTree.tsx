@@ -82,6 +82,19 @@ export function ArchitectureBrowserTree({
   const [expandedItems, setExpandedItems] = useState<TreeItemIndex[]>(['root', 'packages-section', 'diagrams-section', 'blocks-section']);
   const [selectedItems, setSelectedItems] = useState<TreeItemIndex[]>([]);
 
+  // Helper function to get block icon (must be defined before treeData)
+  const getBlockIcon = useCallback((kind: string): string => {
+    switch (kind) {
+      case 'system': return '🔷';
+      case 'subsystem': return '🔶';
+      case 'component': return '🔧';
+      case 'actor': return '👤';
+      case 'external': return '🌐';
+      case 'interface': return '🔌';
+      default: return '🔷';
+    }
+  }, []);
+
   // Build tree data structure
   const treeData = useMemo<Record<TreeItemIndex, TreeItemData>>(() => {
     const items: Record<TreeItemIndex, TreeItemData> = {};
@@ -254,20 +267,7 @@ export function ArchitectureBrowserTree({
     });
 
     return items;
-  }, [blocks, diagrams, connectors, packages, currentDiagramId, blocksInDiagram]);
-
-  // Helper function to get block icon
-  const getBlockIcon = (kind: string): string => {
-    switch (kind) {
-      case 'system': return '🔷';
-      case 'subsystem': return '🔶';
-      case 'component': return '🔧';
-      case 'actor': return '👤';
-      case 'external': return '🌐';
-      case 'interface': return '🔌';
-      default: return '🔷';
-    }
-  };
+  }, [blocks, diagrams, connectors, packages, currentDiagramId, blocksInDiagram, getBlockIcon]);
 
   // TreeDataProvider implementation
   const dataProvider: TreeDataProvider = useMemo(() => ({
