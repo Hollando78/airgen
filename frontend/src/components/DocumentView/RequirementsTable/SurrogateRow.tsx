@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import type { SurrogateReferenceRecord } from "../../../types";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
+import { useApiClient } from "../../../lib/client";
 
 export interface SurrogateRowProps {
   surrogate: SurrogateReferenceRecord;
@@ -25,10 +27,54 @@ export function SurrogateRow({
   listeners,
   isDragging
 }: SurrogateRowProps): JSX.Element {
+  const api = useApiClient();
   const surrogateKey = `surrogate-${surrogate.id}`;
   const storedWidth = localStorage.getItem(surrogateKey);
   const defaultWidth = 400;
   const currentWidth = storedWidth ? parseInt(storedWidth, 10) : defaultWidth;
+
+  // State for authenticated blob URL
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  // Fetch the document with authentication and create blob URL
+  useEffect(() => {
+    let currentUrl: string | null = null;
+    let aborted = false;
+
+    async function fetchDocument() {
+      try {
+        setLoading(true);
+        setError(false);
+        const viewUrl = `/documents/${tenant}/${project}/${surrogate.slug}/view`;
+        const { blob } = await api.downloadDocumentFile(viewUrl, surrogate.slug);
+
+        if (!aborted) {
+          currentUrl = URL.createObjectURL(blob);
+          setBlobUrl(currentUrl);
+        }
+      } catch (err) {
+        if (!aborted) {
+          console.error("Failed to load surrogate:", err);
+          setError(true);
+        }
+      } finally {
+        if (!aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchDocument();
+
+    return () => {
+      aborted = true;
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl);
+      }
+    };
+  }, [api, tenant, project, surrogate.slug]);
 
   return (
     <tr ref={setNodeRef} style={style}>
@@ -88,36 +134,69 @@ export function SurrogateRow({
             width: "fit-content",
             maxWidth: "100%"
           }}>
-            {surrogate.slug.match(/\.(pdf|docx?|pptx?|xlsx?)$/i) ? (
-              <embed
-                src={`/api/thumbnails/surrogates/${tenant}/${project}/${surrogate.slug}`}
-                type="application/pdf"
-                style={{
-                  width: `${currentWidth}px`,
-                  height: `${Math.floor(currentWidth * 1.414)}px`,
-                  maxWidth: "100%",
-                  borderRadius: "4px",
-                  border: "1px solid #e9d5ff",
-                  display: "block",
-                  backgroundColor: "white"
-                }}
-              />
-            ) : (
-              <img
-                src={`/api/thumbnails/surrogates/${tenant}/${project}/${surrogate.slug}`}
-                alt={surrogate.caption || surrogate.slug}
-                style={{
-                  width: `${currentWidth}px`,
-                  maxWidth: "100%",
-                  height: "auto",
-                  borderRadius: "4px",
-                  border: "1px solid #e9d5ff",
-                  display: "block"
-                }}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect fill="%23faf5ff" width="200" height="150"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23a855f7" font-size="16">📄 Surrogate</text></svg>';
-                }}
-              />
+            {loading && (
+              <div style={{
+                width: `${currentWidth}px`,
+                height: "150px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#faf5ff",
+                border: "1px solid #e9d5ff",
+                borderRadius: "4px",
+                color: "#7c3aed",
+                fontSize: "14px"
+              }}>
+                Loading...
+              </div>
+            )}
+            {!loading && error && (
+              <div style={{
+                width: `${currentWidth}px`,
+                height: "150px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "4px",
+                color: "#b91c1c",
+                fontSize: "14px",
+                padding: "16px",
+                textAlign: "center"
+              }}>
+                Failed to load surrogate
+              </div>
+            )}
+            {!loading && !error && blobUrl && (
+              surrogate.slug.match(/\.(pdf|docx?|pptx?|xlsx?)$/i) ? (
+                <embed
+                  src={blobUrl}
+                  type="application/pdf"
+                  style={{
+                    width: `${currentWidth}px`,
+                    height: `${Math.floor(currentWidth * 1.414)}px`,
+                    maxWidth: "100%",
+                    borderRadius: "4px",
+                    border: "1px solid #e9d5ff",
+                    display: "block",
+                    backgroundColor: "white"
+                  }}
+                />
+              ) : (
+                <img
+                  src={blobUrl}
+                  alt={surrogate.caption || surrogate.slug}
+                  style={{
+                    width: `${currentWidth}px`,
+                    maxWidth: "100%",
+                    height: "auto",
+                    borderRadius: "4px",
+                    border: "1px solid #e9d5ff",
+                    display: "block"
+                  }}
+                />
+              )
             )}
             <div
               style={{
