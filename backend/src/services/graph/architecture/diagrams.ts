@@ -106,12 +106,15 @@ export async function getArchitectureDiagrams(params: {
     const result = await session.run(
       `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
-        OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_DIAGRAM]->(diagram:ArchitectureDiagram)
-        WHERE diagram IS NOT NULL ${visibilityFilter}
+        OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_DIAGRAM|HAS_PACKAGE|CONTAINS*]->(diagram:ArchitectureDiagram)
+        WHERE diagram IS NOT NULL
+          AND diagram.tenant = $tenant
+          AND diagram.projectKey = $projectKey
+          ${visibilityFilter}
         RETURN DISTINCT diagram
         ORDER BY diagram.createdAt
       `,
-      { tenantSlug, projectSlug }
+      { tenantSlug, projectSlug, tenant: params.tenant, projectKey: params.projectKey }
     );
 
     return result.records

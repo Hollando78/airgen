@@ -220,7 +220,7 @@ export async function moveToPackage(params: {
   try {
     await session.executeWrite(async (tx: ManagedTransaction) => {
       const itemLabel = params.itemType === 'package' ? 'Package'
-                      : params.itemType === 'block' ? 'ArchitectureBlockDefinition'
+                      : params.itemType === 'block' ? 'ArchitectureBlock'
                       : 'ArchitectureDiagram';
 
       // Remove existing CONTAINS relationships
@@ -259,7 +259,7 @@ export async function moveToPackage(params: {
         const projectSlug = slugify(params.projectKey);
 
         const relationshipType = params.itemType === 'package' ? 'HAS_PACKAGE'
-                               : params.itemType === 'block' ? 'HAS_BLOCK_DEFINITION'
+                               : params.itemType === 'block' ? 'HAS_ARCHITECTURE_BLOCK'
                                : 'HAS_ARCHITECTURE_DIAGRAM';
 
         const setClause = params.itemType === 'package'

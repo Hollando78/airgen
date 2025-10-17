@@ -324,14 +324,18 @@ export async function getArchitectureBlockLibrary(params: {
   try {
     const result = await session.run(
       `
-        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_ARCHITECTURE_BLOCK]->(block:ArchitectureBlock)
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_BLOCK|HAS_PACKAGE|CONTAINS*]->(block:ArchitectureBlock)
+        WHERE block IS NOT NULL
+          AND block.tenant = $tenant
+          AND block.projectKey = $projectKey
         OPTIONAL MATCH (diagram:ArchitectureDiagram)-[rel:HAS_BLOCK]->(block)
         OPTIONAL MATCH (block)-[:LINKED_DOCUMENT]->(document:Document)
         WITH block, collect(DISTINCT { id: rel.diagramId, name: diagram.name }) AS diagrams, collect(DISTINCT document.id) AS documentIds
         RETURN block, diagrams, documentIds
         ORDER BY block.name
       `,
-      { tenantSlug, projectSlug }
+      { tenantSlug, projectSlug, tenant: params.tenant, projectKey: params.projectKey }
     );
 
     return result.records.map(record => {
