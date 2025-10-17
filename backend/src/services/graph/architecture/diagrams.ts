@@ -111,16 +111,23 @@ export async function getArchitectureDiagrams(params: {
           AND diagram.tenant = $tenant
           AND diagram.projectKey = $projectKey
           ${visibilityFilter}
-        RETURN DISTINCT diagram
+        OPTIONAL MATCH (package:Package)-[:CONTAINS]->(diagram)
+        WHERE package.tenant = $tenant AND package.projectKey = $projectKey
+        RETURN DISTINCT diagram, package.id AS packageId
         ORDER BY diagram.createdAt
       `,
       { tenantSlug, projectSlug, tenant: params.tenant, projectKey: params.projectKey }
     );
 
     return result.records
-      .map(record => record.get("diagram") as Neo4jNode | null)
-      .filter((node): node is Neo4jNode => node !== null)
-      .map(mapArchitectureDiagram);
+      .map(record => {
+        const diagram = record.get("diagram") as Neo4jNode | null;
+        const packageId = record.get("packageId");
+        if (!diagram) return null;
+        return { diagram, packageId: packageId ? String(packageId) : null };
+      })
+      .filter((item): item is { diagram: Neo4jNode; packageId: string | null } => item !== null)
+      .map(({ diagram, packageId }) => mapArchitectureDiagram(diagram, packageId));
   } finally {
     await session.close();
   }

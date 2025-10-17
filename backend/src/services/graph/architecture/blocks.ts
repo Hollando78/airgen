@@ -329,10 +329,12 @@ export async function getArchitectureBlockLibrary(params: {
         WHERE block IS NOT NULL
           AND block.tenant = $tenant
           AND block.projectKey = $projectKey
+        OPTIONAL MATCH (package:Package)-[:CONTAINS]->(block)
+        WHERE package.tenant = $tenant AND package.projectKey = $projectKey
         OPTIONAL MATCH (diagram:ArchitectureDiagram)-[rel:HAS_BLOCK]->(block)
         OPTIONAL MATCH (block)-[:LINKED_DOCUMENT]->(document:Document)
-        WITH block, collect(DISTINCT { id: rel.diagramId, name: diagram.name }) AS diagrams, collect(DISTINCT document.id) AS documentIds
-        RETURN block, diagrams, documentIds
+        WITH block, package.id AS packageId, collect(DISTINCT { id: rel.diagramId, name: diagram.name }) AS diagrams, collect(DISTINCT document.id) AS documentIds
+        RETURN block, packageId, diagrams, documentIds
         ORDER BY block.name
       `,
       { tenantSlug, projectSlug, tenant: params.tenant, projectKey: params.projectKey }
@@ -340,9 +342,10 @@ export async function getArchitectureBlockLibrary(params: {
 
     return result.records.map(record => {
       const blockNode = record.get("block") as Neo4jNode;
+      const packageId = record.get("packageId");
       const diagrams = record.get("diagrams") as Array<{ id?: unknown; name?: unknown }>;
       const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
-      return mapBlockLibraryEntry(blockNode, diagrams, documentIds);
+      return mapBlockLibraryEntry(blockNode, diagrams, documentIds, packageId ? String(packageId) : null);
     });
   } finally {
     await session.close();

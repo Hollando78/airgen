@@ -69,7 +69,7 @@ export function sanitizePortOverrides(overrides: Record<string, BlockPortOverrid
   return sanitized;
 }
 
-export function mapBlockDefinition(node: Neo4jNode, documentIds: string[] = []): ArchitectureBlockDefinitionRecord {
+export function mapBlockDefinition(node: Neo4jNode, documentIds: string[] = [], packageId: string | null = null): ArchitectureBlockDefinitionRecord {
   const props = node.properties as Record<string, unknown>;
   const fallbackDocumentIds = parseJsonArray<string>(props.documentIds);
   const resolvedDocumentIds = documentIds.length ? documentIds : fallbackDocumentIds;
@@ -82,6 +82,7 @@ export function mapBlockDefinition(node: Neo4jNode, documentIds: string[] = []):
     description: props.description ? String(props.description) : null,
     tenant: String(props.tenant ?? ""),
     projectKey: String(props.projectKey ?? ""),
+    packageId,
     ports: parseJsonArray<BlockPortRecord>(props.ports),
     documentIds: resolvedDocumentIds,
     createdAt: String(props.createdAt ?? new Date().toISOString()),
@@ -173,9 +174,10 @@ export function mapBlockWithPlacement(
 export function mapBlockLibraryEntry(
   node: Neo4jNode,
   diagramRefs: Array<{ id?: unknown; name?: unknown }> = [],
-  documentIds: string[] = []
+  documentIds: string[] = [],
+  packageId: string | null = null
 ): ArchitectureBlockLibraryRecord {
-  const definition = mapBlockDefinition(node, documentIds);
+  const definition = mapBlockDefinition(node, documentIds, packageId);
   const diagrams = (diagramRefs ?? [])
     .map(ref => ({
       id: ref?.id ? String(ref.id) : "",
@@ -189,7 +191,7 @@ export function mapBlockLibraryEntry(
   };
 }
 
-export function mapArchitectureDiagram(node: Neo4jNode): ArchitectureDiagramRecord {
+export function mapArchitectureDiagram(node: Neo4jNode, packageId: string | null = null): ArchitectureDiagramRecord {
   const props = node.properties as Record<string, unknown>;
 
   return {
@@ -198,6 +200,7 @@ export function mapArchitectureDiagram(node: Neo4jNode): ArchitectureDiagramReco
     description: props.description ? String(props.description) : null,
     tenant: String(props.tenant),
     projectKey: String(props.projectKey),
+    packageId,
     view: (props.view ? String(props.view) : "block") as ArchitectureDiagramRecord["view"],
     createdAt: String(props.createdAt),
     updatedAt: String(props.updatedAt)

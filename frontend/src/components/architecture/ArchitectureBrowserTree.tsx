@@ -184,23 +184,63 @@ export function ArchitectureBrowserTree({
       });
 
       // Add diagrams in this package
-      const diagramsInPackage = diagrams.filter(d => {
-        // In Phase 2, we don't have package associations yet
-        // For now, show all diagrams at root level
-        return false;
-      });
-      diagramsInPackage.forEach(d => {
-        children.push(`diagram-${d.id}`);
+      const diagramsInPackage = diagrams.filter(d => d.packageId === pkg.id);
+      diagramsInPackage.forEach(diagram => {
+        const diagramKey = `diagram-${diagram.id}`;
+        const diagramConnectors = connectors.filter(c => c.diagramId === diagram.id);
+        const diagramChildren = diagramConnectors.map(c => `connector-${c.id}`);
+
+        items[diagramKey] = {
+          id: diagram.id,
+          type: 'diagram',
+          name: diagram.name,
+          icon: <BarChart3 className="w-4 h-4" strokeWidth={2} />,
+          children: diagramChildren,
+          isFolder: diagramConnectors.length > 0,
+          canRename: false,
+          canDelete: true,
+          canDrag: true,
+          data: diagram
+        };
+
+        children.push(diagramKey);
+
+        // Add connectors for this diagram
+        diagramConnectors.forEach(connector => {
+          const connectorKey = `connector-${connector.id}`;
+          items[connectorKey] = {
+            id: connector.id,
+            type: 'connector',
+            name: connector.label || `${connector.source} → ${connector.target}`,
+            icon: <Link className="w-4 h-4" strokeWidth={2} />,
+            children: [],
+            isFolder: false,
+            canRename: false,
+            canDelete: false,
+            canDrag: false,
+            data: connector
+          };
+        });
       });
 
       // Add blocks in this package
-      const blocksInPackage = blocks.filter(b => {
-        // In Phase 2, we don't have package associations yet
-        // For now, show all blocks at root level
-        return false;
-      });
-      blocksInPackage.forEach(b => {
-        children.push(`block-${b.id}`);
+      const blocksInPackage = blocks.filter(b => b.packageId === pkg.id);
+      blocksInPackage.forEach(block => {
+        const blockKey = `block-${block.id}`;
+        items[blockKey] = {
+          id: block.id,
+          type: 'block',
+          name: block.name,
+          icon: getBlockIcon(block.kind),
+          children: [],
+          isFolder: false,
+          canRename: false,
+          canDelete: false,
+          canDrag: true,
+          data: block
+        };
+
+        children.push(blockKey);
       });
 
       items[packageKey] = {
@@ -223,8 +263,8 @@ export function ArchitectureBrowserTree({
 
     rootPackages.forEach(pkg => addPackageToTree(pkg, 'packages-section'));
 
-    // Add diagrams to diagrams section
-    diagrams.forEach(diagram => {
+    // Add diagrams to diagrams section (only those not in packages)
+    diagrams.filter(d => !d.packageId).forEach(diagram => {
       const diagramKey = `diagram-${diagram.id}`;
 
       // Find connectors for this diagram
@@ -264,8 +304,8 @@ export function ArchitectureBrowserTree({
       });
     });
 
-    // Add blocks to blocks section
-    blocks.forEach(block => {
+    // Add blocks to blocks section (only those not in packages)
+    blocks.filter(b => !b.packageId).forEach(block => {
       const blockKey = `block-${block.id}`;
       const alreadyInDiagram = currentDiagramId ? blocksInDiagram.has(block.id) : false;
 
