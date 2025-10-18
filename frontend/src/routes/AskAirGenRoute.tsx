@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useApiClient } from "../lib/client";
 import { useTenantProjectDocument } from "../components/TenantProjectDocumentSelector";
 import { useUserRole } from "../hooks/useUserRole";
+import { useAuth } from "../contexts/AuthContext";
 import type {
   SemanticSearchRequest,
   SimilarRequirement,
@@ -14,6 +15,7 @@ export function AskAirGenRoute(): JSX.Element {
   const { tenant, project } = useTenantProjectDocument();
   const api = useApiClient();
   const { isSuperAdmin, isAdmin } = useUserRole();
+  const { user } = useAuth();
 
   const [query, setQuery] = useState("");
   const [minSimilarity, setMinSimilarity] = useState(0.6);
@@ -88,8 +90,18 @@ export function AskAirGenRoute(): JSX.Element {
     if (!tenant || !project) {
       return false;
     }
-    return isSuperAdmin() || isAdmin(tenant, project);
-  }, [tenant, project, isSuperAdmin, isAdmin]);
+
+    if (isSuperAdmin()) {
+      return true;
+    }
+
+    const legacyRoles = user?.roles ?? [];
+    if (legacyRoles.includes("super_admin") || legacyRoles.includes("super-admin")) {
+      return true;
+    }
+
+    return isAdmin(tenant, project);
+  }, [tenant, project, isSuperAdmin, isAdmin, user?.roles]);
 
   const embeddingStatusQuery = useQuery({
     queryKey: ["embedding-worker-status"],
@@ -609,4 +621,3 @@ pnpm --filter backend tsx src/scripts/create-vector-indexes.ts
     </div>
   );
 }
-
