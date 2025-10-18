@@ -11,8 +11,7 @@ import {
   Layers,
   GitBranch,
   Share2,
-  Sitemap,
-  Boxes,
+  Box,
   Network,
   ShieldCheck,
   Crown,
@@ -32,14 +31,14 @@ import { FloatingDocumentsProvider } from "../contexts/FloatingDocumentsContext"
 import { FloatingDocumentsManager } from "./FloatingDocumentsManager";
 import { MobileViewToggle } from "../mobile/components/MobileViewToggle";
 
-type NavItemConfig = {
+ type NavItemConfig = {
   to: string;
   label: string;
   icon: LucideIcon;
   visible?: boolean;
 };
 
-type NavSectionConfig = {
+ type NavSectionConfig = {
   id: string;
   label: string;
   icon: LucideIcon;
@@ -68,9 +67,9 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
       {
         id: "models",
         label: "System Models",
-        icon: Boxes,
+        icon: Network,
         items: [
-          { to: "/architecture", label: "Architecture", icon: Boxes },
+          { to: "/architecture", label: "Architecture", icon: Box },
           { to: "/interfaces", label: "Interfaces", icon: Network }
         ]
       },
@@ -84,7 +83,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
           { to: "/baselines", label: "Baselines", icon: Layers },
           { to: "/links", label: "Trace Links", icon: GitBranch },
           { to: "/requirements-schema", label: "Requirements Schema", icon: Share2 },
-          { to: "/graph-viewer", label: "Graph Viewer", icon: Sitemap }
+          { to: "/graph-viewer", label: "Graph Viewer", icon: Network }
         ]
       }
     ];
@@ -146,39 +145,6 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
     }));
   };
 
-  const links = [
-    { to: "/dashboard", label: "Dashboard" },
-    { to: "/airgen", label: "AIRGen" },
-    { to: "/ask-airgen", label: "Ask AIRGen" },
-    { to: "/query", label: "Query" },
-    { to: "/documents", label: "Documents" },
-    { to: "/architecture", label: "Architecture" },
-    { to: "/interfaces", label: "Interfaces" },
-    // { to: "/drafts", label: "Drafts" }, // ARCHIVED: Not production ready
-    { to: "/requirements", label: "Requirements" },
-    { to: "/baselines", label: "Baselines" },
-    { to: "/links", label: "Trace Links" },
-    { to: "/requirements-schema", label: "Requirements Schema" },
-    { to: "/graph-viewer", label: "Graph Viewer" }
-  ];
-
-  // Add Super-Admin navigation (highest priority)
-  if (isSuperAdmin()) {
-    links.push({ to: "/super-admin/users", label: "Super Admin Users" });
-  }
-
-  // Add Tenant-Admin navigation
-  if (hasRole(UserRole.TENANT_ADMIN)) {
-    links.push({ to: "/tenant-admin/users", label: "Tenant Admin Users" });
-  }
-
-  // Legacy admin links (for backward compatibility)
-  if (user?.roles?.includes('admin')) {
-    links.push({ to: "/admin/users", label: "Admin Users" });
-    links.push({ to: "/admin/requirements", label: "Admin Requirements" });
-    links.push({ to: "/admin/recovery", label: "Admin Recovery" });
-  }
-
   return (
     <TenantProjectProvider>
       <FloatingDocumentsProvider>
@@ -191,7 +157,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
                 <span className="brand-subtitle">Studio</span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: 'auto' }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginLeft: "auto" }}>
               <MobileViewToggle />
               <TokenControls />
               <UserMenu />
@@ -244,7 +210,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
             <main className="app-main">{children}</main>
           </div>
         </div>
-        
+
         {/* Render persistent floating document windows */}
         <FloatingDocumentsManager />
       </FloatingDocumentsProvider>
