@@ -17,7 +17,7 @@ import type {
   DocumentRecord,
   DocumentLinkset
 } from "../types";
-import type { SysmlBlock, SysmlConnector } from "../hooks/useArchitectureApi";
+import type { ArchitectureState, SysmlBlock, SysmlConnector } from "../hooks/useArchitectureApi";
 
 // Transform API block records to SysML blocks
 function mapBlockFromApi(block: ArchitectureBlockRecord): SysmlBlock {
@@ -84,7 +84,21 @@ export function RequirementsSchemaRoute(): JSX.Element {
 
   const tenant = state.tenant ?? "";
   const project = state.project ?? "";
-  
+
+  // Early return BEFORE other hooks to avoid React error #185
+  if (!tenant || !project) {
+    return (
+      <div className="architecture-shell">
+        <div className="p-6">
+          <div className="bg-white border rounded-lg p-6">
+            <h2 className="text-xl font-semibold">Requirements Schema</h2>
+            <p className="text-sm text-gray-600 mt-1">Select a tenant and project to view the requirements schema</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -303,19 +317,6 @@ export function RequirementsSchemaRoute(): JSX.Element {
     setSelectedBlockId(null);
   }, []);
 
-  if (!tenant || !project) {
-    return (
-      <div className="architecture-shell">
-        <div className="p-6">
-          <div className="bg-white border rounded-lg p-6">
-            <h2 className="text-xl font-semibold">Requirements Schema</h2>
-            <p className="text-sm text-gray-600 mt-1">Select a tenant and project to view the requirements schema</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
   const activeDiagram = useMemo(() =>
     diagrams.find(diagram => diagram.id === activeDiagramId) ?? null,
   [diagrams, activeDiagramId]);
@@ -529,7 +530,15 @@ export function RequirementsSchemaRoute(): JSX.Element {
   }, [tenant, project, openFloatingDocument]);
 
   // Create architecture state for DiagramCanvas
-  const architecture = useMemo(() => ({ blocks, connectors }), [blocks, connectors]);
+  const architecture = useMemo<ArchitectureState>(() => ({
+    blocks,
+    connectors,
+    lastModified: new Date(
+      diagramContentQuery.dataUpdatedAt ||
+      diagramsQuery.dataUpdatedAt ||
+      Date.now()
+    ).toISOString()
+  }), [blocks, connectors, diagramContentQuery.dataUpdatedAt, diagramsQuery.dataUpdatedAt]);
   
   // Document block preset for requirements schema
   const documentBlockPresets = [{
