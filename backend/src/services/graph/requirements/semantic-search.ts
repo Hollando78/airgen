@@ -1,5 +1,5 @@
 import { getSession } from "../driver.js";
-import type { ManagedTransaction } from "neo4j-driver";
+import { int, type ManagedTransaction } from "neo4j-driver";
 import { embeddingService, type Embedding } from "../../embedding.js";
 
 export interface SimilarRequirement {
@@ -34,6 +34,8 @@ export async function findSimilarRequirements(
     excludeArchived = true,
     excludeIds = []
   } = options;
+
+  const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
 
   const session = getSession();
 
@@ -103,7 +105,7 @@ export async function findSimilarRequirements(
         excludeIds,
         targetEmbedding,
         minSimilarity,
-        limit
+        limit: int(safeLimit)
       });
     });
 
@@ -136,6 +138,8 @@ export async function searchRequirementsByQuery(
     limit = 20,
     excludeArchived = true
   } = options;
+
+  const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
 
   // Generate embedding for the search query
   const queryEmbedding = await embeddingService.generateEmbedding(query);
@@ -178,7 +182,7 @@ export async function searchRequirementsByQuery(
         projectSlug: projectKey,
         queryEmbedding,
         minSimilarity,
-        limit
+        limit: int(safeLimit)
       });
     });
 
