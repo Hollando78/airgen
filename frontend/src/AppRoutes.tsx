@@ -9,6 +9,7 @@ import { UserRole } from "./lib/rbac";
 // Lazy load route components for better performance
 const DashboardRoute = lazy(() => import("./routes/DashboardRoute").then(m => ({ default: m.DashboardRoute })));
 const AirGenRoute = lazy(() => import("./routes/AirGenRoute").then(m => ({ default: m.AirGenRoute })));
+const AskAirGenRoute = lazy(() => import("./routes/AskAirGenRoute").then(m => ({ default: m.AskAirGenRoute })));
 const NaturalLanguageQuery = lazy(() => import("./pages/NaturalLanguageQuery").then(m => ({ default: m.NaturalLanguageQuery })));
 const DocumentsRoute = lazy(() => import("./routes/DocumentsRoute").then(m => ({ default: m.DocumentsRoute })));
 const ArchitectureRoute = lazy(() => import("./routes/ArchitectureRoute").then(m => ({ default: m.ArchitectureRoute })));
@@ -47,6 +48,7 @@ export default function AppRoutes(): JSX.Element {
               </ProtectedRoute>
             }
           />
+          <Route path="/ask-airgen" element={<AskAirGenRoute />} />
 
           {/* Main application routes */}
           <Route path="/query" element={<NaturalLanguageQuery />} />

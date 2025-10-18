@@ -17,6 +17,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
   const links = [
     { to: "/dashboard", label: "Dashboard" },
     { to: "/airgen", label: "AIRGen" },
+    { to: "/ask-airgen", label: "Ask AIRGen" },
     { to: "/query", label: "Query" },
     { to: "/documents", label: "Documents" },
     { to: "/architecture", label: "Architecture" },
