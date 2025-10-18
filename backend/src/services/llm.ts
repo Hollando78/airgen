@@ -15,7 +15,7 @@ export function isLlmConfigured(): boolean {
   return Boolean(config.llm.provider && config.llm.apiKey);
 }
 
-function getOpenAiClient(): OpenAI {
+export function getOpenAiClient(): OpenAI {
   if (!config.llm.apiKey) {
     throw new Error("OpenAI API key missing (set LLM_API_KEY or OPENAI_API_KEY)");
   }

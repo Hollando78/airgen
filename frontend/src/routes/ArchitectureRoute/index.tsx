@@ -10,6 +10,25 @@ import { toast } from "sonner";
 
 export function ArchitectureRoute(): JSX.Element {
   const { tenant, project } = useTenantProjectDocument();
+
+  if (!tenant || !project) {
+    return (
+      <div className="architecture-empty-state">
+        <h1>Architecture</h1>
+        <p>Select a tenant and project to work on architectural diagrams.</p>
+      </div>
+    );
+  }
+
+  return <ArchitectureRouteContent tenant={tenant} project={project} />;
+}
+
+interface ArchitectureRouteContentProps {
+  tenant: string;
+  project: string;
+}
+
+function ArchitectureRouteContent({ tenant, project }: ArchitectureRouteContentProps): JSX.Element {
   const api = useApiClient();
   const {
     architecture: architectureState,
@@ -153,25 +172,25 @@ export function ArchitectureRoute(): JSX.Element {
     }
   }, [deleteDiagram]);
 
+  const handleReorderItems = useCallback(async (packageId: string | null, itemIds: string[]) => {
+    try {
+      await reorderInPackage(packageId, itemIds);
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [reorderInPackage]);
+
   const documentsQuery = useQuery({
     queryKey: ["documents", tenant, project],
-    queryFn: () => api.listDocuments(tenant!, project!),
-    enabled: Boolean(tenant && project)
+    queryFn: () => api.listDocuments(tenant, project),
+    enabled: true
   });
 
   const documents = useMemo(
     () => documentsQuery.data?.documents ?? [],
     [documentsQuery.data?.documents]
   );
-
-  if (!tenant || !project) {
-    return (
-      <div className="architecture-empty-state">
-        <h1>Architecture</h1>
-        <p>Select a tenant and project to work on architectural diagrams.</p>
-      </div>
-    );
-  }
 
   return (
     <ArchitectureWorkspace
@@ -206,6 +225,7 @@ export function ArchitectureRoute(): JSX.Element {
       renamePackage={handleRenamePackage}
       deletePackage={handleDeletePackage}
       moveToPackage={handleMoveToPackage}
+      reorderItems={handleReorderItems}
       createDiagramInPackage={handleCreateDiagramInPackage}
       deleteDiagramFromBrowser={handleDeleteDiagram}
       isLibraryLoading={isLibraryLoading}

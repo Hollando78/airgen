@@ -91,6 +91,7 @@ interface ArchitectureWorkspaceProps {
   renamePackage: (packageId: string, name: string) => Promise<void>;
   deletePackage: (packageId: string) => Promise<void>;
   moveToPackage: (itemId: string, itemType: 'package' | 'block' | 'diagram', targetPackageId: string | null) => Promise<void>;
+  reorderItems: (packageId: string | null, itemIds: string[]) => Promise<void>;
   createDiagramInPackage: (name: string, packageId?: string | null) => Promise<void>;
   deleteDiagramFromBrowser: (diagramId: string) => Promise<void>;
   isLibraryLoading: boolean;
@@ -134,6 +135,7 @@ export function ArchitectureWorkspace({
   renamePackage,
   deletePackage,
   moveToPackage,
+  reorderItems,
   createDiagramInPackage,
   deleteDiagramFromBrowser,
   isLibraryLoading,
@@ -518,6 +520,7 @@ export function ArchitectureWorkspace({
             onDeletePackage={deletePackage}
             onRenamePackage={renamePackage}
             onMoveToPackage={moveToPackage}
+            onReorderItems={reorderItems}
             onCreateDiagram={createDiagramInPackage}
             onDeleteDiagram={deleteDiagramFromBrowser}
             currentDiagramId={activeDiagramId}

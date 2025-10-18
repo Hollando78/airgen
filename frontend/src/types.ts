@@ -881,3 +881,62 @@ export type ExampleQuery = {
   natural: string;
   category: string;
 };
+
+// Semantic Search Types
+export type SimilarRequirement = {
+  id: string;
+  ref: string;
+  text: string;
+  pattern?: RequirementPattern;
+  verification?: VerificationMethod;
+  qaScore?: number;
+  similarity: number;
+};
+
+export type SimilarRequirementsResponse = {
+  similar: SimilarRequirement[];
+};
+
+export type SemanticSearchRequest = {
+  tenant: string;
+  project: string;
+  query: string;
+  minSimilarity?: number;
+  limit?: number;
+};
+
+export type SemanticSearchResponse = {
+  results: SimilarRequirement[];
+};
+
+export type DuplicatesResponse = {
+  duplicates: SimilarRequirement[];
+};
+
+// Embedding Worker Types
+export type EmbeddingWorkerStatus = {
+  isRunning: boolean;
+  operation: 'backfill' | 'reembed-all' | null;
+  processedCount: number;
+  totalCount: number;
+  currentRequirement: string | null;
+  lastError: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
+export type EmbeddingWorkerStartRequest = {
+  tenant: string;
+  project: string;
+  operation: 'backfill' | 'reembed-all';
+};
+
+export type EmbeddingWorkerStartResponse = {
+  message: string;
+  status: EmbeddingWorkerStatus;
+};
+
+export type EmbeddingWorkerStopResponse = {
+  message: string;
+  status: EmbeddingWorkerStatus;
+};

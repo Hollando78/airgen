@@ -1,27 +1,14 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTenantProjectDocument } from "../../components/TenantProjectDocumentSelector";
 import { useApiClient } from "../../lib/client";
 import { useInterface } from "../../hooks/useInterfaceApi";
 import { InterfaceWorkspaceV2 } from "./InterfaceWorkspaceV2";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Network } from "lucide-react";
 
 export function InterfaceRoute(): JSX.Element {
   const { tenant, project } = useTenantProjectDocument();
-  const api = useApiClient();
-  const interfaceState = useInterface(tenant, project);
-
-  const documentsQuery = useQuery({
-    queryKey: ["documents", tenant, project],
-    queryFn: () => api.listDocuments(tenant!, project!),
-    enabled: Boolean(tenant && project)
-  });
-
-  const documents = useMemo(
-    () => documentsQuery.data?.documents ?? [],
-    [documentsQuery.data?.documents]
-  );
 
   if (!tenant || !project) {
     return (
@@ -40,6 +27,49 @@ export function InterfaceRoute(): JSX.Element {
       </div>
     );
   }
+
+  return <InterfaceRouteContent tenant={tenant} project={project} />;
+}
+
+interface InterfaceRouteContentProps {
+  tenant: string;
+  project: string;
+}
+
+function InterfaceRouteContent({ tenant, project }: InterfaceRouteContentProps): JSX.Element {
+  const api = useApiClient();
+  const interfaceState = useInterface(tenant, project);
+
+  const handleCreatePackage = useCallback((name: string, parentId?: string | null) => {
+    return interfaceState.createPackage({ name, parentId }) as Promise<void>;
+  }, [interfaceState]);
+
+  const handleUpdatePackage = useCallback((packageId: string, updates: { name: string }) => {
+    return interfaceState.updatePackage(packageId, updates) as Promise<void>;
+  }, [interfaceState]);
+
+  const handleDeletePackage = useCallback((packageId: string, force?: boolean) => {
+    return interfaceState.deletePackage(packageId, force) as Promise<void>;
+  }, [interfaceState]);
+
+  const handleMoveToPackage = useCallback((itemId: string, itemType: "package" | "block" | "diagram", targetPackageId: string | null) => {
+    return interfaceState.moveToPackage(itemId, itemType, targetPackageId);
+  }, [interfaceState]);
+
+  const handleReorderInPackage = useCallback((packageId: string | null, itemIds: string[]) => {
+    return interfaceState.reorderInPackage(packageId, itemIds);
+  }, [interfaceState]);
+
+  const documentsQuery = useQuery({
+    queryKey: ["documents", tenant, project],
+    queryFn: () => api.listDocuments(tenant, project),
+    enabled: true
+  });
+
+  const documents = useMemo(
+    () => documentsQuery.data?.documents ?? [],
+    [documentsQuery.data?.documents]
+  );
 
   return (
     <InterfaceWorkspaceV2
@@ -71,8 +101,17 @@ export function InterfaceRoute(): JSX.Element {
       addDocumentToConnector={interfaceState.addDocumentToConnector}
       removeDocumentFromConnector={interfaceState.removeDocumentFromConnector}
       blocksLibrary={interfaceState.blocksLibrary}
+      packages={interfaceState.packages}
+      connectors={interfaceState.connectors}
+      createPackage={handleCreatePackage}
+      updatePackage={handleUpdatePackage}
+      deletePackage={handleDeletePackage}
+      moveToPackage={handleMoveToPackage}
+      reorderInPackage={handleReorderInPackage}
       isLibraryLoading={interfaceState.isLibraryLoading}
+      isPackagesLoading={interfaceState.isPackagesLoading}
       libraryError={interfaceState.libraryError}
+      packagesError={interfaceState.packagesError}
       hasChanges={interfaceState.hasChanges}
       isLoading={interfaceState.isLoading || documentsQuery.isLoading}
       documents={documents}

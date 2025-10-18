@@ -36,6 +36,18 @@ export function GraphViewerRoute() {
   const api = useApiClient();
   const { state } = useTenantProject();
   const { tenant, project } = state;
+
+  // Early return BEFORE other hooks to avoid React error #185
+  if (!tenant || !project) {
+    return (
+      <div className="graph-viewer-container">
+        <div className="graph-viewer-empty">
+          <p>Please select a tenant and project to view the graph.</p>
+        </div>
+      </div>
+    );
+  }
+
   const cyRef = useRef<HTMLDivElement>(null);
 
   // Custom hooks for state management
@@ -368,16 +380,6 @@ export function GraphViewerRoute() {
   const handleZoomOut = () => {
     graphOps.zoomOut(cyInstance);
   };
-
-  if (!tenant || !project) {
-    return (
-      <div className="graph-viewer-container">
-        <div className="graph-viewer-empty">
-          <p>Please select a tenant and project to view the graph.</p>
-        </div>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (

@@ -39,6 +39,7 @@ import { adminRequirementsRoutes } from "./routes/admin-requirements.js";
 import adminRecoveryRoutes from "./routes/admin-recovery.js";
 import projectBackupRoutes from "./routes/project-backup-routes.js";
 import nlQueryRoutes from "./routes/nl-query.js";
+import semanticSearchRoutes from "./routes/semantic-search.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -287,6 +288,7 @@ await app.register(authRoutes, { prefix: "/api" });
 await app.register(mfaRoutes, { prefix: "/api" });
 await app.register(coreRoutes, { prefix: "/api" });
 await app.register(requirementsRoutes, { prefix: "/api" });
+await app.register(semanticSearchRoutes, { prefix: "/api" });
 await app.register(documentRoutes, { prefix: "/api" });
 await app.register(markdownRoutes, { prefix: "/api" });
 await app.register(thumbnailRoutes, { prefix: "/api" });

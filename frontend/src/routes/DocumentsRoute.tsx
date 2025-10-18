@@ -20,6 +20,23 @@ export function DocumentsRoute(): JSX.Element {
   const api = useApiClient();
   const { openFloatingDocument } = useFloatingDocuments();
   const { tenant, project } = useTenantProjectDocument();
+
+  // Early return BEFORE other hooks to avoid React error #185
+  if (!tenant || !project) {
+    return (
+      <PageLayout
+        title="Documents"
+        description="Organize requirements into structured documents"
+      >
+        <EmptyState
+          icon={FileText}
+          title="No Project Selected"
+          description="Select a tenant and project to view and manage documents."
+        />
+      </PageLayout>
+    );
+  }
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -45,21 +62,6 @@ export function DocumentsRoute(): JSX.Element {
     refetchInterval: 5000, // Auto-refresh every 5 seconds
     refetchOnWindowFocus: true // Refresh when tab gains focus
   });
-
-  if (!tenant || !project) {
-    return (
-      <PageLayout
-        title="Documents"
-        description="Organize requirements into structured documents"
-      >
-        <EmptyState
-          icon={FileText}
-          title="No Project Selected"
-          description="Select a tenant and project to view and manage documents."
-        />
-      </PageLayout>
-    );
-  }
 
   if (documentsQuery.isLoading || foldersQuery.isLoading) {
     return <Spinner />;

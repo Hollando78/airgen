@@ -47,6 +47,9 @@ const edgeTypes = {
   default: BezierEdge
 };
 
+// Stable empty array to prevent unnecessary re-renders
+const EMPTY_BLOCK_IDS: string[] = [];
+
 type DiagramBlockPreset = {
   label: string;
   kind: BlockKind;
@@ -136,7 +139,7 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       activeDiagramId,
       documents,
       selectedBlockId,
-      selectedBlockIds = [],
+      selectedBlockIds = EMPTY_BLOCK_IDS,
       selectedConnectorId,
       selectedPortId,
       onSelectBlock,

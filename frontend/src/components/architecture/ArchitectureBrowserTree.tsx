@@ -54,6 +54,7 @@ interface ArchitectureBrowserTreeProps {
   onDeletePackage: (packageId: string) => Promise<void>;
   onRenamePackage: (packageId: string, name: string) => Promise<void>;
   onMoveToPackage: (itemId: string, itemType: 'package' | 'block' | 'diagram', targetPackageId: string | null) => Promise<void>;
+  onReorderItems: (packageId: string | null, itemIds: string[]) => Promise<void>;
   onCreateDiagram: (name: string, packageId?: string | null) => Promise<void>;
   onDeleteDiagram: (diagramId: string) => Promise<void>;
   currentDiagramId: string | null;
@@ -88,6 +89,7 @@ export function ArchitectureBrowserTree({
   onDeletePackage,
   onRenamePackage,
   onMoveToPackage,
+  onReorderItems,
   onCreateDiagram,
   onDeleteDiagram,
   currentDiagramId,
@@ -361,6 +363,8 @@ export function ArchitectureBrowserTree({
         targetPackageId = null; // Root level packages
       } else if (parentItem.type === 'section' && parentItem.id === 'diagrams-section') {
         targetPackageId = null; // Root level diagrams
+      } else if (parentItem.type === 'section' && parentItem.id === 'blocks-section') {
+        targetPackageId = null; // Root level blocks
       } else {
         // Can't move to other sections
         return;
@@ -392,6 +396,22 @@ export function ArchitectureBrowserTree({
         // Call the move handler
         await onMoveToPackage(itemId, itemType, targetPackageId);
       }
+
+      // Handle reordering: extract IDs from the new children list
+      const itemIds = newChildren.map(child => {
+        const childStr = String(child);
+        // Remove the prefix (package-, diagram-, block-, connector-)
+        if (childStr.startsWith('package-')) return childStr.substring(8);
+        if (childStr.startsWith('diagram-')) return childStr.substring(8);
+        if (childStr.startsWith('block-')) return childStr.substring(6);
+        if (childStr.startsWith('connector-')) return childStr.substring(10);
+        return childStr;
+      }).filter(Boolean);
+
+      // Only call reorder if there are items and they've changed order
+      if (itemIds.length > 0) {
+        await onReorderItems(targetPackageId, itemIds);
+      }
     },
 
     async onRenameItem(item: TreeItem<TreeItemData>, name: string): Promise<void> {
@@ -403,7 +423,7 @@ export function ArchitectureBrowserTree({
     async onDidSelectItems(items: TreeItemIndex[]): Promise<void> {
       setSelectedItems(items);
     }
-  }), [treeData, onRenamePackage, onMoveToPackage]);
+  }), [treeData, onRenamePackage, onMoveToPackage, onReorderItems]);
 
   // Handle item click/activation
   const handlePrimaryAction = useCallback((items: TreeItem<TreeItemData>[]) => {

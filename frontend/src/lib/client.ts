@@ -64,7 +64,14 @@ import type {
   BackupStatusResponse,
   NLQueryRequest,
   NLQueryResult,
-  ExampleQuery
+  ExampleQuery,
+  SimilarRequirementsResponse,
+  SemanticSearchRequest,
+  SemanticSearchResponse,
+  DuplicatesResponse,
+  EmbeddingWorkerStatus,
+  EmbeddingWorkerStartResponse,
+  EmbeddingWorkerStopResponse
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -559,6 +566,35 @@ export function useApiClient() {
         request<QAScorerStatus>(`/workers/qa-scorer/status`),
       stopQAScorer: () =>
         request<{ message: string; status: QAScorerStatus }>(`/workers/qa-scorer/stop`, {
+          method: "POST"
+        }),
+
+      // Semantic Search API methods
+      getSimilarRequirements: (tenant: string, project: string, requirementId: string, minSimilarity?: number, limit?: number) => {
+        const params = new URLSearchParams();
+        if (minSimilarity !== undefined) params.append("minSimilarity", minSimilarity.toString());
+        if (limit !== undefined) params.append("limit", limit.toString());
+        const queryString = params.toString() ? `?${params}` : "";
+        return request<SimilarRequirementsResponse>(`/requirements/${tenant}/${project}/${requirementId}/similar${queryString}`);
+      },
+      searchRequirementsSemantic: (body: SemanticSearchRequest) =>
+        request<SemanticSearchResponse>(`/requirements/search/semantic`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      getPotentialDuplicates: (tenant: string, project: string, requirementId: string) =>
+        request<DuplicatesResponse>(`/requirements/${tenant}/${project}/${requirementId}/duplicates`),
+
+      // Embedding Worker API methods
+      startEmbeddingWorker: (tenant: string, project: string, operation: 'backfill' | 'reembed-all') =>
+        request<EmbeddingWorkerStartResponse>(`/workers/embedding/start`, {
+          method: "POST",
+          body: JSON.stringify({ tenant, project, operation })
+        }),
+      getEmbeddingWorkerStatus: () =>
+        request<EmbeddingWorkerStatus>(`/workers/embedding/status`),
+      stopEmbeddingWorker: () =>
+        request<EmbeddingWorkerStopResponse>(`/workers/embedding/stop`, {
           method: "POST"
         }),
 

@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { DiagramTabs } from "../ArchitectureRoute/components/DiagramTabs";
-import { ArchitectureTreeBrowser } from "../../components/architecture/ArchitectureTreeBrowser";
+import { ArchitectureBrowserTree } from "../../components/architecture/ArchitectureBrowserTree";
 import { BlockDetailsPanel } from "../../components/architecture/BlockDetailsPanel";
 import { ConnectorDetailsPanel } from "../../components/architecture/ConnectorDetailsPanel";
 import { PortDetailsPanel } from "../../components/architecture/PortDetailsPanel";
@@ -22,6 +22,7 @@ import {
 import type {
   ArchitectureBlockLibraryRecord,
   ArchitectureDiagramRecord,
+  ArchitectureConnectorRecord,
   DocumentRecord
 } from "../../types";
 import type {
@@ -32,6 +33,18 @@ import type {
   SysmlBlock,
   SysmlConnector
 } from "../../hooks/useArchitectureApi";
+
+interface Package {
+  id: string;
+  name: string;
+  description?: string | null;
+  tenant: string;
+  projectKey: string;
+  parentId?: string | null;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface InterfaceWorkspaceV2Props {
   tenant: string;
@@ -81,8 +94,17 @@ interface InterfaceWorkspaceV2Props {
   addDocumentToConnector: (connectorId: string, documentId: string) => void;
   removeDocumentFromConnector: (connectorId: string, documentId: string) => void;
   blocksLibrary: ArchitectureBlockLibraryRecord[];
+  packages: Package[];
+  connectors: ArchitectureConnectorRecord[];
+  createPackage: (name: string, parentId?: string | null) => Promise<void>;
+  updatePackage: (packageId: string, updates: { name: string }) => Promise<void>;
+  deletePackage: (packageId: string, force?: boolean) => Promise<void>;
+  moveToPackage: (itemId: string, itemType: 'package' | 'block' | 'diagram', targetPackageId: string | null) => Promise<void>;
+  reorderInPackage: (packageId: string | null, itemIds: string[]) => Promise<void>;
   isLibraryLoading: boolean;
+  isPackagesLoading: boolean;
   libraryError: unknown;
+  packagesError: unknown;
   hasChanges: boolean;
   isLoading: boolean;
   documents: DocumentRecord[];
@@ -118,8 +140,17 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
     addDocumentToConnector,
     removeDocumentFromConnector,
     blocksLibrary,
+    packages,
+    connectors,
+    createPackage,
+    updatePackage,
+    deletePackage,
+    moveToPackage,
+    reorderInPackage,
     isLibraryLoading,
+    isPackagesLoading,
     libraryError,
+    packagesError,
     hasChanges,
     isLoading,
     documents
@@ -136,7 +167,9 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
   const canvasRef = useRef<DiagramCanvasHandle>(null);
   const { openFloatingDocument } = useFloatingDocuments();
 
-  const blocksInDiagram = useMemo(() => new Set(architecture.blocks.map(block => block.id)), [architecture.blocks]);
+  const blocksInDiagram = useMemo(() => {
+    return new Set(architecture.blocks.map(block => block.id));
+  }, [architecture.blocks]);
 
   const handleReuseExistingBlock = useCallback((blockId: string) => {
     canvasRef.current?.reuseExistingBlock(blockId);
@@ -274,6 +307,76 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
     workspace.selectPort(blockId, portId);
   }, [workspace]);
 
+  // Package management callbacks with toast notifications
+  const handleCreatePackage = useCallback(async (name: string, parentId?: string | null) => {
+    try {
+      await createPackage(name, parentId);
+      toast.success('Package created successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [createPackage]);
+
+  const handleRenamePackage = useCallback(async (packageId: string, name: string) => {
+    try {
+      await updatePackage(packageId, { name });
+      toast.success('Package renamed successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [updatePackage]);
+
+  const handleDeletePackage = useCallback(async (packageId: string) => {
+    try {
+      await deletePackage(packageId, false);
+      toast.success('Package deleted successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [deletePackage]);
+
+  const handleMoveToPackage = useCallback(async (itemId: string, itemType: 'package' | 'block' | 'diagram', targetPackageId: string | null) => {
+    try {
+      await moveToPackage(itemId, itemType, targetPackageId);
+      toast.success('Item moved successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [moveToPackage]);
+
+  const handleCreateDiagramInPackage = useCallback(async (name: string, packageId?: string | null) => {
+    try {
+      await createDiagram({ name });
+      toast.success('Diagram created successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [createDiagram]);
+
+  const handleDeleteDiagramFromBrowser = useCallback(async (diagramId: string) => {
+    try {
+      await deleteDiagram(diagramId);
+      toast.success('Diagram hidden successfully');
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [deleteDiagram]);
+
+  const handleReorderItems = useCallback(async (packageId: string | null, itemIds: string[]) => {
+    try {
+      await reorderInPackage(packageId, itemIds);
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
+    }
+  }, [reorderInPackage]);
+
   return (
     <Fragment>
       <div className="architecture-shell">
@@ -306,12 +409,23 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
 
         <div className="architecture-body">
           <aside className="architecture-pane palette-pane">
-            <ArchitectureTreeBrowser
+            <ArchitectureBrowserTree
               blocks={blocksLibrary}
+              diagrams={diagrams}
+              connectors={connectors}
+              packages={packages}
               disabled={!activeDiagramId}
-              isLoading={isLibraryLoading}
-              error={libraryError}
-              onInsert={handleReuseExistingBlock}
+              isLoading={isLibraryLoading || isPackagesLoading}
+              error={libraryError || packagesError}
+              onInsertBlock={handleReuseExistingBlock}
+              onOpenDiagram={setActiveDiagramId}
+              onCreatePackage={handleCreatePackage}
+              onDeletePackage={handleDeletePackage}
+              onRenamePackage={handleRenamePackage}
+              onMoveToPackage={handleMoveToPackage}
+              onReorderItems={handleReorderItems}
+              onCreateDiagram={handleCreateDiagramInPackage}
+              onDeleteDiagram={handleDeleteDiagramFromBrowser}
               currentDiagramId={activeDiagramId}
               blocksInDiagram={blocksInDiagram}
             />

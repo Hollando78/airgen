@@ -1015,8 +1015,8 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     reorderInPackage,
     hasChanges: blocks.length > 0 || connectors.length > 0,
     isLoading:
-      diagramsQuery.isLoading ||
-      (Boolean(activeDiagramId) && (blocksQuery.isLoading || connectorsQuery.isLoading)),
+      diagramsQuery.isFetching ||
+      (Boolean(activeDiagramId) && (blocksQuery.isFetching || connectorsQuery.isFetching)),
     isLibraryLoading: blockLibraryQuery.isLoading,
     isPackagesLoading: packagesQuery.isLoading,
     error: diagramsQuery.error || blocksQuery.error || connectorsQuery.error,

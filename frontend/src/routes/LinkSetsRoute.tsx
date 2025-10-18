@@ -123,7 +123,12 @@ export function LinkSetsRoute(): JSX.Element {
   const { state: { tenant, project } } = useTenantProject();
   const apiClient = useApiClient();
   const queryClient = useQueryClient();
-  
+
+  // Early return BEFORE other hooks to avoid React error #185
+  if (!tenant || !project) {
+    return <ErrorState message="Please select a tenant and project" />;
+  }
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   
@@ -493,10 +498,6 @@ export function LinkSetsRoute(): JSX.Element {
     // Simple straight line for performance
     return `M ${fromX},${fromY} L ${toX},${toY}`;
   }, [nodes, edgeUpdatesEnabled]);
-
-  if (!tenant || !project) {
-    return <ErrorState message="Please select a tenant and project" />;
-  }
 
   if (documentsQuery.isLoading) {
     return <Spinner />;

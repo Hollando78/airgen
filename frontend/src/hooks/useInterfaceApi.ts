@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   BlockKind,
   ConnectorKind,
@@ -52,18 +52,31 @@ export function useInterface(tenant: string | null, project: string | null) {
     removeDocumentFromConnector,
     setConnectorDocuments,
     blocksLibrary,
+    packages,
+    connectors,
+    createPackage,
+    updatePackage,
+    deletePackage,
+    moveToPackage,
+    reorderInPackage,
     hasChanges,
     isLoading,
     isLibraryLoading,
+    isPackagesLoading,
     error,
-    libraryError
+    libraryError,
+    packagesError
   } = useArchitecture(tenant, project);
 
   const diagrams = useMemo(() => allDiagrams.filter(isInterfaceDiagram), [allDiagrams]);
 
+  // Track if auto-create has been attempted to prevent multiple attempts
+  const autoCreateAttemptedRef = useRef(false);
+
   // Auto-create interface diagram if none exist
   useEffect(() => {
-    if (tenant && project && allDiagrams.length > 0 && diagrams.length === 0) {
+    if (tenant && project && allDiagrams.length > 0 && diagrams.length === 0 && !autoCreateAttemptedRef.current) {
+      autoCreateAttemptedRef.current = true;
       baseCreateDiagram({
         name: "Interface View 1",
         view: "block"
@@ -149,9 +162,18 @@ export function useInterface(tenant: string | null, project: string | null) {
     setConnectorDocuments,
     hasChanges,
     blocksLibrary,
+    packages,
+    connectors,
+    createPackage,
+    updatePackage,
+    deletePackage,
+    moveToPackage,
+    reorderInPackage,
     isLoading,
     isLibraryLoading,
+    isPackagesLoading,
     error,
-    libraryError
+    libraryError,
+    packagesError
   };
 }

@@ -28,6 +28,20 @@ export function LinksRoute(): JSX.Element {
   const apiClient = useApiClient();
   const queryClient = useQueryClient();
 
+  // Early return BEFORE other hooks to avoid React error #185
+  if (!tenant || !project) {
+    return (
+      <div className="p-6 space-y-6 min-h-screen">
+        <Card>
+          <CardHeader>
+            <CardTitle>Trace Links</CardTitle>
+            <CardDescription>Select a tenant and project first.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
   // State for UI elements
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean;
@@ -261,19 +275,6 @@ export function LinksRoute(): JSX.Element {
   }, []);
 
   // Loading and error states
-  if (!tenant || !project) {
-    return (
-      <div className="p-6 space-y-6 min-h-screen">
-        <Card>
-          <CardHeader>
-            <CardTitle>Trace Links</CardTitle>
-            <CardDescription>Select a tenant and project first.</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
   if (linksetsQuery.isLoading || traceLinksQuery.isLoading) {
     return <Spinner />;
   }

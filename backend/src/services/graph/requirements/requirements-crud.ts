@@ -14,6 +14,7 @@ import {
 import { getSession } from "../driver.js";
 import { CacheInvalidation } from "../../../lib/cache.js";
 import { createRequirementVersion } from "./requirements-versions.js";
+import { embeddingService } from "../../embedding.js";
 
 export type ComplianceStatus = "N/A" | "Compliant" | "Compliance Risk" | "Non-Compliant";
 
@@ -95,6 +96,16 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
     pattern: input.pattern ?? null,
     verification: input.verification ?? null
   });
+
+  // Generate embedding for the requirement text
+  let embedding: number[] | null = null;
+  try {
+    embedding = await embeddingService.generateEmbedding(input.text);
+    console.log(`[Requirement] Generated embedding for new requirement (${embedding.length} dimensions)`);
+  } catch (error) {
+    console.warn(`[Requirement] Failed to generate embedding:`, error);
+    // Continue without embedding - it can be backfilled later
+  }
 
   const session = getSession();
   try {
@@ -193,6 +204,9 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
           suggestions: $suggestions,
           tags: $tags,
           attributes: $attributes,
+          embedding: $embedding,
+          embeddingModel: $embeddingModel,
+          embeddingGeneratedAt: $embeddingGeneratedAt,
           path: $tenantSlug + '/' + $projectSlug + '/requirements/' + finalRef + '.md',
           createdAt: $now,
           updatedAt: $now
@@ -229,6 +243,9 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
         suggestions: input.suggestions ?? [],
         tags: input.tags ?? [],
         attributes: input.attributes ? JSON.stringify(input.attributes) : null,
+        embedding: embedding,
+        embeddingModel: embedding ? 'text-embedding-3-small' : null,
+        embeddingGeneratedAt: embedding ? now : null,
         documentSlug: input.documentSlug ?? null,
         sectionId: input.sectionId ?? null,
         providedRef: input.ref ?? null,
@@ -361,7 +378,8 @@ export async function updateRequirement(
   const session = getSession();
   try {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
-      const { sectionId, userId, ...propertyUpdates } = updates;
+      const { sectionId, userId, ...rest } = updates;
+      const propertyUpdates: Record<string, unknown> = { ...rest };
       const hasSectionUpdate = Object.prototype.hasOwnProperty.call(updates, "sectionId");
 
       // Check if this is a meaningful change (not just metadata)
@@ -408,6 +426,20 @@ export async function updateRequirement(
             pattern: finalPattern,
             verification: finalVerification
           });
+
+          // Generate new embedding if text changed
+          if (updates.text && updates.text !== currentRequirement.text) {
+            try {
+              const newEmbedding = await embeddingService.generateEmbedding(updates.text);
+              console.log(`[Requirement] Generated new embedding for updated requirement (${newEmbedding.length} dimensions)`);
+              propertyUpdates.embedding = newEmbedding;
+              propertyUpdates.embeddingModel = 'text-embedding-3-small';
+              propertyUpdates.embeddingGeneratedAt = new Date().toISOString();
+            } catch (error) {
+              console.warn(`[Requirement] Failed to generate embedding:`, error);
+              // Continue without embedding update
+            }
+          }
         }
       }
 
