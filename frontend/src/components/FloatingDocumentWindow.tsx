@@ -269,7 +269,7 @@ export function FloatingDocumentWindow({
         flexDirection: "column",
         overflow: "hidden",
         zIndex: 1000,
-        transition: isMinimized ? "all 0.3s ease" : undefined
+        transition: isMinimized ? "width 0.3s ease, max-height 0.3s ease" : undefined
       }}
     >
       <div

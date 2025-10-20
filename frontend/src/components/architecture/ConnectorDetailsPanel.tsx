@@ -79,6 +79,7 @@ export function ConnectorDetailsPanel({ connector, onUpdate, onRemove, documents
             <option value="straight">Straight</option>
             <option value="smoothstep">Curved</option>
             <option value="step">Rectilinear</option>
+            <option value="polyline">Polyline</option>
             <option value="bezier">Bezier</option>
           </select>
         </div>
@@ -176,6 +177,78 @@ export function ConnectorDetailsPanel({ connector, onUpdate, onRemove, documents
           </button>
         </div>
       </div>
+
+      {/* Waypoint Controls */}
+      {(connector.lineStyle === "step" || connector.lineStyle === "polyline" || connector.lineStyle === "bezier") && (
+        <div className="field-group" style={{ marginTop: "16px" }}>
+          <label style={{ fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "8px", display: "block" }}>
+            Waypoints {connector.lineStyle === "bezier" ? "(Control Points)" : ""}
+          </label>
+
+          {connector.controlPoints && connector.controlPoints.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
+                {connector.controlPoints.length} waypoint{connector.controlPoints.length !== 1 ? "s" : ""} defined
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  className="ghost-button"
+                  onClick={() => onUpdate({ controlPoints: [] })}
+                  style={{ flex: 1 }}
+                  title="Remove all waypoints and use default routing"
+                >
+                  Clear All
+                </button>
+                {connector.lineStyle === "bezier" && connector.controlPoints.length !== 2 && (
+                  <button
+                    className="ghost-button"
+                    onClick={() => {
+                      // Initialize 2 control points for bezier (will be calculated on edge component)
+                      onUpdate({ controlPoints: [] });
+                    }}
+                    style={{ flex: 1 }}
+                    title="Double-click edge to add control points"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <p style={{ fontSize: "11px", color: "#64748b", margin: 0, lineHeight: 1.4 }}>
+                {connector.lineStyle === "step" && "Click segments to add waypoints. Drag to adjust. Double-click to remove."}
+                {connector.lineStyle === "polyline" && "Click segments to add diagonal waypoints. Shift to disable snap-to-grid."}
+                {connector.lineStyle === "bezier" && "Double-click edge to enable control points. Drag handles to adjust curve."}
+              </p>
+            </div>
+          ) : (
+            <div style={{ fontSize: "12px", color: "#64748b", padding: "12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+              {connector.lineStyle === "step" && (
+                <>
+                  <p style={{ margin: "0 0 8px 0" }}>No waypoints set.</p>
+                  <p style={{ margin: 0, fontSize: "11px", lineHeight: 1.4 }}>
+                    Click any segment on the diagram to add waypoints and customize the routing path.
+                  </p>
+                </>
+              )}
+              {connector.lineStyle === "polyline" && (
+                <>
+                  <p style={{ margin: "0 0 8px 0" }}>No waypoints set.</p>
+                  <p style={{ margin: 0, fontSize: "11px", lineHeight: 1.4 }}>
+                    Click any segment to add diagonal waypoints. Hold Shift while dragging to disable snap-to-grid.
+                  </p>
+                </>
+              )}
+              {connector.lineStyle === "bezier" && (
+                <>
+                  <p style={{ margin: "0 0 8px 0" }}>Using default Bezier curve.</p>
+                  <p style={{ margin: 0, fontSize: "11px", lineHeight: 1.4 }}>
+                    Double-click the edge on the diagram to enable adjustable control points.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="panel" style={{ background: "#f1f5f9", border: "1px solid #cbd5e1" }}>
         <h3 style={{ marginTop: 0 }}>Associated Documents (ICD)</h3>

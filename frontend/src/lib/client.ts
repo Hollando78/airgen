@@ -62,6 +62,8 @@ import type {
   RemoteBackupListResponse,
   BackupOperationResponse,
   BackupStatusResponse,
+  ProjectBackupListResponse,
+  ProjectBackupExportResponse,
   NLQueryRequest,
   NLQueryResult,
   ExampleQuery,
@@ -415,7 +417,7 @@ export function useApiClient() {
         request<ArchitectureConnectorsResponse>(`/architecture/connectors/${tenant}/${project}/${diagramId}`),
       createArchitectureConnector: (body: CreateArchitectureConnectorRequest) =>
         request<ArchitectureConnectorResponse>(`/architecture/connectors`, { method: "POST", body: JSON.stringify(body) }),
-      updateArchitectureConnector: (tenant: string, project: string, connectorId: string, body: { diagramId: string } & Partial<Pick<CreateArchitectureConnectorRequest, "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth" | "labelOffsetX" | "labelOffsetY">>) =>
+      updateArchitectureConnector: (tenant: string, project: string, connectorId: string, body: { diagramId: string } & Partial<Pick<CreateArchitectureConnectorRequest, "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth" | "labelOffsetX" | "labelOffsetY" | "controlPoints">>) =>
         request<ArchitectureConnectorResponse>(`/architecture/connectors/${tenant}/${project}/${connectorId}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteArchitectureConnector: (tenant: string, project: string, diagramId: string, connectorId: string) =>
         request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}?diagramId=${diagramId}`, { method: "DELETE" }),
@@ -623,6 +625,26 @@ export function useApiClient() {
         }),
       getBackupStatus: () =>
         request<BackupStatusResponse>(`/admin/recovery/status`),
+      listProjectBackups: (params: { tenant: string; projectKey?: string; backupType?: string; status?: string }) => {
+        const search = new URLSearchParams();
+        if (params.tenant) search.set("tenant", params.tenant);
+        if (params.projectKey) search.set("projectKey", params.projectKey);
+        if (params.backupType) search.set("backupType", params.backupType);
+        if (params.status) search.set("status", params.status);
+        return request<ProjectBackupListResponse>(`/admin/recovery/project/backups?${search.toString()}`);
+      },
+      exportProjectBackup: (body: {
+        tenant: string;
+        projectKey?: string;
+        format?: "cypher" | "json";
+        skipVersionHistory?: boolean;
+        skipBaselines?: boolean;
+        compress?: boolean;
+      }) =>
+        request<ProjectBackupExportResponse>(`/admin/recovery/project/export`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
 
       // Super-Admin API methods
       listAllSuperAdminUsers: () =>

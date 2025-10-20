@@ -13,7 +13,9 @@ vi.mock("../../services/graph.js", () => ({
   createRequirement: vi.fn(),
   createArchitectureDiagram: vi.fn(),
   createArchitectureBlock: vi.fn(),
-  createArchitectureConnector: vi.fn()
+  createArchitectureConnector: vi.fn(),
+  getArchitectureBlockLibrary: vi.fn(),
+  getArchitectureConnectors: vi.fn()
 }));
 
 vi.mock("../../services/graph/diagram-candidates.js", () => ({
@@ -54,7 +56,9 @@ import {
   createRequirement,
   createArchitectureDiagram,
   createArchitectureBlock,
-  createArchitectureConnector
+  createArchitectureConnector,
+  getArchitectureBlockLibrary,
+  getArchitectureConnectors
 } from "../../services/graph.js";
 import { draftCandidates } from "../../services/drafting.js";
 import { generateDiagram } from "../../services/diagram-generation.js";
@@ -82,6 +86,8 @@ describe("AIRGen Routes", () => {
     await app.ready();
     setupSuccessfulMocks();
     vi.mocked(transitionDiagramCandidateStatus).mockResolvedValue(true as any);
+    vi.mocked(getArchitectureBlockLibrary).mockResolvedValue([] as any);
+    vi.mocked(getArchitectureConnectors).mockResolvedValue([] as any);
     authToken = await createTestToken(app, testUsers.regularUser);
   });
 

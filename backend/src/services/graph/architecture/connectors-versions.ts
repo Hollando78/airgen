@@ -2,7 +2,7 @@ import type { ManagedTransaction } from "neo4j-driver";
 import { randomUUID } from "crypto";
 import { createHash } from "crypto";
 import { getSession } from "../driver.js";
-import type { ConnectorKind } from "./types.js";
+import type { ConnectorKind, ConnectorControlPoint } from "./types.js";
 
 export type ArchitectureConnectorVersionRecord = {
   versionId: string;
@@ -30,6 +30,7 @@ export type ArchitectureConnectorVersionRecord = {
   strokeWidth?: number;
   labelOffsetX?: number;
   labelOffsetY?: number;
+  controlPoints?: ConnectorControlPoint[];
   contentHash: string;
 };
 
@@ -52,6 +53,7 @@ export function generateArchitectureConnectorContentHash(params: {
   strokeWidth?: number | null;
   labelOffsetX?: number | null;
   labelOffsetY?: number | null;
+  controlPoints?: ConnectorControlPoint[] | null;
 }): string {
   const content = JSON.stringify({
     source: params.source,
@@ -68,7 +70,8 @@ export function generateArchitectureConnectorContentHash(params: {
     color: params.color || null,
     strokeWidth: params.strokeWidth || null,
     labelOffsetX: params.labelOffsetX || null,
-    labelOffsetY: params.labelOffsetY || null
+    labelOffsetY: params.labelOffsetY || null,
+    controlPoints: params.controlPoints || null
   });
   return createHash("sha256").update(content).digest("hex");
 }
@@ -102,6 +105,7 @@ export async function createArchitectureConnectorVersion(
     strokeWidth?: number | null;
     labelOffsetX?: number | null;
     labelOffsetY?: number | null;
+    controlPoints?: ConnectorControlPoint[] | null;
     contentHash: string;
   }
 ): Promise<void> {
@@ -148,6 +152,7 @@ export async function createArchitectureConnectorVersion(
         strokeWidth: $strokeWidth,
         labelOffsetX: $labelOffsetX,
         labelOffsetY: $labelOffsetY,
+        controlPoints: $controlPoints,
         contentHash: $contentHash
       })
       CREATE (connector)-[:HAS_VERSION]->(version)
@@ -184,6 +189,7 @@ export async function createArchitectureConnectorVersion(
       strokeWidth: params.strokeWidth || null,
       labelOffsetX: params.labelOffsetX || null,
       labelOffsetY: params.labelOffsetY || null,
+      controlPoints: params.controlPoints ? JSON.stringify(params.controlPoints) : null,
       contentHash: params.contentHash
     }
   );
@@ -235,6 +241,31 @@ export async function getArchitectureConnectorHistory(
         strokeWidth: v.strokeWidth ? (typeof v.strokeWidth === 'number' ? v.strokeWidth : v.strokeWidth.toNumber()) : undefined,
         labelOffsetX: v.labelOffsetX ? (typeof v.labelOffsetX === 'number' ? v.labelOffsetX : v.labelOffsetX.toNumber()) : undefined,
         labelOffsetY: v.labelOffsetY ? (typeof v.labelOffsetY === 'number' ? v.labelOffsetY : v.labelOffsetY.toNumber()) : undefined,
+        controlPoints: (() => {
+          if (!v.controlPoints) {
+            return undefined;
+          }
+          if (Array.isArray(v.controlPoints)) {
+            return v.controlPoints.map((point: any) => ({
+              x: typeof point.x === "number" ? point.x : Number(point.x),
+              y: typeof point.y === "number" ? point.y : Number(point.y)
+            }));
+          }
+          try {
+            const parsed = JSON.parse(String(v.controlPoints));
+            if (!Array.isArray(parsed)) {
+              return undefined;
+            }
+            return parsed
+              .map((point: any) => ({
+                x: typeof point.x === "number" ? point.x : Number(point.x),
+                y: typeof point.y === "number" ? point.y : Number(point.y)
+              }))
+              .filter((point: any) => Number.isFinite(point.x) && Number.isFinite(point.y));
+          } catch {
+            return undefined;
+          }
+        })(),
         contentHash: String(v.contentHash)
       };
     });
@@ -272,7 +303,7 @@ export async function getArchitectureConnectorDiff(
   const fields: (keyof ArchitectureConnectorVersionRecord)[] = [
     "source", "target", "kind", "label", "sourcePortId", "targetPortId",
     "documentIds", "lineStyle", "markerStart", "markerEnd", "linePattern",
-    "color", "strokeWidth", "labelOffsetX", "labelOffsetY"
+    "color", "strokeWidth", "labelOffsetX", "labelOffsetY", "controlPoints"
   ];
 
   const diff: ArchitectureConnectorDiff[] = [];

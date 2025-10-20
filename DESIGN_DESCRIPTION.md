@@ -871,8 +871,25 @@ GET    /api/workers/qa-scorer/status - Get QA scorer status
 
 **Admin** (`/api/admin/*`)
 ```
-POST   /api/admin/recovery/backup    - Trigger manual backup
-GET    /api/admin/recovery/status    - Get backup system status
+POST   /api/admin/recovery/backup/daily          - Trigger manual daily backup (Super Admin)
+POST   /api/admin/recovery/backup/weekly         - Trigger manual weekly backup (Super Admin)
+GET    /api/admin/recovery/backups               - List local daily/weekly backups (Super Admin)
+GET    /api/admin/recovery/backups/remote        - List restic snapshots (Super Admin)
+POST   /api/admin/recovery/verify                - Verify backup integrity
+POST   /api/admin/recovery/restore/dry-run       - Dry-run restoration of a backup
+GET    /api/admin/recovery/status                - Aggregate backup system status
+
+POST   /api/admin/recovery/project/export        - Export a project backup (scoped permissions)
+POST   /api/admin/recovery/project/import        - Import/restore a project backup (Super Admin)
+POST   /api/admin/recovery/project/validate      - Validate a project backup file (Super Admin)
+GET    /api/admin/recovery/project/backups       - List project backups (scoped permissions)
+GET    /api/admin/recovery/project/stats/:tenant/:projectKey
+                                                   - Project backup statistics
+GET    /api/admin/recovery/project/latest/:tenant/:projectKey
+                                                   - Latest project backup
+POST   /api/admin/recovery/project/retention/:tenant/:projectKey
+                                                   - Apply project backup retention policy
+POST   /api/admin/recovery/project/sync           - Sync local project backups into metadata (Super Admin)
 ```
 
 **System** (`/api/*`)

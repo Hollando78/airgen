@@ -21,6 +21,8 @@ export const RELATIONSHIP_HIERARCHY = {
     'CONTAINS',       // Section → Requirement/Info/SurrogateReference
     'HAS_BLOCK',      // Diagram → Block
     'HAS_CONNECTOR',  // Diagram → Connector
+    'HAS_PORT',       // Block → PortInstance
+    'INSTANTIATED_AS', // PortDefinition → PortInstance
   ]),
 
   // Medium hierarchy (weight: 50) - ownership but not containment
@@ -31,6 +33,8 @@ export const RELATIONSHIP_HIERARCHY = {
     'HAS_ARCHITECTURE_DIAGRAM', // Project → ArchitectureDiagram
     'HAS_ARCHITECTURE_BLOCK',   // Project → ArchitectureBlock (definition)
     'CONTAINS_LINK',            // Linkset → TraceLink
+    'CONTAINS_PORT',            // Diagram → PortInstance
+    'BELONGS_TO_BLOCK',         // PortInstance → Block
   ]),
 
   // Weak/No hierarchy (weight: 1) - peer relationships and references
@@ -48,6 +52,8 @@ export const RELATIONSHIP_HIERARCHY = {
     'FROM_BLOCK',
     'TO_BLOCK',
     'LINKED_DOCUMENT',
+    'FROM_PORT',      // Connector → PortInstance
+    'TO_PORT',        // Connector → PortInstance
   ]),
 };
 
@@ -58,7 +64,7 @@ export const NODE_TYPE_CATEGORIES = {
   'System': ['Tenant', 'Project'],
   'Document Structure': ['Document', 'DocumentSection', 'Info', 'SurrogateReference'],
   'Requirements': ['Requirement', 'RequirementCandidate'],
-  'Architecture': ['ArchitectureDiagram', 'ArchitectureBlock', 'ArchitectureConnector'],
+  'Architecture': ['ArchitectureDiagram', 'ArchitectureBlock', 'ArchitectureConnector', 'PortDefinition', 'PortInstance'],
   'Traceability': ['DocumentLinkset', 'TraceLink']
 };
 
@@ -68,7 +74,8 @@ export const NODE_TYPE_CATEGORIES = {
 export const DEFAULT_VISIBLE_NODE_TYPES = new Set([
   'Tenant', 'Project', 'Document', 'DocumentSection', 'Requirement', 'Info',
   'SurrogateReference', 'DocumentLinkset', 'TraceLink', 'RequirementCandidate',
-  'ArchitectureDiagram', 'ArchitectureBlock', 'ArchitectureConnector'
+  'ArchitectureDiagram', 'ArchitectureBlock', 'ArchitectureConnector',
+  'PortDefinition', 'PortInstance'
 ]);
 
 /**

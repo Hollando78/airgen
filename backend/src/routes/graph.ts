@@ -70,6 +70,16 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
              collect(DISTINCT placedBlock) as placedBlocks,
              collect(DISTINCT connector) as connectors
 
+        // Collect port nodes
+        OPTIONAL MATCH (pd:PortDefinition)
+        WHERE pd.tenant = $tenantSlug AND pd.projectKey = $projectSlug
+        OPTIONAL MATCH (pd)-[:INSTANTIATED_AS]->(pi:PortInstance)
+
+        WITH tenant, project, docs, sections, reqs, infos, surs, linksets, traceLinks, candidates, relatedReqs, reqRels,
+             diagrams, blockDefs, placedBlocks, connectors,
+             collect(DISTINCT pd) as portDefs,
+             collect(DISTINCT pi) as portInsts
+
         // Build all nodes
         WITH
           [{id: id(tenant), label: tenant.slug, type: 'Tenant', properties: properties(tenant)}] +
@@ -86,7 +96,9 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
           [dia IN diagrams WHERE dia IS NOT NULL | {id: id(dia), label: dia.name, type: 'ArchitectureDiagram', properties: properties(dia)}] +
           [bd IN blockDefs WHERE bd IS NOT NULL | {id: id(bd), label: bd.name, type: 'ArchitectureBlock', properties: properties(bd)}] +
           [pb IN placedBlocks WHERE pb IS NOT NULL | {id: id(pb), label: pb.name, type: 'ArchitectureBlock', properties: properties(pb)}] +
-          [conn IN connectors WHERE conn IS NOT NULL | {id: id(conn), label: COALESCE(conn.label, 'Connector'), type: 'ArchitectureConnector', properties: properties(conn)}]
+          [conn IN connectors WHERE conn IS NOT NULL | {id: id(conn), label: COALESCE(conn.label, 'Connector'), type: 'ArchitectureConnector', properties: properties(conn)}] +
+          [pd IN portDefs WHERE pd IS NOT NULL | {id: id(pd), label: pd.name, type: 'PortDefinition', properties: properties(pd)}] +
+          [pi IN portInsts WHERE pi IS NOT NULL | {id: id(pi), label: pi.definitionId + ' instance', type: 'PortInstance', properties: properties(pi)}]
           AS nodes,
           tenant, project, reqRels
 
@@ -164,9 +176,22 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
         OPTIONAL MATCH (project)-[:HAS_ARCHITECTURE_BLOCK]->(block:ArchitectureBlock)-[r19:LINKED_DOCUMENT]->(linkedDoc:Document)
         WHERE linkedDoc.deletedAt IS NULL
         WITH nodes, reqRels, tenantRels, docRels, secRels, contentRels, linksetRels, fromDocRels, toDocRels, linkedToRels, traceLinkProjectRels, traceLinkFromRels, traceLinkToRels, linksetContainsRels, candidateRels, archDiagramRels, archBlockDefRels, archPlacedBlockRels, archConnectorRels, archFromBlockRels, archToBlockRels,
-             collect(DISTINCT {source: id(block), target: id(linkedDoc), type: type(r19)}) as blockDocRels
+             collect(DISTINCT {source: id(block), target: id(linkedDoc), type: type(r19)}) as blockDocRels,
+             project
 
-        RETURN nodes, tenantRels + docRels + secRels + contentRels + reqRels + linksetRels + fromDocRels + toDocRels + linkedToRels + traceLinkProjectRels + traceLinkFromRels + traceLinkToRels + linksetContainsRels + candidateRels + archDiagramRels + archBlockDefRels + archPlacedBlockRels + archConnectorRels + archFromBlockRels + archToBlockRels + blockDocRels as relationships
+        // Port relationships
+        OPTIONAL MATCH (portDef:PortDefinition)-[r20:INSTANTIATED_AS]->(portInst:PortInstance)
+        WHERE portDef.tenant = $tenantSlug AND portDef.projectKey = $projectSlug
+        OPTIONAL MATCH (archBlock:ArchitectureBlock)-[r21:HAS_PORT]->(portInst2:PortInstance)
+        OPTIONAL MATCH (archConn:ArchitectureConnector)-[r22:FROM_PORT]->(fromPort:PortInstance)
+        OPTIONAL MATCH (archConn2:ArchitectureConnector)-[r23:TO_PORT]->(toPort:PortInstance)
+        WITH nodes, reqRels, tenantRels, docRels, secRels, contentRels, linksetRels, fromDocRels, toDocRels, linkedToRels, traceLinkProjectRels, traceLinkFromRels, traceLinkToRels, linksetContainsRels, candidateRels, archDiagramRels, archBlockDefRels, archPlacedBlockRels, archConnectorRels, archFromBlockRels, archToBlockRels, blockDocRels,
+             collect(DISTINCT {source: id(portDef), target: id(portInst), type: type(r20)}) as portInstantiatedRels,
+             collect(DISTINCT {source: id(archBlock), target: id(portInst2), type: type(r21)}) as blockHasPortRels,
+             collect(DISTINCT {source: id(archConn), target: id(fromPort), type: type(r22)}) as connFromPortRels,
+             collect(DISTINCT {source: id(archConn2), target: id(toPort), type: type(r23)}) as connToPortRels
+
+        RETURN nodes, tenantRels + docRels + secRels + contentRels + reqRels + linksetRels + fromDocRels + toDocRels + linkedToRels + traceLinkProjectRels + traceLinkFromRels + traceLinkToRels + linksetContainsRels + candidateRels + archDiagramRels + archBlockDefRels + archPlacedBlockRels + archConnectorRels + archFromBlockRels + archToBlockRels + blockDocRels + portInstantiatedRels + blockHasPortRels + connFromPortRels + connToPortRels as relationships
         `,
         { tenantSlug, projectSlug }
       );

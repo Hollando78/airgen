@@ -26,7 +26,7 @@ import { DiagramContextMenu } from "./DiagramContextMenu";
 import { ConnectorStylingToolbar } from "./ConnectorStylingToolbar";
 import { DiagramToolbar } from "./DiagramToolbar";
 import { Spinner } from "../Spinner";
-import { StraightEdge, SmoothStepEdge, StepEdge, BezierEdge } from "./CustomEdge";
+import { StraightEdge, SmoothStepEdge, StepEdge, BezierEdge, PolylineEdge } from "./CustomEdge";
 import type { ArchitectureDiagramRecord, DocumentRecord } from "../../types";
 import type {
   ArchitectureState,
@@ -44,6 +44,7 @@ const edgeTypes = {
   straight: StraightEdge,
   smoothstep: SmoothStepEdge,
   step: StepEdge,
+  polyline: PolylineEdge,
   default: BezierEdge
 };
 
@@ -331,6 +332,108 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       }, 100);
     }, [reactFlowInstanceRef, architecture.blocks, documents, updateBlockSize]);
 
+    const findPortForDirection = useCallback((block: SysmlBlock, direction: "top" | "bottom" | "left" | "right") => {
+      if (!block.ports || block.ports.length === 0) {
+        return undefined;
+      }
+
+      const availablePorts = block.ports.filter(port => !port.hidden && port.edge === direction);
+      return availablePorts[0]?.id;
+    }, []);
+
+    const handleAutoRoute = useCallback(() => {
+      const connectors = architecture.connectors;
+      const blocks = architecture.blocks;
+
+      if (!connectors.length || !blocks.length) {
+        return;
+      }
+
+      const blockLookup = new Map(blocks.map((block) => [block.id, block]));
+
+      connectors.forEach((connector: SysmlConnector) => {
+        if (connector.source === connector.target) {
+          return;
+        }
+
+        const sourceBlock = blockLookup.get(connector.source);
+        const targetBlock = blockLookup.get(connector.target);
+
+        if (!sourceBlock || !targetBlock) {
+          return;
+        }
+
+        const sourceCenterX = sourceBlock.position.x + sourceBlock.size.width / 2;
+        const sourceCenterY = sourceBlock.position.y + sourceBlock.size.height / 2;
+        const targetCenterX = targetBlock.position.x + targetBlock.size.width / 2;
+        const targetCenterY = targetBlock.position.y + targetBlock.size.height / 2;
+
+        const deltaX = targetCenterX - sourceCenterX;
+        const deltaY = targetCenterY - sourceCenterY;
+
+        const absDeltaX = Math.abs(deltaX);
+        const absDeltaY = Math.abs(deltaY);
+
+        const prefersHorizontal = absDeltaX > absDeltaY;
+
+        let desiredSourceDirection: "top" | "bottom" | "left" | "right";
+        let desiredTargetDirection: "top" | "bottom" | "left" | "right";
+        let desiredLineStyle: SysmlConnector["lineStyle"];
+
+        if (prefersHorizontal) {
+          desiredSourceDirection = deltaX >= 0 ? "right" : "left";
+          desiredTargetDirection = deltaX >= 0 ? "left" : "right";
+          desiredLineStyle = "step";
+        } else {
+          desiredSourceDirection = deltaY >= 0 ? "bottom" : "top";
+          desiredTargetDirection = deltaY >= 0 ? "top" : "bottom";
+          desiredLineStyle = "smoothstep";
+        }
+
+        const existingSourcePort = connector.sourcePortId
+          ? sourceBlock.ports?.find(port => port.id === connector.sourcePortId)
+          : undefined;
+        const existingTargetPort = connector.targetPortId
+          ? targetBlock.ports?.find(port => port.id === connector.targetPortId)
+          : undefined;
+
+        const resolvedSourcePortId = findPortForDirection(sourceBlock, desiredSourceDirection);
+        const resolvedTargetPortId = findPortForDirection(targetBlock, desiredTargetDirection);
+
+        const nextSourcePortId =
+          existingSourcePort && existingSourcePort.edge === desiredSourceDirection && !existingSourcePort.hidden
+            ? existingSourcePort.id
+            : resolvedSourcePortId ?? undefined;
+
+        const nextTargetPortId =
+          existingTargetPort && existingTargetPort.edge === desiredTargetDirection && !existingTargetPort.hidden
+            ? existingTargetPort.id
+            : resolvedTargetPortId ?? undefined;
+
+        const updates: Partial<SysmlConnector> = {};
+        const hasExistingControlPoints = (connector.controlPoints?.length ?? 0) > 0;
+        if (desiredLineStyle && desiredLineStyle !== connector.lineStyle) {
+          updates.lineStyle = desiredLineStyle;
+        }
+
+        if (typeof nextSourcePortId === "string" && nextSourcePortId !== connector.sourcePortId) {
+          updates.sourcePortId = nextSourcePortId;
+        }
+
+        if (typeof nextTargetPortId === "string" && nextTargetPortId !== connector.targetPortId) {
+          updates.targetPortId = nextTargetPortId;
+        }
+
+        if (hasExistingControlPoints && updates.controlPoints === undefined) {
+          updates.controlPoints = [];
+        }
+
+        if (Object.keys(updates).length > 0) {
+          updateConnector(connector.id, updates);
+        }
+      });
+    }, [architecture.blocks, architecture.connectors, findPortForDirection, updateConnector]);
+
     const handleDrop = useCallback((event: React.DragEvent) => {
       event.preventDefault();
 
@@ -453,6 +556,7 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 onPopout={handlePopout}
                 onAutoLayout={handleAutoLayout}
                 onAutoSize={handleAutoSize}
+                onAutoRoute={handleAutoRoute}
               />
 
               <div className="architecture-canvas-toolbar">

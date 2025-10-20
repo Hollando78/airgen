@@ -75,6 +75,7 @@ export async function createArchitectureConnector(params: {
   strokeWidth?: number;
   labelOffsetX?: number;
   labelOffsetY?: number;
+  controlPoints?: { x: number; y: number }[];
   userId: string;
 }): Promise<ArchitectureConnectorRecord> {
   const tenantSlug = slugify(params.tenant);
@@ -109,6 +110,7 @@ export async function createArchitectureConnector(params: {
           strokeWidth: $strokeWidth,
           labelOffsetX: $labelOffsetX,
           labelOffsetY: $labelOffsetY,
+          controlPoints: $controlPoints,
           createdAt: $now,
           updatedAt: $now
         })
@@ -141,6 +143,7 @@ export async function createArchitectureConnector(params: {
         strokeWidth: params.strokeWidth ?? null,
         labelOffsetX: params.labelOffsetX ?? null,
         labelOffsetY: params.labelOffsetY ?? null,
+        controlPoints: JSON.stringify(params.controlPoints ?? []),
         now
       });
 
@@ -167,6 +170,23 @@ export async function createArchitectureConnector(params: {
         }
       }
 
+      let controlPoints: { x: number; y: number }[] | undefined;
+      if (props.controlPoints) {
+        try {
+          const parsed = JSON.parse(String(props.controlPoints));
+          if (Array.isArray(parsed)) {
+            controlPoints = parsed
+              .map((point: any) => ({
+                x: typeof point.x === "number" ? point.x : Number(point.x),
+                y: typeof point.y === "number" ? point.y : Number(point.y)
+              }))
+              .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+          }
+        } catch {
+          controlPoints = undefined;
+        }
+      }
+
       const contentHash = generateArchitectureConnectorContentHash({
         source: String(props.source),
         target: String(props.target),
@@ -182,7 +202,8 @@ export async function createArchitectureConnector(params: {
         color: props.color ? String(props.color) : undefined,
         strokeWidth: props.strokeWidth ? (typeof props.strokeWidth === 'number' ? props.strokeWidth : props.strokeWidth.toNumber()) : undefined,
         labelOffsetX: props.labelOffsetX ? (typeof props.labelOffsetX === 'number' ? props.labelOffsetX : props.labelOffsetX.toNumber()) : undefined,
-        labelOffsetY: props.labelOffsetY ? (typeof props.labelOffsetY === 'number' ? props.labelOffsetY : props.labelOffsetY.toNumber()) : undefined
+        labelOffsetY: props.labelOffsetY ? (typeof props.labelOffsetY === 'number' ? props.labelOffsetY : props.labelOffsetY.toNumber()) : undefined,
+        controlPoints
       });
 
       await createArchitectureConnectorVersion(tx, {
@@ -207,6 +228,7 @@ export async function createArchitectureConnector(params: {
         strokeWidth: props.strokeWidth ? (typeof props.strokeWidth === 'number' ? props.strokeWidth : props.strokeWidth.toNumber()) : undefined,
         labelOffsetX: props.labelOffsetX ? (typeof props.labelOffsetX === 'number' ? props.labelOffsetX : props.labelOffsetX.toNumber()) : undefined,
         labelOffsetY: props.labelOffsetY ? (typeof props.labelOffsetY === 'number' ? props.labelOffsetY : props.labelOffsetY.toNumber()) : undefined,
+        controlPoints,
         contentHash
       });
     });
@@ -276,6 +298,7 @@ export async function updateArchitectureConnector(params: {
   strokeWidth?: number;
   labelOffsetX?: number;
   labelOffsetY?: number;
+  controlPoints?: { x: number; y: number }[];
   userId: string;
 }): Promise<ArchitectureConnectorRecord> {
   const tenantSlug = slugify(params.tenant);
@@ -312,6 +335,23 @@ export async function updateArchitectureConnector(params: {
           }
         }
 
+        let currentControlPoints: { x: number; y: number }[] | undefined;
+        if (currentProps.controlPoints) {
+          try {
+            const parsed = JSON.parse(String(currentProps.controlPoints));
+            if (Array.isArray(parsed)) {
+              currentControlPoints = parsed
+                .map((point: any) => ({
+                  x: typeof point.x === "number" ? point.x : Number(point.x),
+                  y: typeof point.y === "number" ? point.y : Number(point.y)
+                }))
+                .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+            }
+          } catch {
+            currentControlPoints = undefined;
+          }
+        }
+
         oldContentHash = generateArchitectureConnectorContentHash({
           source: String(currentProps.source),
           target: String(currentProps.target),
@@ -327,7 +367,8 @@ export async function updateArchitectureConnector(params: {
           color: currentProps.color ? String(currentProps.color) : undefined,
           strokeWidth: currentProps.strokeWidth ? (typeof currentProps.strokeWidth === 'number' ? currentProps.strokeWidth : currentProps.strokeWidth.toNumber()) : undefined,
           labelOffsetX: currentProps.labelOffsetX ? (typeof currentProps.labelOffsetX === 'number' ? currentProps.labelOffsetX : currentProps.labelOffsetX.toNumber()) : undefined,
-          labelOffsetY: currentProps.labelOffsetY ? (typeof currentProps.labelOffsetY === 'number' ? currentProps.labelOffsetY : currentProps.labelOffsetY.toNumber()) : undefined
+          labelOffsetY: currentProps.labelOffsetY ? (typeof currentProps.labelOffsetY === 'number' ? currentProps.labelOffsetY : currentProps.labelOffsetY.toNumber()) : undefined,
+          controlPoints: currentControlPoints
         });
       }
 
@@ -393,6 +434,10 @@ export async function updateArchitectureConnector(params: {
         setFields.push("connector.labelOffsetY = $labelOffsetY");
         setParams.labelOffsetY = params.labelOffsetY;
       }
+      if (params.controlPoints !== undefined) {
+        setFields.push("connector.controlPoints = $controlPoints");
+        setParams.controlPoints = JSON.stringify(params.controlPoints ?? []);
+      }
 
       // Always update the updatedAt timestamp
       setFields.push("connector.updatedAt = $now");
@@ -428,6 +473,23 @@ export async function updateArchitectureConnector(params: {
         }
       }
 
+      let updatedControlPoints: { x: number; y: number }[] | undefined;
+      if (updatedProps.controlPoints) {
+        try {
+          const parsed = JSON.parse(String(updatedProps.controlPoints));
+          if (Array.isArray(parsed)) {
+            updatedControlPoints = parsed
+              .map((point: any) => ({
+                x: typeof point.x === "number" ? point.x : Number(point.x),
+                y: typeof point.y === "number" ? point.y : Number(point.y)
+              }))
+              .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+          }
+        } catch {
+          updatedControlPoints = undefined;
+        }
+      }
+
       // Calculate new content hash
       const newContentHash = generateArchitectureConnectorContentHash({
         source: String(updatedProps.source),
@@ -444,7 +506,8 @@ export async function updateArchitectureConnector(params: {
         color: updatedProps.color ? String(updatedProps.color) : undefined,
         strokeWidth: updatedProps.strokeWidth ? (typeof updatedProps.strokeWidth === 'number' ? updatedProps.strokeWidth : updatedProps.strokeWidth.toNumber()) : undefined,
         labelOffsetX: updatedProps.labelOffsetX ? (typeof updatedProps.labelOffsetX === 'number' ? updatedProps.labelOffsetX : updatedProps.labelOffsetX.toNumber()) : undefined,
-        labelOffsetY: updatedProps.labelOffsetY ? (typeof updatedProps.labelOffsetY === 'number' ? updatedProps.labelOffsetY : updatedProps.labelOffsetY.toNumber()) : undefined
+        labelOffsetY: updatedProps.labelOffsetY ? (typeof updatedProps.labelOffsetY === 'number' ? updatedProps.labelOffsetY : updatedProps.labelOffsetY.toNumber()) : undefined,
+        controlPoints: updatedControlPoints
       });
 
       const contentChanged = oldContentHash !== null && oldContentHash !== newContentHash;
@@ -473,6 +536,7 @@ export async function updateArchitectureConnector(params: {
           strokeWidth: updatedProps.strokeWidth ? (typeof updatedProps.strokeWidth === 'number' ? updatedProps.strokeWidth : updatedProps.strokeWidth.toNumber()) : undefined,
           labelOffsetX: updatedProps.labelOffsetX ? (typeof updatedProps.labelOffsetX === 'number' ? updatedProps.labelOffsetX : updatedProps.labelOffsetX.toNumber()) : undefined,
           labelOffsetY: updatedProps.labelOffsetY ? (typeof updatedProps.labelOffsetY === 'number' ? updatedProps.labelOffsetY : updatedProps.labelOffsetY.toNumber()) : undefined,
+          controlPoints: updatedControlPoints,
           contentHash: newContentHash
         });
       }
@@ -537,6 +601,23 @@ export async function deleteArchitectureConnector(params: {
           }
         }
 
+        let currentControlPoints: { x: number; y: number }[] | undefined;
+        if (currentProps.controlPoints) {
+          try {
+            const parsed = JSON.parse(String(currentProps.controlPoints));
+            if (Array.isArray(parsed)) {
+              currentControlPoints = parsed
+                .map((point: any) => ({
+                  x: typeof point.x === "number" ? point.x : Number(point.x),
+                  y: typeof point.y === "number" ? point.y : Number(point.y)
+                }))
+                .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+            }
+          } catch {
+            currentControlPoints = undefined;
+          }
+        }
+
         // Create deletion version
         const contentHash = generateArchitectureConnectorContentHash({
           source: String(currentProps.source),
@@ -553,7 +634,8 @@ export async function deleteArchitectureConnector(params: {
           color: currentProps.color ? String(currentProps.color) : undefined,
           strokeWidth: currentProps.strokeWidth ? (typeof currentProps.strokeWidth === 'number' ? currentProps.strokeWidth : currentProps.strokeWidth.toNumber()) : undefined,
           labelOffsetX: currentProps.labelOffsetX ? (typeof currentProps.labelOffsetX === 'number' ? currentProps.labelOffsetX : currentProps.labelOffsetX.toNumber()) : undefined,
-          labelOffsetY: currentProps.labelOffsetY ? (typeof currentProps.labelOffsetY === 'number' ? currentProps.labelOffsetY : currentProps.labelOffsetY.toNumber()) : undefined
+          labelOffsetY: currentProps.labelOffsetY ? (typeof currentProps.labelOffsetY === 'number' ? currentProps.labelOffsetY : currentProps.labelOffsetY.toNumber()) : undefined,
+          controlPoints: currentControlPoints
         });
 
         await createArchitectureConnectorVersion(tx, {
@@ -578,6 +660,7 @@ export async function deleteArchitectureConnector(params: {
           strokeWidth: currentProps.strokeWidth ? (typeof currentProps.strokeWidth === 'number' ? currentProps.strokeWidth : currentProps.strokeWidth.toNumber()) : undefined,
           labelOffsetX: currentProps.labelOffsetX ? (typeof currentProps.labelOffsetX === 'number' ? currentProps.labelOffsetX : currentProps.labelOffsetX.toNumber()) : undefined,
           labelOffsetY: currentProps.labelOffsetY ? (typeof currentProps.labelOffsetY === 'number' ? currentProps.labelOffsetY : currentProps.labelOffsetY.toNumber()) : undefined,
+          controlPoints: currentControlPoints,
           contentHash
         });
       }

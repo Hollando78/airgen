@@ -1,31 +1,13 @@
 #!/bin/bash
 # AirGen Weekly Backup Script
 # Performs full weekly backups with Docker volume snapshots
-# Retention: 4 weeks locally, 12 weeks remote (if configured)
+# Retention: 4 weeks locally, 12 weeks remote
 
 set -eo pipefail
 
 # Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/backup-lib.sh"
-
-# Source environment variables for remote backup configuration
-if [ -f /etc/environment ]; then
-    set -a  # Automatically export all variables
-    source /etc/environment
-    set +a
-fi
-
-# Remote backup configuration (optional)
-# Set these environment variables to enable remote backups:
-# - RESTIC_REPOSITORY: s3:s3.amazonaws.com/bucket or similar
-# - RESTIC_PASSWORD: encryption password
-# - AWS_ACCESS_KEY_ID: for S3
-# - AWS_SECRET_ACCESS_KEY: for S3
-REMOTE_ENABLED=false
-if [ -n "${RESTIC_REPOSITORY}" ] && [ -n "${RESTIC_PASSWORD}" ]; then
-    REMOTE_ENABLED=true
-fi
 
 # Main backup function
 main() {
@@ -37,7 +19,6 @@ main() {
     log "========================================"
     log "Starting weekly backup: ${TIMESTAMP}"
     log "Backup directory: ${backup_week_dir}"
-    log "Remote backup: ${REMOTE_ENABLED}"
     log "========================================"
 
     # Create backup directory
@@ -57,11 +38,17 @@ main() {
         exit 1
     fi
 
+    if ! require_restic_config; then
+        log_error "Remote backup configuration missing, aborting weekly backup"
+        send_notification "AirGen Weekly Backup Failed" "Weekly backup aborted (restic not configured)" 2
+        exit 1
+    fi
+
     # Track backup files
     local backup_files=()
 
     # Step 1: Backup Neo4j (database dump)
-    log "Step 1/5: Backing up Neo4j database..."
+    log "Step 1/6: Backing up Neo4j database..."
     if neo4j_file=$(backup_neo4j "${backup_week_dir}"); then
         neo4j_file=$(printf "%s" "${neo4j_file}" | tail -n 1)
         backup_files+=("${neo4j_file}")
@@ -70,7 +57,7 @@ main() {
     fi
 
     # Step 2: Backup Neo4j Volume (full snapshot)
-    log "Step 2/5: Creating Neo4j volume snapshot..."
+    log "Step 2/6: Creating Neo4j volume snapshot..."
     if neo4j_vol=$(backup_volume "${backup_week_dir}" "${NEO4J_VOLUME}" "neo4j-volume"); then
         neo4j_vol=$(printf "%s" "${neo4j_vol}" | tail -n 1)
         backup_files+=("${neo4j_vol}")
@@ -79,7 +66,7 @@ main() {
     fi
 
     # Step 3: Backup PostgreSQL
-    log "Step 3/5: Backing up PostgreSQL..."
+    log "Step 3/6: Backing up PostgreSQL..."
     if postgres_file=$(backup_postgres "${backup_week_dir}"); then
         postgres_file=$(printf "%s" "${postgres_file}" | tail -n 1)
         backup_files+=("${postgres_file}")
@@ -95,7 +82,7 @@ main() {
 
     # Step 4: Backup Workspace (DEPRECATED - Phase 2 migration complete)
     # Workspace is no longer written to; Neo4j is single source of truth
-    log "Step 4/5: Workspace backup (deprecated)..."
+    log "Step 4/6: Workspace backup (deprecated)..."
     if workspace_file=$(backup_workspace "${backup_week_dir}"); then
         workspace_file=$(printf "%s" "${workspace_file}" | tail -n 1)
         backup_files+=("${workspace_file}")
@@ -105,7 +92,7 @@ main() {
     fi
 
     # Step 5: Backup Configuration
-    log "Step 5/5: Backing up configuration..."
+    log "Step 5/6: Backing up configuration..."
     if config_file=$(backup_config "${backup_week_dir}"); then
         config_file=$(printf "%s" "${config_file}" | tail -n 1)
         backup_files+=("${config_file}")
@@ -114,11 +101,14 @@ main() {
     # Create manifest
     create_manifest "${backup_week_dir}" "${backup_files[@]}"
 
-    # Upload to remote storage if configured
-    if [ "$REMOTE_ENABLED" = true ]; then
-        upload_to_remote "${backup_week_dir}"
+    # Upload to remote storage
+    log "Step 6/6: Uploading weekly backup to remote storage..."
+    if restic_backup_directory "${backup_week_dir}" "weekly"; then
+        if ! restic_prune_for_schedule "weekly" --keep-weekly 12; then
+            log "Remote weekly retention update encountered warnings"
+        fi
     else
-        log "Remote backup not configured (set RESTIC_REPOSITORY and RESTIC_PASSWORD)"
+        backup_success=false
     fi
 
     # Cleanup old local backups
@@ -186,49 +176,6 @@ backup_volume() {
     fi
 }
 
-# Upload to remote storage using restic
-upload_to_remote() {
-    local local_dir="$1"
-
-    log "Uploading backup to remote storage..."
-
-    # Initialize repository if it doesn't exist
-    if ! restic snapshots >/dev/null 2>&1; then
-        log "Initializing restic repository..."
-        if ! restic init; then
-            log_error "Failed to initialize restic repository"
-            return 1
-        fi
-    fi
-
-    # Backup to restic
-    if restic backup "${local_dir}" \
-        --tag "weekly" \
-        --tag "airgen" \
-        --tag "$(hostname)" \
-        --exclude "*.log"; then
-
-        log_success "Backup uploaded to remote storage"
-
-        # Prune old backups (keep 12 weeks)
-        log "Pruning old remote backups..."
-        restic unlock >/dev/null 2>&1 || log "No stale restic locks to clear"
-        if restic forget \
-            --keep-weekly 12 \
-            --prune \
-            --tag "weekly" 2>&1 | tee -a "${BACKUP_LOG_DIR}/backup.log"; then
-            log "Remote backup pruning completed"
-        else
-            log_error "Restic pruning encountered errors (see log)"
-        fi
-
-        return 0
-    else
-        log_error "Failed to upload backup to remote storage"
-        return 1
-    fi
-}
-
 # Cleanup old weekly backups (keep 4 weeks locally)
 cleanup_old_weekly_backups() {
     log "Cleaning up old weekly backups (keeping last ${WEEKLY_RETENTION_WEEKS} weeks)..."
@@ -261,7 +208,7 @@ create_manifest() {
         echo "Date: $(date)"
         echo "Hostname: $(hostname)"
         echo "Week: ${backup_week}"
-        echo "Remote backup: ${REMOTE_ENABLED}"
+        echo "Remote backup: required (restic)"
         echo "========================================"
         echo ""
 

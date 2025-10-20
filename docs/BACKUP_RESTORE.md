@@ -4,11 +4,19 @@
 
 AirGen implements a comprehensive 3-tier backup strategy to protect against data loss with **Neo4j as the single source of truth**:
 
-1. **Daily Incremental Backups** - Fast recovery, 7-day retention
+1. **Daily Full Backups** - Fast recovery, 7-day retention + remote replication
 2. **Weekly Full Backups** - Disaster recovery, 4-week local + 12-week remote retention
 3. **Real-Time Protection** - Git repository tracking
 
 **Architecture Note**: As of 2025-10-10, AirGen uses Neo4j as the single source of truth. All data (requirements, documents, version history, baselines, trace links, architecture) is stored in Neo4j. The Neo4j dump is the PRIMARY backup artifact containing complete data.
+
+## Access Control
+
+- **System-level backups** (`/api/admin/recovery/*`, Admin Recovery UI) require the **Super Administrator** role.
+- **Project-level backups** (`/api/admin/recovery/project/*`) are scoped:
+  - Super Admins can back up any project.
+  - Tenant Admins can back up projects within their tenants.
+  - Project Admins can back up only the projects they administer.
 
 ## What Gets Backed Up
 
@@ -26,7 +34,7 @@ AirGen implements a comprehensive 3-tier backup strategy to protect against data
 ### Backup Schedule
 
 ```
-Daily:     2:00 AM - Incremental backup
+Daily:     2:00 AM - Full snapshot + remote upload
            2:30 AM - Verification
 Weekly:    3:00 AM Sunday - Full backup + remote upload
 ```
@@ -81,21 +89,22 @@ cat /root/airgen/backups/daily/YYYYMMDD/MANIFEST.txt
 
 **What it does:**
 1. Pre-backup health checks (disk space, container status, Neo4j connectivity)
-2. Backs up Neo4j database using `neo4j-admin dump`
-3. Backs up PostgreSQL database using `pg_dump`
-4. Creates compressed archive of workspace files
+2. Stops the Neo4j container and archives the data volume (`neo4j-*.tar.gz`)
+3. Backs up PostgreSQL (if running) using `pg_dump` (non-critical)
+4. Creates a placeholder workspace archive (deprecated legacy data)
 5. Backs up configuration files and git state
-6. Verifies all backup files
-7. Creates manifest with checksums
-8. Cleans up backups older than 7 days
-9. Sends notification on completion/failure
+6. Verifies all locally generated backup files
+7. Creates a manifest with SHA256 checksums
+8. Uploads the backup directory to the restic remote repository (tag `daily`) and prunes remote daily retention (7 days)
+9. Cleans up local backups older than 7 days
+10. Sends notification on completion/failure
 
 **Retention:** 7 days
 
 **Location:** `/root/airgen/backups/daily/YYYYMMDD/`
 
 **Files created:**
-- `neo4j-YYYYMMDD-HHMMSS.dump` - **Neo4j database (PRIMARY - contains ALL data)**
+- `neo4j-YYYYMMDD-HHMMSS.tar.gz` - **Neo4j data volume snapshot (PRIMARY - contains ALL data)**
   - All requirements and requirement versions
   - All documents, sections, and their versions
   - All baselines and version snapshots
@@ -107,18 +116,15 @@ cat /root/airgen/backups/daily/YYYYMMDD/MANIFEST.txt
 - `config-YYYYMMDD-HHMMSS.tar.gz` - Configuration files
 - `MANIFEST.txt` - Checksums and metadata
 
-**Note**: PostgreSQL backup removed (no longer used). Neo4j is the single source of truth.
-
 ### Weekly Backup Script
 
 **Script:** `/root/airgen/scripts/backup-weekly.sh`
 
 **What it does:**
-1. Everything from daily backup, plus:
-2. Full Docker volume snapshots (Neo4j and PostgreSQL)
-3. Uploads to remote storage using restic (if configured)
-4. Prunes old remote backups (keeps 12 weeks)
-5. Cleans up local backups older than 4 weeks
+1. Performs the full daily backup workflow (volume snapshot, PostgreSQL dump, config archive)
+2. Captures full Docker volume snapshots for Neo4j and PostgreSQL
+3. Uploads the weekly backup directory to the restic repository (tag `weekly`) and keeps 12 weeks of remote history
+4. Cleans up local weekly backups older than 4 weeks
 
 **Retention:** 4 weeks local, 12 weeks remote
 
@@ -126,6 +132,22 @@ cat /root/airgen/backups/daily/YYYYMMDD/MANIFEST.txt
 
 **Additional files:**
 - `neo4j-volume-YYYYMMDD-HHMMSS.tar.gz` - Full Neo4j volume (contains complete graph database)
+
+### Project-Level Backups
+
+Project exports are available through `/api/admin/recovery/project/*` and the Admin Recovery tooling. Exports are saved under `/root/airgen/backups/projects/<tenant>/<project>/` using the naming pattern:
+
+```
+<tenant-slug>__<project-slug>__YYYYMMDD-HHMMSS.cypher
+```
+
+Every export automatically uploads to the configured restic repository with tags identifying the tenant and project (`tenant:<slug>`, `project:<slug>`). Remote snapshots follow the same retention as the metadata store. Access is scoped:
+
+- Super Admins can export any project.
+- Tenant Admins can export projects in their tenants.
+- Project Admins can export their assigned project(s).
+
+**Admin Recovery UI:** The Admin Recovery page now includes tenant and project selectors so you can view per-project backups, trigger new exports, and immediately see the generated filenames and restic snapshot IDs. Component badges highlight what each backup contains and warn when a run produced no artifacts (for example, if a container name was misconfigured).
 
 ### Verification Script
 
@@ -185,25 +207,25 @@ cat /root/airgen/backups/daily/YYYYMMDD/MANIFEST.txt
 
 ## Remote Backup Configuration
 
-To enable remote backups (recommended for production):
+Remote backups are **required**. Both daily and weekly scripts will abort if the restic repository is not configured. Define the following environment variables (typically via `/etc/environment`):
 
 ### Using AWS S3
 
 ```bash
-# Add to /root/.bashrc or /etc/environment
-export RESTIC_REPOSITORY="s3:s3.amazonaws.com/your-bucket-name/airgen-backups"
-export RESTIC_PASSWORD="your-encryption-password"
-export AWS_ACCESS_KEY_ID="your-access-key"
-export AWS_SECRET_ACCESS_KEY="your-secret-key"
+# Add to your environment (preferred: /root/airgen/.env)
+RESTIC_REPOSITORY="s3:s3.amazonaws.com/your-bucket-name/airgen-backups"
+RESTIC_PASSWORD="your-encryption-password"
+AWS_ACCESS_KEY_ID="your-access-key"
+AWS_SECRET_ACCESS_KEY="your-secret-key"
 ```
 
 ### Using DigitalOcean Spaces
 
 ```bash
-export RESTIC_REPOSITORY="s3:nyc3.digitaloceanspaces.com/your-space-name/airgen-backups"
-export RESTIC_PASSWORD="your-encryption-password"
-export AWS_ACCESS_KEY_ID="your-spaces-key"
-export AWS_SECRET_ACCESS_KEY="your-spaces-secret"
+RESTIC_REPOSITORY="s3:nyc3.digitaloceanspaces.com/your-space-name/airgen-backups"
+RESTIC_PASSWORD="your-encryption-password"
+AWS_ACCESS_KEY_ID="your-spaces-key"
+AWS_SECRET_ACCESS_KEY="your-spaces-secret"
 ```
 
 ### Initialize Repository
@@ -242,8 +264,8 @@ ls -lh /root/airgen/backups/daily/
 # 2. Verify backup contains data
 /root/airgen/scripts/backup-verify.sh /root/airgen/backups/daily/20251009
 
-# 3. Restore only workspace
-/root/airgen/scripts/backup-restore.sh /root/airgen/backups/daily/20251009 --component=workspace
+# 3. Restore Neo4j (primary data store)
+/root/airgen/scripts/backup-restore.sh /root/airgen/backups/daily/20251009 --component=neo4j
 ```
 
 **Recovery Time:** ~5 minutes
@@ -281,7 +303,7 @@ apt-get update && apt-get install -y docker.io docker-compose restic
 git clone <repo-url> /root/airgen
 cd /root/airgen
 
-# 3. Restore from remote backup (if configured)
+# 3. Restore from remote backup
 export RESTIC_REPOSITORY="s3:..."
 export RESTIC_PASSWORD="..."
 restic restore latest --target /root/airgen/backups/restore/
@@ -294,7 +316,7 @@ docker-compose -f docker-compose.prod.yml up -d
 ```
 
 **Recovery Time:** 1-2 hours
-**Data Loss:** <7 days (or zero if using remote backups)
+**Data Loss:** <7 days (remote snapshots keep 12 weeks of history)
 
 ### Scenario 4: Ransomware / Data Corruption
 

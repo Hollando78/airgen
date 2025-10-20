@@ -1,76 +1,139 @@
 import { FastifyInstance } from "fastify";
-import { exec } from "child_process";
-import { promisify } from "util";
 import { readdir, stat, readFile } from "fs/promises";
-import { join } from "path";
+import { join, resolve, relative } from "path";
+import { requireSuperAdminMiddleware } from "../lib/authorization.js";
+import { resolveResticEnv } from "../lib/restic.js";
+import { runCommand, isCommandSuccessful, formatCommandOutput } from "../lib/command.js";
 
-const execAsync = promisify(exec);
+const BACKUP_ROOT = process.env.BACKUP_ROOT ?? "/root/airgen/backups";
+const SCRIPT_ROOT = process.env.BACKUP_SCRIPT_ROOT ?? "/root/airgen/scripts";
+const DAILY_BACKUP_SCRIPT = join(SCRIPT_ROOT, "backup-daily.sh");
+const WEEKLY_BACKUP_SCRIPT = join(SCRIPT_ROOT, "backup-weekly.sh");
+const VERIFY_BACKUP_SCRIPT = join(SCRIPT_ROOT, "backup-verify.sh");
+const RESTORE_SCRIPT = join(SCRIPT_ROOT, "backup-restore.sh");
 
-const RESTIC_ENV_KEYS = [
-  "RESTIC_REPOSITORY",
-  "RESTIC_PASSWORD",
-  "AWS_ACCESS_KEY_ID",
-  "AWS_SECRET_ACCESS_KEY",
-  "AWS_SESSION_TOKEN",
-  "AWS_DEFAULT_REGION",
-  "AWS_ENDPOINT",
-];
+const COMPONENT_LABELS: Record<string, string> = {
+  neo4j: "Neo4j Database",
+  "neo4jVolume": "Neo4j Volume Snapshot",
+  postgres: "PostgreSQL Dump",
+  "postgresVolume": "PostgreSQL Volume Snapshot",
+  config: "Configuration",
+  workspace: "Workspace (deprecated)",
+  manifest: "Manifest",
+  placeholder: "Notice"
+};
 
-function mergeResticEnv(
-  baseEnv: NodeJS.ProcessEnv,
-  source: Record<string, string>
-): NodeJS.ProcessEnv {
-  const merged = { ...baseEnv };
-  for (const key of RESTIC_ENV_KEYS) {
-    if (!merged[key] && source[key]) {
-      merged[key] = source[key];
-    }
+function resolveBackupPath(input: string): string {
+  if (!input || typeof input !== "string") {
+    throw new Error("Backup path is required");
   }
-  return merged;
+
+  const root = resolve(BACKUP_ROOT);
+  const candidate = resolve(input.startsWith("/") ? input : join(root, input));
+  const relativePath = relative(root, candidate);
+  const segments = relativePath.split(/[\\/]/).filter(Boolean);
+  const isOutsideRoot =
+    relativePath.startsWith("..") ||
+    segments.some(segment => segment === "..");
+
+  if (isOutsideRoot) {
+    throw new Error("Backup path must reside within the backup root directory");
+  }
+
+  return candidate;
 }
 
-async function resolveResticEnv(): Promise<{
-  env: NodeJS.ProcessEnv;
-  configured: boolean;
-}> {
-  const baseEnv = { ...process.env } as NodeJS.ProcessEnv;
-  const hasProcessEnv =
-    Boolean(baseEnv.RESTIC_REPOSITORY) && Boolean(baseEnv.RESTIC_PASSWORD);
-  if (hasProcessEnv) {
-    return { env: baseEnv, configured: true };
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
   }
 
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / Math.pow(1024, exponent);
+  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
+}
+
+type BackupComponentSummary = {
+  id: string;
+  label: string;
+  filename: string;
+  size: string;
+  sizeBytes: number;
+};
+
+function detectComponentFromFilename(filename: string): string | null {
+  if (filename.startsWith("neo4j-volume-")) {
+    return "neo4jVolume";
+  }
+  if (filename.startsWith("neo4j-")) {
+    return "neo4j";
+  }
+  if (filename.startsWith("postgres-volume-")) {
+    return "postgresVolume";
+  }
+  if (filename.startsWith("postgres-")) {
+    return "postgres";
+  }
+  if (filename.startsWith("config-")) {
+    return "config";
+  }
+  if (filename.startsWith("workspace-") && filename.endsWith(".txt")) {
+    return "placeholder";
+  }
+  if (filename.startsWith("workspace-")) {
+    return "workspace";
+  }
+  if (filename === "MANIFEST.txt") {
+    return "manifest";
+  }
+  return null;
+}
+
+async function summariseBackupDirectory(dir: string): Promise<{ components: BackupComponentSummary[]; warnings: string[] }> {
+  const components: BackupComponentSummary[] = [];
+  const warnings: string[] = [];
+
+  let entries: string[] = [];
   try {
-    const environmentFile = await readFile("/etc/environment", "utf-8");
-    const fileEnv: Record<string, string> = {};
+    entries = await readdir(dir);
+  } catch {
+    return { components, warnings };
+  }
 
-    for (const rawLine of environmentFile.split("\n")) {
-      const line = rawLine.trim();
-      if (!line || line.startsWith("#")) continue;
-
-      const match =
-        line.match(
-          /^\s*([A-Z0-9_]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^#\s]+))\s*$/
-        );
-      if (!match) continue;
-
-      const [, key, doubleQuoted, singleQuoted, bare] = match;
-      const value = doubleQuoted ?? singleQuoted ?? bare ?? "";
-      fileEnv[key] = value;
+  for (const entry of entries) {
+    const fullPath = join(dir, entry);
+    let fileStats;
+    try {
+      fileStats = await stat(fullPath);
+    } catch {
+      continue;
     }
 
-    const merged = mergeResticEnv(baseEnv, fileEnv);
-    const configured =
-      Boolean(merged.RESTIC_REPOSITORY) && Boolean(merged.RESTIC_PASSWORD);
+    if (!fileStats.isFile()) continue;
 
-    return { env: merged, configured };
-  } catch {
-    // Fall back to process env only
-    return { env: baseEnv, configured: hasProcessEnv };
+    const componentId = detectComponentFromFilename(entry);
+    if (!componentId) continue;
+
+    components.push({
+      id: componentId,
+      label: COMPONENT_LABELS[componentId] ?? componentId,
+      filename: entry,
+      size: formatBytes(fileStats.size),
+      sizeBytes: fileStats.size
+    });
   }
+
+  if (components.length === 0) {
+    warnings.push("No backup artifacts were generated for this run. Review backup logs to diagnose the failure.");
+  }
+
+  return { components, warnings };
 }
 
 export default async function adminRecoveryRoutes(app: FastifyInstance) {
+  const superAdminOnly = [app.authenticate, requireSuperAdminMiddleware];
+
   // Trigger manual daily backup
   app.post(
     "/admin/recovery/backup/daily",
@@ -89,28 +152,49 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           },
         },
       },
+      preHandler: superAdminOnly,
     },
     async (req, reply) => {
-      try {
-        const scriptRoot = process.env.BACKUP_SCRIPT_ROOT ?? "/root/airgen/scripts";
-        const { stdout, stderr } = await execAsync(
-          `${scriptRoot}/backup-daily.sh`,
-          { timeout: 300000 }
-        );
-
+      const restic = await resolveResticEnv();
+      if (!restic.configured) {
+        const message = "Remote backup configuration is required before running manual backups";
+        app.log.warn({ component: "daily-backup" }, message);
         return {
-          success: true,
-          message: "Daily backup completed successfully",
-          output: stdout + (stderr || ""),
-        };
-      } catch (error) {
-        app.log.error({ err: error }, "Daily backup failed");
-        return (reply as any).code(500).send({
           success: false,
-          message: "Daily backup failed",
-          output: error instanceof Error ? error.message : "Unknown error",
-        });
+          message,
+          output: "",
+        };
       }
+
+      const result = await runCommand(DAILY_BACKUP_SCRIPT, [], { timeout: 300000, env: restic.env });
+      const success = isCommandSuccessful(result);
+      const output = formatCommandOutput(result);
+
+      if (!success) {
+        app.log.error(
+          {
+            exitCode: result.code,
+            timedOut: result.timedOut,
+            signal: result.signal,
+            error: result.error ? result.error.message : undefined
+          },
+          "Daily backup failed"
+        );
+      }
+
+      const message = success
+        ? "Daily backup completed successfully"
+        : result.timedOut
+          ? "Daily backup timed out"
+          : result.error
+            ? `Failed to execute daily backup: ${result.error.message}`
+            : "Daily backup failed";
+
+      return {
+        success,
+        message,
+        output,
+      };
     }
   );
 
@@ -132,28 +216,49 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           },
         },
       },
+      preHandler: superAdminOnly,
     },
     async (req, reply) => {
-      try {
-        const scriptRoot = process.env.BACKUP_SCRIPT_ROOT ?? "/root/airgen/scripts";
-        const { stdout, stderr } = await execAsync(
-          `${scriptRoot}/backup-weekly.sh`,
-          { timeout: 600000 }
-        );
-
+      const restic = await resolveResticEnv();
+      if (!restic.configured) {
+        const message = "Remote backup configuration is required before running manual backups";
+        app.log.warn({ component: "weekly-backup" }, message);
         return {
-          success: true,
-          message: "Weekly backup completed successfully",
-          output: stdout + (stderr || ""),
-        };
-      } catch (error) {
-        app.log.error({ err: error }, "Weekly backup failed");
-        return (reply as any).code(500).send({
           success: false,
-          message: "Weekly backup failed",
-          output: error instanceof Error ? error.message : "Unknown error",
-        });
+          message,
+          output: "",
+        };
       }
+
+      const result = await runCommand(WEEKLY_BACKUP_SCRIPT, [], { timeout: 600000, env: restic.env });
+      const success = isCommandSuccessful(result);
+      const output = formatCommandOutput(result);
+
+      if (!success) {
+        app.log.error(
+          {
+            exitCode: result.code,
+            timedOut: result.timedOut,
+            signal: result.signal,
+            error: result.error ? result.error.message : undefined
+          },
+          "Weekly backup failed"
+        );
+      }
+
+      const message = success
+        ? "Weekly backup completed successfully"
+        : result.timedOut
+          ? "Weekly backup timed out"
+          : result.error
+            ? `Failed to execute weekly backup: ${result.error.message}`
+            : "Weekly backup failed";
+
+      return {
+        success,
+        message,
+        output,
+      };
     }
   );
 
@@ -198,10 +303,11 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           },
         },
       },
+      preHandler: superAdminOnly,
     },
     async (req, reply) => {
       try {
-        const backupsRoot = "/root/airgen/backups";
+        const backupsRoot = BACKUP_ROOT;
         const daily: any[] = [];
         const weekly: any[] = [];
 
@@ -217,14 +323,32 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
             if (stats.isDirectory()) {
               // Count files in directory
               const files = await readdir(fullPath);
-              const size = await execAsync(`du -sh "${fullPath}" | cut -f1`);
+              const sizeResult = await runCommand("du", ["-sh", fullPath], { timeout: 10000 });
+              const size = isCommandSuccessful(sizeResult)
+                ? sizeResult.stdout.trim().split(/\s+/)[0] ?? "unknown"
+                : "unknown";
+
+              if (!isCommandSuccessful(sizeResult)) {
+                app.log.warn(
+                  {
+                    path: fullPath,
+                    exitCode: sizeResult.code,
+                    error: sizeResult.error ? sizeResult.error.message : undefined
+                  },
+                  "Failed to compute size for daily backup directory"
+                );
+              }
+
+              const summary = await summariseBackupDirectory(fullPath);
 
               daily.push({
                 name: entry,
                 path: fullPath,
-                size: size.stdout.trim(),
+                size,
                 modified: stats.mtime.toISOString(),
                 files: files.length,
+                components: summary.components,
+                warnings: summary.warnings
               });
             }
           }
@@ -243,14 +367,32 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
 
             if (stats.isDirectory()) {
               const files = await readdir(fullPath);
-              const size = await execAsync(`du -sh "${fullPath}" | cut -f1`);
+              const sizeResult = await runCommand("du", ["-sh", fullPath], { timeout: 10000 });
+              const size = isCommandSuccessful(sizeResult)
+                ? sizeResult.stdout.trim().split(/\s+/)[0] ?? "unknown"
+                : "unknown";
+
+              if (!isCommandSuccessful(sizeResult)) {
+                app.log.warn(
+                  {
+                    path: fullPath,
+                    exitCode: sizeResult.code,
+                    error: sizeResult.error ? sizeResult.error.message : undefined
+                  },
+                  "Failed to compute size for weekly backup directory"
+                );
+              }
+
+              const summary = await summariseBackupDirectory(fullPath);
 
               weekly.push({
                 name: entry,
                 path: fullPath,
-                size: size.stdout.trim(),
+                size,
                 modified: stats.mtime.toISOString(),
                 files: files.length,
+                components: summary.components,
+                warnings: summary.warnings
               });
             }
           }
@@ -314,6 +456,7 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           },
         },
       },
+      preHandler: superAdminOnly,
     },
     async (req, reply) => {
       try {
@@ -323,12 +466,24 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           return { snapshots: [], configured: false };
         }
 
-        const { stdout } = await execAsync("restic snapshots --json", {
+        const result = await runCommand("restic", ["snapshots", "--json"], {
           timeout: 30000,
           env: restic.env,
         });
 
-        const snapshots = JSON.parse(stdout);
+        if (!isCommandSuccessful(result)) {
+          app.log.error(
+            {
+              exitCode: result.code,
+              error: result.error ? result.error.message : undefined,
+              output: formatCommandOutput(result)
+            },
+            "Failed to list remote backups"
+          );
+          return { snapshots: [], configured: false };
+        }
+
+        const snapshots = JSON.parse(result.stdout || "[]");
 
         return {
           snapshots: snapshots.map((s: any) => ({
@@ -372,29 +527,58 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           },
         },
       },
+      preHandler: superAdminOnly,
     },
     async (req, reply) => {
       const { backupPath } = req.body as { backupPath: string };
 
+      let normalizedPath: string;
       try {
-        const { stdout, stderr } = await execAsync(
-          `/root/airgen/scripts/backup-verify.sh "${backupPath}"`,
-          { timeout: 120000 }
-        );
-
-        return {
-          success: true,
-          message: "Backup verification completed",
-          output: stdout + (stderr || ""),
-        };
+        normalizedPath = resolveBackupPath(backupPath);
+        await stat(normalizedPath);
       } catch (error) {
-        app.log.error({ err: error }, "Backup verification failed");
-        return (reply as any).code(500).send({
+        const message =
+          error instanceof Error ? error.message : "Invalid backup path";
+        app.log.warn({ path: backupPath, err: error }, "Backup verification path rejected");
+        return {
           success: false,
-          message: "Backup verification failed",
-          output: error instanceof Error ? error.message : "Unknown error",
-        });
+          message,
+          output: "",
+        };
       }
+
+      const result = await runCommand(VERIFY_BACKUP_SCRIPT, [normalizedPath], {
+        timeout: 120000,
+      });
+      const success = isCommandSuccessful(result);
+      const output = formatCommandOutput(result);
+
+      if (!success) {
+        app.log.error(
+          {
+            exitCode: result.code,
+            timedOut: result.timedOut,
+            signal: result.signal,
+            error: result.error ? result.error.message : undefined,
+            path: normalizedPath,
+          },
+          "Backup verification failed"
+        );
+      }
+
+      const message = success
+        ? "Backup verification completed"
+        : result.timedOut
+          ? "Backup verification timed out"
+          : result.error
+            ? `Failed to execute verification: ${result.error.message}`
+            : "Backup verification failed";
+
+      return {
+        success,
+        message,
+        output,
+      };
     }
   );
 
@@ -427,6 +611,7 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           },
         },
       },
+      preHandler: superAdminOnly,
     },
     async (req, reply) => {
       const { backupPath, component } = req.body as {
@@ -434,26 +619,60 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
         component?: string;
       };
 
+      let normalizedPath: string;
       try {
-        const componentFlag = component ? `--component ${component}` : "";
-        const { stdout, stderr } = await execAsync(
-          `/root/airgen/scripts/backup-restore.sh "${backupPath}" --dry-run ${componentFlag}`,
-          { timeout: 60000 }
-        );
-
-        return {
-          success: true,
-          message: "Dry-run completed (no changes made)",
-          output: stdout + (stderr || ""),
-        };
+        normalizedPath = resolveBackupPath(backupPath);
+        await stat(normalizedPath);
       } catch (error) {
-        app.log.error({ err: error }, "Restore dry-run failed");
-        return (reply as any).code(500).send({
+        const message =
+          error instanceof Error ? error.message : "Invalid backup path";
+        app.log.warn({ path: backupPath, err: error }, "Restore dry-run path rejected");
+        return {
           success: false,
-          message: "Restore dry-run failed",
-          output: error instanceof Error ? error.message : "Unknown error",
-        });
+          message,
+          output: "",
+        };
       }
+
+      const args = [normalizedPath, "--dry-run"];
+      if (component) {
+        args.push(`--component=${component}`);
+      }
+
+      const result = await runCommand(RESTORE_SCRIPT, args, {
+        timeout: 60000,
+      });
+
+      const success = isCommandSuccessful(result);
+      const output = formatCommandOutput(result);
+
+      if (!success) {
+        app.log.error(
+          {
+            exitCode: result.code,
+            timedOut: result.timedOut,
+            signal: result.signal,
+            error: result.error ? result.error.message : undefined,
+            path: normalizedPath,
+            component
+          },
+          "Restore dry-run failed"
+        );
+      }
+
+      const message = success
+        ? "Dry-run completed (no changes made)"
+        : result.timedOut
+          ? "Restore dry-run timed out"
+          : result.error
+            ? `Failed to execute restore dry-run: ${result.error.message}`
+            : "Restore dry-run failed";
+
+      return {
+        success,
+        message,
+        output,
+      };
     }
   );
 
@@ -512,26 +731,38 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
     async (req, reply) => {
       try {
         // Get local backup counts and dates
-        const dailyBackups = await readdir("/root/airgen/backups/daily").catch(
+        const dailyBackups = await readdir(join(BACKUP_ROOT, "daily")).catch(
           () => []
         );
         const weeklyBackups = await readdir(
-          "/root/airgen/backups/weekly"
+          join(BACKUP_ROOT, "weekly")
         ).catch(() => []);
 
         const lastDaily =
           dailyBackups.length > 0
-            ? dailyBackups.sort().reverse()[0]
+            ? dailyBackups.slice().sort().reverse()[0]
             : "Never";
         const lastWeekly =
           weeklyBackups.length > 0
-            ? weeklyBackups.sort().reverse()[0]
+            ? weeklyBackups.slice().sort().reverse()[0]
             : "Never";
 
         // Get total backup size
-        const { stdout: totalSize } = await execAsync(
-          "du -sh /root/airgen/backups 2>/dev/null | cut -f1 || echo '0B'"
-        );
+        const totalSizeResult = await runCommand("du", ["-sh", BACKUP_ROOT], {
+          timeout: 15000,
+        });
+        const totalSize = isCommandSuccessful(totalSizeResult)
+          ? totalSizeResult.stdout.trim().split(/\s+/)[0] ?? "0B"
+          : "0B";
+        if (!isCommandSuccessful(totalSizeResult)) {
+          app.log.warn(
+            {
+              exitCode: totalSizeResult.code,
+              error: totalSizeResult.error ? totalSizeResult.error.message : undefined
+            },
+            "Failed to calculate total backup size"
+          );
+        }
 
         // Check remote backup configuration
         let remoteBackups = {
@@ -546,25 +777,33 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           if (restic.configured) {
             remoteBackups.configured = true;
 
-            const { stdout: snapshotsJson } = await execAsync(
-              "restic snapshots --json",
-              {
-                timeout: 30000,
-                env: restic.env,
+            const snapshotsResult = await runCommand("restic", ["snapshots", "--json"], {
+              timeout: 30000,
+              env: restic.env,
+            });
+
+            if (isCommandSuccessful(snapshotsResult)) {
+              const snapshots = JSON.parse(snapshotsResult.stdout || "[]");
+              remoteBackups.count = snapshots.length;
+
+              if (snapshots.length > 0) {
+                const latest = snapshots
+                  .slice()
+                  .sort(
+                    (a: any, b: any) =>
+                      new Date(b.time).getTime() - new Date(a.time).getTime()
+                  )[0];
+                remoteBackups.lastSnapshot = latest.time;
               }
-            );
-
-            const snapshots = JSON.parse(snapshotsJson);
-            remoteBackups.count = snapshots.length;
-
-            if (snapshots.length > 0) {
-              const latest = snapshots
-                .slice()
-                .sort(
-                  (a: any, b: any) =>
-                    new Date(b.time).getTime() - new Date(a.time).getTime()
-                )[0];
-              remoteBackups.lastSnapshot = latest.time;
+            } else {
+              app.log.warn(
+                {
+                  exitCode: snapshotsResult.code,
+                  error: snapshotsResult.error ? snapshotsResult.error.message : undefined,
+                  output: formatCommandOutput(snapshotsResult)
+                },
+                "Could not retrieve remote snapshot information"
+              );
             }
           }
         } catch (error) {
@@ -577,10 +816,10 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           cronSource = await readFile("/host-crontabs/root", "utf-8");
         } catch {
           try {
-            const { stdout } = await execAsync("crontab -l 2>/dev/null", {
+            const cronResult = await runCommand("crontab", ["-l"], {
               timeout: 5000,
             });
-            cronSource = stdout;
+            cronSource = isCommandSuccessful(cronResult) ? cronResult.stdout : "";
           } catch {
             cronSource = "";
           }
@@ -621,11 +860,13 @@ export default async function adminRecoveryRoutes(app: FastifyInstance) {
           .filter((job): job is { schedule: string; command: string } => job !== null);
 
         // Get disk space
-        const { stdout: dfOutput } = await execAsync(
-          "df -h /root/airgen/backups 2>/dev/null | tail -1 || echo 'N/A N/A N/A N/A'"
-        );
-
-        const dfParts = dfOutput.trim().split(/\s+/);
+        const dfResult = await runCommand("df", ["-h", BACKUP_ROOT], {
+          timeout: 10000,
+        });
+        const dfLine = isCommandSuccessful(dfResult)
+          ? dfResult.stdout.trim().split("\n").pop() ?? ""
+          : "";
+        const dfParts = dfLine.trim().split(/\s+/);
         const diskSpace = {
           available: dfParts[3] || "N/A",
           used: dfParts[2] || "N/A",

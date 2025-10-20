@@ -796,7 +796,8 @@ export function useDiagramCanvasInteractions({
           const labelOffsetChanged =
             (prev.data?.labelOffsetX ?? 0) !== (mappedEdge.data?.labelOffsetX ?? 0) ||
             (prev.data?.labelOffsetY ?? 0) !== (mappedEdge.data?.labelOffsetY ?? 0);
-          const dataChanged = documentIdsChanged || labelOffsetChanged;
+          const controlPointsChanged = JSON.stringify(prev.data?.controlPoints ?? null) !== JSON.stringify(mappedEdge.data?.controlPoints ?? null);
+          const dataChanged = documentIdsChanged || labelOffsetChanged || controlPointsChanged;
           const visualChanged =
             prev.type !== mappedEdge.type ||
             prev.animated !== mappedEdge.animated ||
@@ -832,6 +833,24 @@ export function useDiagramCanvasInteractions({
               },
               onUpdateLabel: (label: string) => {
                 updateConnector(connector.id, { label });
+              },
+              onControlPointsPreview: (points: Array<{ x: number; y: number }>) => {
+                setEdges(prev => prev.map(edge => (edge.id === connector.id ? { ...edge, data: { ...edge.data, controlPoints: points } } : edge)));
+              },
+              onControlPointsCommit: (points: Array<{ x: number; y: number }>) => {
+                setEdges(prev => prev.map(edge => (edge.id === connector.id ? { ...edge, data: { ...edge.data, controlPoints: points } } : edge)));
+                updateConnector(connector.id, { controlPoints: points });
+              },
+              screenToFlowPosition: (position: { x: number; y: number }) => {
+                const instance = reactFlowInstanceRef.current;
+                if (instance?.screenToFlowPosition) {
+                  try {
+                    return instance.screenToFlowPosition(position);
+                  } catch (error) {
+                    console.warn("Failed to convert screen position", error);
+                  }
+                }
+                return position;
               }
             }
           } satisfies Edge;
@@ -855,6 +874,24 @@ export function useDiagramCanvasInteractions({
             },
             onUpdateLabel: (label: string) => {
               updateConnector(connector.id, { label });
+            },
+            onControlPointsPreview: (points: Array<{ x: number; y: number }>) => {
+              setEdges(prev => prev.map(edge => (edge.id === connector.id ? { ...edge, data: { ...edge.data, controlPoints: points } } : edge)));
+            },
+            onControlPointsCommit: (points: Array<{ x: number; y: number }>) => {
+              setEdges(prev => prev.map(edge => (edge.id === connector.id ? { ...edge, data: { ...edge.data, controlPoints: points } } : edge)));
+              updateConnector(connector.id, { controlPoints: points });
+            },
+            screenToFlowPosition: (position: { x: number; y: number }) => {
+              const instance = reactFlowInstanceRef.current;
+              if (instance?.screenToFlowPosition) {
+                try {
+                  return instance.screenToFlowPosition(position);
+                } catch (error) {
+                  console.warn("Failed to convert screen position", error);
+                }
+              }
+              return position;
             }
           }
         } satisfies Edge;

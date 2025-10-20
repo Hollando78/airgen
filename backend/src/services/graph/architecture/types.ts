@@ -1,5 +1,10 @@
 export type BlockKind = "system" | "subsystem" | "component" | "actor" | "external" | "interface";
 
+export type ConnectorControlPoint = {
+  x: number;
+  y: number;
+};
+
 export type BlockPortRecord = {
   id: string;
   name: string;
@@ -26,6 +31,80 @@ export type BlockPortOverrideRecord = {
   showLabel?: boolean | null;
   labelOffsetX?: number | null;
   labelOffsetY?: number | null;
+};
+
+// NEW: Port-as-Node types for function modeling
+
+export type PortDirection = "in" | "out" | "inout" | "none";
+export type PortType = "flow" | "service" | "proxy" | "full";
+export type PortShape = "circle" | "square" | "diamond";
+
+/**
+ * PortDefinition: Reusable port template stored at block definition level
+ * Multiple PortInstances can reference the same PortDefinition across diagrams
+ */
+export type PortDefinitionRecord = {
+  id: string;
+  name: string;
+  direction: PortDirection;
+
+  // SysML properties
+  portType?: PortType | null;
+  isConjugated?: boolean | null;
+
+  // Function modeling
+  dataType?: string | null;        // e.g., "float", "SensorReading", etc.
+  protocol?: string | null;         // e.g., "HTTP", "MQTT", "CAN"
+  rate?: number | null;             // Data rate in Hz
+  bufferSize?: number | null;       // Buffer size for data flow
+
+  // Default styling
+  backgroundColor?: string | null;
+  borderColor?: string | null;
+  borderWidth?: number | null;
+  size?: number | null;
+  shape?: PortShape | null;
+  iconColor?: string | null;
+
+  // Metadata
+  description?: string | null;
+  stereotype?: string | null;
+  tenant: string;
+  projectKey: string;
+  packageId?: string | null;
+
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * PortInstance: Diagram-specific port instance
+ * Links to a PortDefinition and overrides visual properties
+ */
+export type PortInstanceRecord = {
+  id: string;
+  definitionId: string;            // FK to PortDefinition
+  blockId: string;                 // Owner block
+  diagramId: string;               // Diagram context
+
+  // Instance-specific overrides (diagram placement)
+  edge?: "top" | "right" | "bottom" | "left" | null;
+  offset?: number | null;          // 0-100% position along edge
+  hidden?: boolean | null;
+  showLabel?: boolean | null;
+  labelOffsetX?: number | null;
+  labelOffsetY?: number | null;
+
+  // Instance-specific styling overrides
+  backgroundColor?: string | null;
+  borderColor?: string | null;
+  borderWidth?: number | null;
+  size?: number | null;
+  shape?: PortShape | null;
+  iconColor?: string | null;
+
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ArchitectureBlockDefinitionRecord = {
@@ -93,6 +172,7 @@ export type ArchitectureConnectorRecord = {
   strokeWidth?: number | null;
   labelOffsetX?: number | null;
   labelOffsetY?: number | null;
+  controlPoints?: ConnectorControlPoint[] | null;
 };
 
 export type ArchitectureDiagramRecord = {

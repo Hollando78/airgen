@@ -681,6 +681,7 @@ export type ArchitectureConnectorRecord = {
   // Label positioning
   labelOffsetX?: number | null;
   labelOffsetY?: number | null;
+  controlPoints?: Array<{ x: number; y: number }> | null;
 };
 
 export type CreateArchitectureBlockRequest = {
@@ -744,6 +745,7 @@ export type CreateArchitectureConnectorRequest = {
   strokeWidth?: number;
   labelOffsetX?: number;
   labelOffsetY?: number;
+  controlPoints?: Array<{ x: number; y: number }>;
 };
 
 export type ArchitectureBlocksResponse = {
@@ -805,12 +807,22 @@ export type DevUserResponse = {
 };
 
 // Admin Recovery / Backup Types
+export type BackupComponent = {
+  id: string;
+  label: string;
+  filename: string;
+  size: string;
+  sizeBytes: number;
+};
+
 export type BackupInfo = {
   name: string;
   path: string;
   size: string;
   modified: string;
   files: number;
+  components?: BackupComponent[];
+  warnings?: string[];
 };
 
 export type RemoteSnapshot = {
@@ -859,6 +871,41 @@ export type BackupStatusResponse = {
     used: string;
     percentage: string;
   };
+};
+
+export type ProjectBackupRecord = {
+  id: string;
+  tenant: string;
+  projectKey: string;
+  backupType: "local" | "remote" | "both";
+  format: "cypher" | "json";
+  localPath?: string | null;
+  remotePath?: string | null;
+  resticSnapshotId?: string | null;
+  createdAt: string;
+  size: number;
+  checksum: string;
+  status: string;
+};
+
+export type ProjectBackupListResponse = {
+  backups: ProjectBackupRecord[];
+  total: number;
+};
+
+export type ProjectBackupExportResponse = {
+  success: boolean;
+  tenant: string;
+  projectKey: string;
+  outputPath: string | null;
+  fileSize: number | null;
+  nodesExported: number | null;
+  relationshipsExported: number | null;
+  duration: number;
+  checksum: string | null;
+  resticSnapshotId: string | null;
+  log?: string | null;
+  message?: string | null;
 };
 
 // Natural Language Query Types

@@ -81,7 +81,16 @@ const architectureConnectorSchema = z.object({
   color: z.string().optional(),
   strokeWidth: z.number().min(1).max(10).optional(),
   labelOffsetX: z.number().optional(),
-  labelOffsetY: z.number().optional()
+  labelOffsetY: z.number().optional(),
+  controlPoints: z
+    .array(
+      z.object({
+        x: z.number(),
+        y: z.number()
+      })
+    )
+    .max(16)
+    .optional()
 });
 
 const architectureDiagramSchema = z.object({
@@ -389,6 +398,7 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
         strokeWidth: payload.strokeWidth,
         labelOffsetX: payload.labelOffsetX,
         labelOffsetY: payload.labelOffsetY,
+        controlPoints: payload.controlPoints,
         userId: req.currentUser!.sub
       });
       return { connector };
@@ -436,7 +446,16 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
       color: z.string().optional(),
       strokeWidth: z.number().min(1).max(10).optional(),
       labelOffsetX: z.number().optional(),
-      labelOffsetY: z.number().optional()
+      labelOffsetY: z.number().optional(),
+      controlPoints: z
+        .array(
+          z.object({
+            x: z.number(),
+            y: z.number()
+          })
+        )
+        .max(16)
+        .optional()
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);

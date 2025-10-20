@@ -58,6 +58,79 @@ export interface BlockPort {
   labelOffsetY?: number;
 }
 
+// NEW: Port-as-Node types for function modeling (Phase 1+)
+
+export type PortType = "flow" | "service" | "proxy" | "full";
+export type PortShape = "circle" | "square" | "diamond";
+
+/**
+ * PortDefinition: Reusable port template
+ * Maps to backend PortDefinitionRecord
+ */
+export interface PortDefinition {
+  id: string;
+  name: string;
+  direction: PortDirection;
+
+  // SysML properties
+  portType?: PortType;
+  isConjugated?: boolean;
+
+  // Function modeling
+  dataType?: string;
+  protocol?: string;
+  rate?: number;
+  bufferSize?: number;
+
+  // Default styling
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  size?: number;
+  shape?: PortShape;
+  iconColor?: string;
+
+  // Metadata
+  description?: string;
+  stereotype?: string;
+  tenant: string;
+  projectKey: string;
+  packageId?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * PortInstance: Diagram-specific port instance
+ * Maps to backend PortInstanceRecord
+ */
+export interface PortInstance {
+  id: string;
+  definitionId: string;
+  blockId: string;
+  diagramId: string;
+
+  // Instance overrides
+  edge?: "top" | "right" | "bottom" | "left";
+  offset?: number;
+  hidden?: boolean;
+  showLabel?: boolean;
+  labelOffsetX?: number;
+  labelOffsetY?: number;
+
+  // Styling overrides
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  size?: number;
+  shape?: PortShape;
+  iconColor?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SysmlConnector {
   id: string;
   source: string;
@@ -77,6 +150,7 @@ export interface SysmlConnector {
   // Label positioning
   labelOffsetX?: number;
   labelOffsetY?: number;
+  controlPoints?: Array<{ x: number; y: number }>;
 }
 
 export { BlockKind, ConnectorKind, PortDirection };
@@ -181,7 +255,8 @@ function mapConnectorFromApi(connector: ArchitectureConnectorRecord): SysmlConne
     strokeWidth: connector.strokeWidth,
     // Label positioning
     labelOffsetX: connector.labelOffsetX ?? undefined,
-    labelOffsetY: connector.labelOffsetY ?? undefined
+    labelOffsetY: connector.labelOffsetY ?? undefined,
+    controlPoints: connector.controlPoints ?? undefined
   };
 }
 
@@ -844,10 +919,10 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     return `temp-connector-${Date.now()}`;
   }, [activeDiagramId, createConnectorMutation]);
 
-  const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth" | "labelOffsetX" | "labelOffsetY">>) => {
+  const updateConnector = useCallback((connectorId: string, updates: Partial<Pick<SysmlConnector, "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth" | "labelOffsetX" | "labelOffsetY" | "controlPoints">>) => {
     const sanitizedUpdates: Partial<Pick<
       CreateArchitectureConnectorRequest,
-      "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth" | "labelOffsetX" | "labelOffsetY"
+      "kind" | "label" | "sourcePortId" | "targetPortId" | "documentIds" | "lineStyle" | "markerStart" | "markerEnd" | "linePattern" | "color" | "strokeWidth" | "labelOffsetX" | "labelOffsetY" | "controlPoints"
     >> = {};
 
     if (updates.kind !== undefined) {sanitizedUpdates.kind = updates.kind;}
@@ -863,6 +938,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     if (updates.targetPortId !== undefined) {sanitizedUpdates.targetPortId = updates.targetPortId ?? undefined;}
     if (updates.labelOffsetX !== undefined) {sanitizedUpdates.labelOffsetX = updates.labelOffsetX;}
     if (updates.labelOffsetY !== undefined) {sanitizedUpdates.labelOffsetY = updates.labelOffsetY;}
+    if (updates.controlPoints !== undefined) {sanitizedUpdates.controlPoints = updates.controlPoints ?? [];}
 
     updateConnectorMutation.mutate({ connectorId, updates: sanitizedUpdates });
   }, [updateConnectorMutation]);

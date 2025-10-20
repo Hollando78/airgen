@@ -199,10 +199,10 @@ npx tsx ../scripts/post-restore-cleanup.ts            # Execute
 ```
 
 ### 3. Off-Site Backups
-The system supports Restic for off-site backups:
+Restic off-site backups are **required**. Daily and weekly scripts abort if the repository is not configured. Add the secrets to `/root/airgen/.env` (or your deployment's env file):
 ```bash
-export RESTIC_REPOSITORY="s3:https://your-endpoint/bucket"
-export RESTIC_PASSWORD="your-secure-password"
+RESTIC_REPOSITORY="s3:https://your-endpoint/bucket"
+RESTIC_PASSWORD="your-secure-password"
 # See backup-verify.sh for Restic configuration
 ```
 
@@ -251,8 +251,8 @@ cp -r /root/airgen/backups/daily/$(date +%Y%m%d) \
 
 | Script | Purpose | Frequency |
 |--------|---------|-----------|
-| `backup-daily.sh` | Daily incremental backup | Daily 2AM |
-| `backup-weekly.sh` | Weekly comprehensive backup | Sunday 3AM |
+| `backup-daily.sh` | Daily full snapshot + remote upload | Daily 2AM |
+| `backup-weekly.sh` | Weekly comprehensive backup + remote upload | Sunday 3AM |
 | `backup-restore.sh` | Restore from backup | Manual |
 | `backup-verify.sh` | Verify backup integrity | After each backup |
 | `backup-lib.sh` | Shared backup functions | Library |
@@ -275,6 +275,7 @@ PROJECT_ROOT=/root/airgen
 WORKSPACE_DIR=/root/airgen/backend/workspace
 
 # Docker Containers
+# (auto-detected at runtime; override only if your environment uses custom names)
 NEO4J_CONTAINER=airgen_dev_neo4j_1
 POSTGRES_CONTAINER=airgen_dev_postgres_1
 ```

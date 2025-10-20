@@ -65,16 +65,41 @@ export function mapConnectorToEdge(connector: SysmlConnector, blocks?: SysmlBloc
       case "straight": return "straight";
       case "smoothstep": return "smoothstep";
       case "step": return "step";
+      case "polyline": return "polyline";
       case "bezier": return "default";
       default: return "straight";
     }
   };
 
-  // In Architecture view, don't use port handles - always use default top/bottom handles
-  // Port handles are only used in specialized views like Interface diagrams
-  // Use explicit "default-out" and "default-in" to force React Flow to use the default handles
-  const sourceHandle = "default-out";
-  const targetHandle = "default-in";
+  // Prefer explicit port handles when available, but gracefully fall back to defaults
+  // so existing diagrams without port assignments continue to render correctly.
+  let validatedSourceHandle: string | undefined;
+  let validatedTargetHandle: string | undefined;
+
+  if (connector.sourcePortId) {
+    if (blocks) {
+      const sourceBlock = blocks.find(block => block.id === connector.source);
+      if (sourceBlock?.ports.some(port => port.id === connector.sourcePortId && !port.hidden)) {
+        validatedSourceHandle = connector.sourcePortId;
+      }
+    } else {
+      validatedSourceHandle = connector.sourcePortId;
+    }
+  }
+
+  if (connector.targetPortId) {
+    if (blocks) {
+      const targetBlock = blocks.find(block => block.id === connector.target);
+      if (targetBlock?.ports.some(port => port.id === connector.targetPortId && !port.hidden)) {
+        validatedTargetHandle = `${connector.targetPortId}-target`;
+      }
+    } else {
+      validatedTargetHandle = `${connector.targetPortId}-target`;
+    }
+  }
+
+  const sourceHandle = validatedSourceHandle ?? "default-out";
+  const targetHandle = validatedTargetHandle ?? "default-in";
 
   return {
     id: connector.id,
@@ -89,7 +114,8 @@ export function mapConnectorToEdge(connector: SysmlConnector, blocks?: SysmlBloc
       documentIds: connector.documentIds || [],
       originalLabel: connector.label,
       labelOffsetX: connector.labelOffsetX,
-      labelOffsetY: connector.labelOffsetY
+      labelOffsetY: connector.labelOffsetY,
+      controlPoints: connector.controlPoints ?? []
     },
     style: {
       strokeWidth,

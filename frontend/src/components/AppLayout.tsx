@@ -89,21 +89,34 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
     ];
 
     const adminItems: NavItemConfig[] = [];
+    const superAdmin = isSuperAdmin();
+    const hasAdminRole = user?.roles?.includes("admin");
+    const tenantAdmin = hasRole(UserRole.TENANT_ADMIN);
 
-    if (isSuperAdmin()) {
-      adminItems.push({ to: "/super-admin/users", label: "Super Admin Users", icon: Crown, visible: true });
-    }
-
-    if (hasRole(UserRole.TENANT_ADMIN)) {
-      adminItems.push({ to: "/tenant-admin/users", label: "Tenant Admin Users", icon: Building2, visible: true });
-    }
-
-    if (user?.roles?.includes("admin")) {
+    if (superAdmin) {
       adminItems.push(
-        { to: "/admin/users", label: "Admin Users", icon: Users, visible: true },
-        { to: "/admin/requirements", label: "Admin Requirements", icon: ClipboardList, visible: true },
+        { to: "/super-admin/users", label: "Super Admin Users", icon: Crown, visible: true },
         { to: "/admin/recovery", label: "Admin Recovery", icon: RefreshCw, visible: true }
       );
+    }
+
+    if (tenantAdmin) {
+      adminItems.push({ to: "/tenant-admin/users", label: "Tenant Admin Users", icon: Building2, visible: true });
+
+      if (!superAdmin) {
+        adminItems.push({ to: "/admin/recovery", label: "Admin Recovery", icon: RefreshCw, visible: true });
+      }
+    }
+
+    if (hasAdminRole) {
+      adminItems.push(
+        { to: "/admin/users", label: "Admin Users", icon: Users, visible: true },
+        { to: "/admin/requirements", label: "Admin Requirements", icon: ClipboardList, visible: true }
+      );
+
+      if (!superAdmin && !tenantAdmin) {
+        adminItems.push({ to: "/admin/recovery", label: "Admin Recovery", icon: RefreshCw, visible: true });
+      }
     }
 
     const filteredAdminItems = adminItems.filter(item => item.visible ?? true);

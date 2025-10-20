@@ -214,17 +214,17 @@ describe("Content Hash Generation", () => {
 
   it("generates consistent hash for same connector content", () => {
     const hash1 = generateArchitectureConnectorContentHash({
-      fromBlockId: "block-1",
-      toBlockId: "block-2",
-      label: "Data Flow",
-      connectorType: "flow"
+      source: "block-1",
+      target: "block-2",
+      kind: "flow",
+      label: "Data Flow"
     });
 
     const hash2 = generateArchitectureConnectorContentHash({
-      fromBlockId: "block-1",
-      toBlockId: "block-2",
-      label: "Data Flow",
-      connectorType: "flow"
+      source: "block-1",
+      target: "block-2",
+      kind: "flow",
+      label: "Data Flow"
     });
 
     expect(hash1).toBe(hash2);

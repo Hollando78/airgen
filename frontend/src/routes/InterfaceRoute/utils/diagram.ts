@@ -72,6 +72,7 @@ export function mapInterfaceConnectorToEdge(connector: InterfaceConnector, block
       case "straight": return "straight";
       case "smoothstep": return "smoothstep";
       case "step": return "step";
+      case "polyline": return "polyline";
       case "bezier": return "default";
       default: return "straight";
     }
@@ -99,7 +100,8 @@ export function mapInterfaceConnectorToEdge(connector: InterfaceConnector, block
       documentIds: connector.documentIds || [],
       originalLabel: connector.label,
       labelOffsetX: connector.labelOffsetX,
-      labelOffsetY: connector.labelOffsetY
+      labelOffsetY: connector.labelOffsetY,
+      controlPoints: connector.controlPoints ?? []
     },
     style: {
       strokeWidth,

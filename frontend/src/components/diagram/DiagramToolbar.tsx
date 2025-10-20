@@ -7,9 +7,18 @@ interface DiagramToolbarProps {
   onPopout?: () => void;
   onAutoLayout?: () => void;
   onAutoSize?: () => void;
+  onAutoRoute?: () => void;
 }
 
-export function DiagramToolbar({ isConnectMode, onToggleConnectMode, diagramName, onPopout, onAutoLayout, onAutoSize }: DiagramToolbarProps): JSX.Element {
+export function DiagramToolbar({
+  isConnectMode,
+  onToggleConnectMode,
+  diagramName,
+  onPopout,
+  onAutoLayout,
+  onAutoSize,
+  onAutoRoute
+}: DiagramToolbarProps): JSX.Element {
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onToggleConnectMode();
@@ -33,6 +42,13 @@ export function DiagramToolbar({ isConnectMode, onToggleConnectMode, diagramName
     e.stopPropagation();
     if (onAutoSize) {
       onAutoSize();
+    }
+  };
+
+  const handleAutoRoute = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (onAutoRoute) {
+      onAutoRoute();
     }
   };
 
@@ -159,6 +175,40 @@ export function DiagramToolbar({ isConnectMode, onToggleConnectMode, diagramName
           <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
         </svg>
         Auto-Size
+      </button>
+
+      <button
+        onClick={handleAutoRoute}
+        style={{
+          background: "#f1f5f9",
+          color: "#475569",
+          border: "1px solid #cbd5e1",
+          borderRadius: "6px",
+          padding: "6px 12px",
+          fontSize: "13px",
+          fontWeight: 500,
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "#e2e8f0";
+          e.currentTarget.style.borderColor = "#94a3b8";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "#f1f5f9";
+          e.currentTarget.style.borderColor = "#cbd5e1";
+        }}
+        title="Route connectors around blocks"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="4 4 10 4 10 10" />
+          <polyline points="20 20 14 20 14 14" />
+          <line x1="10" y1="10" x2="14" y2="14" />
+        </svg>
+        Auto-Route
       </button>
 
       <button

@@ -20,13 +20,44 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 DATE_ONLY=$(date +%Y%m%d)
 
 # Container names
-NEO4J_CONTAINER="${NEO4J_CONTAINER:-airgen_dev_neo4j_1}"
-POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-airgen_dev_postgres_1}"
-REDIS_CONTAINER="${REDIS_CONTAINER:-airgen_dev_redis_1}"
+detect_container() {
+    local configured="$1"
+    shift
+    local candidates=("$@")
+
+    for name in "${configured}" "${candidates[@]}"; do
+        if [ -n "${name}" ] && docker ps --format '{{.Names}}' | grep -q "^${name}$"; then
+            echo "${name}"
+            return
+        fi
+    done
+
+    # Fallback to the originally configured name even if not running (consistency for error messages)
+    echo "${configured}"
+}
+
+detect_volume() {
+    local configured="$1"
+    shift
+    local candidates=("$@")
+
+    for name in "${configured}" "${candidates[@]}"; do
+        if [ -n "${name}" ] && docker volume inspect "${name}" >/dev/null 2>&1; then
+            echo "${name}"
+            return
+        fi
+    done
+
+    echo "${configured}"
+}
+
+NEO4J_CONTAINER="$(detect_container "${NEO4J_CONTAINER:-airgen_dev_neo4j_1}" "airgen_neo4j_1" "airgen_api_neo4j_1" "neo4j_1")"
+POSTGRES_CONTAINER="$(detect_container "${POSTGRES_CONTAINER:-airgen_dev_postgres_1}" "airgen_postgres_1" "airgen_api_postgres_1" "postgres_1")"
+REDIS_CONTAINER="$(detect_container "${REDIS_CONTAINER:-airgen_dev_redis_1}" "airgen_redis_1" "redis_1")"
 
 # Docker volumes
-NEO4J_VOLUME="${NEO4J_VOLUME:-airgen_neo4jdata_dev}"
-POSTGRES_VOLUME="${POSTGRES_VOLUME:-airgen_pgdata_dev}"
+NEO4J_VOLUME="$(detect_volume "${NEO4J_VOLUME:-airgen_neo4jdata_dev}" "airgen_neo4jdata" "airgen_api_neo4jdata")"
+POSTGRES_VOLUME="$(detect_volume "${POSTGRES_VOLUME:-airgen_pgdata_dev}" "airgen_pgdata" "airgen_api_pgdata")"
 
 # Retention settings
 DAILY_RETENTION_DAYS=7
@@ -43,6 +74,113 @@ log_error() {
 
 log_success() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] SUCCESS: $*" | tee -a "${BACKUP_LOG_DIR}/backup.log"
+}
+
+# Restic (remote backup) helpers
+load_restic_env() {
+    local runtime_env="${API_ENV:-${NODE_ENV:-development}}"
+    local candidate_files=()
+
+    candidate_files+=("/etc/environment")
+    candidate_files+=("${PROJECT_ROOT}/backend/.env.${runtime_env}.local")
+    candidate_files+=("${PROJECT_ROOT}/backend/.env.${runtime_env}")
+    if [ "${runtime_env}" != "test" ]; then
+        candidate_files+=("${PROJECT_ROOT}/backend/.env.local")
+    fi
+    candidate_files+=("${PROJECT_ROOT}/backend/.env")
+    candidate_files+=("${PROJECT_ROOT}/.env.${runtime_env}.local")
+    candidate_files+=("${PROJECT_ROOT}/.env.${runtime_env}")
+    if [ "${runtime_env}" != "test" ]; then
+        candidate_files+=("${PROJECT_ROOT}/.env.local")
+    fi
+    candidate_files+=("${PROJECT_ROOT}/.env")
+    candidate_files+=("${PROJECT_ROOT}/env/${runtime_env}.env")
+
+    for candidate in "${candidate_files[@]}"; do
+        if [ -f "${candidate}" ]; then
+            set -a
+            # shellcheck disable=SC1091
+            source "${candidate}"
+            set +a
+        fi
+    done
+
+    if [ -f /run/secrets/restic_password ]; then
+        export RESTIC_PASSWORD="$(cat /run/secrets/restic_password 2>/dev/null | tr -d '\r')"
+    fi
+
+    if [ -f /run/secrets/aws_secret_access_key ]; then
+        export AWS_SECRET_ACCESS_KEY="$(cat /run/secrets/aws_secret_access_key 2>/dev/null | tr -d '\r')"
+    fi
+}
+
+require_restic_config() {
+    load_restic_env
+    if [ -z "${RESTIC_REPOSITORY}" ] || [ -z "${RESTIC_PASSWORD}" ]; then
+        log_error "Restic configuration missing. Set RESTIC_REPOSITORY and RESTIC_PASSWORD."
+        return 1
+    fi
+    return 0
+}
+
+ensure_restic_repository() {
+    if restic snapshots >/dev/null 2>&1; then
+        return 0
+    fi
+
+    log "Initializing restic repository..."
+    if restic init >/dev/null 2>&1; then
+        log_success "Restic repository initialized"
+        return 0
+    fi
+
+    log_error "Failed to initialize restic repository"
+    return 1
+}
+
+restic_backup_directory() {
+    local directory="$1"
+    local schedule_tag="$2"
+
+    if [ ! -d "${directory}" ]; then
+        log_error "Directory not found for remote backup: ${directory}"
+        return 1
+    fi
+
+    if ! ensure_restic_repository; then
+        return 1
+    fi
+
+    local hostname_tag
+    hostname_tag=$(hostname)
+
+    log "Uploading ${directory} to remote storage (tag=${schedule_tag})..."
+    if restic backup "${directory}" \
+        --tag "airgen" \
+        --tag "${schedule_tag}" \
+        --tag "${hostname_tag}" \
+        --exclude "*.log"; then
+        log_success "Remote backup uploaded for ${directory}"
+        return 0
+    fi
+
+    log_error "Failed to upload ${directory} to remote storage"
+    return 1
+}
+
+restic_prune_for_schedule() {
+    local schedule_tag="$1"
+    shift
+
+    restic unlock >/dev/null 2>&1 || log "No stale restic locks to clear"
+
+    if restic forget "$@" --tag "${schedule_tag}" --prune; then
+        log "Remote retention updated for tag ${schedule_tag}"
+        return 0
+    fi
+
+    log_error "Restic pruning encountered errors for tag ${schedule_tag}"
+    return 1
 }
 
 # Notification functions

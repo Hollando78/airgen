@@ -513,11 +513,12 @@ export async function requireSuperAdminMiddleware(
  */
 export function createRequireTenantAdminMiddleware(paramName: string = "tenant") {
   return async (
-    request: FastifyRequest<{ Params: Record<string, string> }>,
+    request: FastifyRequest,
     reply: FastifyReply
   ): Promise<void> => {
     const user = request.currentUser as AuthUser | undefined;
-    const tenant = request.params[paramName];
+    const params = request.params as Record<string, string> | undefined;
+    const tenant = params?.[paramName];
 
     if (!tenant) {
       reply.code(400).send({
@@ -539,12 +540,13 @@ export function createRequireProjectAdminMiddleware(
   projectParam: string = "project"
 ) {
   return async (
-    request: FastifyRequest<{ Params: Record<string, string> }>,
+    request: FastifyRequest,
     reply: FastifyReply
   ): Promise<void> => {
     const user = request.currentUser as AuthUser | undefined;
-    const tenant = request.params[tenantParam];
-    const project = request.params[projectParam];
+    const params = request.params as Record<string, string> | undefined;
+    const tenant = params?.[tenantParam];
+    const project = params?.[projectParam];
 
     if (!tenant || !project) {
       reply.code(400).send({

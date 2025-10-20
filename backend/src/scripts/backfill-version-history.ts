@@ -840,6 +840,24 @@ async function backfillConnectors(): Promise<number> {
         const strokeWidth = props.strokeWidth !== undefined ? asNumber(props.strokeWidth) : undefined;
         const labelOffsetX = props.labelOffsetX !== undefined ? asNumber(props.labelOffsetX) : undefined;
         const labelOffsetY = props.labelOffsetY !== undefined ? asNumber(props.labelOffsetY) : undefined;
+        const controlPoints = props.controlPoints
+          ? (() => {
+              try {
+                const parsed = JSON.parse(String(props.controlPoints));
+                if (!Array.isArray(parsed)) {
+                  return undefined;
+                }
+                return parsed
+                  .map((point: any) => ({
+                    x: typeof point.x === "number" ? point.x : Number(point.x),
+                    y: typeof point.y === "number" ? point.y : Number(point.y)
+                  }))
+                  .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+              } catch {
+                return undefined;
+              }
+            })()
+          : undefined;
         const contentHash = generateArchitectureConnectorContentHash({
           source,
           target,
@@ -855,7 +873,8 @@ async function backfillConnectors(): Promise<number> {
           color,
           strokeWidth,
           labelOffsetX,
-          labelOffsetY
+          labelOffsetY,
+          controlPoints: controlPoints ?? null
         });
         await createArchitectureConnectorVersion(tx, {
           connectorId: asString(props.id),
@@ -880,6 +899,7 @@ async function backfillConnectors(): Promise<number> {
           strokeWidth: strokeWidth ?? null,
           labelOffsetX: labelOffsetX ?? null,
           labelOffsetY: labelOffsetY ?? null,
+          controlPoints: controlPoints ?? null,
           contentHash
         });
       }

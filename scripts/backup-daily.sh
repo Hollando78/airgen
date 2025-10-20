@@ -1,6 +1,6 @@
 #!/bin/bash
 # AirGen Daily Backup Script
-# Performs incremental daily backups of Neo4j, PostgreSQL, workspace, and config
+# Performs full daily backups of Neo4j, PostgreSQL, workspace, and config
 # Retention: 7 days
 
 set -eo pipefail
@@ -31,11 +31,17 @@ main() {
         exit 1
     fi
 
+    if ! require_restic_config; then
+        log_error "Remote backup configuration missing, aborting daily backup"
+        send_notification "AirGen Backup Failed" "Daily backup aborted (restic not configured)" 1
+        exit 1
+    fi
+
     # Track backup files
     local backup_files=()
 
     # Backup Neo4j
-    log "Step 1/4: Backing up Neo4j..."
+    log "Step 1/5: Backing up Neo4j..."
     if neo4j_file=$(backup_neo4j "${backup_date_dir}"); then
         neo4j_file=$(printf "%s" "${neo4j_file}" | tail -n 1)
         backup_files+=("${neo4j_file}")
@@ -45,7 +51,7 @@ main() {
     fi
 
     # Backup PostgreSQL
-    log "Step 2/4: Backing up PostgreSQL..."
+    log "Step 2/5: Backing up PostgreSQL..."
     if postgres_file=$(backup_postgres "${backup_date_dir}"); then
         postgres_file=$(printf "%s" "${postgres_file}" | tail -n 1)
         backup_files+=("${postgres_file}")
@@ -56,7 +62,7 @@ main() {
 
     # Backup Workspace (DEPRECATED - Phase 2 migration complete)
     # Workspace is no longer written to; Neo4j is single source of truth
-    log "Step 3/4: Workspace backup (deprecated)..."
+    log "Step 3/5: Workspace backup (deprecated)..."
     if workspace_file=$(backup_workspace "${backup_date_dir}"); then
         workspace_file=$(printf "%s" "${workspace_file}" | tail -n 1)
         backup_files+=("${workspace_file}")
@@ -66,7 +72,7 @@ main() {
     fi
 
     # Backup Configuration
-    log "Step 4/4: Backing up configuration..."
+    log "Step 4/5: Backing up configuration..."
     if config_file=$(backup_config "${backup_date_dir}"); then
         config_file=$(printf "%s" "${config_file}" | tail -n 1)
         backup_files+=("${config_file}")
@@ -77,6 +83,16 @@ main() {
 
     # Create manifest file
     create_manifest "${backup_date_dir}" "${backup_files[@]}"
+
+    # Upload to remote storage
+    log "Step 5/5: Uploading backup to remote storage..."
+    if restic_backup_directory "${backup_date_dir}" "daily"; then
+        if ! restic_prune_for_schedule "daily" --keep-daily ${DAILY_RETENTION_DAYS}; then
+            log "Remote retention update encountered warnings"
+        fi
+    else
+        backup_success=false
+    fi
 
     # Cleanup old backups
     cleanup_old_backups "${BACKUP_DAILY_DIR}" ${DAILY_RETENTION_DAYS}

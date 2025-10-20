@@ -169,6 +169,7 @@ export function ConnectorStylingPopup({ connector, position: initialPosition, on
               <option value="straight">Straight</option>
               <option value="smoothstep">Curved</option>
               <option value="step">Rectilinear</option>
+              <option value="polyline">Polyline</option>
               <option value="bezier">Bezier</option>
             </select>
           </div>

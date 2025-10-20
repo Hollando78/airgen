@@ -302,7 +302,7 @@ export function FloatingSurrogateDocumentWindow({
         flexDirection: "column",
         overflow: "hidden",
         zIndex: 1100,
-        transition: isMinimized ? "all 0.25s ease" : undefined
+        transition: isMinimized ? "width 0.25s ease, height 0.25s ease" : undefined
       }}
     >
       <div

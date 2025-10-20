@@ -232,6 +232,18 @@ export function mapArchitectureConnector(node: Neo4jNode): ArchitectureConnector
     color: props.color !== undefined && props.color !== null ? String(props.color) : null,
     strokeWidth: props.strokeWidth !== undefined && props.strokeWidth !== null ? toNumberUtil(props.strokeWidth) : null,
     labelOffsetX: props.labelOffsetX !== undefined && props.labelOffsetX !== null ? toNumberUtil(props.labelOffsetX) : null,
-    labelOffsetY: props.labelOffsetY !== undefined && props.labelOffsetY !== null ? toNumberUtil(props.labelOffsetY) : null
+    labelOffsetY: props.labelOffsetY !== undefined && props.labelOffsetY !== null ? toNumberUtil(props.labelOffsetY) : null,
+    controlPoints: (() => {
+      const parsed = parseJsonArray<{ x: unknown; y: unknown }>(props.controlPoints);
+      if (!parsed) {
+        return null;
+      }
+      return parsed
+        .map(point => ({
+          x: typeof point.x === "number" ? point.x : Number(point.x),
+          y: typeof point.y === "number" ? point.y : Number(point.y)
+        }))
+        .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+    })()
   };
 }
