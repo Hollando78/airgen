@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   UncontrolledTreeEnvironment,
   Tree,
@@ -45,6 +45,7 @@ interface ArchitectureBrowserTreeProps {
   diagrams: ArchitectureDiagramRecord[];
   connectors: ArchitectureConnectorRecord[];
   packages: Package[];
+  refreshKey: number;
   disabled: boolean;
   isLoading: boolean;
   error?: unknown;
@@ -75,11 +76,25 @@ type TreeItemData = {
   data?: Package | ArchitectureBlockLibraryRecord | ArchitectureDiagramRecord | ArchitectureConnectorRecord;
 };
 
+type ContextMenuItem = {
+  label: string;
+  action: () => void;
+  variant?: 'default' | 'danger';
+};
+
+type ContextMenuState = {
+  x: number;
+  y: number;
+  itemId: string;
+  items: ContextMenuItem[];
+} | null;
+
 export function ArchitectureBrowserTree({
   blocks,
   diagrams,
   connectors,
   packages,
+  refreshKey,
   disabled,
   isLoading,
   error,
@@ -98,6 +113,8 @@ export function ArchitectureBrowserTree({
   const [focusedItem, setFocusedItem] = useState<TreeItemIndex>();
   const [expandedItems, setExpandedItems] = useState<TreeItemIndex[]>(['root', 'packages-section', 'diagrams-section', 'blocks-section']);
   const [selectedItems, setSelectedItems] = useState<TreeItemIndex[]>([]);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // Helper function to get block icon (must be defined before treeData)
   const getBlockIcon = useCallback((kind: string): React.ReactNode => {
@@ -433,65 +450,100 @@ export function ArchitectureBrowserTree({
     }
   }, [onInsertBlock, onOpenDiagram]);
 
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setContextMenu(null);
+      }
+    };
+
+    if (contextMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleEscape);
+      };
+    }
+  }, [contextMenu]);
+
   // Handle context menu
   const handleContextMenu = useCallback((e: React.MouseEvent, itemId: TreeItemIndex) => {
     e.preventDefault();
     const item = treeData[itemId];
+    let menuItems: ContextMenuItem[] = [];
 
     if (item.type === 'package') {
-      // Show package context menu
-      const menu = [
+      menuItems = [
         { label: 'New Package', action: () => {
+          setContextMenu(null);
           const name = prompt('Package name:');
           if (name) onCreatePackage(name, item.id);
         }},
         { label: 'New Diagram', action: () => {
+          setContextMenu(null);
           const name = prompt('Diagram name:');
           if (name) onCreateDiagram(name, item.id);
         }},
         { label: 'Rename', action: () => {
+          setContextMenu(null);
           const name = prompt('New name:', item.name);
           if (name && name !== item.name) onRenamePackage(item.id, name);
         }},
         { label: 'Delete', action: () => {
+          setContextMenu(null);
           if (confirm(`Delete package "${item.name}"?`)) {
             onDeletePackage(item.id);
           }
-        }}
+        }, variant: 'danger' }
       ];
-
-      // Simple context menu implementation
-      console.log('Context menu:', menu);
-
     } else if (item.type === 'diagram') {
-      const menu = [
-        { label: 'Open', action: () => onOpenDiagram(item.id) },
+      menuItems = [
+        { label: 'Open', action: () => {
+          setContextMenu(null);
+          onOpenDiagram(item.id);
+        }},
         { label: 'Delete', action: () => {
+          setContextMenu(null);
           if (confirm(`Delete diagram "${item.name}"?`)) {
             onDeleteDiagram(item.id);
           }
-        }}
+        }, variant: 'danger' }
       ];
-
-      console.log('Context menu:', menu);
     } else if (item.type === 'section') {
       if (item.id === 'packages-section') {
-        const menu = [
+        menuItems = [
           { label: 'New Package', action: () => {
+            setContextMenu(null);
             const name = prompt('Package name:');
             if (name) onCreatePackage(name, null);
           }}
         ];
-        console.log('Context menu:', menu);
       } else if (item.id === 'diagrams-section') {
-        const menu = [
+        menuItems = [
           { label: 'New Diagram', action: () => {
+            setContextMenu(null);
             const name = prompt('Diagram name:');
             if (name) onCreateDiagram(name, null);
           }}
         ];
-        console.log('Context menu:', menu);
       }
+    }
+
+    if (menuItems.length > 0) {
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        itemId: String(itemId),
+        items: menuItems
+      });
     }
   }, [treeData, onCreatePackage, onCreateDiagram, onRenamePackage, onDeletePackage, onOpenDiagram, onDeleteDiagram]);
 
@@ -551,6 +603,7 @@ export function ArchitectureBrowserTree({
 
       <div className="tree-container">
         <UncontrolledTreeEnvironment
+          key={refreshKey}
           dataProvider={dataProvider}
           getItemTitle={(item) => item.data.name}
           viewState={{
@@ -568,52 +621,6 @@ export function ArchitectureBrowserTree({
           canDragAndDrop={true}
           canDropOnFolder={true}
           canReorderItems={true}
-          onDrop={async (items, target) => {
-            let targetReference: TreeItemData | undefined;
-
-            if (target.targetType === 'item' || target.targetType === 'root') {
-              targetReference = treeData[String(target.targetItem)];
-            } else if (target.targetType === 'between-items') {
-              targetReference = treeData[String(target.parentItem)];
-            }
-
-            if (!targetReference) {
-              return;
-            }
-
-            for (const droppedItem of items) {
-              const data = droppedItem.data;
-
-              if (!data) {
-                continue;
-              }
-
-              let itemType: 'package' | 'block' | 'diagram';
-
-              switch (data.type) {
-                case 'package':
-                  itemType = 'package';
-                  break;
-                case 'diagram':
-                  itemType = 'diagram';
-                  break;
-                case 'block':
-                  itemType = 'block';
-                  break;
-                default:
-                  continue;
-              }
-
-              let targetPackageId: string | null = null;
-              if (targetReference.type === 'package') {
-                targetPackageId = targetReference.id;
-              } else if (targetReference.type === 'section') {
-                targetPackageId = null;
-              }
-
-              await onMoveToPackage(data.id, itemType, targetPackageId);
-            }
-          }}
           renderItemTitle={({ item, context }) => {
             const data = item.data;
             const alreadyInDiagram = data.type === 'block' && currentDiagramId ? blocksInDiagram.has(data.id) : false;
@@ -658,6 +665,56 @@ export function ArchitectureBrowserTree({
           <Tree treeId="architecture-tree" rootItem="root" treeLabel="Architecture Browser" />
         </UncontrolledTreeEnvironment>
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="context-menu"
+          style={{
+            position: 'fixed',
+            top: `${contextMenu.y}px`,
+            left: `${contextMenu.x}px`,
+            zIndex: 9999,
+            backgroundColor: '#ffffff',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            minWidth: '180px',
+            padding: '4px',
+          }}
+        >
+          {contextMenu.items.map((item, index) => (
+            <button
+              key={index}
+              className={`context-menu-item ${item.variant === 'danger' ? 'danger' : ''}`}
+              onClick={item.action}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '8px 12px',
+                textAlign: 'left',
+                border: 'none',
+                backgroundColor: 'transparent',
+                cursor: 'pointer',
+                fontSize: '14px',
+                borderRadius: '4px',
+                color: item.variant === 'danger' ? '#ef4444' : '#1f2937',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = item.variant === 'danger'
+                  ? 'rgba(239, 68, 68, 0.1)'
+                  : 'var(--bg-hover, rgba(0, 0, 0, 0.05))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

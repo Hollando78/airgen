@@ -105,6 +105,7 @@ interface ArchitectureWorkspaceProps {
   hasChanges: boolean;
   isLoading: boolean;
   documents: DocumentRecord[];
+  treeRefreshKey: number;
 }
 
 export function ArchitectureWorkspace({
@@ -152,19 +153,25 @@ export function ArchitectureWorkspace({
   packagesError,
   hasChanges,
   isLoading,
-  documents: documentList
+  documents: documentList,
+  treeRefreshKey
 }: ArchitectureWorkspaceProps): JSX.Element {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
+  const [hiddenTabIds, setHiddenTabIds] = useState<Set<string>>(new Set());
   const [diagramViewports, setDiagramViewports] = useState<Record<string, { x: number; y: number; zoom: number }>>({});
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(() => {
     const saved = localStorage.getItem('airgen:leftPaneWidth');
-    return saved ? parseInt(saved, 10) : 300;
+    const maxWidth = Math.floor(window.innerWidth * 0.5);
+    const savedWidth = saved ? parseInt(saved, 10) : 300;
+    return Math.min(savedWidth, maxWidth);
   });
   const [rightPaneWidth, setRightPaneWidth] = useState<number>(() => {
     const saved = localStorage.getItem('airgen:rightPaneWidth');
-    return saved ? parseInt(saved, 10) : 320;
+    const maxWidth = Math.floor(window.innerWidth * 0.5);
+    const savedWidth = saved ? parseInt(saved, 10) : 320;
+    return Math.min(savedWidth, maxWidth);
   });
   const [isResizingLeft, setIsResizingLeft] = useState(false);
   const [isResizingRight, setIsResizingRight] = useState(false);
@@ -372,11 +379,27 @@ export function ArchitectureWorkspace({
     }
   }, [renameDialog.diagramId, renameDiagram]);
 
-  const handleDeleteDiagram = useCallback((diagramId: string) => {
-    const diagram = diagrams.find(item => item.id === diagramId);
-    if (!diagram) {return;}
-    setDeleteDialog({ open: true, diagramId, diagramName: diagram.name });
-  }, [diagrams]);
+  const handleHideTab = useCallback((diagramId: string) => {
+    setHiddenTabIds(prev => new Set(prev).add(diagramId));
+    // If hiding the active tab, switch to another visible tab
+    if (diagramId === activeDiagramId) {
+      const visibleDiagrams = diagrams.filter(d => !hiddenTabIds.has(d.id) && d.id !== diagramId);
+      if (visibleDiagrams.length > 0) {
+        setActiveDiagramId(visibleDiagrams[0].id);
+      }
+    }
+  }, [diagrams, hiddenTabIds, activeDiagramId, setActiveDiagramId]);
+
+  const handleOpenDiagram = useCallback((diagramId: string) => {
+    // Unhide the diagram if it was hidden
+    setHiddenTabIds(prev => {
+      const next = new Set(prev);
+      next.delete(diagramId);
+      return next;
+    });
+    // Set it as active
+    setActiveDiagramId(diagramId);
+  }, [setActiveDiagramId]);
 
   const handleConfirmDeleteDiagram = useCallback(async () => {
     if (!deleteDialog.diagramId) {return;}
@@ -451,10 +474,14 @@ export function ArchitectureWorkspace({
 
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizingLeft) {
-        const newWidth = Math.max(200, Math.min(500, e.clientX));
+        // Limit left pane to max 50% of viewport width
+        const maxWidth = Math.floor(window.innerWidth * 0.5);
+        const newWidth = Math.max(200, Math.min(maxWidth, e.clientX));
         setLeftPaneWidth(newWidth);
       } else if (isResizingRight) {
-        const newWidth = Math.max(200, Math.min(500, window.innerWidth - e.clientX));
+        // Limit right pane to max 50% of viewport width
+        const maxWidth = Math.floor(window.innerWidth * 0.5);
+        const newWidth = Math.max(200, Math.min(maxWidth, window.innerWidth - e.clientX));
         setRightPaneWidth(newWidth);
       }
     };
@@ -500,11 +527,11 @@ export function ArchitectureWorkspace({
       </header>
 
       <DiagramTabs
-        diagrams={diagrams.map(diagram => ({ id: diagram.id, name: diagram.name }))}
+        diagrams={diagrams.filter(d => !hiddenTabIds.has(d.id)).map(diagram => ({ id: diagram.id, name: diagram.name }))}
         activeDiagramId={activeDiagramId}
         onSelect={setActiveDiagramId}
         onRename={handleRenameDiagram}
-        onDelete={handleDeleteDiagram}
+        onClose={handleHideTab}
       />
 
       <div className="architecture-body">
@@ -519,11 +546,12 @@ export function ArchitectureWorkspace({
             diagrams={diagrams}
             connectors={connectorRecords}
             packages={packages}
+            refreshKey={treeRefreshKey}
             disabled={!activeDiagramId}
             isLoading={isLibraryLoading || isPackagesLoading}
             error={libraryError || packagesError}
             onInsertBlock={handleReuseExistingBlock}
-            onOpenDiagram={setActiveDiagramId}
+            onOpenDiagram={handleOpenDiagram}
             onCreatePackage={createPackage}
             onDeletePackage={deletePackage}
             onRenamePackage={renamePackage}

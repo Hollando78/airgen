@@ -81,11 +81,13 @@ export function usePackages(tenant: string | null, project: string | null) {
         targetPackageId: input.targetPackageId,
         order: input.order
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["architecture-packages", tenant, project] });
-      // Invalidate diagrams and blocks since they may have moved
-      queryClient.invalidateQueries({ queryKey: ["architecture-diagrams", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["architecture-block-library", tenant, project] });
+    onSuccess: async () => {
+      // Refetch immediately to update UI
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["architecture-packages", tenant, project] }),
+        queryClient.refetchQueries({ queryKey: ["architecture-diagrams", tenant, project] }),
+        queryClient.refetchQueries({ queryKey: ["architecture-block-library", tenant, project] })
+      ]);
     }
   });
 
@@ -98,8 +100,13 @@ export function usePackages(tenant: string | null, project: string | null) {
         packageId: input.packageId,
         itemIds: input.itemIds
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["architecture-packages", tenant, project] });
+    onSuccess: async () => {
+      // Refetch immediately to update UI
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["architecture-packages", tenant, project] }),
+        queryClient.refetchQueries({ queryKey: ["architecture-diagrams", tenant, project] }),
+        queryClient.refetchQueries({ queryKey: ["architecture-block-library", tenant, project] })
+      ]);
     }
   });
 

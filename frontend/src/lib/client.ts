@@ -115,7 +115,8 @@ export function useApiClient() {
       const response = await fetch(`${config.apiBaseUrl}${path}`, {
         ...options,
         headers,
-        credentials: "include" // Enable cookies for refresh tokens
+        credentials: "include", // Enable cookies for refresh tokens
+        cache: "no-store" // Prevent browser caching of API responses
       });
 
       return handleResponse<T>(response);

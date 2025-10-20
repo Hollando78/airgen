@@ -10,10 +10,10 @@ interface DiagramTabsProps {
   activeDiagramId: string | null;
   onSelect: (diagramId: string) => void;
   onRename: (diagramId: string) => void;
-  onDelete: (diagramId: string) => void;
+  onClose: (diagramId: string) => void;
 }
 
-export function DiagramTabs({ diagrams, activeDiagramId, onSelect, onRename, onDelete }: DiagramTabsProps) {
+export function DiagramTabs({ diagrams, activeDiagramId, onSelect, onRename, onClose }: DiagramTabsProps) {
   if (diagrams.length === 0) {
     return <div className="architecture-tabs empty">Create a diagram to start modelling</div>;
   }
@@ -35,8 +35,8 @@ export function DiagramTabs({ diagrams, activeDiagramId, onSelect, onRename, onD
           </button>
           <button
             className="diagram-tab-close"
-            onClick={() => onDelete(diagram.id)}
-            title="Hide diagram (can be restored from browser)"
+            onClick={() => onClose(diagram.id)}
+            title="Close tab (diagram remains in browser)"
           >
             <X className="w-4 h-4" strokeWidth={2} />
           </button>

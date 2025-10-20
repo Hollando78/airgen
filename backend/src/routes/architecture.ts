@@ -74,7 +74,7 @@ const architectureConnectorSchema = z.object({
   diagramId: z.string().min(1),
   documentIds: z.array(z.string()).optional(),
   // Styling properties
-  lineStyle: z.enum(["straight", "smoothstep", "step", "bezier"]).optional(),
+  lineStyle: z.enum(["straight", "smoothstep", "step", "polyline", "bezier"]).optional(),
   markerStart: z.enum(["arrow", "arrowclosed", "none"]).optional(),
   markerEnd: z.enum(["arrow", "arrowclosed", "none"]).optional(),
   linePattern: z.enum(["solid", "dashed", "dotted"]).optional(),
@@ -439,7 +439,7 @@ export default async function registerArchitectureRoutes(app: FastifyInstance): 
       targetPortId: z.string().optional(),
       documentIds: z.array(z.string()).optional(),
       // Styling properties
-      lineStyle: z.enum(["straight", "smoothstep", "step", "bezier"]).optional(),
+      lineStyle: z.enum(["straight", "smoothstep", "step", "polyline", "bezier"]).optional(),
       markerStart: z.enum(["arrow", "arrowclosed", "diamond", "circle", "none"]).optional(),
       markerEnd: z.enum(["arrow", "arrowclosed", "diamond", "circle", "none"]).optional(),
       linePattern: z.enum(["solid", "dashed", "dotted"]).optional(),

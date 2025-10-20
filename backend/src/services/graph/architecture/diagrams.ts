@@ -37,6 +37,7 @@ export async function createArchitectureDiagram(params: {
           tenant: $tenant,
           projectKey: $projectKey,
           isVisible: true,
+          order: 999999,
           createdAt: $now,
           updatedAt: $now
         })
@@ -114,7 +115,7 @@ export async function getArchitectureDiagrams(params: {
         OPTIONAL MATCH (package:Package)-[:CONTAINS]->(diagram)
         WHERE package.tenant = $tenant AND package.projectKey = $projectKey
         RETURN DISTINCT diagram, package.id AS packageId
-        ORDER BY diagram.createdAt
+        ORDER BY coalesce(diagram.order, 999999), diagram.createdAt
       `,
       { tenantSlug, projectSlug, tenant: params.tenant, projectKey: params.projectKey }
     );

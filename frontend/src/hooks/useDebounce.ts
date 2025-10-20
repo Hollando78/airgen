@@ -1,36 +1,42 @@
-import { useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 
 export function useDebounce<T extends (...args: any[]) => void>(
   callback: T,
   delay: number
 ): [T, () => void] {
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbackRef = useRef<T>(callback);
+
+  // Always keep the callback ref up to date
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   const debouncedCallback = useCallback((...args: Parameters<T>) => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
     }
-    const timer = setTimeout(() => {
-      callback(...args);
+    timerRef.current = setTimeout(() => {
+      callbackRef.current(...args);
+      timerRef.current = null;
     }, delay);
-    setDebounceTimer(timer);
-  }, [callback, delay, debounceTimer]) as T;
+  }, [delay]) as T;
 
   const cancel = useCallback(() => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-      setDebounceTimer(null);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
-  }, [debounceTimer]);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
       }
     };
-  }, [debounceTimer]);
+  }, []);
 
   return [debouncedCallback, cancel];
 }

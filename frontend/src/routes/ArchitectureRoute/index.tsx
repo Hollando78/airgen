@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTenantProjectDocument } from "../../components/TenantProjectDocumentSelector";
 import { useApiClient } from "../../lib/client";
@@ -30,6 +30,11 @@ interface ArchitectureRouteContentProps {
 
 function ArchitectureRouteContent({ tenant, project }: ArchitectureRouteContentProps): JSX.Element {
   const api = useApiClient();
+
+  // Tree refresh counter - increments after successful mutations to force tree remount
+  const [treeRefreshKey, setTreeRefreshKey] = useState(0);
+  const incrementTreeRefresh = useCallback(() => setTreeRefreshKey(prev => prev + 1), []);
+
   const {
     architecture: architectureState,
     diagrams: allDiagrams,
@@ -146,12 +151,13 @@ function ArchitectureRouteContent({ tenant, project }: ArchitectureRouteContentP
   const handleMoveToPackage = useCallback(async (itemId: string, itemType: 'package' | 'block' | 'diagram', targetPackageId: string | null) => {
     try {
       await moveToPackage(itemId, itemType, targetPackageId);
+      incrementTreeRefresh(); // Force tree remount with fresh data
       toast.success('Item moved successfully');
     } catch (error) {
       toast.error((error as Error).message);
       throw error;
     }
-  }, [moveToPackage]);
+  }, [moveToPackage, incrementTreeRefresh]);
 
   const handleCreateDiagramInPackage = useCallback(async (name: string, packageId?: string | null) => {
     try {
@@ -176,11 +182,12 @@ function ArchitectureRouteContent({ tenant, project }: ArchitectureRouteContentP
   const handleReorderItems = useCallback(async (packageId: string | null, itemIds: string[]) => {
     try {
       await reorderInPackage(packageId, itemIds);
+      incrementTreeRefresh(); // Force tree remount with fresh data
     } catch (error) {
       toast.error((error as Error).message);
       throw error;
     }
-  }, [reorderInPackage]);
+  }, [reorderInPackage, incrementTreeRefresh]);
 
   const documentsQuery = useQuery({
     queryKey: ["documents", tenant, project],
@@ -202,6 +209,7 @@ function ArchitectureRouteContent({ tenant, project }: ArchitectureRouteContentP
       activeDiagram={activeDiagram}
       activeDiagramId={activeDiagramId}
       setActiveDiagramId={setActiveDiagramId}
+      treeRefreshKey={treeRefreshKey}
       createDiagram={createDiagram}
       renameDiagram={renameDiagram}
       deleteDiagram={deleteDiagram}

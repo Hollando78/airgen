@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useRef } from "react";
+import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DiagramTabs } from "../ArchitectureRoute/components/DiagramTabs";
 import { ArchitectureBrowserTree } from "../../components/architecture/ArchitectureBrowserTree";
@@ -166,6 +166,7 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
     documents
   });
 
+  const [hiddenTabIds, setHiddenTabIds] = useState<Set<string>>(new Set());
   const canvasRef = useRef<DiagramCanvasHandle>(null);
   const { openFloatingDocument } = useFloatingDocuments();
 
@@ -268,6 +269,28 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
       workspace.closeRenameDialog();
     }
   }, [diagrams, renameDiagram, workspace]);
+
+  const handleHideTab = useCallback((diagramId: string) => {
+    setHiddenTabIds(prev => new Set(prev).add(diagramId));
+    // If hiding the active tab, switch to another visible tab
+    if (diagramId === activeDiagramId) {
+      const visibleDiagrams = diagrams.filter(d => !hiddenTabIds.has(d.id) && d.id !== diagramId);
+      if (visibleDiagrams.length > 0) {
+        setActiveDiagramId(visibleDiagrams[0].id);
+      }
+    }
+  }, [diagrams, hiddenTabIds, activeDiagramId, setActiveDiagramId]);
+
+  const handleOpenDiagram = useCallback((diagramId: string) => {
+    // Unhide the diagram if it was hidden
+    setHiddenTabIds(prev => {
+      const next = new Set(prev);
+      next.delete(diagramId);
+      return next;
+    });
+    // Set it as active
+    setActiveDiagramId(diagramId);
+  }, [setActiveDiagramId]);
 
   const handleDeleteDiagram = useCallback((diagramId: string) => {
     const diagram = diagrams.find(item => item.id === diagramId);
@@ -403,11 +426,11 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
         </header>
 
         <DiagramTabs
-          diagrams={diagrams.map(diagram => ({ id: diagram.id, name: diagram.name }))}
+          diagrams={diagrams.filter(d => !hiddenTabIds.has(d.id)).map(diagram => ({ id: diagram.id, name: diagram.name }))}
           activeDiagramId={activeDiagramId}
           onSelect={setActiveDiagramId}
           onRename={handleRenameDiagram}
-          onDelete={handleDeleteDiagram}
+          onClose={handleHideTab}
         />
 
         <div className="architecture-body">
@@ -421,7 +444,7 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
               isLoading={isLibraryLoading || isPackagesLoading}
               error={libraryError || packagesError}
               onInsertBlock={handleReuseExistingBlock}
-              onOpenDiagram={setActiveDiagramId}
+              onOpenDiagram={handleOpenDiagram}
               onCreatePackage={handleCreatePackage}
               onDeletePackage={handleDeletePackage}
               onRenamePackage={handleRenamePackage}

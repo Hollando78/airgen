@@ -937,6 +937,13 @@ export function PolylineEdge({
 
   return (
     <>
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        markerEnd={markerEnd}
+        markerStart={markerStart}
+        style={style}
+      />
       {selected && edgeData.onControlPointsCommit && segments.map((segment, index) => (
         <path
           key={`${id}-segment-overlay-${index}`}
@@ -951,13 +958,6 @@ export function PolylineEdge({
           onMouseDown={(event) => handleSegmentMouseDown(index, event)}
         />
       ))}
-      <BaseEdge
-        id={id}
-        path={edgePath}
-        markerEnd={markerEnd}
-        markerStart={markerStart}
-        style={style}
-      />
       <EdgeLabelRenderer>
         <EdgeLabelContent
           label={originalLabel as string}

@@ -103,6 +103,7 @@ export async function createArchitectureBlock(params: {
             tenant: $tenant,
             projectKey: $projectKey,
             ports: $ports,
+            order: 999999,
             createdAt: $now,
             updatedAt: $now
           })
@@ -335,7 +336,7 @@ export async function getArchitectureBlockLibrary(params: {
         OPTIONAL MATCH (block)-[:LINKED_DOCUMENT]->(document:Document)
         WITH block, package.id AS packageId, collect(DISTINCT { id: rel.diagramId, name: diagram.name }) AS diagrams, collect(DISTINCT document.id) AS documentIds
         RETURN block, packageId, diagrams, documentIds
-        ORDER BY block.name
+        ORDER BY coalesce(block.order, 999999), block.createdAt
       `,
       { tenantSlug, projectSlug, tenant: params.tenant, projectKey: params.projectKey }
     );
