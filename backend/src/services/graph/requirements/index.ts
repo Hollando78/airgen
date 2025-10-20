@@ -15,6 +15,7 @@ export {
   updateRequirementRefsForSection,
   reorderRequirements,
   reorderRequirementsWithOrder,
+  type ComplianceStatus,
   type RequirementInput
 } from "./requirements-crud.js";
 

@@ -23,7 +23,10 @@ import { sanitizeNeo4jResponse } from "./lib/neo4j-utils.js";
 import { setupRequestIdMiddleware } from "./lib/request-id.js";
 import draftRoutes from "./routes/draft.js";
 import airgenRoutes from "./routes/airgen.js";
-import coreRoutes from "./routes/core.js";
+import healthRoutes from "./routes/health-routes.js";
+import tenantRoutes from "./routes/tenant-routes.js";
+import projectRoutes from "./routes/project-routes.js";
+import requirementQualityRoutes from "./routes/requirement-quality-routes.js";
 import requirementsRoutes from "./routes/requirements-api.js";
 import documentRoutes from "./routes/documents.js";
 import architectureRoutes from "./routes/architecture.js";
@@ -184,7 +187,10 @@ await app.register(swagger, {
     tags: [
       { name: "authentication", description: "Authentication endpoints" },
       { name: "mfa", description: "Multi-factor authentication" },
-      { name: "core", description: "Core system endpoints" },
+      { name: "health", description: "System health and status" },
+      { name: "tenants", description: "Tenant management" },
+      { name: "projects", description: "Project management" },
+      { name: "quality", description: "Requirement quality analysis" },
       { name: "requirements", description: "Requirements management" },
       { name: "documents", description: "Document management" },
       { name: "architecture", description: "Architecture diagrams" },
@@ -286,7 +292,10 @@ if (areMetricsAvailable()) {
 
 await app.register(authRoutes, { prefix: "/api" });
 await app.register(mfaRoutes, { prefix: "/api" });
-await app.register(coreRoutes, { prefix: "/api" });
+await app.register(healthRoutes, { prefix: "/api" });
+await app.register(tenantRoutes, { prefix: "/api" });
+await app.register(projectRoutes, { prefix: "/api" });
+await app.register(requirementQualityRoutes, { prefix: "/api" });
 await app.register(requirementsRoutes, { prefix: "/api" });
 await app.register(semanticSearchRoutes, { prefix: "/api" });
 await app.register(documentRoutes, { prefix: "/api" });
