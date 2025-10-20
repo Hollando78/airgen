@@ -11,7 +11,23 @@ import type {
   CreateArchitectureConnectorRequest
 } from "../types";
 
-// Import types from centralized architecture types file
+import type {
+  SysmlBlock,
+  SysmlConnector,
+  BlockPort,
+  PortDefinition,
+  PortInstance,
+  PortType,
+  PortShape,
+  ArchitectureState,
+  BlockKind,
+  ConnectorKind,
+  PortDirection,
+  BlockPortRecord,
+  BlockPortOverride
+} from "../types/architecture";
+import { DIAGRAM_PORT_OVERRIDE_KEYS } from "../types/architecture";
+
 export type {
   SysmlBlock,
   SysmlConnector,
@@ -27,7 +43,7 @@ export type {
 } from "../types/architecture";
 
 // Import mapper functions
-import { mapBlockFromApi, mapConnectorFromApi } from "./architecture/mappers";
+import { mapBlockFromApi, mapConnectorFromApi, resolvePortsWithOverrides } from "./architecture/mappers";
 
 export function useArchitecture(tenant: string | null, project: string | null) {
   const api = useApiClient();
@@ -853,6 +869,7 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     blocksLibrary,
     packages,
     connectors,
+    connectorRecords: connectorsQuery.data?.connectors ?? [],
     createPackage,
     updatePackage,
     deletePackage,

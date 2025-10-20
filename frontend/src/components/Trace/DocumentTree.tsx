@@ -4,7 +4,13 @@ import { useApiClient } from "../../lib/client";
 import { useTenantProject } from "../../hooks/useTenantProject";
 import { Spinner } from "../Spinner";
 import { ErrorState } from "../ErrorState";
-import type { DocumentRecord, RequirementRecord, TraceLink } from "../../types";
+import type {
+  DocumentRecord,
+  RequirementRecord,
+  TraceLink,
+  DocumentSectionWithRelations,
+  DocumentSectionsWithRelationsResponse
+} from "../../types";
 
 export interface DocumentTreeProps {
   document: DocumentRecord | null;
@@ -46,7 +52,7 @@ export function DocumentTree({
 
   // Use optimized endpoint that fetches sections with all requirements in a single query
   // This eliminates N+1 query problem: Before: 1 + N queries, After: 1 query (~97% reduction)
-  const sectionsQuery = useQuery({
+  const sectionsQuery = useQuery<DocumentSectionsWithRelationsResponse | null>({
     queryKey: ["sections-with-relations", state.tenant, state.project, document?.slug],
     queryFn: () => (document ? api.listDocumentSectionsWithRelations(state.tenant!, state.project!, document.slug) : null),
     enabled: Boolean(state.tenant && state.project && document)
@@ -162,7 +168,7 @@ export function DocumentTree({
     return <ErrorState message="Failed to load document sections" />;
   }
 
-  const sections = sectionsQuery.data?.sections || [];
+  const sections: DocumentSectionWithRelations[] = sectionsQuery.data?.sections || [];
 
   return (
     <div className="document-tree">

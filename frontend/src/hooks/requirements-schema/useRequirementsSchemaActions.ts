@@ -15,7 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../../lib/client";
 import { DOCUMENT_BLOCK_PRESET, LINK_TYPE_LABELS } from "../../types/requirements-schema";
 import type { SysmlBlock, SysmlConnector } from "../../types/requirements-schema";
-import type { DocumentRecord, DocumentLinkset } from "../../types";
+import type { DocumentRecord, DocumentLinkset, CreateArchitectureConnectorRequest } from "../../types";
 
 export function useRequirementsSchemaActions(
   tenant: string,
@@ -133,6 +133,10 @@ export function useRequirementsSchemaActions(
     const sourceSlug = resolveDocumentSlug(input.source);
     const targetSlug = resolveDocumentSlug(input.target);
 
+    if (!sourceSlug || !targetSlug) {
+      throw new Error("Document slug unavailable for connector creation");
+    }
+
     let linksetDefaultType = "satisfies"; // fallback
     try {
       const linkset = await api.getLinkset(tenant, project, sourceSlug, targetSlug);
@@ -155,14 +159,15 @@ export function useRequirementsSchemaActions(
     // Convert link type to label
     const connectorLabel = input.label || LINK_TYPE_LABELS[linksetDefaultType] || "traces to";
 
-    const result = await api.createArchitectureConnector({
+    const sourcePortId: string | undefined = input.sourcePortId ?? undefined;
+    const targetPortId: string | undefined = input.targetPortId ?? undefined;
+
+    const payload: CreateArchitectureConnectorRequest = {
       tenant,
       projectKey: project,
       diagramId: activeDiagramId,
       source: input.source,
       target: input.target,
-      sourcePortId: input.sourcePortId || undefined,
-      targetPortId: input.targetPortId || undefined,
       kind: "flow",
       label: connectorLabel,
       lineStyle: "smoothstep",
@@ -171,7 +176,15 @@ export function useRequirementsSchemaActions(
       linePattern: "solid",
       color: "#2563eb",
       strokeWidth: 2
-    });
+    };
+    if (sourcePortId !== undefined) {
+      payload.sourcePortId = sourcePortId;
+    }
+    if (targetPortId !== undefined) {
+      payload.targetPortId = targetPortId;
+    }
+
+    const result = await api.createArchitectureConnector(payload);
 
     queryClient.invalidateQueries({ queryKey: ["requirements-schema-content"] });
 
@@ -220,12 +233,18 @@ export function useRequirementsSchemaActions(
   // Update connector
   const handleUpdateConnector = useCallback(async (connectorId: string, updates: Partial<SysmlConnector>) => {
     if (!activeDiagramId) return;
+    const sanitized = {
+      ...updates,
+      sourcePortId: updates.sourcePortId ?? undefined,
+      targetPortId: updates.targetPortId ?? undefined
+    } as Partial<CreateArchitectureConnectorRequest>;
+
     await api.updateArchitectureConnector(tenant, project, connectorId, {
       diagramId: activeDiagramId,
       kind: "flow",
       markerStart: "none",
       markerEnd: "arrowclosed",
-      ...updates
+      ...sanitized
     });
     queryClient.invalidateQueries({ queryKey: ["requirements-schema-content"] });
   }, [tenant, project, activeDiagramId, api, queryClient]);

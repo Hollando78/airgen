@@ -74,6 +74,7 @@ export type RequirementRecord = {
   projectKey: string;
   title: string;
   text: string;
+  order?: number;
   pattern?: RequirementPattern;
   verification?: VerificationMethod;
   rationale?: string;
@@ -626,6 +627,7 @@ export type ArchitectureBlockDefinitionRecord = {
   description?: string | null;
   tenant: string;
   projectKey: string;
+  packageId?: string | null;
   ports: BlockPortRecord[];
   documentIds: string[];
   createdAt: string;
@@ -774,6 +776,7 @@ export type ArchitectureDiagramRecord = {
   description?: string | null;
   tenant: string;
   projectKey: string;
+  packageId?: string | null;
   view: "block" | "internal" | "deployment" | "requirements_schema";
   createdAt: string;
   updatedAt: string;
@@ -794,6 +797,8 @@ export type DevUser = {
   emailVerified: boolean;
   mfaEnabled: boolean;
   permissions?: import("./lib/rbac").UserPermissions;
+  roles?: string[];
+  tenantSlugs?: string[];
   createdAt: string;
   updatedAt: string;
 };

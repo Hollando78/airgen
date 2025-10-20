@@ -43,7 +43,7 @@ export function MobileAirGenScreen(): JSX.Element {
     return groups.flatMap(group => group.candidates);
   }, [candidatesQuery.data]);
 
-  const canSubmit = prompt.trim().length >= 12 && !draftMutation.isLoading && !!state.tenant && !!state.project;
+  const canSubmit = prompt.trim().length >= 12 && !draftMutation.isPending && !!state.tenant && !!state.project;
 
   // Show workspace selection prompt if no tenant/project selected
   // Keep this after all hooks to comply with Rules of Hooks
@@ -120,7 +120,7 @@ export function MobileAirGenScreen(): JSX.Element {
             <CandidateGroups candidates={candidates} />
           )}
 
-          {draftMutation.isLoading && <MobileLoadingOverlay message="AIRGen is preparing candidates…" />}
+          {draftMutation.isPending && <MobileLoadingOverlay message="AIRGen is preparing candidates…" />}
         </>
       )}
     </div>

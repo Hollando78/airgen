@@ -5,7 +5,7 @@ import type { RequirementRecord, RequirementPattern, VerificationMethod, Documen
 interface EditRequirementModalProps {
   isOpen: boolean;
   requirement: RequirementRecord | null;
-  sections?: DocumentSectionRecord[];
+  sections?: Array<DocumentSectionRecord & { requirements?: RequirementRecord[] }>;
   onClose: () => void;
   onUpdate: (updates: {
     text?: string;

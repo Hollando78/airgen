@@ -1,14 +1,15 @@
 import { http, HttpResponse } from "msw";
+import type { JsonBodyType } from "msw";
 
 export const baseHandlers = [
   http.get("/health", () => HttpResponse.json({ status: "ok" }))
 ];
 
-export function mockAirGenCandidates(response: unknown) {
+export function mockAirGenCandidates(response: JsonBodyType) {
   return http.get("/api/airgen/candidates/:tenant/:project/grouped", () => HttpResponse.json(response));
 }
 
-export function createCandidatesSequence(responses: unknown[]) {
+export function createCandidatesSequence(responses: JsonBodyType[]) {
   let calls = 0;
   return {
     handler: http.get("/api/airgen/candidates/:tenant/:project/grouped", () => {
@@ -26,11 +27,11 @@ export function mockAirGenCandidatesError(message: string, status = 500) {
   );
 }
 
-export function mockDiagramCandidates(response: unknown) {
+export function mockDiagramCandidates(response: JsonBodyType) {
   return http.get("/api/airgen/diagram-candidates/:tenant/:project", () => HttpResponse.json(response));
 }
 
-export function createDiagramSequence(responses: unknown[]) {
+export function createDiagramSequence(responses: JsonBodyType[]) {
   let calls = 0;
   return {
     handler: http.get("/api/airgen/diagram-candidates/:tenant/:project", () => {
@@ -49,13 +50,13 @@ export function mockCandidateAction(action: "accept" | "reject" | "return") {
   });
 }
 
-export function mockDocumentsList(documents: unknown) {
+export function mockDocumentsList(documents: JsonBodyType) {
   return http.get("/api/documents/:tenant/:project", () =>
     HttpResponse.json({ documents })
   );
 }
 
-export function mockDocumentSections(sections: unknown) {
+export function mockDocumentSections(sections: JsonBodyType) {
   return http.get("/api/sections/:tenant/:project/:documentSlug", () =>
     HttpResponse.json({ sections })
   );

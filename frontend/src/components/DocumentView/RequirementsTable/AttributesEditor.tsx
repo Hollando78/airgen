@@ -3,11 +3,13 @@ import { useState, useEffect } from 'react';
 /**
  * Props for the AttributesEditor component
  */
+type RequirementAttributes = Record<string, string | number | boolean | null>;
+
 export interface AttributesEditorProps {
   /** Current attributes object */
-  attributes: Record<string, unknown>;
+  attributes: RequirementAttributes;
   /** Handler for saving attributes */
-  onSave: (attributes: Record<string, unknown>) => void;
+  onSave: (attributes: RequirementAttributes) => void;
   /** Handler for closing the editor */
   onClose: () => void;
 }
@@ -24,7 +26,11 @@ export function AttributesEditor({
     Object.fromEntries(
       Object.entries(attributes).map(([key, value]) => [
         key,
-        typeof value === 'boolean' ? (value ? 'true' : 'false') : String(value)
+        value === null
+          ? ''
+          : typeof value === 'boolean'
+            ? (value ? 'true' : 'false')
+            : String(value)
       ])
     )
   );
@@ -43,7 +49,7 @@ export function AttributesEditor({
 
   const handleSave = () => {
     // Convert string values back to their appropriate types
-    const converted: Record<string, unknown> = {};
+    const converted: RequirementAttributes = {};
     for (const [key, value] of Object.entries(editedAttributes)) {
       if (value === 'true') {
         converted[key] = true;
@@ -52,7 +58,7 @@ export function AttributesEditor({
       } else if (!isNaN(Number(value)) && value.trim() !== '') {
         converted[key] = Number(value);
       } else {
-        converted[key] = value;
+        converted[key] = value.trim() === '' ? null : value;
       }
     }
     onSave(converted);
@@ -216,14 +222,14 @@ export function AttributesEditor({
             />
             <button
               onClick={handleAdd}
-              disabled={!newKey.trim() || editedAttributes[newKey]}
+              disabled={!newKey.trim() || editedAttributes[newKey] !== undefined}
               style={{
                 padding: '6px 12px',
-                backgroundColor: newKey.trim() && !editedAttributes[newKey] ? '#3b82f6' : '#e2e8f0',
-                color: newKey.trim() && !editedAttributes[newKey] ? 'white' : '#94a3b8',
+                backgroundColor: newKey.trim() && editedAttributes[newKey] === undefined ? '#3b82f6' : '#e2e8f0',
+                color: newKey.trim() && editedAttributes[newKey] === undefined ? 'white' : '#94a3b8',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: newKey.trim() && !editedAttributes[newKey] ? 'pointer' : 'not-allowed',
+                cursor: newKey.trim() && editedAttributes[newKey] === undefined ? 'pointer' : 'not-allowed',
                 fontSize: '12px'
               }}
             >

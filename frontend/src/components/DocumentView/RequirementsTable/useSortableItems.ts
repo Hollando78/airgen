@@ -16,6 +16,10 @@ export function useSortableItems(
   // Merge requirements, infos, and surrogates from all sections into a single sorted list
   const sortedItems = useMemo(() => {
     const items: ItemType[] = [];
+    const getOrder = (entity: Record<string, unknown>, fallback: number) => {
+      const value = entity["order"];
+      return typeof value === "number" ? value : fallback;
+    };
 
     // Add items from all sections in order
     sections.forEach((section, sectionIndex) => {
@@ -33,21 +37,24 @@ export function useSortableItems(
         ...(section.requirements || []).map((req, idx) => ({
           type: 'requirement' as const,
           data: req,
-          order: req.order ?? idx,
+          order: getOrder(req as Record<string, unknown>, idx),
           sectionName: section.name,
           sectionOrder: sectionIndex
         })),
         ...(section.infos || []).map((info, idx) => ({
           type: 'info' as const,
           data: info,
-          order: info.order ?? ((section.requirements || []).length + idx),
+          order: getOrder(info as Record<string, unknown>, (section.requirements || []).length + idx),
           sectionName: section.name,
           sectionOrder: sectionIndex
         })),
         ...(section.surrogates || []).map((surrogate, idx) => ({
           type: 'surrogate' as const,
           data: surrogate,
-          order: surrogate.order ?? ((section.requirements || []).length + (section.infos?.length || 0) + idx),
+          order: getOrder(
+            surrogate as Record<string, unknown>,
+            (section.requirements || []).length + (section.infos?.length || 0) + idx
+          ),
           sectionName: section.name,
           sectionOrder: sectionIndex
         }))

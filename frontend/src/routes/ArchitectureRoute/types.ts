@@ -1,4 +1,5 @@
 import type { BlockKind } from "../../hooks/useArchitectureApi";
+import type { ConnectorMarkerType } from "../../types";
 
 export interface BlockPreset {
   label: string;
@@ -11,7 +12,7 @@ export interface ConnectorPreset {
   label: string;
   lineStyle: string;
   linePattern: string;
-  markerEnd: string;
-  markerStart: string;
+  markerEnd: ConnectorMarkerType;
+  markerStart: ConnectorMarkerType;
   color?: string;
 }

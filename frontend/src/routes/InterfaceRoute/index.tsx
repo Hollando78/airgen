@@ -40,24 +40,24 @@ function InterfaceRouteContent({ tenant, project }: InterfaceRouteContentProps):
   const api = useApiClient();
   const interfaceState = useInterface(tenant, project);
 
-  const handleCreatePackage = useCallback((name: string, parentId?: string | null) => {
-    return interfaceState.createPackage({ name, parentId }) as Promise<void>;
+  const handleCreatePackage = useCallback(async (name: string, parentId?: string | null) => {
+    await interfaceState.createPackage({ name, parentId });
   }, [interfaceState]);
 
-  const handleUpdatePackage = useCallback((packageId: string, updates: { name: string }) => {
-    return interfaceState.updatePackage(packageId, updates) as Promise<void>;
+  const handleUpdatePackage = useCallback(async (packageId: string, updates: { name: string }) => {
+    await interfaceState.updatePackage(packageId, updates);
   }, [interfaceState]);
 
-  const handleDeletePackage = useCallback((packageId: string, force?: boolean) => {
-    return interfaceState.deletePackage(packageId, force) as Promise<void>;
+  const handleDeletePackage = useCallback(async (packageId: string, force?: boolean) => {
+    await interfaceState.deletePackage(packageId, force);
   }, [interfaceState]);
 
-  const handleMoveToPackage = useCallback((itemId: string, itemType: "package" | "block" | "diagram", targetPackageId: string | null) => {
-    return interfaceState.moveToPackage(itemId, itemType, targetPackageId);
+  const handleMoveToPackage = useCallback(async (itemId: string, itemType: "package" | "block" | "diagram", targetPackageId: string | null) => {
+    await interfaceState.moveToPackage(itemId, itemType, targetPackageId);
   }, [interfaceState]);
 
-  const handleReorderInPackage = useCallback((packageId: string | null, itemIds: string[]) => {
-    return interfaceState.reorderInPackage(packageId, itemIds);
+  const handleReorderInPackage = useCallback(async (packageId: string | null, itemIds: string[]) => {
+    await interfaceState.reorderInPackage(packageId, itemIds);
   }, [interfaceState]);
 
   const documentsQuery = useQuery({
@@ -103,6 +103,7 @@ function InterfaceRouteContent({ tenant, project }: InterfaceRouteContentProps):
       blocksLibrary={interfaceState.blocksLibrary}
       packages={interfaceState.packages}
       connectors={interfaceState.connectors}
+      connectorRecords={interfaceState.connectorRecords}
       createPackage={handleCreatePackage}
       updatePackage={handleUpdatePackage}
       deletePackage={handleDeletePackage}

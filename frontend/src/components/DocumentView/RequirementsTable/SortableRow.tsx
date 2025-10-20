@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { RequirementRecord, InfoRecord, SurrogateReferenceRecord } from "../../../types";
+import type { RequirementRecord, InfoRecord, SurrogateReferenceRecord, TraceLink } from "../../../types";
 import type { ColumnVisibility } from "./ColumnSelector";
 import { InfoRow } from "./InfoRow";
 import { SurrogateRow } from "./SurrogateRow";
@@ -22,6 +22,7 @@ export interface SortableRowProps {
   visibleColumns: ColumnVisibility;
   tenant: string;
   project: string;
+  traceLinks?: TraceLink[];
   onContextMenu: (e: React.MouseEvent, requirement: RequirementRecord) => void;
   onEdit: (requirement: RequirementRecord) => void;
   onFieldUpdate?: (requirement: RequirementRecord, field: string, value: string) => void;
@@ -36,6 +37,7 @@ export function SortableRow({
   visibleColumns,
   tenant,
   project,
+  traceLinks,
   onContextMenu,
   onEdit,
   onFieldUpdate,
@@ -147,6 +149,9 @@ export function SortableRow({
         onEditAttributes={onEditAttributes}
         onViewHistory={onViewHistory}
         setEditValue={setEditValue}
+        tenant={tenant}
+        project={project}
+        traceLinks={traceLinks}
       />
     );
   }

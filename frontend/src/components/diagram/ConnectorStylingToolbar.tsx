@@ -1,6 +1,7 @@
 import { CONNECTOR_PRESETS } from "../../routes/ArchitectureRoute/constants";
 import { getDefaultColorByKind } from "../../routes/ArchitectureRoute/utils/diagram";
 import type { SysmlConnector } from "../../hooks/useArchitectureApi";
+import type { ConnectorMarkerType } from "../../types";
 
 interface ConnectorStylingToolbarProps {
   connector: SysmlConnector;
@@ -40,8 +41,8 @@ export function ConnectorStylingToolbar({ connector, onUpdate }: ConnectorStylin
             onUpdate({
               lineStyle: preset.lineStyle,
               linePattern: preset.linePattern,
-              markerEnd: preset.markerEnd,
-              markerStart: preset.markerStart,
+              markerEnd: preset.markerEnd as ConnectorMarkerType,
+              markerStart: preset.markerStart as ConnectorMarkerType,
               ...(preset.color && { color: preset.color })
             });
           }
@@ -99,7 +100,7 @@ export function ConnectorStylingToolbar({ connector, onUpdate }: ConnectorStylin
 
       <select
         value={connector.markerEnd ?? "arrowclosed"}
-        onChange={event => onUpdate({ markerEnd: event.target.value })}
+        onChange={event => onUpdate({ markerEnd: event.target.value as ConnectorMarkerType })}
         style={{ fontSize: "11px", padding: "2px 4px" }}
       >
         <option value="none">No End</option>

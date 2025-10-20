@@ -344,8 +344,7 @@ export function ArchitectureBrowserTree({
         canMove: item.canDrag ?? false,
         canRename: item.canRename ?? false,
         isFolder: item.isFolder,
-        children: item.children,
-        hasChildren: item.children.length > 0
+        children: item.children
       };
     },
 
@@ -420,17 +419,13 @@ export function ArchitectureBrowserTree({
       }
     },
 
-    async onDidSelectItems(items: TreeItemIndex[]): Promise<void> {
+    async onDidSelectItems(items: TreeItemIndex[], _treeId: string): Promise<void> {
       setSelectedItems(items);
     }
   }), [treeData, onRenamePackage, onMoveToPackage, onReorderItems]);
 
   // Handle item click/activation
-  const handlePrimaryAction = useCallback((items: TreeItem<TreeItemData>[]) => {
-    if (items.length !== 1) return;
-
-    const item = items[0];
-
+  const handlePrimaryAction = useCallback((item: TreeItem<TreeItemData>) => {
     if (item.data.type === 'block') {
       onInsertBlock(item.data.id);
     } else if (item.data.type === 'diagram') {
@@ -568,48 +563,55 @@ export function ArchitectureBrowserTree({
           onFocusItem={(item) => setFocusedItem(item.index)}
           onExpandItem={(item) => setExpandedItems(prev => [...prev, item.index])}
           onCollapseItem={(item) => setExpandedItems(prev => prev.filter(i => i !== item.index))}
-          onSelectItems={(items) => setSelectedItems(items)}
-          onPrimaryAction={handlePrimaryAction}
+          onSelectItems={(items, _treeId) => setSelectedItems(items)}
+          onPrimaryAction={(item) => handlePrimaryAction(item)}
           canDragAndDrop={true}
           canDropOnFolder={true}
           canReorderItems={true}
           onDrop={async (items, target) => {
-            // Handle dropping items into a new location
-            const targetId = String(target.targetItem);
-            const targetItem = treeData[targetId];
+            let targetReference: TreeItemData | undefined;
 
-            if (!targetItem) return;
+            if (target.targetType === 'item' || target.targetType === 'root') {
+              targetReference = treeData[String(target.targetItem)];
+            } else if (target.targetType === 'between-items') {
+              targetReference = treeData[String(target.parentItem)];
+            }
 
-            // Process each dropped item
-            for (const droppedItemId of items) {
-              const droppedKeyStr = String(droppedItemId);
-              let itemId: string;
-              let itemType: 'package' | 'block' | 'diagram';
+            if (!targetReference) {
+              return;
+            }
 
-              if (droppedKeyStr.startsWith('package-')) {
-                itemId = droppedKeyStr.substring(8);
-                itemType = 'package';
-              } else if (droppedKeyStr.startsWith('diagram-')) {
-                itemId = droppedKeyStr.substring(8);
-                itemType = 'diagram';
-              } else if (droppedKeyStr.startsWith('block-')) {
-                itemId = droppedKeyStr.substring(6);
-                itemType = 'block';
-              } else {
+            for (const droppedItem of items) {
+              const data = droppedItem.data;
+
+              if (!data) {
                 continue;
               }
 
-              // Determine target package ID
+              let itemType: 'package' | 'block' | 'diagram';
+
+              switch (data.type) {
+                case 'package':
+                  itemType = 'package';
+                  break;
+                case 'diagram':
+                  itemType = 'diagram';
+                  break;
+                case 'block':
+                  itemType = 'block';
+                  break;
+                default:
+                  continue;
+              }
+
               let targetPackageId: string | null = null;
-              if (targetItem.type === 'package') {
-                targetPackageId = targetItem.id;
-              } else if (targetItem.type === 'section') {
-                // Dropping into section means root level
+              if (targetReference.type === 'package') {
+                targetPackageId = targetReference.id;
+              } else if (targetReference.type === 'section') {
                 targetPackageId = null;
               }
 
-              // Move item to new package
-              await onMoveToPackage(itemId, itemType, targetPackageId);
+              await onMoveToPackage(data.id, itemType, targetPackageId);
             }
           }}
           renderItemTitle={({ item, context }) => {

@@ -14,23 +14,17 @@ export function useAdminData(
   // Fetch tenants
   const { data: tenantsData } = useQuery({
     queryKey: ["tenants"],
-    queryFn: async () => {
-      const response = await api.get("/tenants");
-      return response.data;
-    }
+    queryFn: api.listTenants
   });
-  const tenants = tenantsData?.tenants || [];
+  const tenants = tenantsData?.tenants ?? [];
 
   // Fetch projects for selected tenant
   const { data: projectsData } = useQuery({
     queryKey: ["projects", selectedTenant],
-    queryFn: async () => {
-      const response = await api.get(`/tenants/${selectedTenant}/projects`);
-      return response.data;
-    },
-    enabled: !!selectedTenant
+    queryFn: () => api.listProjects(selectedTenant),
+    enabled: Boolean(selectedTenant)
   });
-  const projects = projectsData?.projects || [];
+  const projects = projectsData?.projects ?? [];
 
   // Fetch deleted requirements
   const { data: deletedData, isLoading: isLoadingDeleted, error: deletedError } = useQuery({

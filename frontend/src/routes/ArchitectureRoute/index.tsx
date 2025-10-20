@@ -58,6 +58,7 @@ function ArchitectureRouteContent({ tenant, project }: ArchitectureRouteContentP
     blocksLibrary,
     packages,
     connectors,
+    connectorRecords,
     createPackage,
     updatePackage,
     deletePackage,
@@ -210,6 +211,9 @@ function ArchitectureRouteContent({ tenant, project }: ArchitectureRouteContentP
       updateBlockPosition={updateBlockPosition}
       updateBlockSize={updateBlockSize}
       removeBlock={removeBlock}
+      addPort={addPort}
+      updatePort={updatePort}
+      removePort={removePort}
       addConnector={addConnector}
       updateConnector={updateConnector}
       removeConnector={removeConnector}
@@ -221,6 +225,7 @@ function ArchitectureRouteContent({ tenant, project }: ArchitectureRouteContentP
       blocksLibrary={blocksLibrary}
       packages={packages}
       connectors={connectors}
+      connectorRecords={connectorRecords}
       createPackage={handleCreatePackage}
       renamePackage={handleRenamePackage}
       deletePackage={handleDeletePackage}

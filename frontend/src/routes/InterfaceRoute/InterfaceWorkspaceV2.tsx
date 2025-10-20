@@ -22,7 +22,6 @@ import {
 import type {
   ArchitectureBlockLibraryRecord,
   ArchitectureDiagramRecord,
-  ArchitectureConnectorRecord,
   DocumentRecord
 } from "../../types";
 import type {
@@ -33,6 +32,7 @@ import type {
   SysmlBlock,
   SysmlConnector
 } from "../../hooks/useArchitectureApi";
+import type { ArchitectureConnectorRecord } from "../../types";
 
 interface Package {
   id: string;
@@ -95,7 +95,8 @@ interface InterfaceWorkspaceV2Props {
   removeDocumentFromConnector: (connectorId: string, documentId: string) => void;
   blocksLibrary: ArchitectureBlockLibraryRecord[];
   packages: Package[];
-  connectors: ArchitectureConnectorRecord[];
+  connectors: SysmlConnector[];
+  connectorRecords: ArchitectureConnectorRecord[];
   createPackage: (name: string, parentId?: string | null) => Promise<void>;
   updatePackage: (packageId: string, updates: { name: string }) => Promise<void>;
   deletePackage: (packageId: string, force?: boolean) => Promise<void>;
@@ -142,6 +143,7 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
     blocksLibrary,
     packages,
     connectors,
+    connectorRecords,
     createPackage,
     updatePackage,
     deletePackage,
@@ -271,14 +273,15 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
     const diagram = diagrams.find(item => item.id === diagramId);
     if (!diagram) return;
 
-    toast.promise(
+    const toastPromise = toast.promise(
       deleteDiagram(diagramId),
       {
         loading: `Deleting "${diagram.name}"...`,
         success: `Deleted "${diagram.name}"`,
         error: (error) => (error as Error).message
       }
-    ).catch(() => {
+    );
+    toastPromise.unwrap().catch(() => {
       // handled via toast.promise rejection
     });
   }, [deleteDiagram, diagrams]);
@@ -409,10 +412,10 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
 
         <div className="architecture-body">
           <aside className="architecture-pane palette-pane">
-            <ArchitectureBrowserTree
-              blocks={blocksLibrary}
-              diagrams={diagrams}
-              connectors={connectors}
+          <ArchitectureBrowserTree
+            blocks={blocksLibrary}
+            diagrams={diagrams}
+            connectors={connectorRecords}
               packages={packages}
               disabled={!activeDiagramId}
               isLoading={isLibraryLoading || isPackagesLoading}

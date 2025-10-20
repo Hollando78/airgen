@@ -106,7 +106,7 @@ export function RequirementsTable({
   });
   const [attributesEditor, setAttributesEditor] = useState<{
     requirement: RequirementRecord;
-    attributes: Record<string, unknown>;
+    attributes: Record<string, string | number | boolean | null>;
   } | null>(null);
   const [historyModal, setHistoryModal] = useState<{
     requirement: RequirementRecord;
@@ -131,7 +131,7 @@ export function RequirementsTable({
   }, []);
 
   // Handler for updating attributes
-  const handleAttributesSave = useCallback((attributes: Record<string, unknown>) => {
+  const handleAttributesSave = useCallback((attributes: Record<string, string | number | boolean | null>) => {
     if (attributesEditor) {
       updateAttributesMutation.mutate({
         requirement: attributesEditor.requirement,

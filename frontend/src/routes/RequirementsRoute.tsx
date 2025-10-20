@@ -82,6 +82,12 @@ export function RequirementsRoute(): JSX.Element {
     }
   };
 
+  const qaScore = detailQuery.data?.record.qaScore;
+  const qaScoreColor = typeof qaScore === "number"
+    ? (qaScore >= 90 ? '#22c55e' : qaScore >= 70 ? '#eab308' : '#ef4444')
+    : '#64748b';
+  const qaScoreDisplay = typeof qaScore === "number" ? qaScore : "—";
+
   if (!state.tenant || !state.project) {
     return (
       <PageLayout
@@ -250,10 +256,8 @@ export function RequirementsRoute(): JSX.Element {
                     </div>
                     <div>
                       <div className="text-xs font-semibold text-muted-foreground mb-1">QA SCORE</div>
-                      <div className="text-xl font-semibold" style={{
-                        color: detailQuery.data.record.qaScore >= 90 ? '#22c55e' : detailQuery.data.record.qaScore >= 70 ? '#eab308' : '#ef4444'
-                      }}>
-                        {detailQuery.data.record.qaScore ?? "—"}
+                      <div className="text-xl font-semibold" style={{ color: qaScoreColor }}>
+                        {qaScoreDisplay}
                       </div>
                     </div>
                     <div>

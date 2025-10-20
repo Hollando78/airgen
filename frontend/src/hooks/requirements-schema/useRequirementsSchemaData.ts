@@ -14,7 +14,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useApiClient } from "../../lib/client";
 import { isRequirementsSchemaDiagram } from "../../lib/architectureDiagrams";
 import { mapBlockFromApi, mapConnectorFromApi } from "../../lib/requirements-schema-mappers";
-import type { DocumentRecord, SysmlBlock } from "../../types/requirements-schema";
+import type { SysmlBlock } from "../../types/requirements-schema";
+import type { DocumentRecord } from "../../types";
 
 export function useRequirementsSchemaData(
   tenant: string,

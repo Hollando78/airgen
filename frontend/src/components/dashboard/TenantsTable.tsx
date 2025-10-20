@@ -2,21 +2,10 @@ import { Spinner } from "../Spinner";
 import { ErrorState } from "../ErrorState";
 import { useTenantProject } from "../../hooks/useTenantProject";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
-
-interface Tenant {
-  slug: string;
-  name?: string;
-  projectCount: number;
-  createdAt: string;
-  isOwner: boolean;
-}
-
-interface TenantsData {
-  tenants: Tenant[];
-}
+import type { TenantRecord, TenantsResponse } from "../../types";
 
 interface TenantsTableProps {
-  tenantsQuery: UseQueryResult<TenantsData, Error>;
+  tenantsQuery: UseQueryResult<TenantsResponse, Error>;
   showOwnerActions: boolean;
   onCreateProject: (tenantSlug: string) => void;
   onInvite: (tenantSlug: string) => void;
@@ -57,7 +46,7 @@ export function TenantsTable({
     return <ErrorState message={tenantsQuery.error.message} />;
   }
 
-  const tenants = tenantsQuery.data?.tenants ?? [];
+  const tenants: TenantRecord[] = tenantsQuery.data?.tenants ?? [];
 
   return (
     <table className="data-table">

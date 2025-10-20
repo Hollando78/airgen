@@ -67,9 +67,7 @@ export function RequirementLinkingProvider({ children }: { children: ReactNode }
       });
 
       // Create the trace link via API
-      const result = await apiClient.createTraceLink({
-        tenant,
-        projectKey,
+      const result = await apiClient.createTraceLink(tenant, projectKey, {
         sourceRequirementId: linkingState.sourceRequirement.id,
         targetRequirementId: targetRequirement.id,
         linkType,

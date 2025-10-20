@@ -210,6 +210,13 @@ export function RequirementsSchemaRoute(): JSX.Element {
       }
     } satisfies Edge;
   }, [tenant, project, api, queryClient, uiState.activeDiagramId, diagramData, data.linksetsQuery.data]);
+
+  const selectedBlock = uiState.selectedBlockId
+    ? diagramData.blocks.find(b => b.id === uiState.selectedBlockId) ?? null
+    : null;
+  const selectedConnector = uiState.selectedConnectorId
+    ? diagramData.connectors.find(c => c.id === uiState.selectedConnectorId) ?? null
+    : null;
   
   return (
     <div className="architecture-shell">
@@ -275,7 +282,10 @@ export function RequirementsSchemaRoute(): JSX.Element {
             addPort={handleAddPort}
             updatePort={handleUpdatePort}
             removePort={handleRemovePort}
-            addConnector={actions.addConnector}
+            addConnector={(input) => {
+              void actions.addConnector(input);
+              return null;
+            }}
             updateConnector={actions.handleUpdateConnector}
             removeConnector={actions.handleRemoveConnector}
             onOpenDocument={(documentSlug) => {
@@ -315,26 +325,34 @@ export function RequirementsSchemaRoute(): JSX.Element {
 
         {/* Right Sidebar - Details Panel */}
         <aside className="architecture-pane inspector-pane">
-          {uiState.selectedBlockId && (
+          {selectedBlock && (
             <BlockDetailsPanel
-              block={diagramData.blocks.find(b => b.id === uiState.selectedBlockId)}
-              onUpdate={(updates) => actions.handleUpdateBlock(uiState.selectedBlockId!, updates)}
-              onRemove={() => actions.handleRemoveBlock(uiState.selectedBlockId!)}
+              block={selectedBlock}
+              onUpdate={(updates) => actions.handleUpdateBlock(selectedBlock.id, updates)}
+              onUpdatePosition={(position) => actions.handleUpdateBlockPosition(selectedBlock.id, position)}
+              onUpdateSize={(size) => actions.handleUpdateBlockSize(selectedBlock.id, size)}
+              onRemove={() => actions.handleRemoveBlock(selectedBlock.id)}
+              onAddPort={handleAddPort}
+              onUpdatePort={handleUpdatePort}
+              onRemovePort={handleRemovePort}
               documents={data.documentsQuery.data?.documents || []}
               onAddDocument={() => {}}
               onRemoveDocument={() => {}}
             />
           )}
 
-          {uiState.selectedConnectorId && (
+          {selectedConnector && (
             <ConnectorDetailsPanel
-              connector={diagramData.connectors.find(c => c.id === uiState.selectedConnectorId)}
-              onUpdate={(updates) => actions.handleUpdateConnector(uiState.selectedConnectorId!, updates)}
-              onRemove={() => actions.handleRemoveConnector(uiState.selectedConnectorId!)}
+              connector={selectedConnector}
+              onUpdate={(updates) => actions.handleUpdateConnector(selectedConnector.id, updates)}
+              onRemove={() => actions.handleRemoveConnector(selectedConnector.id)}
+              documents={data.documentsQuery.data?.documents || []}
+              onAddDocument={() => {}}
+              onRemoveDocument={() => {}}
             />
           )}
 
-          {!uiState.selectedBlockId && !uiState.selectedConnectorId && (
+          {!selectedBlock && !selectedConnector && (
             <>
               <div className="architecture-hint">
                 <h3>Requirements Schema</h3>

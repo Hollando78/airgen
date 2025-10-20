@@ -35,9 +35,12 @@ export function useProjectManagement() {
   });
 
   // Mutations
-  const createProjectMutation = useMutation({
-    mutationFn: ({ tenant, data }: { tenant: string; data: { slug: string; key?: string } }) =>
-      api.createProject(tenant, data),
+  const createProjectMutation = useMutation<unknown, Error, { tenant: string; data: { slug: string; key: string } }>({
+    mutationFn: ({ tenant, data }) =>
+      api.createProject(tenant, {
+        slug: data.slug,
+        key: data.key.trim() ? data.key.trim() : undefined
+      }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["projects", variables.tenant] });
       setShowCreateProject(false);
@@ -51,9 +54,8 @@ export function useProjectManagement() {
     }
   });
 
-  const deleteProjectMutation = useMutation({
-    mutationFn: ({ tenant, project }: { tenant: string; project: string }) =>
-      api.deleteProject(tenant, project),
+  const deleteProjectMutation = useMutation<unknown, Error, { tenant: string; project: string }>({
+    mutationFn: ({ tenant, project }) => api.deleteProject(tenant, project),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["projects", variables.tenant] });
       setProjectPendingDeletion(null);
@@ -72,7 +74,10 @@ export function useProjectManagement() {
     }
     createProjectMutation.mutate({
       tenant: selectedTenantForProject,
-      data: newProjectData
+      data: {
+        slug: newProjectData.slug.trim(),
+        key: newProjectData.key
+      }
     });
   }, [selectedTenantForProject, newProjectData, createProjectMutation]);
 

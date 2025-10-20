@@ -69,6 +69,9 @@ interface ArchitectureWorkspaceProps {
   updateBlockPosition: (blockId: string, position: { x: number; y: number }) => void;
   updateBlockSize: (blockId: string, size: { width: number; height: number }) => void;
   removeBlock: (blockId: string) => void;
+  addPort: (blockId: string, port: { name: string; direction: PortDirection }) => void;
+  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection; edge?: "top" | "right" | "bottom" | "left"; offset?: number; hidden?: boolean }) => void;
+  removePort: (blockId: string, portId: string) => void;
   addConnector: (input: {
     source: string;
     target: string;
@@ -86,7 +89,8 @@ interface ArchitectureWorkspaceProps {
   removeDocumentFromConnector: (connectorId: string, documentId: string) => void;
   blocksLibrary: ArchitectureBlockLibraryRecord[];
   packages: Package[];
-  connectors: ArchitectureConnectorRecord[];
+  connectors: SysmlConnector[];
+  connectorRecords: ArchitectureConnectorRecord[];
   createPackage: (name: string, parentId?: string | null) => Promise<void>;
   renamePackage: (packageId: string, name: string) => Promise<void>;
   deletePackage: (packageId: string) => Promise<void>;
@@ -120,6 +124,9 @@ export function ArchitectureWorkspace({
   updateBlockPosition,
   updateBlockSize,
   removeBlock,
+  addPort,
+  updatePort,
+  removePort,
   addConnector,
   updateConnector,
   removeConnector,
@@ -131,6 +138,7 @@ export function ArchitectureWorkspace({
   blocksLibrary,
   packages,
   connectors,
+  connectorRecords,
   createPackage,
   renamePackage,
   deletePackage,
@@ -509,7 +517,7 @@ export function ArchitectureWorkspace({
           <ArchitectureBrowserTree
             blocks={blocksLibrary}
             diagrams={diagrams}
-            connectors={connectors}
+            connectors={connectorRecords}
             packages={packages}
             disabled={!activeDiagramId}
             isLoading={isLibraryLoading || isPackagesLoading}
@@ -553,6 +561,9 @@ export function ArchitectureWorkspace({
           updateBlockPosition={updateBlockPosition}
           updateBlockSize={updateBlockSize}
           removeBlock={removeBlock}
+          addPort={addPort}
+          updatePort={updatePort}
+          removePort={removePort}
           addConnector={addConnector}
           updateConnector={updateConnector}
           removeConnector={removeConnector}
@@ -588,6 +599,9 @@ export function ArchitectureWorkspace({
               onUpdatePosition={position => updateBlockPosition(selectedBlock.id, position)}
               onUpdateSize={size => updateBlockSize(selectedBlock.id, size)}
               onRemove={() => removeBlock(selectedBlock.id)}
+              onAddPort={port => addPort(selectedBlock.id, port)}
+              onUpdatePort={(portId, updates) => updatePort(selectedBlock.id, portId, updates)}
+              onRemovePort={portId => removePort(selectedBlock.id, portId)}
               documents={documents}
               onAddDocument={documentId => addDocumentToBlock(selectedBlock.id, documentId)}
               onRemoveDocument={documentId => removeDocumentFromBlock(selectedBlock.id, documentId)}

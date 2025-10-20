@@ -418,6 +418,12 @@ export function GraphViewerRoute() {
     }
   };
 
+  const handleResetAllEdgeStyles = () => {
+    if (tenant && project) {
+      resetAllEdgeStyles(tenant, project);
+    }
+  };
+
   // Wrapper for saveView that calls the hook version
   const handleSaveCurrentView = () => {
     if (tenant && project) {
@@ -581,7 +587,7 @@ export function GraphViewerRoute() {
           <GraphLegendNodes inspectorOpen={!!selectedNodeInfo} />
           <GraphLegendRelationships
             edgeStyles={edgeStyles}
-            onResetAllEdgeStyles={resetAllEdgeStyles}
+            onResetAllEdgeStyles={handleResetAllEdgeStyles}
             sidebarOpen={sidebarOpen}
           />
         </div>

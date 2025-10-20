@@ -454,7 +454,7 @@ export function calculateBlockSize(
   // Name is rendered at 115% of base fontSize
   const baseFontSize = block.fontSize || 14;
   const nameWidth = block.name.length * CHAR_WIDTH * 1.15;
-  const stereotypeWidth = block.stereotype.length * CHAR_WIDTH * 0.85;
+  const stereotypeWidth = (block.stereotype ? block.stereotype.length : 0) * CHAR_WIDTH * 0.85;
 
   requiredWidth = Math.max(requiredWidth, nameWidth + PADDING, stereotypeWidth + PADDING);
 

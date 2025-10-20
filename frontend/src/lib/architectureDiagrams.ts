@@ -2,7 +2,11 @@ import type { ArchitectureDiagramRecord } from "../types";
 
 const INTERFACE_KEYWORD = "interface";
 const REQUIREMENTS_SCHEMA_KEYWORD = "requirements schema";
-const ARCHITECTURE_VIEWS = new Set(["block", "internal", "deployment"] as const);
+const ARCHITECTURE_VIEWS = new Set<ArchitectureDiagramRecord["view"]>([
+  "block",
+  "internal",
+  "deployment"
+]);
 
 type DiagramKeyword = typeof INTERFACE_KEYWORD | typeof REQUIREMENTS_SCHEMA_KEYWORD;
 

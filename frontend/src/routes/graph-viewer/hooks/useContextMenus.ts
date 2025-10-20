@@ -8,7 +8,7 @@
 import { useState, useEffect } from "react";
 
 export interface ContextMenuItem {
-  label: string;
+  label?: string;
   action?: () => void;
   submenu?: ContextMenuItem[];
   separator?: boolean;

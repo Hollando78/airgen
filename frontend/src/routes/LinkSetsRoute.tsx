@@ -105,7 +105,7 @@ const DocumentNodeComponent = memo<{
           {node.document.name}
         </div>
         <div style={{ fontSize: '12px', color: '#4b5563' }}>
-          {node.document.type}
+          {node.document.kind}
         </div>
         {node.document.requirementCount !== undefined && (
           <div style={{ fontSize: '12px', color: '#2563eb' }}>
@@ -164,6 +164,7 @@ export function LinkSetsRoute(): JSX.Element {
     queryFn: () => apiClient.listDocuments(tenant, project),
     enabled: Boolean(tenant && project)
   });
+  const documents = documentsQuery.data?.documents ?? [];
 
   // Fetch existing linksets
   const linksetsQuery = useQuery({
@@ -208,12 +209,11 @@ export function LinkSetsRoute(): JSX.Element {
 
   // Initialize nodes when documents load
   useEffect(() => {
-    if (documentsQuery.data?.documents && nodes.length === 0) {
-      const docs = documentsQuery.data.documents;
-      const gridCols = Math.ceil(Math.sqrt(docs.length));
+    if (documents.length && nodes.length === 0) {
+      const gridCols = Math.ceil(Math.sqrt(documents.length));
       const savedPositions = loadNodePositions();
       
-      const newNodes: DocumentNode[] = docs.map((doc, index) => {
+      const newNodes: DocumentNode[] = documents.map((doc, index) => {
         const row = Math.floor(index / gridCols);
         const col = index % gridCols;
         const saved = savedPositions[doc.id];
@@ -230,7 +230,7 @@ export function LinkSetsRoute(): JSX.Element {
       
       setNodes(newNodes);
     }
-  }, [documentsQuery.data?.documents, nodes.length, loadNodePositions]);
+  }, [documents, nodes.length, loadNodePositions]);
 
   // Initialize connections when linksets load
   useEffect(() => {
@@ -473,14 +473,19 @@ export function LinkSetsRoute(): JSX.Element {
   }, [dragState, nodes, connections]);
 
   const handleCreateLinkset = useCallback(() => {
-    if (newLinkset.sourceDocId && newLinkset.targetDocId) {
-      createLinksetMutation.mutate({
-        sourceDocumentId: newLinkset.sourceDocId,
-        targetDocumentId: newLinkset.targetDocId,
-        description: newLinkset.description || undefined
-      });
+    if (!newLinkset.sourceDocId || !newLinkset.targetDocId) {
+      return;
     }
-  }, [newLinkset, createLinksetMutation]);
+    const source = documents.find(doc => doc.id === newLinkset.sourceDocId);
+    const target = documents.find(doc => doc.id === newLinkset.targetDocId);
+    if (!source?.slug || !target?.slug) {
+      return;
+    }
+    createLinksetMutation.mutate({
+      sourceDocumentSlug: source.slug,
+      targetDocumentSlug: target.slug
+    });
+  }, [createLinksetMutation, documents, newLinkset.sourceDocId, newLinkset.targetDocId]);
 
   const getConnectionPath = useCallback((fromId: string, toId: string) => {
     if (!edgeUpdatesEnabled) {return '';} // Skip during drag for performance
@@ -507,8 +512,9 @@ export function LinkSetsRoute(): JSX.Element {
     return <ErrorState message="Failed to load documents" />;
   }
 
-  const sourceDoc = documentsQuery.data?.documents.find(d => d.id === newLinkset.sourceDocId);
-  const targetDoc = documentsQuery.data?.documents.find(d => d.id === newLinkset.targetDocId);
+  const sourceDoc = documents.find(d => d.id === newLinkset.sourceDocId);
+  const targetDoc = documents.find(d => d.id === newLinkset.targetDocId);
+  const connectionStartNode = dragState.connectionStart ? nodes.find(n => n.id === dragState.connectionStart) ?? null : null;
 
   return (
     <div className="p-6 space-y-6 min-h-screen">
@@ -606,7 +612,7 @@ export function LinkSetsRoute(): JSX.Element {
               backgroundSize: `${SNAP_GRID}px ${SNAP_GRID}px`
             }}
             onMouseMove={handleMouseMove}
-            onMouseUp={() => handleMouseUp(undefined)}
+            onMouseUp={handleMouseUp}
           >
             <svg 
               ref={svgRef}
@@ -641,7 +647,7 @@ export function LinkSetsRoute(): JSX.Element {
               {/* Render temporary connection while dragging */}
               {dragState.dragType === 'connection' && dragState.connectionStart && (
                 <path
-                  d={`M ${nodes.find(n => n.id === dragState.connectionStart)?.x + NODE_WIDTH/2 || 0},${nodes.find(n => n.id === dragState.connectionStart)?.y + NODE_HEIGHT/2 || 0} L ${dragState.mouseStart.x},${dragState.mouseStart.y}`}
+                  d={`M ${connectionStartNode ? connectionStartNode.x + NODE_WIDTH / 2 : dragState.mouseStart.x},${connectionStartNode ? connectionStartNode.y + NODE_HEIGHT / 2 : dragState.mouseStart.y} L ${dragState.mouseStart.x},${dragState.mouseStart.y}`}
                   stroke="#94a3b8"
                   strokeWidth="2"
                   strokeDasharray="5,5"
@@ -651,11 +657,11 @@ export function LinkSetsRoute(): JSX.Element {
             </svg>
             
             {/* Render document nodes */}
-            {nodes.length === 0 && documentsQuery.data?.documents && (
+            {nodes.length === 0 && documents.length > 0 && (
               <div className="absolute top-4 left-4 bg-yellow-100 border border-yellow-400 rounded-lg p-4 z-50">
                 <p className="text-yellow-800 font-medium">Canvas Ready</p>
                 <p className="text-yellow-700 text-sm">
-                  Documents loaded: {documentsQuery.data.documents.length}
+                  Documents loaded: {documents.length}
                 </p>
                 <p className="text-yellow-600 text-xs mt-1">
                   Nodes should appear here...

@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import type { LinksetRecord } from "../../types";
+import type { DocumentLinkset } from "../../types";
 
 interface UseLinksetSelectionOptions {
   tenant: string;
   project: string;
-  linksets: LinksetRecord[] | undefined;
+  linksets: DocumentLinkset[] | undefined;
 }
 
 /**

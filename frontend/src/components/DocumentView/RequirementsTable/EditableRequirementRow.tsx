@@ -1,7 +1,8 @@
-import type { RequirementRecord } from "../../../types";
+import type { RequirementRecord, TraceLink } from "../../../types";
 import type { ColumnVisibility } from "./ColumnSelector";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
+import { LinkIndicators } from "../LinkIndicators";
 
 export interface EditableRequirementRowProps {
   requirement: RequirementRecord;
@@ -26,6 +27,9 @@ export interface EditableRequirementRowProps {
   onViewHistory?: (requirement: RequirementRecord) => void;
   // State setters for inline editing
   setEditValue: (value: string) => void;
+  tenant: string;
+  project: string;
+  traceLinks?: TraceLink[];
 }
 
 export function EditableRequirementRow({
@@ -47,7 +51,10 @@ export function EditableRequirementRow({
   onContextMenu,
   onEditAttributes,
   onViewHistory,
-  setEditValue
+  setEditValue,
+  tenant,
+  project,
+  traceLinks = []
 }: EditableRequirementRowProps): JSX.Element {
   return (
     <tr ref={setNodeRef} style={style}>
@@ -115,7 +122,15 @@ export function EditableRequirementRow({
               }}
             />
           ) : (
-            req.text
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <span style={{ flex: 1, marginRight: "8px" }}>{req.text}</span>
+              <LinkIndicators
+                requirementId={req.id}
+                traceLinks={traceLinks}
+                tenant={tenant}
+                project={project}
+              />
+            </div>
           )}
         </td>
       )}

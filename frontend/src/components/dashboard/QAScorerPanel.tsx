@@ -1,16 +1,7 @@
 import { Spinner } from "../Spinner";
 import { ErrorState } from "../ErrorState";
 import type { UseQueryResult } from "@tanstack/react-query";
-
-interface QAScorerStatus {
-  isRunning: boolean;
-  processedCount: number;
-  totalCount: number;
-  currentRequirement?: string;
-  startedAt?: string;
-  completedAt?: string;
-  lastError?: string;
-}
+import type { QAScorerStatus } from "../../types";
 
 interface QAScorerPanelProps {
   qaScorerStatusQuery: UseQueryResult<QAScorerStatus, Error>;

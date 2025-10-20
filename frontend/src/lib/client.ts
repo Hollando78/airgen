@@ -15,6 +15,7 @@ import type {
   CreateRequirementRequest,
   RequirementCandidateListResponse,
   RequirementCandidateGroupedResponse,
+  RequirementCandidate,
   AirGenChatRequest,
   AirGenChatResponse,
   RequirementCandidateActionResponse,
@@ -32,6 +33,7 @@ import type {
   FolderResponse,
   DocumentSectionsResponse,
   DocumentSectionResponse,
+  DocumentSectionsWithRelationsResponse,
   CreateSectionRequest,
   InfoRecord,
   SurrogateReferenceRecord,
@@ -188,9 +190,9 @@ export function useApiClient() {
         request<{ items: DiagramCandidate[] }>(`/airgen/diagram-candidates/${tenant}/${project}`),
       acceptDiagramCandidate: (
         id: string,
-        body: { tenant: string; projectKey: string; diagramName?: string; diagramDescription?: string }
+        body: { tenant: string; projectKey: string; diagramId?: string; diagramName?: string; diagramDescription?: string }
       ) =>
-        request<{ candidate: DiagramCandidate }>(`/airgen/diagram-candidates/${id}/accept`, {
+        request<{ candidate: DiagramCandidate; diagramId?: string }>(`/airgen/diagram-candidates/${id}/accept`, {
           method: "POST",
           body: JSON.stringify(body)
         }),
@@ -464,7 +466,7 @@ export function useApiClient() {
 
       // Markdown Editor API methods
       getMarkdownContent: (tenant: string, project: string, documentSlug: string) =>
-        request<{ content: string; document: any }>(`/markdown/${tenant}/${project}/${documentSlug}/content`),
+        request<{ content: string; document: any; draft?: { updatedAt: string } }>(`/markdown/${tenant}/${project}/${documentSlug}/content`),
       saveMarkdownContent: (tenant: string, project: string, documentSlug: string, content: string, validate?: boolean) =>
         request<{ success: boolean; document: any; validation?: any; parsed?: any; draft?: { updatedAt: string } }>(`/markdown/${tenant}/${project}/${documentSlug}/content`, {
           method: "PUT",

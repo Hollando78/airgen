@@ -10,8 +10,9 @@ import type {
   PortDirection,
   BlockPortRecord,
   BlockPortOverride,
-  ConnectorKind
-} from "./index";
+  ConnectorKind,
+  ConnectorMarkerType
+} from "../types";
 
 // Re-export types from main types file
 export { BlockKind, ConnectorKind, PortDirection };
@@ -158,8 +159,8 @@ export interface SysmlConnector {
 
   // Styling properties
   lineStyle?: string;
-  markerStart?: string;
-  markerEnd?: string;
+  markerStart?: ConnectorMarkerType;
+  markerEnd?: ConnectorMarkerType;
   linePattern?: string;
   color?: string;
   strokeWidth?: number;

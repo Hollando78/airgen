@@ -8,7 +8,7 @@ export function MobileAdminScreen(): JSX.Element {
   const api = useApiClient();
   const { user } = useAuth();
 
-  if (!user?.roles.includes("admin")) {
+  if (!user?.roles?.includes("admin")) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-800 shadow-sm">
         <p className="text-sm font-semibold">Admin access required</p>

@@ -100,7 +100,7 @@ interface DiagramCanvasProps {
   updateBlockSize: (blockId: string, size: { width: number; height: number }) => void;
   removeBlock: (blockId: string) => void;
   addPort: (blockId: string, port: { name: string; direction: PortDirection }) => void;
-  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection }) => void;
+  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection; edge?: "top" | "right" | "bottom" | "left"; offset?: number; hidden?: boolean }) => void;
   removePort: (blockId: string, portId: string) => void;
   addConnector: (input: {
     source: string;
@@ -480,7 +480,6 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 onEdgeContextMenu={handleEdgeContextMenu}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
-                selectionMode="partial"
                 panOnDrag={[1, 2]}
                 selectionOnDrag
                 onNodeClick={(event: ReactMouseEvent, node: Node) => {

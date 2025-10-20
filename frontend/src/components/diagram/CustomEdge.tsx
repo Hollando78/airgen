@@ -491,7 +491,7 @@ export function StepEdge({
   const labelX = hasCustomPath ? midPoint.x : defaultLabelX;
   const labelY = hasCustomPath ? midPoint.y : defaultLabelY;
 
-  const segments = points.slice(0, -1).map((start, index) => {
+  const segments = points.slice(0, -1).map((start, index): { start: XYPosition; end: XYPosition; orientation: "horizontal" | "vertical" } => {
     const end = points[index + 1];
     const orientation = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y) ? "horizontal" : "vertical";
     return { start, end, orientation };

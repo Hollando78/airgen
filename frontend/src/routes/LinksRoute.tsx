@@ -183,10 +183,12 @@ export function LinksRoute(): JSX.Element {
     }
   }, [linkingState.sourceRequirement, contextMenu.requirement]);
 
-  const handleCreateLink = useCallback((linkType: TraceLinkType, description?: string) => {
-    if (!linkModal) return;
+  const handleCreateLink = useCallback(async (linkType: TraceLinkType, description?: string) => {
+    if (!linkModal) {
+      return;
+    }
 
-    createTraceLinkMutation.mutate({
+    await createTraceLinkMutation.mutateAsync({
       sourceRequirementId: linkModal.sourceRequirement.id,
       targetRequirementId: linkModal.targetRequirement.id,
       linkType,

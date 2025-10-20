@@ -79,7 +79,7 @@ function getVanillaBlockStyle(
 }
 
 export function SysmlBlockNode({ id, data, selected }: NodeProps) {
-  const { block, documents = [], onOpenDocument, hideDefaultHandles = false, isConnectMode = false, selectedPortId, onSelectPort, updatePort, removePort, updateBlock, portContextMenu, onPortContextMenu, onClosePortContextMenu, isPreview = false, useVanillaStyle = false } = data as SysmlBlockNodeData;
+  const { block, documents = [], onOpenDocument, hideDefaultHandles = false, isConnectMode = false, selectedPortId = null, onSelectPort, updatePort, removePort, updateBlock, portContextMenu, onPortContextMenu, onClosePortContextMenu, isPreview = false, useVanillaStyle = false } = data as SysmlBlockNodeData;
 
   // Port dragging state
   const [draggingPort, setDraggingPort] = useState<{

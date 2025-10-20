@@ -36,7 +36,7 @@ function ContextMenuItemComponent({ item, depth = 0 }: { item: ContextMenuItem; 
   const [showSubmenu, setShowSubmenu] = useState(false);
 
   if (item.separator) {
-    return <div className="context-menu-separator" />;
+    return <div className="context-menu-separator" role="separator" />;
   }
 
   if (item.submenu) {
@@ -46,7 +46,7 @@ function ContextMenuItemComponent({ item, depth = 0 }: { item: ContextMenuItem; 
         onMouseEnter={() => setShowSubmenu(true)}
         onMouseLeave={() => setShowSubmenu(false)}
       >
-        <span>{item.label}</span>
+        <span>{item.label ?? ''}</span>
         <span className="context-menu-arrow">▶</span>
         {showSubmenu && (
           <div className="context-menu-submenu" style={{ left: '100%', top: 0, zIndex: 1001 + depth }}>
@@ -71,7 +71,7 @@ function ContextMenuItemComponent({ item, depth = 0 }: { item: ContextMenuItem; 
       }}
     >
       {item.icon && <span className="context-menu-icon">{item.icon}</span>}
-      <span>{item.label}</span>
+      <span>{item.label ?? ''}</span>
     </div>
   );
 }

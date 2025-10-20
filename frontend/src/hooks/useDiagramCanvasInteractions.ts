@@ -92,7 +92,7 @@ interface UseCanvasInteractionsParams {
   updateBlockSize: (blockId: string, size: { width: number; height: number }) => void;
   removeBlock: (blockId: string) => void;
   addPort: (blockId: string, port: { name: string; direction: PortDirection }) => void;
-  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection; edge?: "top" | "right" | "bottom" | "left"; offset?: number }) => void;
+  updatePort: (blockId: string, portId: string, updates: { name?: string; direction?: PortDirection; edge?: "top" | "right" | "bottom" | "left"; offset?: number; hidden?: boolean }) => void;
   removePort: (blockId: string, portId: string) => void;
   addConnector: (input: {
     source: string;
@@ -804,10 +804,8 @@ export function useDiagramCanvasInteractions({
             prev.style?.stroke !== mappedEdge.style?.stroke ||
             prev.style?.strokeWidth !== mappedEdge.style?.strokeWidth ||
             prev.style?.strokeDasharray !== mappedEdge.style?.strokeDasharray ||
-            prev.markerStart?.type !== mappedEdge.markerStart?.type ||
-            prev.markerStart?.color !== mappedEdge.markerStart?.color ||
-            prev.markerEnd?.type !== mappedEdge.markerEnd?.type ||
-            prev.markerEnd?.color !== mappedEdge.markerEnd?.color ||
+            JSON.stringify(prev.markerStart ?? null) !== JSON.stringify(mappedEdge.markerStart ?? null) ||
+            JSON.stringify(prev.markerEnd ?? null) !== JSON.stringify(mappedEdge.markerEnd ?? null) ||
             prev.label !== mappedEdge.label;
 
           // If nothing changed, return existing edge reference (critical for performance)

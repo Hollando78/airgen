@@ -6,7 +6,12 @@ interface FormFieldProps {
   /**
    * Unique identifier for the input field
    */
-  id: string;
+  id?: string;
+
+  /**
+   * Alternative identifier alias for compatibility
+   */
+  htmlFor?: string;
 
   /**
    * Label text
@@ -22,6 +27,11 @@ interface FormFieldProps {
    * Help text displayed below the input
    */
   helpText?: string;
+
+  /**
+   * Alias for helpText (legacy usage)
+   */
+  hint?: string;
 
   /**
    * Error message (displayed in red with icon)
@@ -65,21 +75,26 @@ interface FormFieldProps {
  */
 export function FormField({
   id,
+  htmlFor,
   label,
   children,
   helpText,
+  hint,
   error,
   required = false,
   className,
 }: FormFieldProps): JSX.Element {
-  const helpTextId = `${id}-help`;
-  const errorId = `${id}-error`;
+  const generatedId = React.useId();
+  const fieldId = id ?? htmlFor ?? generatedId;
+  const resolvedHelpText = helpText ?? hint;
+  const helpTextId = `${fieldId}-help`;
+  const errorId = `${fieldId}-error`;
 
   return (
     <div className={cn('space-y-2', className)}>
       {/* Label */}
       <label
-        htmlFor={id}
+        htmlFor={fieldId}
         className="block text-sm font-medium text-foreground"
       >
         {label}
@@ -93,9 +108,9 @@ export function FormField({
       {/* Input */}
       <div className="relative">
         {React.cloneElement(children as React.ReactElement, {
-          id,
+          id: fieldId,
           'aria-describedby': cn(
-            helpText && helpTextId,
+            resolvedHelpText && helpTextId,
             error && errorId
           ).trim() || undefined,
           'aria-invalid': error ? true : undefined,
@@ -104,12 +119,12 @@ export function FormField({
       </div>
 
       {/* Help Text */}
-      {helpText && !error && (
+      {resolvedHelpText && !error && (
         <p
           id={helpTextId}
           className="text-sm text-muted-foreground"
         >
-          {helpText}
+          {resolvedHelpText}
         </p>
       )}
 

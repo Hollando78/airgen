@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { SysmlBlock, PortDirection } from "../../hooks/useArchitecture";
+import type { SysmlBlock, PortDirection } from "../../hooks/useArchitectureApi";
 import type { DocumentRecord } from "../../types";
 import { useDebounce } from "../../hooks/useDebounce";
 

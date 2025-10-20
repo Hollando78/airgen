@@ -121,7 +121,7 @@ export function AdminUsersRoute(): JSX.Element {
 
   // Filter global role options based on current user's permissions
   const availableGlobalRoleOptions = useMemo(() => {
-    if (isSuperAdmin) {
+    if (isSuperAdmin()) {
       return GLOBAL_ROLE_OPTIONS;
     }
     // Non-super-admins cannot assign super-admin role
@@ -638,7 +638,7 @@ export function AdminUsersRoute(): JSX.Element {
                           : [createAssignmentRow()]
                     }));
                   }}
-                  disabled={!isSuperAdmin && editForm.globalRole === UserRole.SUPER_ADMIN}
+                  disabled={!isSuperAdmin() && editForm.globalRole === UserRole.SUPER_ADMIN}
                 >
                   <SelectTrigger id="admin-edit-global-role" className="w-full">
                     <SelectValue placeholder="Select global role" />

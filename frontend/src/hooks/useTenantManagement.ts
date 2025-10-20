@@ -39,8 +39,13 @@ export function useTenantManagement() {
   });
 
   // Mutations
-  const createTenantMutation = useMutation({
-    mutationFn: api.createTenant,
+  const createTenantMutation = useMutation<unknown, Error, { slug: string; name: string }>({
+    mutationFn: async (payload: { slug: string; name: string }) => {
+      const body = payload.name.trim()
+        ? { slug: payload.slug, name: payload.name.trim() }
+        : { slug: payload.slug };
+      return api.createTenant(body);
+    },
     onSuccess: async () => {
       // Refresh the access token to get updated ownedTenantSlugs
       await refreshAccessToken();
@@ -56,8 +61,8 @@ export function useTenantManagement() {
     }
   });
 
-  const deleteTenantMutation = useMutation({
-    mutationFn: api.deleteTenant,
+  const deleteTenantMutation = useMutation<unknown, Error, string>({
+    mutationFn: (tenantSlug: string) => api.deleteTenant(tenantSlug),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
       setTenantSlugPendingDeletion(null);
@@ -69,7 +74,7 @@ export function useTenantManagement() {
     }
   });
 
-  const inviteTenantMutation = useMutation({
+  const inviteTenantMutation = useMutation<unknown, Error, { tenant: string; email: string }>({
     mutationFn: ({ tenant, email }: { tenant: string; email: string }) =>
       api.inviteToTenant(tenant, { email }),
     onSuccess: (_, variables) => {
@@ -101,7 +106,10 @@ export function useTenantManagement() {
     if (!newTenantData.slug.trim()) {
       return;
     }
-    createTenantMutation.mutate(newTenantData);
+    createTenantMutation.mutate({
+      slug: newTenantData.slug.trim(),
+      name: newTenantData.name
+    });
   }, [newTenantData, createTenantMutation]);
 
   const handleDeleteTenant = useCallback((tenantSlug: string) => {

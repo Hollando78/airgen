@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { SysmlConnector } from "../../hooks/useArchitectureApi";
+import type { ConnectorMarkerType } from "../../types";
 import type { DocumentRecord } from "../../types";
 
 interface ConnectorDetailsPanelProps {
@@ -101,7 +102,7 @@ export function ConnectorDetailsPanel({ connector, onUpdate, onRemove, documents
             <label>Start Marker</label>
             <select
               value={connector.markerStart ?? "none"}
-              onChange={event => onUpdate({ markerStart: event.target.value })}
+              onChange={event => onUpdate({ markerStart: event.target.value as ConnectorMarkerType })}
             >
               <option value="none">None</option>
               <option value="arrow">Arrow</option>
@@ -113,7 +114,7 @@ export function ConnectorDetailsPanel({ connector, onUpdate, onRemove, documents
             <label>End Marker</label>
             <select
               value={connector.markerEnd ?? "arrowclosed"}
-              onChange={event => onUpdate({ markerEnd: event.target.value })}
+              onChange={event => onUpdate({ markerEnd: event.target.value as ConnectorMarkerType })}
             >
               <option value="none">None</option>
               <option value="arrow">Arrow</option>

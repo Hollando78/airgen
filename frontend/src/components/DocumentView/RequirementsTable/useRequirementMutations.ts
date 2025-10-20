@@ -63,7 +63,7 @@ export function useRequirementMutations(
 
   // Mutation for updating attributes
   const updateAttributesMutation = useMutation({
-    mutationFn: async ({ requirement, attributes }: { requirement: RequirementRecord; attributes: Record<string, unknown> }) => {
+    mutationFn: async ({ requirement, attributes }: { requirement: RequirementRecord; attributes: Record<string, string | number | boolean | null> }) => {
       const updates: Partial<RequirementRecord> = { attributes };
       return api.updateRequirement(tenant, project, requirement.id, updates);
     },
