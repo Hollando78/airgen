@@ -435,10 +435,10 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
 
         <div className="architecture-body">
           <aside className="architecture-pane palette-pane">
-          <ArchitectureBrowserTree
-            blocks={blocksLibrary}
-            diagrams={diagrams}
-            connectors={connectorRecords}
+            <ArchitectureBrowserTree
+              blocks={blocksLibrary}
+              diagrams={diagrams}
+              connectors={connectorRecords}
               packages={packages}
               disabled={!activeDiagramId}
               isLoading={isLibraryLoading || isPackagesLoading}
@@ -454,6 +454,7 @@ export function InterfaceWorkspaceV2(props: InterfaceWorkspaceV2Props): JSX.Elem
               onDeleteDiagram={handleDeleteDiagramFromBrowser}
               currentDiagramId={activeDiagramId}
               blocksInDiagram={blocksInDiagram}
+              showPorts
             />
           </aside>
 

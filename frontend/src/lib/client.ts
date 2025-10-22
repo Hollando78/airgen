@@ -98,6 +98,21 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function handleBlobResponse(response: Response): Promise<Blob> {
+  if (!response.ok) {
+    const text = await response.text();
+    let message = text;
+    try {
+      const json = JSON.parse(text);
+      message = json.error ?? json.message ?? text;
+    } catch (error) {
+      // keep original text
+    }
+    throw new Error(message || `Request failed with status ${response.status}`);
+  }
+  return await response.blob();
+}
+
 export function useApiClient() {
   const { token } = useAuth();
 
@@ -120,6 +135,25 @@ export function useApiClient() {
       });
 
       return handleResponse<T>(response);
+    },
+    [token]
+  );
+
+  const requestBlob = useCallback(
+    async (path: string, options: RequestOptions = {}): Promise<Blob> => {
+      const headers = new Headers(options.headers);
+      if (!options.skipAuth && token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+
+      const response = await fetch(`${config.apiBaseUrl}${path}`, {
+        ...options,
+        headers,
+        credentials: "include",
+        cache: "no-store"
+      });
+
+      return handleBlobResponse(response);
     },
     [token]
   );
@@ -702,8 +736,67 @@ export function useApiClient() {
           body: JSON.stringify({ userId })
         }),
       listTenantProjects: (tenant: string) =>
-        request<ProjectsResponse>(`/tenant-admin/${tenant}/projects`)
+        request<ProjectsResponse>(`/tenant-admin/${tenant}/projects`),
+
+      // SnapDraft API methods
+      analyzeSnapDraft: (tenant: string, project: string, body: {
+        elementId: string;
+        elementType: 'block' | 'interface';
+        contextDocuments?: string[];
+        contextRequirements?: string[];
+        referenceDiagrams?: string[];
+        style: 'engineering' | 'architectural' | 'schematic';
+      }) =>
+        request<{
+          mode: 'technical_drawing' | 'visualization';
+          visualizationType?: 'dalle' | 'svg';
+          reasoning: string;
+          suitabilityScore: number;
+          issues: string[];
+        }>(`/snapdraft/${tenant}/${project}/analyze`, { method: "POST", body: JSON.stringify(body) }),
+
+      generateSnapDraft: (tenant: string, project: string, body: {
+        elementId: string;
+        elementType: 'block' | 'interface';
+        contextDocuments?: string[];
+        contextRequirements?: string[];
+        referenceDiagrams?: string[];
+        style: 'engineering' | 'architectural' | 'schematic';
+        outputs: ('dxf' | 'svg')[];
+        options?: {
+          units: 'mm' | 'in';
+          scale: string;
+          paper: 'A4' | 'A3' | 'A2' | 'A1' | 'A0' | 'LETTER' | 'TABLOID' | 'LEGAL';
+          orientation: 'landscape' | 'portrait';
+        };
+        forcedMode?: 'technical_drawing' | 'visualization';
+      }) =>
+        request<{
+          drawingId: string;
+          mode: 'technical_drawing' | 'visualization';
+          specJson?: any;
+          files: { dxf?: string; svg?: string; png?: string };
+          reasoning: { dimensionsAssumed?: string[]; warnings?: string[]; whyNotDrawing?: string[]; suitabilityScore?: number };
+        }>(`/snapdraft/${tenant}/${project}/generate`, { method: "POST", body: JSON.stringify(body) }),
+
+      getSnapDraftContext: (tenant: string, project: string, elementType: 'block' | 'interface', elementId: string) =>
+        request<{
+          documents: Array<{ id: string; name: string; description?: string }>;
+          requirements: Array<{ id: string; title: string; text?: string }>;
+          diagrams: Array<{ id: string; name: string; description?: string }>;
+        }>(`/snapdraft/${tenant}/${project}/context/${elementType}/${elementId}`),
+
+      getSnapDraftHistory: (tenant: string, elementId: string) =>
+        request<Array<{
+          drawingId: string;
+          createdAt: string;
+          style: string;
+          outputs: string[];
+        }>>(`/snapdraft/${tenant}/element/${elementId}`),
+
+      downloadSnapDraftFile: (tenant: string, drawingId: string, format: 'dxf' | 'svg' | 'json') =>
+        requestBlob(`/snapdraft/${tenant}/${drawingId}/download/${format}`)
     }),
-    [request]
+    [request, requestBlob]
   );
 }

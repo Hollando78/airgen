@@ -236,7 +236,7 @@ export async function moveToPackage(params: {
         // Add to target package
         const setClause = params.itemType === 'package'
           ? 'SET item.order = $order, item.updatedAt = $now, item.parentId = $targetPackageId'
-          : 'SET item.order = $order, item.updatedAt = $now';
+          : 'SET item.order = $order, item.updatedAt = $now, item.packageId = $targetPackageId';
 
         const query = `
           MATCH (item:${itemLabel} {id: $itemId, tenant: $tenant, projectKey: $projectKey})
@@ -264,7 +264,7 @@ export async function moveToPackage(params: {
 
         const setClause = params.itemType === 'package'
           ? 'SET item.order = $order, item.updatedAt = $now, item.parentId = null'
-          : 'SET item.order = $order, item.updatedAt = $now';
+          : 'SET item.order = $order, item.updatedAt = $now, item.packageId = null';
 
         const query = `
           MATCH (item:${itemLabel} {id: $itemId, tenant: $tenant, projectKey: $projectKey})

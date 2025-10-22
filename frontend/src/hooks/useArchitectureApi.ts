@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "../lib/client";
 import type {
@@ -44,6 +44,18 @@ export type {
 
 // Import mapper functions
 import { mapBlockFromApi, mapConnectorFromApi, resolvePortsWithOverrides } from "./architecture/mappers";
+
+type ArchitecturePackageRecord = {
+  id: string;
+  name: string;
+  description?: string | null;
+  tenant: string;
+  projectKey: string;
+  parentId?: string | null;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export function useArchitecture(tenant: string | null, project: string | null) {
   const api = useApiClient();
@@ -149,8 +161,101 @@ export function useArchitecture(tenant: string | null, project: string | null) {
         packageId: input.packageId,
         itemIds: input.itemIds
       }),
+    onMutate: async ({ packageId, itemIds }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["architecture-packages", tenant, project] }),
+        queryClient.cancelQueries({ queryKey: ["architecture-diagrams", tenant, project] }),
+        queryClient.cancelQueries({ queryKey: ["architecture-block-library", tenant, project] })
+      ]);
+
+      const previousPackages = queryClient.getQueryData<{ packages: ArchitecturePackageRecord[] }>(["architecture-packages", tenant, project]);
+      const previousDiagrams = queryClient.getQueryData<{ diagrams: ArchitectureDiagramRecord[] }>(["architecture-diagrams", tenant, project]);
+      const previousBlockLibrary = queryClient.getQueryData<{ blocks: ArchitectureBlockLibraryRecord[] }>(["architecture-block-library", tenant, project]);
+
+      const targetPackageId = packageId ?? null;
+
+      if (previousBlockLibrary?.blocks) {
+        const blockById = new Map(previousBlockLibrary.blocks.map(block => [block.id, block]));
+        const orderedBlocks = itemIds
+          .map(id => blockById.get(id))
+          .filter((block): block is ArchitectureBlockLibraryRecord => Boolean(block) && (block.packageId ?? null) === targetPackageId);
+
+        if (orderedBlocks.length) {
+          const targetIds = new Set(orderedBlocks.map(block => block.id));
+          const queue = [...orderedBlocks];
+          let pointer = 0;
+
+          const updatedBlocks = previousBlockLibrary.blocks.map(block => {
+            if ((block.packageId ?? null) === targetPackageId && targetIds.has(block.id)) {
+              const next = queue[pointer++] ?? block;
+              return next;
+            }
+            return block;
+          });
+
+          queryClient.setQueryData(["architecture-block-library", tenant, project], { blocks: updatedBlocks });
+        }
+      }
+
+      if (previousDiagrams?.diagrams) {
+        const diagramById = new Map(previousDiagrams.diagrams.map(diagram => [diagram.id, diagram]));
+        const orderedDiagrams = itemIds
+          .map(id => diagramById.get(id))
+          .filter((diagram): diagram is ArchitectureDiagramRecord => Boolean(diagram) && (diagram.packageId ?? null) === targetPackageId);
+
+        if (orderedDiagrams.length) {
+          const targetIds = new Set(orderedDiagrams.map(diagram => diagram.id));
+          const queue = orderedDiagrams.map(diagram => ({ ...diagram }));
+          let pointer = 0;
+
+          const updatedDiagrams = previousDiagrams.diagrams.map(diagram => {
+            if ((diagram.packageId ?? null) === targetPackageId && targetIds.has(diagram.id)) {
+              const next = queue[pointer++] ?? diagram;
+              return next;
+            }
+            return diagram;
+          });
+
+          queryClient.setQueryData(["architecture-diagrams", tenant, project], { diagrams: updatedDiagrams });
+        }
+      }
+
+      if (previousPackages?.packages) {
+        const packageById = new Map(previousPackages.packages.map(pkg => [pkg.id, pkg]));
+        const orderedPackages = itemIds
+          .map(id => packageById.get(id))
+          .filter((pkg): pkg is ArchitecturePackageRecord => Boolean(pkg) && (pkg.parentId ?? null) === targetPackageId);
+
+        if (orderedPackages.length) {
+          const orderMap = new Map(orderedPackages.map((pkg, index) => [pkg.id, index]));
+          const updatedPackages = previousPackages.packages.map(pkg => {
+            if ((pkg.parentId ?? null) === targetPackageId && orderMap.has(pkg.id)) {
+              return { ...pkg, order: orderMap.get(pkg.id)! };
+            }
+            return pkg;
+          });
+
+          queryClient.setQueryData(["architecture-packages", tenant, project], { packages: updatedPackages });
+        }
+      }
+
+      return { previousPackages, previousDiagrams, previousBlockLibrary };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previousPackages) {
+        queryClient.setQueryData(["architecture-packages", tenant, project], context.previousPackages);
+      }
+      if (context?.previousDiagrams) {
+        queryClient.setQueryData(["architecture-diagrams", tenant, project], context.previousDiagrams);
+      }
+      if (context?.previousBlockLibrary) {
+        queryClient.setQueryData(["architecture-block-library", tenant, project], context.previousBlockLibrary);
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["architecture-packages", tenant, project] });
+      queryClient.invalidateQueries({ queryKey: ["architecture-block-library", tenant, project] });
+      queryClient.invalidateQueries({ queryKey: ["architecture-diagrams", tenant, project] });
     }
   });
 
@@ -444,23 +549,27 @@ export function useArchitecture(tenant: string | null, project: string | null) {
     }
   });
 
-  const blocks = useMemo(() =>
-    (blocksQuery.data?.blocks ?? []).map(mapBlockFromApi),
-    [blocksQuery.data?.blocks]
-  );
+  const blocks = useMemo(() => {
+    const rawBlocks = blocksQuery.data?.blocks ?? [];
+    return rawBlocks.map(mapBlockFromApi);
+  }, [blocksQuery.data?.blocks]);
 
-  const connectors = useMemo(() =>
-    (connectorsQuery.data?.connectors ?? []).map(mapConnectorFromApi),
-    [connectorsQuery.data?.connectors]
-  );
+  const connectors = useMemo(() => {
+    const rawConnectors = connectorsQuery.data?.connectors ?? [];
+    return rawConnectors.map(mapConnectorFromApi);
+  }, [connectorsQuery.data?.connectors]);
+
+  const architectureLastModifiedRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    architectureLastModifiedRef.current = Date.now();
+  }, [blocks, connectors, blocksQuery.dataUpdatedAt, connectorsQuery.dataUpdatedAt]);
 
   const architecture: ArchitectureState = useMemo(() => ({
     blocks,
     connectors,
-    lastModified: new Date(
-      blocksQuery.dataUpdatedAt || connectorsQuery.dataUpdatedAt || diagramsQuery.dataUpdatedAt || Date.now()
-    ).toISOString()
-  }), [blocks, connectors, blocksQuery.dataUpdatedAt, connectorsQuery.dataUpdatedAt, diagramsQuery.dataUpdatedAt]);
+    lastModified: new Date(architectureLastModifiedRef.current).toISOString()
+  }), [blocks, connectors]);
 
   const addBlock = useCallback((input: {
     name?: string;

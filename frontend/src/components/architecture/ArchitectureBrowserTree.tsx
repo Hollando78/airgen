@@ -19,12 +19,16 @@ import {
   Link,
   Plus,
   Check,
-  ExternalLink
+  ExternalLink,
+  CircleDot,
+  FileText
 } from "lucide-react";
+import { SnapDraftModal } from "../snapdraft/SnapDraftModal";
 import type {
   ArchitectureBlockLibraryRecord,
   ArchitectureDiagramRecord,
-  ArchitectureConnectorRecord
+  ArchitectureConnectorRecord,
+  BlockPortRecord
 } from "../../types";
 import "react-complex-tree/lib/style-modern.css";
 
@@ -60,11 +64,12 @@ interface ArchitectureBrowserTreeProps {
   onDeleteDiagram: (diagramId: string) => Promise<void>;
   currentDiagramId: string | null;
   blocksInDiagram: Set<string>;
+  showPorts?: boolean;
 }
 
 type TreeItemData = {
   id: string;
-  type: 'root' | 'section' | 'package' | 'block' | 'diagram' | 'connector';
+  type: 'root' | 'section' | 'package' | 'block' | 'diagram' | 'connector' | 'port';
   name: string;
   icon?: React.ReactNode;
   parentId?: string | null;
@@ -73,7 +78,12 @@ type TreeItemData = {
   canRename?: boolean;
   canDelete?: boolean;
   canDrag?: boolean;
-  data?: Package | ArchitectureBlockLibraryRecord | ArchitectureDiagramRecord | ArchitectureConnectorRecord;
+  data?:
+    | Package
+    | ArchitectureBlockLibraryRecord
+    | ArchitectureDiagramRecord
+    | ArchitectureConnectorRecord
+    | { blockId: string; port: BlockPortRecord };
 };
 
 type ContextMenuItem = {
@@ -108,13 +118,31 @@ export function ArchitectureBrowserTree({
   onCreateDiagram,
   onDeleteDiagram,
   currentDiagramId,
-  blocksInDiagram
+  blocksInDiagram,
+  showPorts = false
 }: ArchitectureBrowserTreeProps) {
   const [focusedItem, setFocusedItem] = useState<TreeItemIndex>();
   const [expandedItems, setExpandedItems] = useState<TreeItemIndex[]>(['root', 'packages-section', 'diagrams-section', 'blocks-section']);
   const [selectedItems, setSelectedItems] = useState<TreeItemIndex[]>([]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [snapDraftModalOpen, setSnapDraftModalOpen] = useState(false);
+  const [snapDraftElement, setSnapDraftElement] = useState<{ id: string; type: 'block' | 'interface'; name: string } | null>(null);
+  const previousDataRef = useRef<{ blocks: ArchitectureBlockLibraryRecord[]; diagrams: ArchitectureDiagramRecord[]; connectors: ArchitectureConnectorRecord[]; packages: Package[] }>({
+    blocks,
+    diagrams,
+    connectors,
+    packages
+  });
+  const [dataVersion, setDataVersion] = useState(0);
+
+  useEffect(() => {
+    const prev = previousDataRef.current;
+    if (prev.blocks !== blocks || prev.diagrams !== diagrams || prev.connectors !== connectors || prev.packages !== packages) {
+      previousDataRef.current = { blocks, diagrams, connectors, packages };
+      setDataVersion(version => version + 1);
+    }
+  }, [blocks, diagrams, connectors, packages]);
 
   // Helper function to get block icon (must be defined before treeData)
   const getBlockIcon = useCallback((kind: string): React.ReactNode => {
@@ -246,13 +274,37 @@ export function ArchitectureBrowserTree({
       const blocksInPackage = blocks.filter(b => b.packageId === pkg.id);
       blocksInPackage.forEach(block => {
         const blockKey = `block-${block.id}`;
+        const portChildren: string[] = [];
+
+        if (showPorts && block.ports?.length) {
+          block.ports.forEach((port, index) => {
+            const portKey = `port-${block.id}-${port.id || index}`;
+            portChildren.push(portKey);
+
+            items[portKey] = {
+              id: port.id,
+              type: 'port',
+              name: port.direction && port.direction !== "none"
+                ? `${port.name} (${port.direction.toUpperCase()})`
+                : port.name,
+              icon: <CircleDot className="w-3.5 h-3.5" strokeWidth={2.5} />,
+              children: [],
+              isFolder: false,
+              canRename: false,
+              canDelete: false,
+              canDrag: false,
+              data: { blockId: block.id, port }
+            };
+          });
+        }
+
         items[blockKey] = {
           id: block.id,
           type: 'block',
           name: block.name,
           icon: getBlockIcon(block.kind),
-          children: [],
-          isFolder: false,
+          children: portChildren,
+          isFolder: portChildren.length > 0,
           canRename: false,
           canDelete: false,
           canDrag: true,
@@ -327,14 +379,37 @@ export function ArchitectureBrowserTree({
     blocks.filter(b => !b.packageId).forEach(block => {
       const blockKey = `block-${block.id}`;
       const alreadyInDiagram = currentDiagramId ? blocksInDiagram.has(block.id) : false;
+      const portChildren: string[] = [];
+
+      if (showPorts && block.ports?.length) {
+        block.ports.forEach((port, index) => {
+          const portKey = `port-${block.id}-${port.id || index}`;
+          portChildren.push(portKey);
+
+          items[portKey] = {
+            id: port.id,
+            type: 'port',
+            name: port.direction && port.direction !== "none"
+              ? `${port.name} (${port.direction.toUpperCase()})`
+              : port.name,
+            icon: <CircleDot className="w-3.5 h-3.5" strokeWidth={2.5} />,
+            children: [],
+            isFolder: false,
+            canRename: false,
+            canDelete: false,
+            canDrag: false,
+            data: { blockId: block.id, port }
+          };
+        });
+      }
 
       items[blockKey] = {
         id: block.id,
         type: 'block',
         name: block.name,
         icon: getBlockIcon(block.kind),
-        children: [],
-        isFolder: false,
+        children: portChildren,
+        isFolder: portChildren.length > 0,
         canRename: false,
         canDelete: false,
         canDrag: true,
@@ -421,8 +496,9 @@ export function ArchitectureBrowserTree({
         if (childStr.startsWith('diagram-')) return childStr.substring(8);
         if (childStr.startsWith('block-')) return childStr.substring(6);
         if (childStr.startsWith('connector-')) return childStr.substring(10);
+        if (childStr.startsWith('port-')) return null;
         return childStr;
-      }).filter(Boolean);
+      }).filter((value): value is string => Boolean(value));
 
       // Only call reorder if there are items and they've changed order
       if (itemIds.length > 0) {
@@ -517,6 +593,14 @@ export function ArchitectureBrowserTree({
           }
         }, variant: 'danger' }
       ];
+    } else if (item.type === 'block') {
+      menuItems = [
+        { label: 'Generate SnapDraft...', action: () => {
+          setContextMenu(null);
+          setSnapDraftElement({ id: item.id, type: 'block', name: item.name });
+          setSnapDraftModalOpen(true);
+        }}
+      ];
     } else if (item.type === 'section') {
       if (item.id === 'packages-section') {
         menuItems = [
@@ -603,7 +687,7 @@ export function ArchitectureBrowserTree({
 
       <div className="tree-container">
         <UncontrolledTreeEnvironment
-          key={refreshKey}
+          key={`${refreshKey}-${dataVersion}`}
           dataProvider={dataProvider}
           getItemTitle={(item) => item.data.name}
           viewState={{
@@ -624,6 +708,7 @@ export function ArchitectureBrowserTree({
           renderItemTitle={({ item, context }) => {
             const data = item.data;
             const alreadyInDiagram = data.type === 'block' && currentDiagramId ? blocksInDiagram.has(data.id) : false;
+            const portMeta = data.type === 'port' ? (data.data as { blockId: string; port: BlockPortRecord } | undefined) : undefined;
 
             return (
               <div
@@ -657,6 +742,11 @@ export function ArchitectureBrowserTree({
                   >
                     <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
                   </button>
+                )}
+                {data.type === 'port' && portMeta?.port.direction && portMeta.port.direction !== "none" && (
+                  <span className="tree-port-direction">
+                    {portMeta.port.direction.toUpperCase()}
+                  </span>
                 )}
               </div>
             );
@@ -715,6 +805,25 @@ export function ArchitectureBrowserTree({
           ))}
         </div>
       )}
+
+      {/* SnapDraft Modal */}
+      {snapDraftModalOpen && snapDraftElement && (() => {
+        // Extract tenant and project from the first available block or diagram
+        const tenant = blocks[0]?.tenant || diagrams[0]?.tenant || packages[0]?.tenant || '';
+        const project = blocks[0]?.projectKey || diagrams[0]?.projectKey || packages[0]?.projectKey || '';
+
+        return (
+          <SnapDraftModal
+            isOpen={snapDraftModalOpen}
+            onClose={() => setSnapDraftModalOpen(false)}
+            elementId={snapDraftElement.id}
+            elementType={snapDraftElement.type}
+            elementName={snapDraftElement.name}
+            tenant={tenant}
+            project={project}
+          />
+        );
+      })()}
     </div>
   );
 }

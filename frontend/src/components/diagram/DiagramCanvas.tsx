@@ -27,6 +27,7 @@ import { ConnectorStylingToolbar } from "./ConnectorStylingToolbar";
 import { DiagramToolbar } from "./DiagramToolbar";
 import { Spinner } from "../Spinner";
 import { StraightEdge, SmoothStepEdge, StepEdge, BezierEdge, PolylineEdge } from "./CustomEdge";
+import { SnapDraftModal } from "../snapdraft/SnapDraftModal";
 import type { ArchitectureDiagramRecord, DocumentRecord } from "../../types";
 import type {
   ArchitectureState,
@@ -203,7 +204,9 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       reactFlowInstanceRef,
       selectedConnector,
       addBlockFromPreset,
-      reuseExistingBlock
+      reuseExistingBlock,
+      snapDraftElement,
+      setSnapDraftElement
     } = useDiagramCanvasInteractions({
       architecture,
       activeDiagram,
@@ -731,6 +734,18 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                   y={contextMenuState.client.y}
                   items={contextMenuItems}
                   onClose={closeContextMenu}
+                />
+              )}
+
+              {snapDraftElement && (
+                <SnapDraftModal
+                  isOpen={true}
+                  onClose={() => setSnapDraftElement(null)}
+                  elementId={snapDraftElement.id}
+                  elementType={snapDraftElement.type}
+                  elementName={snapDraftElement.name}
+                  tenant={tenant}
+                  project={project}
                 />
               )}
             </>

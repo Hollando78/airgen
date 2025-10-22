@@ -144,6 +144,8 @@ export interface UseCanvasInteractionsResult {
   selectedConnector: SysmlConnector | null;
   addBlockFromPreset: (preset: DiagramBlockPreset, position?: XYPosition) => void;
   reuseExistingBlock: (blockId: string) => void;
+  snapDraftElement: { id: string; type: 'block' | 'interface'; name: string } | null;
+  setSnapDraftElement: (element: { id: string; type: 'block' | 'interface'; name: string } | null) => void;
 }
 
 const DEBUG_ARCHITECTURE = false;
@@ -192,6 +194,7 @@ export function useDiagramCanvasInteractions({
     connectorId: string;
     position: { x: number; y: number };
   } | null>(null);
+  const [snapDraftElement, setSnapDraftElement] = useState<{ id: string; type: 'block' | 'interface'; name: string } | null>(null);
 
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -570,6 +573,13 @@ export function useDiagramCanvasInteractions({
           disabled: !hasHiddenPorts
         },
         {
+          label: "Generate SnapDraft",
+          onSelect: () => {
+            setSnapDraftElement({ id: block.id, type: 'block', name: block.name });
+            closeContextMenu();
+          }
+        },
+        {
           label: "Duplicate block",
           onSelect: () => handleAddBlock(
             {
@@ -630,6 +640,7 @@ export function useDiagramCanvasInteractions({
     removeConnector,
     setBlockStylingPopup,
     setConnectorStylingPopup,
+    setSnapDraftElement,
     closeContextMenu
   ]);
 
@@ -960,6 +971,8 @@ export function useDiagramCanvasInteractions({
     reactFlowInstanceRef,
     selectedConnector,
     addBlockFromPreset: handleAddBlock,
-    reuseExistingBlock: handleReuseExistingBlock
+    reuseExistingBlock: handleReuseExistingBlock,
+    snapDraftElement,
+    setSnapDraftElement
   };
 }
