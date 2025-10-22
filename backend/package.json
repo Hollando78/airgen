@@ -41,6 +41,7 @@
     "argon2": "^0.44.0",
     "canvas": "^3.2.0",
     "dotenv": "^17.2.2",
+    "dxf-writer": "^1.18.4",
     "fastify": "^5.6.1",
     "neo4j-driver": "^5.25.0",
     "nodemailer": "^7.0.9",

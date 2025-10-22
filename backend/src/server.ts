@@ -43,6 +43,7 @@ import adminRecoveryRoutes from "./routes/admin-recovery.js";
 import projectBackupRoutes from "./routes/project-backup-routes.js";
 import nlQueryRoutes from "./routes/nl-query.js";
 import semanticSearchRoutes from "./routes/semantic-search.js";
+import snapdraftRoutes from "./routes/snapdraft-routes.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -309,6 +310,7 @@ await app.register(airgenRoutes, { prefix: "/api" });
 await app.register(nlQueryRoutes, { prefix: "/api" });
 await app.register(graphRoutes, { prefix: "/api" });
 await app.register(workersRoutes, { prefix: "/api" });
+await app.register(snapdraftRoutes, { prefix: "/api" });
 
 if (config.features.adminRoutesEnabled) {
   const adminRoutes = await import("./routes/admin-users.js");
