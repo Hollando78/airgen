@@ -214,7 +214,15 @@ export const config = {
 
   // Feature flags
   features: {
-    adminRoutesEnabled: parseBoolean(env.ENABLE_ADMIN_ROUTES, true)
+    adminRoutesEnabled: parseBoolean(env.ENABLE_ADMIN_ROUTES, true),
+
+    // SnapDraft feature flags for gradual rollout
+    snapdraft: {
+      semanticFilteringEnabled: parseBoolean(env.SNAPDRAFT_ENABLE_SEMANTIC_FILTERING, false),
+      factExtractionEnabled: parseBoolean(env.SNAPDRAFT_ENABLE_FACT_EXTRACTION, false),
+      semanticSimilarityThreshold: parseNumber(env.SNAPDRAFT_SEMANTIC_SIMILARITY_THRESHOLD, 0.7),
+      semanticResultLimit: parseNumber(env.SNAPDRAFT_SEMANTIC_RESULT_LIMIT, 10)
+    }
   }
 } as const;
 

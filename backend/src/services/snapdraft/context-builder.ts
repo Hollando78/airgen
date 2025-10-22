@@ -1,6 +1,9 @@
 import type { ManagedTransaction } from 'neo4j-driver';
 import { getSession } from '../graph/driver.js';
 import type { GenerateRequest } from './validation.js';
+import { FactExtractor, type ExtractedFact } from './fact-extractor.js';
+import { searchRequirementsByQuery } from '../graph/requirements/semantic-search.js';
+import { config } from '../../config.js';
 
 export interface PortInfo {
   name: string;
@@ -52,6 +55,7 @@ export interface SnapDraftContext {
   documents: DocumentInfo[];
   requirements: RequirementInfo[];
   referenceDiagrams: DiagramInfo[];
+  extractedFacts: ExtractedFact[];  // NEW: Structured technical facts
   style: 'engineering' | 'architectural' | 'schematic';
   options?: {
     units: 'mm' | 'in';
@@ -62,20 +66,57 @@ export interface SnapDraftContext {
 }
 
 export class ContextBuilder {
+  private factExtractor = new FactExtractor();
+
   /**
    * Build complete context for SnapDraft generation
    */
-  async build(request: GenerateRequest, tenantSlug: string, projectSlug: string): Promise<SnapDraftContext> {
+  async build(
+    request: GenerateRequest,
+    tenantSlug: string,
+    projectSlug: string,
+    openaiApiKey?: string,
+    factCache?: any
+  ): Promise<SnapDraftContext> {
     const element = await this.getElement(request.elementId, request.elementType, tenantSlug, projectSlug);
     const documents = await this.getDocuments(request.contextDocuments || [], tenantSlug);
-    const requirements = await this.getRequirements(request.contextRequirements || [], tenantSlug, projectSlug);
+
+    // Hybrid retrieval for requirements: direct links + semantic search
+    const requirements = await this.getRequirementsHybrid(
+      request.contextRequirements || [],
+      element,
+      tenantSlug,
+      projectSlug
+    );
+
     const referenceDiagrams = await this.getReferenceDiagrams(request.referenceDiagrams || [], tenantSlug, projectSlug);
+
+    // Extract facts if feature flag enabled and API key available
+    let extractedFacts: ExtractedFact[] = [];
+    if (config.features.snapdraft.factExtractionEnabled && openaiApiKey) {
+      console.log('[ContextBuilder] Fact extraction enabled, extracting facts...');
+      try {
+        extractedFacts = await this.factExtractor.extractFacts(
+          documents,
+          requirements,
+          openaiApiKey,
+          factCache
+        );
+        console.log(`[ContextBuilder] Extracted ${extractedFacts.length} total facts`);
+      } catch (error) {
+        console.error('[ContextBuilder] Fact extraction failed, continuing without facts:', error);
+        extractedFacts = [];
+      }
+    } else {
+      console.log('[ContextBuilder] Fact extraction disabled or no API key');
+    }
 
     return {
       element,
       documents,
       requirements,
       referenceDiagrams,
+      extractedFacts,
       style: request.style,
       options: request.options,
     };
@@ -400,6 +441,105 @@ export class ContextBuilder {
     } finally {
       await session.close();
     }
+  }
+
+  /**
+   * Hybrid retrieval: Fetch requirements using both direct links and semantic search
+   */
+  private async getRequirementsHybrid(
+    explicitRequirementIds: string[],
+    element: ElementInfo,
+    tenantSlug: string,
+    projectSlug: string
+  ): Promise<RequirementInfo[]> {
+    // Start with explicitly requested requirements
+    const explicitReqs = await this.getRequirements(explicitRequirementIds, tenantSlug, projectSlug);
+
+    // If semantic filtering not enabled, return explicit requirements only
+    if (!config.features.snapdraft.semanticFilteringEnabled) {
+      console.log(`[ContextBuilder] Semantic filtering disabled, using ${explicitReqs.length} explicit requirements only`);
+      return explicitReqs;
+    }
+
+    // Build search query from element context
+    const searchQuery = this.buildSemanticSearchQuery(element);
+    console.log(`[ContextBuilder] Semantic search query: "${searchQuery}"`);
+
+    try {
+      // Semantic search for additional relevant requirements
+      const semanticReqs = await searchRequirementsByQuery(
+        tenantSlug,
+        projectSlug,
+        searchQuery,
+        {
+          minSimilarity: config.features.snapdraft.semanticSimilarityThreshold,
+          limit: config.features.snapdraft.semanticResultLimit,
+          excludeArchived: true,
+        }
+      );
+
+      console.log(`[ContextBuilder] Found ${semanticReqs.length} semantically similar requirements`);
+
+      // Convert semantic search results to RequirementInfo format
+      const semanticRequirementInfos: RequirementInfo[] = semanticReqs.map(sr => ({
+        id: sr.id,
+        title: sr.ref, // Use ref as title
+        text: sr.text,
+        type: undefined,
+        priority: undefined,
+        acceptanceCriteria: [],
+        verificationMethod: sr.verification,
+      }));
+
+      // Deduplicate by ID (explicit requirements take precedence)
+      const explicitIds = new Set(explicitReqs.map(r => r.id));
+      const additionalSemanticReqs = semanticRequirementInfos.filter(r => !explicitIds.has(r.id));
+
+      const allRequirements = [...explicitReqs, ...additionalSemanticReqs];
+      console.log(`[ContextBuilder] Total requirements: ${allRequirements.length} (${explicitReqs.length} explicit + ${additionalSemanticReqs.length} semantic)`);
+
+      return allRequirements;
+    } catch (error) {
+      console.error('[ContextBuilder] Semantic search failed, falling back to explicit requirements:', error);
+      return explicitReqs;
+    }
+  }
+
+  /**
+   * Build semantic search query from element context
+   */
+  private buildSemanticSearchQuery(element: ElementInfo): string {
+    const parts: string[] = [];
+
+    // Element type and name
+    parts.push(`${element.type} ${element.name}`);
+
+    // Description
+    if (element.description) {
+      parts.push(element.description);
+    }
+
+    // Ports and their types
+    if (element.ports && element.ports.length > 0) {
+      const portSummary = element.ports
+        .map(p => `${p.name} (${p.direction}${p.type ? ': ' + p.type : ''})`)
+        .join(', ');
+      parts.push(`Ports: ${portSummary}`);
+    }
+
+    // Connection context (direct connections only, not multi-hop)
+    if (element.connections && element.connections.length > 0) {
+      const directConnections = element.connections.filter(c => c.hopDistance === 1);
+      if (directConnections.length > 0) {
+        const connSummary = directConnections
+          .map(c => c.name)
+          .slice(0, 5) // Limit to top 5 connections
+          .join(', ');
+        parts.push(`Connected to: ${connSummary}`);
+      }
+    }
+
+    return parts.join('. ');
   }
 
   /**

@@ -1,12 +1,13 @@
 import { randomUUID } from 'crypto';
 import type { FastifyInstance } from 'fastify';
 import { getPool } from '../../lib/postgres.js';
-import { ContextBuilder } from './context-builder.js';
+import { ContextBuilder, type SnapDraftContext } from './context-builder.js';
 import { LLMGenerator } from './llm-generator.js';
 import { DXFGenerator } from './dxf-generator.js';
 import { SVGGenerator } from './svg-generator.js';
-import { ModeAnalyzer } from './mode-analyzer.js';
+import { ModeAnalyzer, type ModeDecision } from './mode-analyzer.js';
 import { VisualizationGenerator } from './visualization-generator.js';
+import { PostgresFactCache } from './fact-cache.js';
 import type { GenerateRequest, GenerateResponse, DrawingSpec, DrawingResponse, VisualizationResponse, AnalysisResponse } from './validation.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -24,6 +25,7 @@ export class SnapDraftService {
   private svgGenerator: SVGGenerator;
   private modeAnalyzer: ModeAnalyzer;
   private visualizationGenerator: VisualizationGenerator;
+  private factCache: PostgresFactCache;
   private fastify: FastifyInstance;
 
   constructor(fastify: FastifyInstance) {
@@ -34,6 +36,7 @@ export class SnapDraftService {
     this.svgGenerator = new SVGGenerator();
     this.modeAnalyzer = new ModeAnalyzer();
     this.visualizationGenerator = new VisualizationGenerator();
+    this.factCache = new PostgresFactCache(getPool());
   }
 
   /**
@@ -41,18 +44,20 @@ export class SnapDraftService {
    */
   async analyzeMode(request: GenerateRequest, user: SnapDraftUser): Promise<AnalysisResponse> {
     try {
-      // 1. Build context from element + attached docs/diagrams
-      const context = await this.contextBuilder.build(
-        request,
-        user.tenantSlug,
-        user.projectSlug || 'default'
-      );
-
-      // 2. Get LLM API key from environment
+      // 1. Get LLM API key from environment
       const openaiApiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
       if (!openaiApiKey) {
         throw new Error('LLM_API_KEY not configured');
       }
+
+      // 2. Build context from element + attached docs/diagrams (with fact extraction)
+      const context = await this.contextBuilder.build(
+        request,
+        user.tenantSlug,
+        user.projectSlug || 'default',
+        openaiApiKey,
+        this.factCache
+      );
 
       // 3. Analyze context to decide mode
       this.fastify.log.info('Analyzing context for mode decision...');
@@ -85,26 +90,28 @@ export class SnapDraftService {
     const startTime = Date.now();
 
     try {
-      // 1. Build context from element + attached docs/diagrams
-      const context = await this.contextBuilder.build(
-        request,
-        user.tenantSlug,
-        user.projectSlug || 'default'
-      );
-
-      // 2. Get LLM API key from environment (loaded from Docker secret via config.ts)
+      // 1. Get LLM API key from environment (loaded from Docker secret via config.ts)
       const openaiApiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
       if (!openaiApiKey) {
         throw new Error('LLM_API_KEY not configured');
       }
 
+      // 2. Build context from element + attached docs/diagrams (with fact extraction)
+      const context = await this.contextBuilder.build(
+        request,
+        user.tenantSlug,
+        user.projectSlug || 'default',
+        openaiApiKey,
+        this.factCache
+      );
+
       // 3. Determine mode (use forcedMode if provided, otherwise analyze)
-      let modeDecision;
+      let modeDecision: ModeDecision;
       if (request.forcedMode) {
         this.fastify.log.info(`Using forced mode: ${request.forcedMode}`);
         modeDecision = {
           mode: request.forcedMode,
-          visualizationType: request.forcedMode === 'visualization' ? 'dalle' : undefined,
+          visualizationType: request.forcedMode === 'visualization' ? ('dalle' as const) : undefined,
           reasoning: `User forced ${request.forcedMode} mode`,
           suitabilityScore: request.forcedMode === 'technical_drawing' ? 10 : 0,
           issues: [],
@@ -134,7 +141,7 @@ export class SnapDraftService {
       this.fastify.log.info(`SnapDraft generation completed in ${latency}ms (mode: ${modeDecision.mode})`);
 
       // 5. Log generation metrics (for debugging and cost tracking)
-      await this.logGenerationMetrics(response.drawingId, latency);
+      await this.logGenerationMetrics(response.drawingId, latency, modeDecision, context);
 
       return response;
     } catch (error) {
@@ -548,13 +555,158 @@ export class SnapDraftService {
   /**
    * Log generation metrics for monitoring
    */
-  private async logGenerationMetrics(drawingId: string, latencyMs: number): Promise<void> {
-    // TODO: Implement metrics logging
-    // This could integrate with existing metrics/logging infrastructure
-    this.fastify.log.info({
-      event: 'snapdraft_generation',
-      drawingId,
-      latencyMs,
-    });
+  private async logGenerationMetrics(
+    drawingId: string,
+    latencyMs: number,
+    modeDecision: ModeDecision,
+    context: SnapDraftContext
+  ): Promise<void> {
+    try {
+      // Calculate context statistics
+      const contextStats = {
+        documentsCount: context.documents.length,
+        requirementsCount: context.requirements.length,
+        diagramsCount: context.referenceDiagrams.length,
+        extractedFactsCount: context.extractedFacts?.length || 0,
+        factsBreakdown: this.calculateFactsBreakdown(context.extractedFacts),
+        portsCount: context.element.ports?.length || 0,
+        connectionsCount: context.element.connections?.length || 0,
+        multiHopConnectionsCount: context.element.connections?.filter(c => (c.hopDistance || 0) > 1).length || 0,
+        totalContentSize: this.calculateContentSize(context),
+      };
+
+      // Estimate cost (simplified - actual cost tracking would need token counters)
+      const estimatedCost = this.estimateCost(modeDecision, contextStats);
+
+      // Update database with telemetry
+      const pool = getPool();
+      await pool.query(
+        `INSERT INTO snapdraft_generation_logs (
+          drawing_id,
+          latency_ms,
+          mode_decision,
+          context_stats,
+          total_cost_usd,
+          created_at
+        ) VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (drawing_id) DO UPDATE SET
+          latency_ms = EXCLUDED.latency_ms,
+          mode_decision = EXCLUDED.mode_decision,
+          context_stats = EXCLUDED.context_stats,
+          total_cost_usd = EXCLUDED.total_cost_usd`,
+        [
+          drawingId,
+          latencyMs,
+          JSON.stringify({
+            mode: modeDecision.mode,
+            visualizationType: modeDecision.visualizationType,
+            suitabilityScore: modeDecision.suitabilityScore,
+            reasoning: modeDecision.reasoning,
+            issues: modeDecision.issues,
+          }),
+          JSON.stringify(contextStats),
+          estimatedCost,
+        ]
+      );
+
+      this.fastify.log.info({
+        event: 'snapdraft_telemetry',
+        drawingId,
+        latencyMs,
+        mode: modeDecision.mode,
+        contextStats,
+        estimatedCost,
+      });
+    } catch (error) {
+      // Don't fail generation if telemetry fails
+      this.fastify.log.error({ err: error, msg: 'Failed to log generation metrics' });
+    }
+  }
+
+  /**
+   * Calculate breakdown of extracted facts by type
+   */
+  private calculateFactsBreakdown(facts: any[]): Record<string, number> {
+    if (!facts || facts.length === 0) {
+      return {};
+    }
+
+    const breakdown: Record<string, number> = {
+      dimension: 0,
+      material: 0,
+      tolerance: 0,
+      constraint: 0,
+      ambiguity: 0,
+    };
+
+    for (const fact of facts) {
+      if (fact.type in breakdown) {
+        breakdown[fact.type]++;
+      }
+    }
+
+    return breakdown;
+  }
+
+  /**
+   * Calculate total content size for context
+   */
+  private calculateContentSize(context: SnapDraftContext): number {
+    let size = 0;
+
+    // Element description
+    if (context.element.description) {
+      size += context.element.description.length;
+    }
+
+    // Documents
+    for (const doc of context.documents) {
+      size += doc.content.length;
+    }
+
+    // Requirements
+    for (const req of context.requirements) {
+      size += (req.text || '').length;
+      size += (req.title || '').length;
+    }
+
+    return size;
+  }
+
+  /**
+   * Estimate generation cost (simplified)
+   */
+  private estimateCost(modeDecision: ModeDecision, contextStats: any): number {
+    // Simplified cost estimation
+    // Actual implementation would need token counters from LLM calls
+
+    let cost = 0;
+
+    // Mode analysis cost (GPT-4o-mini)
+    const modeAnalysisTokens = 1000; // Approximate
+    cost += (modeAnalysisTokens / 1_000_000) * 0.15; // $0.15/1M input tokens
+
+    if (modeDecision.mode === 'technical_drawing') {
+      // Technical drawing generation (GPT-4o)
+      const drawingTokens = 5000 + contextStats.totalContentSize / 4; // Rough estimate
+      cost += (drawingTokens / 1_000_000) * 2.50; // $2.50/1M input tokens
+      cost += (2000 / 1_000_000) * 10.00; // $10.00/1M output tokens (drawing spec)
+    } else if (modeDecision.visualizationType === 'dalle') {
+      // DALL-E generation
+      cost += 0.040; // $0.040 per image (1024x1024 standard)
+    } else {
+      // SVG visualization (GPT-4o-mini)
+      const svgTokens = 2000 + contextStats.totalContentSize / 4;
+      cost += (svgTokens / 1_000_000) * 0.15;
+      cost += (1000 / 1_000_000) * 0.60; // $0.60/1M output tokens
+    }
+
+    // Fact extraction cost (if used)
+    if (contextStats.extractedFactsCount > 0) {
+      const factExtractionTokens = contextStats.totalContentSize / 4;
+      cost += (factExtractionTokens / 1_000_000) * 0.15; // GPT-4o-mini
+    }
+
+    return cost;
   }
 }

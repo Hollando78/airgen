@@ -141,12 +141,58 @@ ${element.ports?.map(p => `- ${p.name} (${p.direction}): ${p.type || 'unspecifie
 **Connections:** ${element.connections?.length || 0}
 `;
 
-    // Add document content analysis
-    if (context.documents.length > 0) {
-      prompt += `\n**Context Documents:** ${context.documents.length} document(s)\n`;
-      for (const doc of context.documents) {
-        const contentPreview = doc.content.substring(0, 1000); // First 1000 chars
-        prompt += `\n**${doc.title}**:\n${contentPreview}${doc.content.length > 1000 ? '...' : ''}\n`;
+    // Add extracted facts summary (if available) - more structured than raw content
+    if (context.extractedFacts && context.extractedFacts.length > 0) {
+      prompt += `\n**Extracted Technical Facts:** ${context.extractedFacts.length} total\n`;
+
+      const dimensions = context.extractedFacts.filter(f => f.type === 'dimension');
+      const materials = context.extractedFacts.filter(f => f.type === 'material');
+      const tolerances = context.extractedFacts.filter(f => f.type === 'tolerance');
+      const constraints = context.extractedFacts.filter(f => f.type === 'constraint');
+
+      prompt += `\n**Dimensions:** ${dimensions.length} found\n`;
+      if (dimensions.length > 0) {
+        const topDimensions = dimensions.slice(0, 10); // Show top 10
+        for (const dim of topDimensions) {
+          prompt += `- ${dim.value}${dim.unit || ''} ${dim.feature ? `(${dim.feature})` : ''} [confidence: ${(dim.confidence * 100).toFixed(0)}%]\n`;
+        }
+        if (dimensions.length > 10) {
+          prompt += `... and ${dimensions.length - 10} more dimensions\n`;
+        }
+      }
+
+      prompt += `\n**Materials:** ${materials.length} found\n`;
+      if (materials.length > 0) {
+        const uniqueMaterials = Array.from(new Set(materials.map(m => m.value)));
+        prompt += `- ${uniqueMaterials.slice(0, 5).join(', ')}${uniqueMaterials.length > 5 ? ` ... and ${uniqueMaterials.length - 5} more` : ''}\n`;
+      }
+
+      prompt += `\n**Tolerances:** ${tolerances.length} found\n`;
+      if (tolerances.length > 0) {
+        const topTolerances = tolerances.slice(0, 5);
+        for (const tol of topTolerances) {
+          prompt += `- ${tol.value} ${tol.feature ? `(${tol.feature})` : ''}\n`;
+        }
+      }
+
+      prompt += `\n**Constraints:** ${constraints.length} found\n`;
+      if (constraints.length > 0) {
+        const topConstraints = constraints.slice(0, 3);
+        for (const con of topConstraints) {
+          prompt += `- ${con.value}\n`;
+        }
+      }
+
+      // Add context about document sources
+      prompt += `\n**Fact Sources:** ${context.documents.length} documents + ${context.requirements.length} requirements analyzed\n`;
+    } else {
+      // Fallback to raw document content if facts not extracted
+      if (context.documents.length > 0) {
+        prompt += `\n**Context Documents:** ${context.documents.length} document(s)\n`;
+        for (const doc of context.documents) {
+          const contentPreview = doc.content.substring(0, 1000); // First 1000 chars
+          prompt += `\n**${doc.title}**:\n${contentPreview}${doc.content.length > 1000 ? '...' : ''}\n`;
+        }
       }
     }
 
