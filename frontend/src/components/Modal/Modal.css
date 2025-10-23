@@ -398,35 +398,61 @@
   margin-top: 8px;
 }
 
+/* Draggable Modal Styles */
+.modal--draggable {
+  position: fixed !important;
+  margin: 0;
+  animation: none;
+  z-index: 1100 !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 3px #2196f3 !important;
+  /* Fix opacity and transform since animation is disabled */
+  opacity: 1 !important;
+  transform: scale(1) translateY(0) !important;
+}
+
+.modal--no-backdrop {
+  position: fixed !important;
+  z-index: 1100 !important;
+}
+
+.modal__header--draggable {
+  cursor: move;
+  user-select: none;
+}
+
+.modal__header--draggable:active {
+  cursor: grabbing;
+}
+
 /* Responsive Design */
 @media (max-width: 640px) {
   .modal-backdrop {
     padding: 16px;
   }
-  
+
   .modal {
     border-radius: 12px;
   }
-  
+
   .modal__header {
     padding: 20px 20px 0 20px;
     margin-bottom: 20px;
   }
-  
+
   .modal__body {
     padding: 0 20px;
   }
-  
+
   .modal__footer {
     padding: 16px 20px 20px 20px;
     flex-direction: column-reverse;
     gap: 8px;
   }
-  
+
   .modal .btn {
     width: 100%;
   }
-  
+
   .modal .form-row {
     grid-template-columns: 1fr;
     gap: 12px;

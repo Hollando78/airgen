@@ -52,9 +52,15 @@ export function ImagineGalleryRoute(): JSX.Element {
   };
 
   const handleReImagineFromViewer = () => {
+    console.log('[ImagineGalleryRoute] Re-Imagine clicked from viewer', {
+      selectedImage,
+      imageUrl: selectedImage?.imageUrl
+    });
     if (selectedImage) {
       setImageToReImagine(selectedImage);
       setReImagineOpen(true);
+      console.log('[ImagineGalleryRoute] ReImagine modal should now be open');
+      // Keep viewer open - don't call setViewerOpen(false)
     }
   };
 
@@ -157,6 +163,7 @@ export function ImagineGalleryRoute(): JSX.Element {
         }}
         onSubmit={handleReImagineSubmit}
         imageName={imageToReImagine?.elementName || ''}
+        imageUrl={imageToReImagine?.imageUrl}
         isSubmitting={isReImagining}
       />
     </>

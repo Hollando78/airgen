@@ -80,7 +80,7 @@
   background: transparent;
   color: var(--muted-legacy);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   padding: 0.45rem 0.65rem;
   border-radius: 0.6rem;
   cursor: pointer;
@@ -125,6 +125,7 @@
   padding: 0.45rem 0.6rem;
   border-radius: 0.6rem;
   color: var(--muted-legacy);
+  font-size: 0.875rem;
   transition: background 0.2s ease, color 0.2s ease;
 }
 
