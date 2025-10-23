@@ -51,6 +51,11 @@ export function DocumentAttachmentSelector({
     return doc?.kind || "unknown";
   };
 
+  const isImageDocument = (documentSlug: string) => {
+    const doc = documentsQuery.data?.documents.find(d => d.slug === documentSlug);
+    return doc?.mimeType?.startsWith('image/') || false;
+  };
+
   return (
     <div className="document-attachment-selector">
       <div className="form-group">
@@ -58,24 +63,43 @@ export function DocumentAttachmentSelector({
         
         {attachments.length > 0 && (
           <div className="attached-documents">
-            {attachments.map((attachment) => (
-              <div key={attachment.documentSlug} className="attached-document">
-                <div className="document-info">
-                  <span className="document-name">{getDocumentName(attachment.documentSlug)}</span>
-                  <span className={`document-type document-type--${getDocumentType(attachment.documentSlug)}`}>
-                    {getDocumentType(attachment.documentSlug)}
-                  </span>
+            {attachments.map((attachment) => {
+              const isImage = isImageDocument(attachment.documentSlug);
+              return (
+                <div key={attachment.documentSlug} className="attached-document">
+                  <div className="document-info">
+                    {isImage && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, color: '#8b5cf6' }}>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <path d="M21 15l-5-5L5 21"/>
+                      </svg>
+                    )}
+                    <span className="document-name">{getDocumentName(attachment.documentSlug)}</span>
+                    <span className={`document-type document-type--${getDocumentType(attachment.documentSlug)}`}>
+                      {getDocumentType(attachment.documentSlug)}
+                    </span>
+                    {isImage && (
+                      <span className="vision-badge" title="This image will be analyzed using AI vision">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '3px' }}>
+                          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        AI Vision
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(attachment.documentSlug)}
+                    className="remove-button"
+                    title="Remove attachment"
+                  >
+                    ×
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeAttachment(attachment.documentSlug)}
-                  className="remove-button"
-                  title="Remove attachment"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -98,7 +122,7 @@ export function DocumentAttachmentSelector({
       {showSelector && (
         <div className="document-selector">
           <div className="form-help" style={{ marginBottom: "12px" }}>
-            Select documents to provide context for AI generation. Native documents include existing requirements, while surrogate documents are uploaded files.
+            Select documents to provide context for AI generation. Native documents include existing requirements, while surrogate documents are uploaded files. Images (PNG, JPG, etc.) will be analyzed using AI vision to extract technical details from diagrams and visualizations.
           </div>
           
           {documentsQuery.isLoading && (
@@ -204,6 +228,20 @@ export function DocumentAttachmentSelector({
         .document-type--surrogate {
           background: #fef3c7;
           color: #92400e;
+        }
+
+        .vision-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 600;
+          background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+          color: white;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+          box-shadow: 0 1px 2px rgba(139, 92, 246, 0.3);
         }
 
         .remove-button {

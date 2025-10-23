@@ -135,6 +135,7 @@ export default async function airgenRoutes(app: FastifyInstance) {
 
     // Extract document and diagram context if attachments are provided
     let documentContext = "";
+    const imageAttachments: Array<{ documentName: string; filePath: string; mimeType: string }> = [];
 
     const tenantSlug = slugify(body.tenant);
     const projectSlug = slugify(body.projectKey);
@@ -146,7 +147,19 @@ export default async function airgenRoutes(app: FastifyInstance) {
           extractDocumentContent(tenantSlug, projectSlug, attachment)
         );
         const contexts = await Promise.all(contextPromises);
-        documentContext += contexts.join("");
+
+        // Separate text content from images
+        for (const result of contexts) {
+          if (result.type === 'text') {
+            documentContext += result.content;
+          } else if (result.type === 'image') {
+            imageAttachments.push({
+              documentName: result.documentName,
+              filePath: result.filePath,
+              mimeType: result.mimeType
+            });
+          }
+        }
       } catch (error) {
         req.log.error({ err: error }, "Failed to extract document context");
         return reply.status(400).send({
@@ -187,7 +200,8 @@ export default async function airgenRoutes(app: FastifyInstance) {
           constraints: body.constraints,
           mode: diagramAction,
           existingDiagramContext: documentContext || undefined,
-          documentContext: documentContext || undefined
+          documentContext: documentContext || undefined,
+          imageAttachments: imageAttachments.length > 0 ? imageAttachments : undefined
         });
 
         // Create a diagram candidate record in the database
@@ -229,7 +243,8 @@ export default async function airgenRoutes(app: FastifyInstance) {
         glossary: body.glossary,
         constraints: body.constraints,
         n: body.n,
-        documentContext: documentContext || undefined
+        documentContext: documentContext || undefined,
+        imageAttachments: imageAttachments.length > 0 ? imageAttachments : undefined
       });
     } catch (error) {
       req.log.error({ err: error }, "Failed to draft candidates");

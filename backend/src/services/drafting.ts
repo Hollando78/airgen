@@ -1,3 +1,4 @@
+import { promises as fs } from "node:fs";
 import { openai, model } from "../lib/openai.js";
 import {
   sanitizeDraftingInputs,
@@ -12,6 +13,7 @@ export type DraftRequest = {
   constraints?: string; // optional constraints
   n?: number; // number of candidates (default 5, max 10)
   documentContext?: string; // additional context from attached documents
+  imageAttachments?: Array<{ documentName: string; filePath: string; mimeType: string }>; // attached images for vision analysis
 };
 
 export async function draftCandidates(req: DraftRequest): Promise<string[]> {
@@ -31,6 +33,8 @@ export async function draftCandidates(req: DraftRequest): Promise<string[]> {
     "and alignment with existing requirements and specifications.",
     "When diagram context is provided, generate architecture-aware requirements that consider",
     "component interactions, interfaces, data flows, and system boundaries shown in the diagrams.",
+    "When images are provided, analyze the visual content (diagrams, visualizations, screenshots) to",
+    "extract technical requirements based on what is shown in the images.",
     "IMPORTANT: Generate exactly the number of candidate requirements specified in the <COUNT> tag.",
     "For example, if <COUNT>3</COUNT> is provided, generate exactly 3 requirements.",
     "Return ONLY a JSON object with this shape:",
@@ -47,13 +51,44 @@ export async function draftCandidates(req: DraftRequest): Promise<string[]> {
     `<COUNT>${n}</COUNT>`
   ];
 
-  const content = contentParts.filter(Boolean).join("\n\n");
+  const textContent = contentParts.filter(Boolean).join("\n\n");
+
+  // Build multimodal message content if images are present
+  type ContentPart =
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string; detail: "high" } };
+
+  let userContent: string | ContentPart[];
+
+  if (req.imageAttachments && req.imageAttachments.length > 0) {
+    // Read images and convert to base64 data URLs
+    const imagePromises = req.imageAttachments.map(async (img) => {
+      const imageBuffer = await fs.readFile(img.filePath);
+      const base64 = imageBuffer.toString('base64');
+      return {
+        type: "image_url" as const,
+        image_url: {
+          url: `data:${img.mimeType};base64,${base64}`,
+          detail: "high" as const
+        }
+      };
+    });
+
+    const imageParts = await Promise.all(imagePromises);
+
+    userContent = [
+      { type: "text" as const, text: textContent },
+      ...imageParts
+    ];
+  } else {
+    userContent = textContent;
+  }
 
   const completion = await openai.chat.completions.create({
     model,
     messages: [
       { role: "system", content: sys },
-      { role: "user", content }
+      { role: "user", content: userContent }
     ],
     temperature: 0.2
   });

@@ -7,6 +7,16 @@ import {
 import type { RequirementRecord } from "./workspace.js";
 import { readFileSafely, getWorkspacePath, validateFilePath } from "./secure-file.js";
 
+export type DocumentContentResult = {
+  type: 'text';
+  content: string;
+} | {
+  type: 'image';
+  documentName: string;
+  filePath: string;
+  mimeType: string;
+};
+
 /**
  * Extracts text content from a PDF file securely
  * Uses dynamic import to avoid pdf-parse loading test data at module initialization
@@ -34,26 +44,40 @@ async function extractSurrogateContent(
   storagePath: string,
   mimeType: string | null,
   documentName: string
-): Promise<string> {
+): Promise<DocumentContentResult> {
   const baseDirectory = getWorkspacePath(tenant, projectKey);
+
+  // Validate file path first
+  const validation = await validateFilePath(baseDirectory, storagePath);
+  if (!validation.isValid || !validation.safePath) {
+    throw new Error(validation.error || 'Invalid file path');
+  }
+
+  // For images, return metadata for vision API processing
+  if (mimeType?.startsWith('image/')) {
+    return {
+      type: 'image',
+      documentName,
+      filePath: validation.safePath,
+      mimeType
+    };
+  }
 
   // Validate and read the file securely
   let content: string;
 
   if (mimeType === 'application/pdf') {
     // Use pdf-parse library for PDF extraction
-    const validation = await validateFilePath(baseDirectory, storagePath);
-    if (!validation.isValid || !validation.safePath) {
-      throw new Error(validation.error || 'Invalid file path');
-    }
-
     content = await extractPdfText(validation.safePath);
   } else {
     // For text-based files, read directly
     content = await readFileSafely(baseDirectory, storagePath);
   }
 
-  return `=== DOCUMENT: ${documentName} ===\n${content.trim()}\n\n`;
+  return {
+    type: 'text',
+    content: `=== DOCUMENT: ${documentName} ===\n${content.trim()}\n\n`
+  };
 }
 
 /**
@@ -65,7 +89,7 @@ async function extractNativeContent(
   documentSlug: string,
   sectionIds: string[] | undefined,
   documentName: string
-): Promise<string> {
+): Promise<DocumentContentResult> {
   let requirements: RequirementRecord[];
 
   if (sectionIds && sectionIds.length > 0) {
@@ -94,14 +118,20 @@ async function extractNativeContent(
   }
 
   if (requirements.length === 0) {
-    return `=== DOCUMENT: ${documentName} ===\n(No requirements found)\n\n`;
+    return {
+      type: 'text',
+      content: `=== DOCUMENT: ${documentName} ===\n(No requirements found)\n\n`
+    };
   }
 
   const requirementTexts = requirements.map(req =>
     `[${req.ref}] ${req.text}`
   ).join('\n');
 
-  return `=== DOCUMENT: ${documentName} ===\n${requirementTexts}\n\n`;
+  return {
+    type: 'text',
+    content: `=== DOCUMENT: ${documentName} ===\n${requirementTexts}\n\n`
+  };
 }
 
 /**
@@ -111,7 +141,7 @@ export async function extractDocumentContent(
   tenant: string,
   projectKey: string,
   attachment: { type: "native" | "surrogate" | "structured"; documentSlug: string; sectionIds?: string[] }
-): Promise<string> {
+): Promise<DocumentContentResult> {
   const document = await getDocument(tenant, projectKey, attachment.documentSlug);
   if (!document) {
     throw new Error(`Document not found: ${attachment.documentSlug}`);
