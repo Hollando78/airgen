@@ -452,8 +452,15 @@ export class ContextBuilder {
     tenantSlug: string,
     projectSlug: string
   ): Promise<RequirementInfo[]> {
+    console.log(`[ContextBuilder] getRequirementsHybrid called with ${explicitRequirementIds.length} explicit requirement IDs:`, explicitRequirementIds);
+
     // Start with explicitly requested requirements
     const explicitReqs = await this.getRequirements(explicitRequirementIds, tenantSlug, projectSlug);
+    console.log(`[ContextBuilder] Fetched ${explicitReqs.length} explicit requirements from Neo4j`);
+
+    if (explicitReqs.length > 0) {
+      console.log('[ContextBuilder] Explicit requirements:', explicitReqs.map(r => ({ id: r.id, title: r.title })));
+    }
 
     // If semantic filtering not enabled, return explicit requirements only
     if (!config.features.snapdraft.semanticFilteringEnabled) {
@@ -491,12 +498,19 @@ export class ContextBuilder {
         verificationMethod: sr.verification,
       }));
 
+      console.log('[ContextBuilder] Semantic requirements found:', semanticRequirementInfos.map(r => ({ id: r.id, title: r.title })));
+
       // Deduplicate by ID (explicit requirements take precedence)
       const explicitIds = new Set(explicitReqs.map(r => r.id));
       const additionalSemanticReqs = semanticRequirementInfos.filter(r => !explicitIds.has(r.id));
 
+      console.log(`[ContextBuilder] After deduplication: ${additionalSemanticReqs.length} new semantic requirements (${semanticReqs.length - additionalSemanticReqs.length} were duplicates)`);
+
       const allRequirements = [...explicitReqs, ...additionalSemanticReqs];
+      console.log(`[ContextBuilder] ===== FINAL REQUIREMENTS SUMMARY =====`);
       console.log(`[ContextBuilder] Total requirements: ${allRequirements.length} (${explicitReqs.length} explicit + ${additionalSemanticReqs.length} semantic)`);
+      console.log(`[ContextBuilder] All requirements being sent to LLM:`, allRequirements.map(r => ({ id: r.id, title: r.title, textPreview: r.text?.substring(0, 50) + '...' })));
+      console.log(`[ContextBuilder] ===================================`);
 
       return allRequirements;
     } catch (error) {

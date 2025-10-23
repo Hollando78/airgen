@@ -464,6 +464,7 @@ export function DocumentManager({
             onItemDoubleClick={handlePrimaryAction}
             onContextMenu={handleContextMenu}
             onDrop={handleDrop}
+            currentFolder={currentFolder}
           />
         ) : (
           <FileManagerList
@@ -473,6 +474,7 @@ export function DocumentManager({
             onItemDoubleClick={handlePrimaryAction}
             onContextMenu={handleContextMenu}
             onDrop={handleDrop}
+            currentFolder={currentFolder}
           />
         )}
 

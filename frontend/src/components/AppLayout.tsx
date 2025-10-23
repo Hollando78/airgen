@@ -19,7 +19,8 @@ import {
   Users,
   ClipboardList,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  Image
 } from "lucide-react";
 import { TenantProjectProvider } from "../hooks/useTenantProject";
 import { TokenControls } from "./TokenControls";
@@ -59,9 +60,25 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
         icon: LayoutDashboard,
         items: [
           { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+          { to: "/query", label: "Query", icon: Search }
+        ]
+      },
+      {
+        id: "airgen",
+        label: "AIRGen",
+        icon: Bot,
+        items: [
           { to: "/airgen", label: "AIRGen", icon: Bot },
           { to: "/ask-airgen", label: "Ask AIRGen", icon: Sparkles },
-          { to: "/query", label: "Query", icon: Search }
+          { to: "/imagine-gallery", label: "AIRGen Imagine", icon: Image }
+        ]
+      },
+      {
+        id: "documents",
+        label: "Documents",
+        icon: FileText,
+        items: [
+          { to: "/documents", label: "Documents", icon: FileText }
         ]
       },
       {
@@ -76,9 +93,8 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
       {
         id: "requirements",
         label: "Requirements",
-        icon: FileText,
+        icon: ListChecks,
         items: [
-          { to: "/documents", label: "Documents", icon: FileText },
           { to: "/requirements", label: "Requirements", icon: ListChecks },
           { to: "/baselines", label: "Baselines", icon: Layers },
           { to: "/links", label: "Trace Links", icon: GitBranch },

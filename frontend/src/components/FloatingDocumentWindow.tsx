@@ -14,7 +14,10 @@ interface FloatingDocumentWindowProps {
   project: string;
   documentSlug: string;
   documentName: string;
+  zIndex: number;
   onClose: () => void;
+  onBringToFront: () => void;
+  onSendToBack: () => void;
   initialPosition?: { x: number; y: number };
   focusRequirementId?: string;
 }
@@ -32,7 +35,10 @@ export function FloatingDocumentWindow({
   project,
   documentSlug,
   documentName,
+  zIndex,
   onClose,
+  onBringToFront,
+  onSendToBack,
   initialPosition = { x: 100, y: 100 },
   focusRequirementId
 }: FloatingDocumentWindowProps) {
@@ -268,7 +274,7 @@ export function FloatingDocumentWindow({
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        zIndex: 1000,
+        zIndex,
         transition: isMinimized ? "width 0.3s ease, max-height 0.3s ease" : undefined
       }}
     >
@@ -318,11 +324,59 @@ export function FloatingDocumentWindow({
             {documentName}
           </span>
         </div>
-        <div className="window-controls" style={{ 
-          display: "flex", 
+        <div className="window-controls" style={{
+          display: "flex",
           gap: isMinimized ? "4px" : "8px",
           flexShrink: 0
         }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onBringToFront(); }}
+            title="Bring to front"
+            style={{
+              background: "rgba(255, 255, 255, 0.2)",
+              border: "none",
+              borderRadius: "3px",
+              color: "#ffffff",
+              width: isMinimized ? "20px" : "24px",
+              height: isMinimized ? "20px" : "24px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.2s"
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"}
+          >
+            <svg width={isMinimized ? "12" : "14"} height={isMinimized ? "12" : "14"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <rect x="7" y="7" width="10" height="10" rx="1" fill="white" stroke="currentColor" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onSendToBack(); }}
+            title="Send to back"
+            style={{
+              background: "rgba(255, 255, 255, 0.2)",
+              border: "none",
+              borderRadius: "3px",
+              color: "#ffffff",
+              width: isMinimized ? "20px" : "24px",
+              height: isMinimized ? "20px" : "24px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.2s"
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"}
+          >
+            <svg width={isMinimized ? "12" : "14"} height={isMinimized ? "12" : "14"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="7" y="7" width="10" height="10" rx="1" fill="white" stroke="currentColor" />
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+            </svg>
+          </button>
           <button
             onClick={toggleMinimize}
             style={{

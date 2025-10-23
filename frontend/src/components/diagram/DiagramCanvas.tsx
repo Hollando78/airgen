@@ -27,7 +27,7 @@ import { ConnectorStylingToolbar } from "./ConnectorStylingToolbar";
 import { DiagramToolbar } from "./DiagramToolbar";
 import { Spinner } from "../Spinner";
 import { StraightEdge, SmoothStepEdge, StepEdge, BezierEdge, PolylineEdge } from "./CustomEdge";
-import { SnapDraftModal } from "../snapdraft/SnapDraftModal";
+import { ImagineModal } from "../imagine/ImagineModal";
 import type { ArchitectureDiagramRecord, DocumentRecord } from "../../types";
 import type {
   ArchitectureState,
@@ -205,8 +205,8 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
       selectedConnector,
       addBlockFromPreset,
       reuseExistingBlock,
-      snapDraftElement,
-      setSnapDraftElement
+      imagineModal,
+      setImagineModal
     } = useDiagramCanvasInteractions({
       architecture,
       activeDiagram,
@@ -737,15 +737,17 @@ const DiagramCanvasComponent: ForwardRefRenderFunction<
                 />
               )}
 
-              {snapDraftElement && (
-                <SnapDraftModal
+              {imagineModal && (
+                <ImagineModal
                   isOpen={true}
-                  onClose={() => setSnapDraftElement(null)}
-                  elementId={snapDraftElement.id}
-                  elementType={snapDraftElement.type}
-                  elementName={snapDraftElement.name}
+                  onClose={() => setImagineModal(null)}
+                  elementId={imagineModal.id}
+                  elementType={imagineModal.type}
+                  elementName={imagineModal.name}
                   tenant={tenant}
                   project={project}
+                  documentIds={imagineModal.documentIds}
+                  diagramId={imagineModal.diagramId}
                 />
               )}
             </>

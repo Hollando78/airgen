@@ -23,7 +23,7 @@ import {
   CircleDot,
   FileText
 } from "lucide-react";
-import { SnapDraftModal } from "../snapdraft/SnapDraftModal";
+import { ImagineModal } from "../imagine/ImagineModal";
 import type {
   ArchitectureBlockLibraryRecord,
   ArchitectureDiagramRecord,
@@ -126,8 +126,7 @@ export function ArchitectureBrowserTree({
   const [selectedItems, setSelectedItems] = useState<TreeItemIndex[]>([]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
-  const [snapDraftModalOpen, setSnapDraftModalOpen] = useState(false);
-  const [snapDraftElement, setSnapDraftElement] = useState<{ id: string; type: 'block' | 'interface'; name: string } | null>(null);
+  const [imagineModal, setImagineModal] = useState<{ id: string; type: 'Block' | 'Interface'; name: string; documentIds?: string[]; diagramId?: string } | null>(null);
   const previousDataRef = useRef<{ blocks: ArchitectureBlockLibraryRecord[]; diagrams: ArchitectureDiagramRecord[]; connectors: ArchitectureConnectorRecord[]; packages: Package[] }>({
     blocks,
     diagrams,
@@ -595,10 +594,14 @@ export function ArchitectureBrowserTree({
       ];
     } else if (item.type === 'block') {
       menuItems = [
-        { label: 'Generate SnapDraft...', action: () => {
+        { label: 'Generate Imagine', action: () => {
           setContextMenu(null);
-          setSnapDraftElement({ id: item.id, type: 'block', name: item.name });
-          setSnapDraftModalOpen(true);
+          setImagineModal({
+            id: item.id,
+            type: 'Block',
+            name: item.name,
+            documentIds: item.data?.documentIds
+          });
         }}
       ];
     } else if (item.type === 'section') {
@@ -806,21 +809,23 @@ export function ArchitectureBrowserTree({
         </div>
       )}
 
-      {/* SnapDraft Modal */}
-      {snapDraftModalOpen && snapDraftElement && (() => {
+      {/* Imagine Modal */}
+      {imagineModal && (() => {
         // Extract tenant and project from the first available block or diagram
         const tenant = blocks[0]?.tenant || diagrams[0]?.tenant || packages[0]?.tenant || '';
         const project = blocks[0]?.projectKey || diagrams[0]?.projectKey || packages[0]?.projectKey || '';
 
         return (
-          <SnapDraftModal
-            isOpen={snapDraftModalOpen}
-            onClose={() => setSnapDraftModalOpen(false)}
-            elementId={snapDraftElement.id}
-            elementType={snapDraftElement.type}
-            elementName={snapDraftElement.name}
+          <ImagineModal
+            isOpen={true}
+            onClose={() => setImagineModal(null)}
+            elementId={imagineModal.id}
+            elementType={imagineModal.type}
+            elementName={imagineModal.name}
             tenant={tenant}
             project={project}
+            documentIds={imagineModal.documentIds}
+            diagramId={imagineModal.diagramId}
           />
         );
       })()}

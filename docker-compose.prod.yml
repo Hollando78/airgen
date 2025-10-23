@@ -100,6 +100,14 @@ services:
       RATE_LIMIT_AUTH_WINDOW: "${RATE_LIMIT_AUTH_WINDOW:-300000}"
       RATE_LIMIT_LLM_MAX: "${RATE_LIMIT_LLM_MAX:-20}"
       RATE_LIMIT_LLM_WINDOW: "${RATE_LIMIT_LLM_WINDOW:-3600000}"
+      # ARCHIVED: SnapDraft feature flags
+      # SNAPDRAFT_ENABLE_SEMANTIC_FILTERING: "${SNAPDRAFT_ENABLE_SEMANTIC_FILTERING:-false}"
+      # SNAPDRAFT_ENABLE_FACT_EXTRACTION: "${SNAPDRAFT_ENABLE_FACT_EXTRACTION:-false}"
+      # SNAPDRAFT_SEMANTIC_SIMILARITY_THRESHOLD: "${SNAPDRAFT_SEMANTIC_SIMILARITY_THRESHOLD:-0.7}"
+      # SNAPDRAFT_SEMANTIC_RESULT_LIMIT: "${SNAPDRAFT_SEMANTIC_RESULT_LIMIT:-10}"
+      # Imagine visualization configuration
+      IMAGINE_MODEL: "${IMAGINE_MODEL:-gemini-2.5-flash-image}"
+      IMAGINE_ASPECT_RATIO: "${IMAGINE_ASPECT_RATIO:-16:9}"
       BACKUP_SCRIPT_ROOT: /app/scripts
       PROJECT_ROOT: /root/airgen
       BACKUP_ROOT: /root/airgen/backups
@@ -116,6 +124,7 @@ services:
       - neo4j_password
       - api_jwt_secret
       - llm_api_key
+      - gemini_api_key
       - smtp_password
       - restic_password
       - aws_secret_access_key
@@ -132,6 +141,12 @@ services:
       - "traefik.http.routers.api.entrypoints=websecure"
       - "traefik.http.routers.api.tls=true"
       - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      # Route /imagine/ paths to API for serving generated images (trailing slash ensures we don't catch /imagine-gallery)
+      - "traefik.http.routers.api-imagine.rule=Host(`airgen.studio`) && PathPrefix(`/imagine/`)"
+      - "traefik.http.routers.api-imagine.entrypoints=websecure"
+      - "traefik.http.routers.api-imagine.priority=10"
+      - "traefik.http.routers.api-imagine.tls=true"
+      - "traefik.http.routers.api-imagine.tls.certresolver=letsencrypt"
       - "traefik.http.services.api.loadbalancer.server.port=${API_PORT}"
     volumes:
       - ./workspace:/workspace
@@ -171,6 +186,8 @@ secrets:
     file: /root/airgen-secrets/api_jwt_secret
   llm_api_key:
     file: /root/airgen-secrets/llm_api_key
+  gemini_api_key:
+    file: /root/airgen-secrets/gemini_api_key
   smtp_password:
     file: /root/airgen-secrets/smtp_password
   restic_password:

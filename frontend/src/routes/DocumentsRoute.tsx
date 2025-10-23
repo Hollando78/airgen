@@ -78,6 +78,15 @@ export function DocumentsRoute(): JSX.Element {
   const documents = documentsQuery.data?.documents ?? [];
   const folders = foldersQuery.data?.folders ?? [];
 
+  const handlePopOutBrowser = () => {
+    openFloatingDocument({
+      tenant: tenant!,
+      project: project!,
+      documentName: "Documents Browser",
+      kind: "browser"
+    });
+  };
+
   return (
     <>
       <PageLayout
@@ -87,6 +96,40 @@ export function DocumentsRoute(): JSX.Element {
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Documents' }
         ]}
+        actions={
+          <button
+            onClick={handlePopOutBrowser}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: 500,
+              color: "#1f2937",
+              background: "white",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              cursor: "pointer",
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#f9fafb";
+              e.currentTarget.style.borderColor = "#9ca3af";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "white";
+              e.currentTarget.style.borderColor = "#d1d5db";
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            Pop Out Browser
+          </button>
+        }
       >
         <DocumentManager
             tenant={tenant}

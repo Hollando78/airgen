@@ -260,6 +260,18 @@ ${element.connections?.map(c => {
     // Add context documents if any
     if (context.documents.length > 0) {
       prompt += `\n\n**Attached Context Documents:**\n`;
+
+      // Detect if documents contain requirements
+      const embeddedReqCount = this.countEmbeddedRequirements(context.documents);
+      if (embeddedReqCount > 0 && context.requirements.length === 0) {
+        prompt += `\n**IMPORTANT:** The documents below contain ${embeddedReqCount} requirement(s). `;
+        prompt += `Consider ALL requirements mentioned in the documents equally when generating the drawing. `;
+        prompt += `Do not focus on just one requirement - the entire system must satisfy all requirements.\n\n`;
+      } else if (embeddedReqCount > context.requirements.length) {
+        prompt += `\n**NOTE:** The documents below contain additional requirements beyond the ${context.requirements.length} structured requirement(s) listed separately. `;
+        prompt += `Consider both the structured requirements and any requirements embedded in the document text.\n\n`;
+      }
+
       for (const doc of context.documents) {
         prompt += `\n### ${doc.title}\n${doc.content}\n`;
       }
@@ -267,7 +279,7 @@ ${element.connections?.map(c => {
 
     // Add requirements if any
     if (context.requirements.length > 0) {
-      prompt += `\n\n**Related Requirements:**\n`;
+      prompt += `\n\n**Related Requirements (Structured):**\n`;
       for (const req of context.requirements) {
         prompt += `\n### ${req.title}\n`;
         prompt += `${req.text}\n`;
@@ -306,6 +318,32 @@ ${element.connections?.map(c => {
     prompt += `\n\nGenerate the drawing specification JSON following the SnapDraft schema.`;
 
     return prompt;
+  }
+
+  /**
+   * Count requirements embedded in document content
+   * Looks for common requirement ID patterns like SRD-XXX-###, REQ-###, FR-###, etc.
+   */
+  private countEmbeddedRequirements(documents: Array<{ title: string; content: string }>): number {
+    const requirementPatterns = [
+      /\b(SRD|REQ|FR|NFR|UR|SR|FUN|PERF|SEC|UI|API)-[A-Z]+-\d+\b/gi, // SRD-FUN-001, REQ-API-123
+      /\b(SRD|REQ|FR|NFR|UR|SR)-\d+\b/gi, // REQ-001, FR-123
+      /\b###\s+(SRD|REQ|FR|NFR|UR|SR|FUN|PERF|SEC|UI|API)-[A-Z]+-\d+/gi, // Markdown heading format
+      /\b###\s+(SRD|REQ|FR|NFR|UR|SR)-\d+/gi, // Markdown heading format
+    ];
+
+    const foundRequirements = new Set<string>();
+
+    for (const doc of documents) {
+      for (const pattern of requirementPatterns) {
+        const matches = doc.content.matchAll(pattern);
+        for (const match of matches) {
+          foundRequirements.add(match[0].toUpperCase());
+        }
+      }
+    }
+
+    return foundRequirements.size;
   }
 
   /**

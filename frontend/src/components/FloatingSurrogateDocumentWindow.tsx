@@ -14,7 +14,10 @@ interface FloatingSurrogateDocumentWindowProps {
   previewDownloadUrl?: string | null;
   previewMimeType?: string | null;
   initialPosition?: { x: number; y: number };
+  zIndex: number;
   onClose: () => void;
+  onBringToFront: () => void;
+  onSendToBack: () => void;
 }
 
 function canPreviewInline(mimeType?: string | null): boolean {
@@ -82,7 +85,10 @@ export function FloatingSurrogateDocumentWindow({
   previewDownloadUrl,
   previewMimeType,
   initialPosition = { x: 150, y: 150 },
-  onClose
+  zIndex,
+  onClose,
+  onBringToFront,
+  onSendToBack
 }: FloatingSurrogateDocumentWindowProps) {
   const api = useApiClient();
   const windowRef = useRef<HTMLDivElement>(null);
@@ -301,7 +307,7 @@ export function FloatingSurrogateDocumentWindow({
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        zIndex: 1100,
+        zIndex,
         transition: isMinimized ? "width 0.25s ease, height 0.25s ease" : undefined
       }}
     >
@@ -363,6 +369,28 @@ export function FloatingSurrogateDocumentWindow({
         </div>
 
         <div className="window-controls" style={{ display: "flex", gap: "6px" }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onBringToFront(); }}
+            className="ghost-button"
+            title="Bring to front"
+            style={controlButtonStyle}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <rect x="7" y="7" width="10" height="10" rx="1" fill="white" stroke="currentColor" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onSendToBack(); }}
+            className="ghost-button"
+            title="Send to back"
+            style={controlButtonStyle}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="7" y="7" width="10" height="10" rx="1" fill="white" stroke="currentColor" />
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+            </svg>
+          </button>
           <button
             onClick={handleDownload}
             className="ghost-button"

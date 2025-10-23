@@ -10,6 +10,7 @@ import { UserRole } from "./lib/rbac";
 const DashboardRoute = lazy(() => import("./routes/DashboardRoute").then(m => ({ default: m.DashboardRoute })));
 const AirGenRoute = lazy(() => import("./routes/AirGenRoute").then(m => ({ default: m.AirGenRoute })));
 const AskAirGenRoute = lazy(() => import("./routes/AskAirGenRoute").then(m => ({ default: m.AskAirGenRoute })));
+const ImagineGalleryRoute = lazy(() => import("./routes/ImagineGalleryRoute").then(m => ({ default: m.ImagineGalleryRoute })));
 const NaturalLanguageQuery = lazy(() => import("./pages/NaturalLanguageQuery").then(m => ({ default: m.NaturalLanguageQuery })));
 const DocumentsRoute = lazy(() => import("./routes/DocumentsRoute").then(m => ({ default: m.DocumentsRoute })));
 const ArchitectureRoute = lazy(() => import("./routes/ArchitectureRoute").then(m => ({ default: m.ArchitectureRoute })));
@@ -49,6 +50,7 @@ export default function AppRoutes(): JSX.Element {
             }
           />
           <Route path="/ask-airgen" element={<AskAirGenRoute />} />
+          <Route path="/imagine-gallery" element={<ImagineGalleryRoute />} />
 
           {/* Main application routes */}
           <Route path="/query" element={<NaturalLanguageQuery />} />

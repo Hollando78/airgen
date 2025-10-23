@@ -738,64 +738,165 @@ export function useApiClient() {
       listTenantProjects: (tenant: string) =>
         request<ProjectsResponse>(`/tenant-admin/${tenant}/projects`),
 
-      // SnapDraft API methods
-      analyzeSnapDraft: (tenant: string, project: string, body: {
+      // Imagine Visualization API methods
+      getImagineRequirements: (tenant: string, project: string, elementId: string) =>
+        request<{ success: boolean; data: { requirements: Array<{ id: string; ref: string; title: string; text: string; type?: string; priority?: string }> } }>(
+          `/${tenant}/${project}/imagine/requirements/${elementId}`
+        ),
+      generateImagination: (tenant: string, project: string, body: {
         elementId: string;
-        elementType: 'block' | 'interface';
-        contextDocuments?: string[];
-        contextRequirements?: string[];
-        referenceDiagrams?: string[];
-        style: 'engineering' | 'architectural' | 'schematic';
+        elementType: 'Block' | 'Interface';
+        requirementIds?: string[];
+        customPrompt?: string;
+        referenceImages?: string[];
       }) =>
         request<{
-          mode: 'technical_drawing' | 'visualization';
-          visualizationType?: 'dalle' | 'svg';
-          reasoning: string;
-          suitabilityScore: number;
-          issues: string[];
-        }>(`/snapdraft/${tenant}/${project}/analyze`, { method: "POST", body: JSON.stringify(body) }),
+          success: boolean;
+          data: {
+            id: string;
+            elementId: string;
+            elementType: 'Block' | 'Interface';
+            prompt: string;
+            imageUrl: string;
+            metadata: {
+              model: string;
+              aspectRatio: string;
+              generatedAt: string;
+              estimatedCost: number;
+            };
+            createdBy: string;
+            createdAt: string;
+          };
+        }>(`/${tenant}/${project}/imagine/generate`, {
+          method: 'POST',
+          body: JSON.stringify(body)
+        }),
 
-      generateSnapDraft: (tenant: string, project: string, body: {
-        elementId: string;
-        elementType: 'block' | 'interface';
-        contextDocuments?: string[];
-        contextRequirements?: string[];
-        referenceDiagrams?: string[];
-        style: 'engineering' | 'architectural' | 'schematic';
-        outputs: ('dxf' | 'svg')[];
-        options?: {
-          units: 'mm' | 'in';
-          scale: string;
-          paper: 'A4' | 'A3' | 'A2' | 'A1' | 'A0' | 'LETTER' | 'TABLOID' | 'LEGAL';
-          orientation: 'landscape' | 'portrait';
-        };
-        forcedMode?: 'technical_drawing' | 'visualization';
+      // Imagine Gallery API methods
+      listImagineImages: (tenant: string, project: string) =>
+        request<{
+          success: boolean;
+          data: {
+            images: Array<{
+              id: string;
+              elementId: string;
+              elementName: string;
+              elementType: 'Block' | 'Interface';
+              tenantSlug: string;
+              projectSlug: string;
+              prompt: string;
+              customPrompt?: string;
+              imageUrl: string;
+              version: number;
+              parentVersionId?: string;
+              requirementIds?: string[];
+              metadata: {
+                model: string;
+                aspectRatio: string;
+                generatedAt: string;
+                estimatedCost: number;
+              };
+              createdBy: string;
+              createdAt: string;
+            }>;
+            total: number;
+          };
+        }>(`/${tenant}/${project}/imagine/images`),
+
+      getImagineImageDetails: (tenant: string, project: string, imageId: string) =>
+        request<{
+          success: boolean;
+          data: {
+            image: {
+              id: string;
+              elementId: string;
+              elementName: string;
+              elementType: 'Block' | 'Interface';
+              tenantSlug: string;
+              projectSlug: string;
+              prompt: string;
+              customPrompt?: string;
+              imageUrl: string;
+              version: number;
+              parentVersionId?: string;
+              requirementIds?: string[];
+              metadata: {
+                model: string;
+                aspectRatio: string;
+                generatedAt: string;
+                estimatedCost: number;
+              };
+              createdBy: string;
+              createdAt: string;
+            };
+            versions: Array<{
+              id: string;
+              elementId: string;
+              elementName: string;
+              elementType: 'Block' | 'Interface';
+              tenantSlug: string;
+              projectSlug: string;
+              prompt: string;
+              customPrompt?: string;
+              imageUrl: string;
+              version: number;
+              parentVersionId?: string;
+              requirementIds?: string[];
+              metadata: {
+                model: string;
+                aspectRatio: string;
+                generatedAt: string;
+                estimatedCost: number;
+              };
+              createdBy: string;
+              createdAt: string;
+            }>;
+          };
+        }>(`/${tenant}/${project}/imagine/images/${imageId}`),
+
+      reImagineImage: (tenant: string, project: string, body: {
+        parentImageId: string;
+        iterationInstructions: string;
       }) =>
         request<{
-          drawingId: string;
-          mode: 'technical_drawing' | 'visualization';
-          specJson?: any;
-          files: { dxf?: string; svg?: string; png?: string };
-          reasoning: { dimensionsAssumed?: string[]; warnings?: string[]; whyNotDrawing?: string[]; suitabilityScore?: number };
-        }>(`/snapdraft/${tenant}/${project}/generate`, { method: "POST", body: JSON.stringify(body) }),
+          success: boolean;
+          data: {
+            image: {
+              id: string;
+              elementId: string;
+              elementName: string;
+              elementType: 'Block' | 'Interface';
+              tenantSlug: string;
+              projectSlug: string;
+              prompt: string;
+              customPrompt?: string;
+              imageUrl: string;
+              version: number;
+              parentVersionId?: string;
+              requirementIds?: string[];
+              metadata: {
+                model: string;
+                aspectRatio: string;
+                generatedAt: string;
+                estimatedCost: number;
+              };
+              createdBy: string;
+              createdAt: string;
+            };
+          };
+        }>(`/${tenant}/${project}/imagine/reimagine`, {
+          method: 'POST',
+          body: JSON.stringify(body)
+        }),
 
-      getSnapDraftContext: (tenant: string, project: string, elementType: 'block' | 'interface', elementId: string) =>
+      getImagineElementMetadata: (tenant: string, project: string, elementId: string, elementType: 'Block' | 'Interface') =>
         request<{
-          documents: Array<{ id: string; name: string; description?: string }>;
-          requirements: Array<{ id: string; title: string; text?: string }>;
-          diagrams: Array<{ id: string; name: string; description?: string }>;
-        }>(`/snapdraft/${tenant}/${project}/context/${elementType}/${elementId}`),
-
-      getSnapDraftHistory: (tenant: string, elementId: string) =>
-        request<Array<{
-          drawingId: string;
-          createdAt: string;
-          style: string;
-          outputs: string[];
-        }>>(`/snapdraft/${tenant}/element/${elementId}`),
-
-      downloadSnapDraftFile: (tenant: string, drawingId: string, format: 'dxf' | 'svg' | 'json') =>
-        requestBlob(`/snapdraft/${tenant}/${drawingId}/download/${format}`)
+          success: boolean;
+          data: {
+            diagramId: string;
+            documentIds: string[];
+          };
+        }>(`/${tenant}/${project}/imagine/element/${elementId}?elementType=${elementType}`)
     }),
     [request, requestBlob]
   );

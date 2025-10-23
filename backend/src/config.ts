@@ -56,6 +56,7 @@ const environment = (env.API_ENV ?? env.NODE_ENV ?? "development") as Environmen
 const jwtSecret = getSecret('api_jwt_secret', 'API_JWT_SECRET');
 const graphPassword = getSecret('neo4j_password', 'GRAPH_PASSWORD');
 const llmApiKey = getSecret('llm_api_key', 'LLM_API_KEY') || getSecret('llm_api_key', 'OPENAI_API_KEY');
+const geminiApiKey = getSecret('gemini_api_key', 'GEMINI_API_KEY');
 const smtpPassword = getSecret('smtp_password', 'SMTP_PASSWORD');
 const postgresPassword = getSecret('postgres_password', 'POSTGRES_PASSWORD');
 const resticPassword = getSecret('restic_password', 'RESTIC_PASSWORD');
@@ -171,6 +172,13 @@ export const config = {
     temperature: parseNumber(env.LLM_TEMPERATURE, 0.2)
   },
 
+  // Imagine visualization configuration
+  imagine: {
+    geminiApiKey: geminiApiKey ?? null,
+    model: env.IMAGINE_MODEL ?? "gemini-2.5-flash-image",
+    aspectRatio: env.IMAGINE_ASPECT_RATIO ?? "16:9"
+  },
+
   // Email configuration (for verification, password reset)
   email: {
     from: env.EMAIL_FROM ?? `noreply@${environment === "production" ? "example.com" : "localhost"}`,
@@ -214,15 +222,16 @@ export const config = {
 
   // Feature flags
   features: {
-    adminRoutesEnabled: parseBoolean(env.ENABLE_ADMIN_ROUTES, true),
+    adminRoutesEnabled: parseBoolean(env.ENABLE_ADMIN_ROUTES, true)
 
-    // SnapDraft feature flags for gradual rollout
-    snapdraft: {
-      semanticFilteringEnabled: parseBoolean(env.SNAPDRAFT_ENABLE_SEMANTIC_FILTERING, false),
-      factExtractionEnabled: parseBoolean(env.SNAPDRAFT_ENABLE_FACT_EXTRACTION, false),
-      semanticSimilarityThreshold: parseNumber(env.SNAPDRAFT_SEMANTIC_SIMILARITY_THRESHOLD, 0.7),
-      semanticResultLimit: parseNumber(env.SNAPDRAFT_SEMANTIC_RESULT_LIMIT, 10)
-    }
+    // ARCHIVED: SnapDraft feature flags (2025-10-22)
+    // Replaced by Imagine visualization feature
+    // snapdraft: {
+    //   semanticFilteringEnabled: parseBoolean(env.SNAPDRAFT_ENABLE_SEMANTIC_FILTERING, false),
+    //   factExtractionEnabled: parseBoolean(env.SNAPDRAFT_ENABLE_FACT_EXTRACTION, false),
+    //   semanticSimilarityThreshold: parseNumber(env.SNAPDRAFT_SEMANTIC_SIMILARITY_THRESHOLD, 0.7),
+    //   semanticResultLimit: parseNumber(env.SNAPDRAFT_SEMANTIC_RESULT_LIMIT, 10)
+    // }
   }
 } as const;
 

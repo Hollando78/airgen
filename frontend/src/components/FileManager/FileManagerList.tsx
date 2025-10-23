@@ -8,6 +8,7 @@ interface FileManagerListProps {
   onItemDoubleClick: (item: FileItem) => void;
   onContextMenu: (e: React.MouseEvent, item: FileItem) => void;
   onDrop: (targetFolder: string | null) => void;
+  currentFolder: string | null;
 }
 
 export function FileManagerList({
@@ -16,9 +17,11 @@ export function FileManagerList({
   onSelectionChange,
   onItemDoubleClick,
   onContextMenu,
-  onDrop
+  onDrop,
+  currentFolder
 }: FileManagerListProps) {
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [isDraggingOverEmptySpace, setIsDraggingOverEmptySpace] = useState(false);
 
   const formatFileSize = (bytes?: number | null) => {
     if (!bytes || bytes <= 0) {
@@ -97,9 +100,36 @@ export function FileManagerList({
   const handleDrop = (e: React.DragEvent, item: FileItem) => {
     e.preventDefault();
     setDragOver(null);
-    
+
     if (item.type === "folder") {
       onDrop(item.slug);
+    }
+  };
+
+  // Handlers for dropping on empty space in the list
+  const handleContainerDragOver = (e: React.DragEvent) => {
+    // Check if we're dragging over the container itself (not over an item)
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('list-body')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setIsDraggingOverEmptySpace(true);
+    }
+  };
+
+  const handleContainerDragLeave = (e: React.DragEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('list-body')) {
+      setIsDraggingOverEmptySpace(false);
+    }
+  };
+
+  const handleContainerDrop = (e: React.DragEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('list-body')) {
+      e.preventDefault();
+      setIsDraggingOverEmptySpace(false);
+      onDrop(currentFolder);
     }
   };
 
@@ -133,8 +163,13 @@ export function FileManagerList({
         <div className="header-cell size-header">Items / Size</div>
         <div className="header-cell date-header">Modified</div>
       </div>
-      
-      <div className="list-body">
+
+      <div
+        className={`list-body ${isDraggingOverEmptySpace ? "dragging-over-empty" : ""}`}
+        onDragOver={handleContainerDragOver}
+        onDragLeave={handleContainerDragLeave}
+        onDrop={handleContainerDrop}
+      >
         {items.map((item) => (
           <div
             key={item.id}

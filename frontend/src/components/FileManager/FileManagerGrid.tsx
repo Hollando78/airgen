@@ -8,6 +8,7 @@ interface FileManagerGridProps {
   onItemDoubleClick: (item: FileItem) => void;
   onContextMenu: (e: React.MouseEvent, item: FileItem) => void;
   onDrop: (targetFolder: string | null) => void;
+  currentFolder: string | null;
 }
 
 export function FileManagerGrid({
@@ -16,9 +17,11 @@ export function FileManagerGrid({
   onSelectionChange,
   onItemDoubleClick,
   onContextMenu,
-  onDrop
+  onDrop,
+  currentFolder
 }: FileManagerGridProps) {
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [isDraggingOverEmptySpace, setIsDraggingOverEmptySpace] = useState(false);
 
   const formatFileSize = (bytes?: number | null) => {
     if (!bytes || bytes <= 0) {
@@ -97,9 +100,36 @@ export function FileManagerGrid({
   const handleDrop = (e: React.DragEvent, item: FileItem) => {
     e.preventDefault();
     setDragOver(null);
-    
+
     if (item.type === "folder") {
       onDrop(item.slug);
+    }
+  };
+
+  // Handlers for dropping on empty space in the grid
+  const handleContainerDragOver = (e: React.DragEvent) => {
+    // Check if we're dragging over the container itself (not over an item)
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('file-manager-grid')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setIsDraggingOverEmptySpace(true);
+    }
+  };
+
+  const handleContainerDragLeave = (e: React.DragEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('file-manager-grid')) {
+      setIsDraggingOverEmptySpace(false);
+    }
+  };
+
+  const handleContainerDrop = (e: React.DragEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('file-manager-grid')) {
+      e.preventDefault();
+      setIsDraggingOverEmptySpace(false);
+      onDrop(currentFolder);
     }
   };
 
@@ -138,7 +168,12 @@ export function FileManagerGrid({
   };
 
   return (
-    <div className="file-manager-grid">
+    <div
+      className={`file-manager-grid ${isDraggingOverEmptySpace ? "dragging-over-empty" : ""}`}
+      onDragOver={handleContainerDragOver}
+      onDragLeave={handleContainerDragLeave}
+      onDrop={handleContainerDrop}
+    >
       {items.map((item) => (
         <div
           key={item.id}

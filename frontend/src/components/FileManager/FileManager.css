@@ -295,6 +295,13 @@
   border-style: dashed;
 }
 
+/* Visual feedback when dragging over empty space in grid */
+.file-manager-grid.dragging-over-empty {
+  background: #f0fdf4;
+  border: 2px dashed #10b981;
+  border-radius: 8px;
+}
+
 .grid-item-icon {
   margin-bottom: 8px;
 }
@@ -402,6 +409,14 @@
 .list-item.drag-over {
   background: #ecfdf5;
   border-color: #a7f3d0;
+}
+
+/* Visual feedback when dragging over empty space in list */
+.list-body.dragging-over-empty {
+  background: #f0fdf4;
+  border: 2px dashed #10b981;
+  border-radius: 8px;
+  min-height: 100px;
 }
 
 .list-cell {

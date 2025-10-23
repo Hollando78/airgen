@@ -144,8 +144,8 @@ export interface UseCanvasInteractionsResult {
   selectedConnector: SysmlConnector | null;
   addBlockFromPreset: (preset: DiagramBlockPreset, position?: XYPosition) => void;
   reuseExistingBlock: (blockId: string) => void;
-  snapDraftElement: { id: string; type: 'block' | 'interface'; name: string } | null;
-  setSnapDraftElement: (element: { id: string; type: 'block' | 'interface'; name: string } | null) => void;
+  imagineModal: { id: string; type: 'Block' | 'Interface'; name: string; documentIds?: string[]; diagramId?: string } | null;
+  setImagineModal: (modal: { id: string; type: 'Block' | 'Interface'; name: string; documentIds?: string[]; diagramId?: string } | null) => void;
 }
 
 const DEBUG_ARCHITECTURE = false;
@@ -194,7 +194,7 @@ export function useDiagramCanvasInteractions({
     connectorId: string;
     position: { x: number; y: number };
   } | null>(null);
-  const [snapDraftElement, setSnapDraftElement] = useState<{ id: string; type: 'block' | 'interface'; name: string } | null>(null);
+  const [imagineModal, setImagineModal] = useState<{ id: string; type: 'Block' | 'Interface'; name: string; documentIds?: string[]; diagramId?: string } | null>(null);
 
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -573,9 +573,15 @@ export function useDiagramCanvasInteractions({
           disabled: !hasHiddenPorts
         },
         {
-          label: "Generate SnapDraft",
+          label: "Generate Imagine",
           onSelect: () => {
-            setSnapDraftElement({ id: block.id, type: 'block', name: block.name });
+            setImagineModal({
+              id: block.id,
+              type: 'Block',
+              name: block.name,
+              documentIds: block.documentIds,
+              diagramId: activeDiagramId
+            });
             closeContextMenu();
           }
         },
@@ -640,7 +646,6 @@ export function useDiagramCanvasInteractions({
     removeConnector,
     setBlockStylingPopup,
     setConnectorStylingPopup,
-    setSnapDraftElement,
     closeContextMenu
   ]);
 
@@ -972,7 +977,7 @@ export function useDiagramCanvasInteractions({
     selectedConnector,
     addBlockFromPreset: handleAddBlock,
     reuseExistingBlock: handleReuseExistingBlock,
-    snapDraftElement,
-    setSnapDraftElement
+    imagineModal,
+    setImagineModal
   };
 }
