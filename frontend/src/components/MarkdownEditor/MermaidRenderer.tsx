@@ -2,10 +2,11 @@ import { useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
 
 // Initialize mermaid with configuration
+// Security: 'strict' prevents XSS via JavaScript execution in SVG diagrams
 mermaid.initialize({
   startOnLoad: false,
   theme: 'default',
-  securityLevel: 'loose',
+  securityLevel: 'strict',  // ✅ SECURITY: Prevents JavaScript execution in diagrams
   fontFamily: 'inherit'
 });
 
