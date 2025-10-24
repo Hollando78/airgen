@@ -859,9 +859,9 @@ class APIClient {
 AIRGen uses a **polyglot persistence** architecture with three complementary databases:
 
 - **PostgreSQL**: User accounts, authentication, permissions, audit logs, backup metadata
-- **Neo4j**: Requirements, documents, architecture, traceability graph (domain model)
+- **Neo4j**: Requirements, documents, architecture, traceability graph (domain model) - single source of truth
 - **Redis**: Session caching, JWT token validation
-- **File System**: Markdown files for requirement content
+- **File System**: Surrogate document uploads (PDFs, Office files, images)
 
 ### 5.1 Relational Database (PostgreSQL)
 
@@ -1399,16 +1399,14 @@ CREATE CONSTRAINT invoice_id_unique FOR (i:Invoice) REQUIRE i.id IS UNIQUE;
 
 ### 5.2 File System Storage
 
-**Markdown Requirements:**
-- Location: `workspace/<tenant>/<project>/requirements/`
-- Naming: `REQ-<KEY>-<NNN>.md`
-- Format: YAML front matter + Markdown body
-- Version Control: Git-friendly text files
-
 **Surrogate Documents:**
 - Location: `workspace/<tenant>/<project>/documents/<document-slug>/`
-- Files: Original uploaded files (PDF, DOCX, etc.)
+- Files: Original uploaded files (PDF, DOCX, PPTX, images, etc.)
 - Metadata: Stored in Neo4j, referenced by path
+- Preview: PDF previews auto-generated for Office documents
+
+**Historical Note:**
+Prior to the Neo4j single-source migration (completed 2025-10), requirements were dual-persisted as markdown files. Requirements are now stored exclusively in Neo4j. The `path` property remains in the schema for backward compatibility but markdown files are no longer written.
 
 **Configuration:**
 - Backend: `.env.development`, `.env.production`
@@ -2001,25 +1999,31 @@ AIRGen implements a comprehensive 3-tier backup strategy:
 
 ## 9. Design Decisions
 
-### 9.1 Markdown as Source of Truth
+### 9.1 Neo4j as Single Source of Truth
 
-**Decision**: Store requirements as Markdown files with YAML front matter.
+**Decision**: Store requirements exclusively in Neo4j (migrated from dual persistence in 2025-10).
 
 **Rationale:**
-- **Human-Readable**: Engineers can read/edit directly
-- **Version Control**: Git-friendly diffs and merging
-- **Portability**: Platform-agnostic, no vendor lock-in
-- **Simplicity**: No complex binary formats
+- **Eliminate Sync Issues**: No risk of Neo4j and file system diverging
+- **Performance**: Remove file I/O overhead from CRUD operations
+- **Simplified Backups**: Single database to backup and restore
+- **Atomic Transactions**: All requirement operations are ACID-compliant
+- **Version History**: Neo4j stores full RequirementVersion snapshots
+- **Query Performance**: Graph traversals for traceability without file reads
 
-**Trade-offs:**
-- Duplicate data (Markdown + Neo4j)
-- File system I/O overhead
-- Potential sync issues if not careful
+**Historical Context:**
+AIRGen originally used dual persistence (Markdown files + Neo4j) inspired by git-based workflows. However, in practice:
+- Markdown files were rarely accessed directly
+- Version control was better handled by Neo4j's RequirementVersion nodes
+- File sync added complexity without significant benefit
+- Export features provide human-readable outputs when needed
 
-**Mitigation:**
-- Neo4j is the authoritative source for metadata
-- Markdown is the authoritative source for text
-- Single transaction updates both
+**Migration Completed:**
+Phase 2 migration removed all markdown write operations. Requirements are now stored exclusively in Neo4j with:
+- Full text content in `Requirement.text` property
+- Complete version history via `RequirementVersion` nodes
+- Markdown export available via API for reporting/documentation
+- `path` property retained for backward compatibility (not actively used)
 
 ### 9.2 Neo4j for Traceability
 
