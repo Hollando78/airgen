@@ -5,10 +5,11 @@ import { useAutoSave } from "../../hooks/useAutoSave";
 import Editor from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import type * as Monaco from "monaco-editor";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { Modal } from "../Modal/Modal";
+import { MermaidRenderer } from "./MermaidRenderer";
 import "./markdownEditor.css";
 
 interface MarkdownEditorViewProps {
@@ -97,6 +98,26 @@ function preprocessMarkdown(markdown: string, tenant: string, project: string): 
 
   return processed;
 }
+
+// Custom components for ReactMarkdown to handle mermaid diagrams
+const markdownComponents: Components = {
+  code: ({ node, inline, className, children, ...props }) => {
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+
+    // Render mermaid diagrams
+    if (!inline && language === 'mermaid') {
+      return <MermaidRenderer chart={String(children).trim()} />;
+    }
+
+    // Regular code blocks
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  }
+};
 
 export function MarkdownEditorView({
   tenant,
@@ -604,6 +625,7 @@ Warning message
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw]}
+                components={markdownComponents}
               >
                 {preprocessMarkdown(content, tenant, project)}
               </ReactMarkdown>
