@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "./Spinner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 
 interface FloatingSurrogateDocumentWindowProps {
   tenant: string;
@@ -74,6 +77,51 @@ function isConvertedPreview(originalMimeType?: string | null, previewMimeType?: 
   return false;
 }
 
+// Convert custom directives to HTML for markdown preview
+function preprocessMarkdown(markdown: string): string {
+  let processed = markdown;
+
+  // Convert :::requirement blocks
+  processed = processed.replace(
+    /:::requirement\{#([^\s}]+)(?:\s+title="([^"]*)")?\}\s*\n([\s\S]*?):::/g,
+    (match, id, title, content) => {
+      const titleText = title || id;
+      return `<div style="border-left: 4px solid #3b82f6; padding: 12px; margin: 16px 0; background: #eff6ff; border-radius: 4px;">
+  <div style="font-weight: 600; color: #1e40af; margin-bottom: 8px;">${id}${title && title !== id ? ` - ${title}` : ''}</div>
+  <div>${content.trim()}</div>
+</div>`;
+    }
+  );
+
+  // Convert :::info blocks
+  processed = processed.replace(
+    /:::info(?:\s+([^\n]*))?\s*\n([\s\S]*?):::/g,
+    (match, titleLine, content) => {
+      return `<div style="border-left: 4px solid #0ea5e9; padding: 12px; margin: 16px 0; background: #e0f2fe; border-radius: 4px;">ℹ️ ${content.trim()}</div>`;
+    }
+  );
+
+  // Convert :::warning blocks
+  processed = processed.replace(
+    /:::warning(?:\s+([^\n]*))?\s*\n([\s\S]*?):::/g,
+    (match, titleLine, content) => {
+      return `<div style="border-left: 4px solid #f59e0b; padding: 12px; margin: 16px 0; background: #fef3c7; border-radius: 4px;">⚠️ ${content.trim()}</div>`;
+    }
+  );
+
+  // Convert :::surrogate blocks (show placeholder)
+  processed = processed.replace(
+    /:::surrogate\{slug="([^"]+)"(?:\s+caption="([^"]*)")?\}\s*\n:::/g,
+    (match, slug, caption) => {
+      return `<div style="border: 2px dashed #94a3b8; padding: 12px; margin: 16px 0; background: #f8fafc; border-radius: 4px; text-align: center; color: #64748b;">
+  📎 Surrogate Document: <strong>${slug}</strong>${caption ? ` - ${caption}` : ''}
+</div>`;
+    }
+  );
+
+  return processed;
+}
+
 export function FloatingSurrogateDocumentWindow({
   tenant,
   project,
@@ -107,6 +155,7 @@ export function FloatingSurrogateDocumentWindow({
   const [size, setSize] = useState<{ width: number; height: number }>({ width: 640, height: 520 });
   const [isResizing, setIsResizing] = useState(false);
   const [zoom, setZoom] = useState<number>(1);
+  const [markdownContent, setMarkdownContent] = useState<string | null>(null);
   const resizeStartRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -130,8 +179,17 @@ export function FloatingSurrogateDocumentWindow({
           `${documentSlug}-preview`
         );
         if (abort) {return;}
-        currentUrl = URL.createObjectURL(blob);
-        setObjectUrl(currentUrl);
+
+        // If it's markdown, read the text content
+        if (blob.type === "text/markdown" || fileName.endsWith(".md")) {
+          const text = await blob.text();
+          setMarkdownContent(text);
+          setPreviewMime("text/markdown");
+        } else {
+          currentUrl = URL.createObjectURL(blob);
+          setObjectUrl(currentUrl);
+        }
+
         setDownloadName(fileName);
         if (!previewMime && blob.type) {
           setPreviewMime(blob.type);
@@ -505,7 +563,7 @@ export function FloatingSurrogateDocumentWindow({
             </div>
           )}
 
-          {!loading && !error && previewSupported && objectUrl && (
+          {!loading && !error && previewSupported && (objectUrl || markdownContent) && (
             <div style={{
               height: "100%",
               display: "flex",
@@ -516,13 +574,32 @@ export function FloatingSurrogateDocumentWindow({
               width: `${100 / zoom}%`,
               transition: "transform 0.2s ease-out"
             }}>
-              {previewMime?.startsWith("image/") ? (
+              {previewMime === "text/markdown" && markdownContent ? (
+                <div style={{
+                  padding: "20px",
+                  background: "#ffffff",
+                  borderRadius: "8px",
+                  border: "1px solid #e5e7eb",
+                  maxHeight: `${(size.height - 150) / zoom}px`,
+                  overflowY: "auto",
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+                  lineHeight: "1.6",
+                  color: "#1e293b"
+                }}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
+                  >
+                    {preprocessMarkdown(markdownContent)}
+                  </ReactMarkdown>
+                </div>
+              ) : previewMime?.startsWith("image/") && objectUrl ? (
                 <img
                   src={objectUrl}
                   alt={documentName}
                   style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "8px", boxShadow: "0 1px 4px rgba(15, 23, 42, 0.15)" }}
                 />
-              ) : (
+              ) : objectUrl ? (
                 <iframe
                   src={objectUrl}
                   title={documentName}
@@ -534,11 +611,11 @@ export function FloatingSurrogateDocumentWindow({
                     backgroundColor: "#fff"
                   }}
                 />
-              )}
+              ) : null}
             </div>
           )}
 
-          {!loading && !error && (!previewSupported || !objectUrl) && (
+          {!loading && !error && (!previewSupported || (!objectUrl && !markdownContent)) && (
             <div style={{
               padding: "16px",
               backgroundColor: "#eef2ff",

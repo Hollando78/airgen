@@ -21,7 +21,7 @@ interface ImportModalProps {
   onImportComplete?: () => void;
 }
 
-type ImportFormat = "csv" | "reqif" | "json";
+type ImportFormat = "csv" | "reqif" | "json" | "markdown";
 type ImportStep = "upload" | "mapping" | "validation" | "importing";
 
 interface ParsedRequirement {
@@ -115,7 +115,8 @@ export function ImportModal({
   const formatOptions = [
     { value: "csv", label: "CSV File (.csv)" },
     { value: "reqif", label: "ReqIF File (.reqif)" },
-    { value: "json", label: "JSON File (.json)" }
+    { value: "json", label: "JSON File (.json)" },
+    { value: "markdown", label: "Markdown File (.md)" }
   ];
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,12 +187,112 @@ export function ImportModal({
         } else {
           throw new Error("JSON file must contain an array of requirements");
         }
+      } else if (format === "markdown") {
+        await parseMarkdown(text);
       }
     } catch (error) {
       toast.error(`Failed to parse file: ${(error as Error).message}`);
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const parseMarkdown = async (text: string) => {
+    const lines = text.split('\n');
+    const requirements: ParsedRequirement[] = [];
+
+    let inRequirementBlock = false;
+    let currentRequirement: ParsedRequirement | null = null;
+    let requirementStartLine = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? "";
+      const lineNum = i + 1;
+
+      // Parse requirement blocks (:::requirement{...})
+      if (!inRequirementBlock && line.trim().startsWith(":::requirement")) {
+        inRequirementBlock = true;
+        requirementStartLine = lineNum;
+        currentRequirement = { _rowIndex: lineNum };
+
+        const attrMatch = line.match(/:::requirement\{([^}]+)\}/);
+        if (attrMatch) {
+          const attrs = attrMatch[1];
+          const idMatch = attrs.match(/#([^\s]+)/);
+          const titleMatch = attrs.match(/title="([^"]+)"/);
+
+          if (idMatch) {
+            currentRequirement.id = idMatch[1];
+            currentRequirement.ref = idMatch[1];
+          }
+          if (titleMatch) {
+            currentRequirement.title = titleMatch[1];
+          }
+        }
+        continue;
+      }
+
+      // Check for requirement block end
+      if (inRequirementBlock && line.trim() === ":::") {
+        if (currentRequirement && currentRequirement.text) {
+          requirements.push(currentRequirement);
+        }
+        inRequirementBlock = false;
+        currentRequirement = null;
+        continue;
+      }
+
+      // Capture requirement content
+      if (inRequirementBlock && currentRequirement) {
+        if (line.trim().startsWith("**Pattern:**")) {
+          currentRequirement.pattern = line.replace(/\*\*Pattern:\*\*\s*/, "").trim();
+        } else if (line.trim().startsWith("**Verification:**")) {
+          currentRequirement.verification = line.replace(/\*\*Verification:\*\*\s*/, "").trim();
+        } else if (line.trim() && !currentRequirement.text) {
+          currentRequirement.text = line.trim();
+        } else if (currentRequirement.text && line.trim()) {
+          currentRequirement.text += " " + line.trim();
+        }
+      }
+    }
+
+    if (requirements.length === 0) {
+      throw new Error("No requirements found in markdown file. Make sure to use :::requirement{} blocks.");
+    }
+
+    setParsedData(requirements);
+
+    // Auto-validate markdown requirements since they don't need column mapping
+    const valid: ParsedRequirement[] = [];
+    const invalid: { row: ParsedRequirement; errors: string[] }[] = [];
+
+    requirements.forEach(row => {
+      const errors: string[] = [];
+
+      // Validate required fields
+      if (!row.text || typeof row.text !== 'string' || row.text.trim().length === 0) {
+        errors.push("Requirement text is required");
+      }
+
+      // Validate pattern if provided
+      if (row.pattern && row.pattern.toString().trim() !== "" && !["ubiquitous", "event", "state", "unwanted", "optional"].includes(row.pattern as string)) {
+        errors.push("Invalid pattern. Must be one of: ubiquitous, event, state, unwanted, optional");
+      }
+
+      // Validate verification if provided
+      if (row.verification && row.verification.toString().trim() !== "" && !["Test", "Analysis", "Inspection", "Demonstration"].includes(row.verification as string)) {
+        errors.push("Invalid verification method. Must be one of: Test, Analysis, Inspection, Demonstration");
+      }
+
+      if (errors.length === 0) {
+        valid.push(row);
+      } else {
+        invalid.push({ row, errors });
+      }
+    });
+
+    setValidationResults({ valid, invalid });
+    setStep("validation");
   };
 
   const parseReqIF = async (xmlText: string) => {
@@ -416,7 +517,7 @@ export function ImportModal({
         <input
           ref={fileInputRef}
           type="file"
-          accept={format === "csv" ? ".csv" : format === "reqif" ? ".reqif" : ".json"}
+          accept={format === "csv" ? ".csv" : format === "reqif" ? ".reqif" : format === "markdown" ? ".md" : ".json"}
           onChange={handleFileSelect}
           style={{
             width: "100%",
