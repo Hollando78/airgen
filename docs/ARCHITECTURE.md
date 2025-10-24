@@ -10,7 +10,7 @@ AIRGen helps engineering teams move from stakeholder needs to compliant, testabl
    - **QA Scorer Worker** – Automatically scores all requirements in a project. Runs as a singleton to prevent duplicate processing. Exposes status API for progress monitoring.
 4. **Markdown workspace** – requirements live under `workspace/<tenant>/<project>/requirements/`. Markdown remains the master copy for Git sync/export.
 5. **Neo4j graph database** – primary metadata store. Tenants, projects, requirements, and baselines are nodes with relationships for traceability queries (`Tenant-[:OWNS]->Project-[:CONTAINS]->Requirement`, `Baseline-[:SNAPSHOT_OF]->Requirement`).
-6. **PostgreSQL (optional)** – reserved for future analytics/reporting workloads that prefer relational schemas. The current code path uses Neo4j for operational metadata.
+6. **PostgreSQL** – user authentication and authorization database. Stores user accounts, roles, permissions, and session data. The system uses both PostgreSQL (for auth) and Neo4j (for requirements metadata) in a complementary architecture.
 7. **Redis** – rate-limiting cache and short-lived generation/session state.
 8. **Traefik** – reverse proxy + TLS termination. Routes `/api/*` traffic to the Fastify service and optionally exposes the dashboard at `/traefik`.
 
