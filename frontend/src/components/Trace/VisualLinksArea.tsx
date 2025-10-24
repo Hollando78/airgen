@@ -15,10 +15,11 @@ export interface VisualLinksAreaProps {
   traceLinks: TraceLink[];
   leftDocument: DocumentRecord | null;
   rightDocument: DocumentRecord | null;
+  collapsedSections?: Set<string>;
   onDeleteLink?: (linkId: string) => void;
 }
 
-export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDeleteLink }: VisualLinksAreaProps): JSX.Element {
+export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, collapsedSections, onDeleteLink }: VisualLinksAreaProps): JSX.Element {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 0 });
@@ -104,12 +105,12 @@ export function VisualLinksArea({ traceLinks, leftDocument, rightDocument, onDel
       observer.disconnect();
       clearTimeout(timeout);
     };
-  }, [traceLinks]);
+  }, [traceLinks, collapsedSections]);
 
-  // Force update when trace links change
+  // Force update when trace links or collapsed sections change
   useEffect(() => {
     setForceUpdate(prev => prev + 1);
-  }, [traceLinks]);
+  }, [traceLinks, collapsedSections]);
 
   const calculatePosition = (documentSide: "left" | "right", requirementId: string) => {
     const selector = `.document-panel.${documentSide}-panel [data-requirement-id="${requirementId}"]`;

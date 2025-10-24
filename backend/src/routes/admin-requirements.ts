@@ -20,19 +20,17 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * List deleted requirements
    */
-  app.get(
+  app.get<{
+    Querystring: {
+      tenant: string;
+      project: string;
+      limit?: string;
+      offset?: string;
+    };
+  }>(
     "/admin/requirements/deleted",
-    async (
-      req: FastifyRequest<{
-        Querystring: {
-          tenant: string;
-          project: string;
-          limit?: string;
-          offset?: string;
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { tenant, project, limit, offset } = req.query;
 
       if (!tenant || !project) {
@@ -91,19 +89,17 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * List archived requirements
    */
-  app.get(
+  app.get<{
+    Querystring: {
+      tenant: string;
+      project: string;
+      limit?: string;
+      offset?: string;
+    };
+  }>(
     "/admin/requirements/archived",
-    async (
-      req: FastifyRequest<{
-        Querystring: {
-          tenant: string;
-          project: string;
-          limit?: string;
-          offset?: string;
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { tenant, project, limit, offset } = req.query;
 
       if (!tenant || !project) {
@@ -164,18 +160,16 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * Restore a deleted requirement
    */
-  app.post(
+  app.post<{
+    Params: {
+      tenant: string;
+      project: string;
+      requirementId: string;
+    };
+  }>(
     "/admin/requirements/:tenant/:project/:requirementId/restore",
-    async (
-      req: FastifyRequest<{
-        Params: {
-          tenant: string;
-          project: string;
-          requirementId: string;
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { tenant, project, requirementId } = req.params;
 
       try {
@@ -206,18 +200,16 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * Permanently delete a soft-deleted requirement
    */
-  app.delete(
+  app.delete<{
+    Params: {
+      tenant: string;
+      project: string;
+      requirementId: string;
+    };
+  }>(
     "/admin/requirements/:tenant/:project/:requirementId/purge",
-    async (
-      req: FastifyRequest<{
-        Params: {
-          tenant: string;
-          project: string;
-          requirementId: string;
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { tenant, project, requirementId } = req.params;
 
       try {
@@ -251,17 +243,15 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * Detect drift between Neo4j and markdown files
    */
-  app.get(
+  app.get<{
+    Querystring: {
+      tenant: string;
+      project: string;
+    };
+  }>(
     "/admin/requirements/drift",
-    async (
-      req: FastifyRequest<{
-        Querystring: {
-          tenant: string;
-          project: string;
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { tenant, project } = req.query;
 
       if (!tenant || !project) {
@@ -292,19 +282,17 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * List requirements with broken trace links
    */
-  app.get(
+  app.get<{
+    Querystring: {
+      tenant: string;
+      project: string;
+      limit?: string;
+      offset?: string;
+    };
+  }>(
     "/admin/requirements/bad-links",
-    async (
-      req: FastifyRequest<{
-        Querystring: {
-          tenant: string;
-          project: string;
-          limit?: string;
-          offset?: string;
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { tenant, project, limit, offset } = req.query;
 
       if (!tenant || !project) {
@@ -465,18 +453,16 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * Force sync requirement from Neo4j to markdown
    */
-  app.post(
+  app.post<{
+    Params: {
+      tenant: string;
+      project: string;
+      requirementId: string;
+    };
+  }>(
     "/admin/requirements/:tenant/:project/:requirementId/sync-to-markdown",
-    async (
-      req: FastifyRequest<{
-        Params: {
-          tenant: string;
-          project: string;
-          requirementId: string;
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { tenant, project, requirementId } = req.params;
 
       try {
@@ -507,18 +493,16 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * Bulk restore deleted requirements
    */
-  app.post(
+  app.post<{
+    Body: {
+      tenant: string;
+      project: string;
+      requirementIds: string[];
+    };
+  }>(
     "/admin/requirements/bulk-restore",
-    async (
-      req: FastifyRequest<{
-        Body: {
-          tenant: string;
-          project: string;
-          requirementIds: string[];
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { tenant, project, requirementIds } = req.body;
 
       if (!tenant || !project || !requirementIds || !Array.isArray(requirementIds)) {
@@ -564,20 +548,18 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * List all requirement candidates (admin view)
    */
-  app.get(
+  app.get<{
+    Querystring: {
+      tenant: string;
+      project: string;
+      status?: string;
+      limit?: string;
+      offset?: string;
+    };
+  }>(
     "/admin/requirements/candidates",
-    async (
-      req: FastifyRequest<{
-        Querystring: {
-          tenant: string;
-          project: string;
-          status?: string;
-          limit?: string;
-          offset?: string;
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { tenant, project, status, limit, offset } = req.query;
 
       if (!tenant || !project) {
@@ -631,16 +613,14 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * Bulk delete requirement candidates
    */
-  app.post(
+  app.post<{
+    Body: {
+      candidateIds: string[];
+    };
+  }>(
     "/admin/requirements/candidates/bulk-delete",
-    async (
-      req: FastifyRequest<{
-        Body: {
-          candidateIds: string[];
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { candidateIds } = req.body;
 
       if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
@@ -669,16 +649,14 @@ export async function adminRequirementsRoutes(app: FastifyInstance) {
   /**
    * Bulk reset requirement candidates to pending status
    */
-  app.post(
+  app.post<{
+    Body: {
+      candidateIds: string[];
+    };
+  }>(
     "/admin/requirements/candidates/bulk-reset",
-    async (
-      req: FastifyRequest<{
-        Body: {
-          candidateIds: string[];
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
       const { candidateIds } = req.body;
 
       if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {

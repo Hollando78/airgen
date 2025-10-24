@@ -7,7 +7,7 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
    * GET /graph/data
    * Fetch graph data for visualization
    */
-  fastify.get("/graph/data", async (request, reply) => {
+  fastify.get("/graph/data", { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const { tenant, project } = request.query as { tenant?: string; project?: string };
 
     if (!tenant || !project) {

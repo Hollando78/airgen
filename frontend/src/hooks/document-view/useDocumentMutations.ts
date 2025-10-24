@@ -52,7 +52,7 @@ export function useDocumentMutations(
   // Update section mutation
   const updateSectionMutation = useMutation({
     mutationFn: ({ sectionId, updates }: { sectionId: string; updates: { name?: string; description?: string; order?: number; shortCode?: string } }) =>
-      api.updateDocumentSection(sectionId, updates),
+      api.updateDocumentSection(sectionId, { tenant, ...updates }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sections", tenant, project, documentSlug] });
       queryClient.invalidateQueries({ queryKey: ["requirements", tenant, project] });

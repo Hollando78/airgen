@@ -18,10 +18,12 @@ import { baselineSchema, tenantProjectParamsSchema, tenantProjectParamsOpenApiSc
 export async function registerBaselineRoutes(app: FastifyInstance): Promise<void> {
   // Create baseline
   app.post("/baseline", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["baselines"],
       summary: "Create a new baseline",
       description: "Creates a snapshot baseline of current requirements",
+      security: [{ bearerAuth: [] }],
       body: {
         type: "object",
         required: ["tenant", "projectKey"],
@@ -58,10 +60,12 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
 
   // List baselines
   app.get("/baselines/:tenant/:project", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["baselines"],
       summary: "List baselines for a project",
       description: "Retrieves all baselines for a project",
+      security: [{ bearerAuth: [] }],
       params: tenantProjectParamsOpenApiSchema
       // Response schema removed - let Fastify infer from actual data
     }
@@ -77,10 +81,12 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
 
   // Get baseline details
   app.get("/baselines/:tenant/:project/:baselineRef", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["baselines"],
       summary: "Get baseline details with version snapshots",
       description: "Retrieves complete baseline snapshot including all version data",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["tenant", "project", "baselineRef"],
@@ -139,10 +145,12 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
 
   // Compare baselines
   app.get("/baselines/:tenant/:project/compare", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["baselines"],
       summary: "Compare two baselines",
       description: "Compares two baselines and returns differences across all entity types",
+      security: [{ bearerAuth: [] }],
       params: tenantProjectParamsOpenApiSchema,
       querystring: {
         type: "object",

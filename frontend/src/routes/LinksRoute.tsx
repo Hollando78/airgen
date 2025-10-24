@@ -70,6 +70,9 @@ export function LinksRoute(): JSX.Element {
   } | null>(null);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<RequirementRecord | null>(null);
 
+  // Shared state for collapsed sections (enables visual links to re-render on collapse/expand)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
   // Fetch linksets
   const linksetsQuery = useQuery({
     queryKey: ["linksets", tenant, project],
@@ -347,10 +350,10 @@ export function LinksRoute(): JSX.Element {
       </Card>
 
       {selectedLinkset && (
-        <div className="desktop-three-columns h-[600px]">
+        <div className="desktop-three-columns" style={{ height: 'calc(100vh - 280px)', minHeight: '400px' }}>
           {/* Source Document Panel */}
-          <Card className="h-full">
-            <CardHeader className="pb-2">
+          <Card className="h-full flex flex-col overflow-hidden">
+            <CardHeader className="pb-2 flex-shrink-0">
               <CardTitle className="text-base">{selectedLinkset.sourceDocument.name}</CardTitle>
               <div className="mt-2">
                 <input
@@ -362,7 +365,7 @@ export function LinksRoute(): JSX.Element {
                 />
               </div>
             </CardHeader>
-            <CardContent className="p-0 h-[calc(100%-7rem)]">
+            <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
               <div className="document-panel left-panel h-full overflow-y-auto">
                 <DocumentTree
                   document={selectedLinkset.sourceDocument}
@@ -377,18 +380,20 @@ export function LinksRoute(): JSX.Element {
                   traceLinks={traceLinksQuery.data?.traceLinks || []}
                   documentSide="left"
                   filter={sourceFilter}
+                  collapsedSections={collapsedSections}
+                  onToggleCollapse={setCollapsedSections}
                 />
               </div>
             </CardContent>
           </Card>
 
           {/* Visual Links Panel */}
-          <Card className="h-full">
-            <CardHeader className="pb-3">
+          <Card className="h-full flex flex-col overflow-hidden">
+            <CardHeader className="pb-3 flex-shrink-0">
               <CardTitle className="text-base">Visual Links</CardTitle>
             </CardHeader>
-            <CardContent className="p-0 h-[calc(100%-4rem)]">
-              <div className="linking-panel h-full relative">
+            <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
+              <div className="linking-panel h-full relative overflow-auto">
                 <VisualLinksArea
                   traceLinks={selectedLinkset.links.map(link => ({
                     id: link.id,
@@ -403,6 +408,7 @@ export function LinksRoute(): JSX.Element {
                   }))}
                   leftDocument={selectedLinkset.sourceDocument}
                   rightDocument={selectedLinkset.targetDocument}
+                  collapsedSections={collapsedSections}
                   onDeleteLink={(linkId) => {
                     // TODO: Implement linkset link deletion
                     console.log('Delete link from linkset:', linkId);
@@ -413,8 +419,8 @@ export function LinksRoute(): JSX.Element {
           </Card>
 
           {/* Target Document Panel */}
-          <Card className="h-full">
-            <CardHeader className="pb-2">
+          <Card className="h-full flex flex-col overflow-hidden">
+            <CardHeader className="pb-2 flex-shrink-0">
               <CardTitle className="text-base">{selectedLinkset.targetDocument.name}</CardTitle>
               <div className="mt-2">
                 <input
@@ -426,7 +432,7 @@ export function LinksRoute(): JSX.Element {
                 />
               </div>
             </CardHeader>
-            <CardContent className="p-0 h-[calc(100%-7rem)]">
+            <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
               <div className="document-panel right-panel h-full overflow-y-auto">
                 <DocumentTree
                   document={selectedLinkset.targetDocument}
@@ -441,6 +447,8 @@ export function LinksRoute(): JSX.Element {
                   traceLinks={traceLinksQuery.data?.traceLinks || []}
                   documentSide="right"
                   filter={targetFilter}
+                  collapsedSections={collapsedSections}
+                  onToggleCollapse={setCollapsedSections}
                 />
               </div>
             </CardContent>

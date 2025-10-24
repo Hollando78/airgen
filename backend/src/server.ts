@@ -227,6 +227,9 @@ await app.register(swaggerUi, {
   staticCSP: true
 });
 
+// Swagger UI is publicly accessible for API documentation
+// Individual endpoints still require authentication as defined in their route schemas
+
 await app.register(fastifyStatic, {
   root: join(__dirname, "../public"),
   prefix: "/"

@@ -70,6 +70,23 @@
   color: var(--muted-legacy);
 }
 
+.section-collapse-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-legacy);
+  transition: color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.section-collapse-toggle:hover {
+  color: var(--text);
+}
+
 .requirements-list {
   display: flex;
   flex-direction: column;

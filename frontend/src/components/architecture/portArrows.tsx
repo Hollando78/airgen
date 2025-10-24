@@ -14,8 +14,6 @@ export function generatePortArrowSvg(
     return null;
   }
 
-  const isHorizontalEdge = actualEdge === "left" || actualEdge === "right";
-
   return (
     <svg
       width={PORT_SIZE - 4}
@@ -26,10 +24,34 @@ export function generatePortArrowSvg(
         transition: "transform 0.2s ease"
       }}
     >
-      {isHorizontalEdge ? (
-        // Horizontal arrows (left/right edges)
+      {actualEdge === "left" ? (
+        // Left edge: arrows point right (in) or left (out)
         <>
-          {/* Left arrow (input) */}
+          {/* Right arrow (input - data coming into the block from left) */}
+          {(port.direction === "in" || port.direction === "inout") && (
+            <path
+              d="M 13 10 L 18 10 M 18 10 L 15.5 7.5 M 18 10 L 15.5 12.5"
+              stroke="#64748b"
+              strokeWidth="2"
+              strokeLinecap="round"
+              fill="none"
+            />
+          )}
+          {/* Left arrow (output - data going out of the block to left) */}
+          {(port.direction === "out" || port.direction === "inout") && (
+            <path
+              d="M 7 10 L 2 10 M 2 10 L 4.5 7.5 M 2 10 L 4.5 12.5"
+              stroke="#64748b"
+              strokeWidth="2"
+              strokeLinecap="round"
+              fill="none"
+            />
+          )}
+        </>
+      ) : actualEdge === "right" ? (
+        // Right edge: arrows point left (in) or right (out)
+        <>
+          {/* Left arrow (input - data coming into the block from right) */}
           {(port.direction === "in" || port.direction === "inout") && (
             <path
               d="M 7 10 L 2 10 M 2 10 L 4.5 7.5 M 2 10 L 4.5 12.5"
@@ -39,7 +61,7 @@ export function generatePortArrowSvg(
               fill="none"
             />
           )}
-          {/* Right arrow (output) */}
+          {/* Right arrow (output - data going out of the block to right) */}
           {(port.direction === "out" || port.direction === "inout") && (
             <path
               d="M 13 10 L 18 10 M 18 10 L 15.5 7.5 M 18 10 L 15.5 12.5"

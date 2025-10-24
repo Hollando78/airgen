@@ -25,6 +25,8 @@ export interface DocumentTreeProps {
   traceLinks?: TraceLink[];
   documentSide?: "left" | "right";
   filter?: string;
+  collapsedSections?: Set<string>;
+  onToggleCollapse?: React.Dispatch<React.SetStateAction<Set<string>>>;
 }
 
 export function DocumentTree({
@@ -39,16 +41,32 @@ export function DocumentTree({
   onDropOnSection,
   traceLinks = [],
   documentSide,
-  filter = ""
+  filter = "",
+  collapsedSections: collapsedSectionsProp,
+  onToggleCollapse
 }: DocumentTreeProps): JSX.Element {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const { state } = useTenantProject();
 
-  // State for inline editing
+  // State for inline editing (requirements)
   const [editingRequirementId, setEditingRequirementId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  // State for section editing and creation
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [sectionEditText, setSectionEditText] = useState("");
+  const [sectionEditShortCode, setSectionEditShortCode] = useState("");
+  const [isSavingSection, setIsSavingSection] = useState(false);
+  const [isAddingSection, setIsAddingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState("");
+  const [newSectionShortCode, setNewSectionShortCode] = useState("");
+
+  // State for collapsed sections (use prop if provided, otherwise manage internally)
+  const [internalCollapsedSections, setInternalCollapsedSections] = useState<Set<string>>(new Set());
+  const collapsedSections = collapsedSectionsProp ?? internalCollapsedSections;
+  const setCollapsedSections = onToggleCollapse ?? setInternalCollapsedSections;
 
   // Use optimized endpoint that fetches sections with all requirements in a single query
   // This eliminates N+1 query problem: Before: 1 + N queries, After: 1 query (~97% reduction)
@@ -122,6 +140,145 @@ export function DocumentTree({
     }
   }, [handleSaveEdit, handleCancelEdit]);
 
+  // Section editing handlers
+  const handleSectionDoubleClick = useCallback((section: DocumentSectionWithRelations, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setEditingSectionId(section.id);
+    setSectionEditText(section.name || "");
+    setSectionEditShortCode(section.shortCode || "");
+  }, []);
+
+  const handleSaveSectionEdit = useCallback(async (sectionId: string) => {
+    if (!state.tenant || !state.project || isSavingSection) return;
+
+    const trimmedName = sectionEditText.trim();
+    const trimmedShortCode = sectionEditShortCode.trim();
+    const sections = sectionsQuery.data?.sections || [];
+    const currentSection = sections.find(s => s.id === sectionId);
+
+    // Check if anything changed
+    if (!trimmedName ||
+        (trimmedName === currentSection?.name && trimmedShortCode === (currentSection?.shortCode || ""))) {
+      setEditingSectionId(null);
+      return;
+    }
+
+    setIsSavingSection(true);
+    try {
+      await api.updateDocumentSection(sectionId, {
+        tenant: state.tenant,  // Required by backend
+        name: trimmedName,
+        shortCode: trimmedShortCode || undefined
+      });
+
+      // Invalidate queries to refresh the UI
+      await queryClient.invalidateQueries({
+        queryKey: ["sections-with-relations", state.tenant, state.project, document?.slug]
+      });
+
+      setEditingSectionId(null);
+    } catch (error) {
+      console.error('Failed to update section:', error);
+    } finally {
+      setIsSavingSection(false);
+    }
+  }, [state.tenant, state.project, sectionEditText, sectionEditShortCode, api, queryClient, document?.slug, isSavingSection, sectionsQuery.data]);
+
+  const handleCancelSectionEdit = useCallback(() => {
+    setEditingSectionId(null);
+    setSectionEditText("");
+    setSectionEditShortCode("");
+  }, []);
+
+  const handleSectionKeyDown = useCallback((event: React.KeyboardEvent, sectionId: string) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      handleSaveSectionEdit(sectionId);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      handleCancelSectionEdit();
+    }
+  }, [handleSaveSectionEdit, handleCancelSectionEdit]);
+
+  // Add new section handlers
+  const handleAddSection = useCallback(() => {
+    setIsAddingSection(true);
+    setNewSectionName("");
+  }, []);
+
+  const handleSaveNewSection = useCallback(async () => {
+    if (!state.tenant || !state.project || !document || isSavingSection) return;
+
+    const trimmedName = newSectionName.trim();
+    const trimmedShortCode = newSectionShortCode.trim();
+    if (!trimmedName) {
+      setIsAddingSection(false);
+      return;
+    }
+
+    // Calculate next order value (max order + 1, or 0 if no sections)
+    const sections = sectionsQuery.data?.sections || [];
+    const maxOrder = sections.length > 0
+      ? Math.max(...sections.map(s => s.order || 0))
+      : -1;
+    const nextOrder = maxOrder + 1;
+
+    setIsSavingSection(true);
+    try {
+      await api.createDocumentSection({
+        tenant: state.tenant,
+        projectKey: state.project,
+        documentSlug: document.slug,
+        name: trimmedName,
+        shortCode: trimmedShortCode || undefined,
+        order: nextOrder  // Required by backend
+      });
+
+      // Invalidate queries to refresh the UI
+      await queryClient.invalidateQueries({
+        queryKey: ["sections-with-relations", state.tenant, state.project, document.slug]
+      });
+
+      setIsAddingSection(false);
+      setNewSectionName("");
+      setNewSectionShortCode("");
+    } catch (error) {
+      console.error('Failed to create section:', error);
+    } finally {
+      setIsSavingSection(false);
+    }
+  }, [state.tenant, state.project, document, newSectionName, newSectionShortCode, api, queryClient, isSavingSection, sectionsQuery.data]);
+
+  const handleCancelAddSection = useCallback(() => {
+    setIsAddingSection(false);
+    setNewSectionName("");
+    setNewSectionShortCode("");
+  }, []);
+
+  const handleNewSectionKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      handleSaveNewSection();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      handleCancelAddSection();
+    }
+  }, [handleSaveNewSection, handleCancelAddSection]);
+
+  // Section collapse toggle
+  const toggleSectionCollapse = useCallback((sectionId: string) => {
+    setCollapsedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
+      }
+      return newSet;
+    });
+  }, []);
+
   const getRequirementLinkInfo = (requirementId: string) => {
     const outgoingLinks = traceLinks.filter(link => link.sourceRequirementId === requirementId);
     const incomingLinks = traceLinks.filter(link => link.targetRequirementId === requirementId);
@@ -172,7 +329,7 @@ export function DocumentTree({
 
   return (
     <div className="document-tree">
-      {sections.length === 0 ? (
+      {sections.length === 0 && !isAddingSection ? (
         <div className="no-sections">No sections in this document</div>
       ) : (
         <div className="sections-list">
@@ -191,19 +348,106 @@ export function DocumentTree({
             // Don't show section if no requirements match filter
             if (filter.trim() && requirements.length === 0) return null;
 
+            const isEditingSection = editingSectionId === section.id;
+            const isCollapsed = collapsedSections.has(section.id);
+
             return (
               <div key={section.id} className="section-node">
                 <div
-                  className="section-header"
-                  onDragOver={onDropOnSection ? (e) => { e.stopPropagation(); onDragOver(e); } : undefined}
-                  onDragLeave={onDropOnSection ? (e) => { e.stopPropagation(); onDragLeave(e); } : undefined}
-                  onDrop={onDropOnSection && document ? (event) => { event.stopPropagation(); onDropOnSection(event, section.id, document.slug); } : undefined}
+                  className={`section-header ${isEditingSection ? 'editing' : ''}`}
+                  onDragOver={!isEditingSection && onDropOnSection ? (e) => { e.stopPropagation(); onDragOver(e); } : undefined}
+                  onDragLeave={!isEditingSection && onDropOnSection ? (e) => { e.stopPropagation(); onDragLeave(e); } : undefined}
+                  onDrop={!isEditingSection && onDropOnSection && document ? (event) => { event.stopPropagation(); onDropOnSection(event, section.id, document.slug); } : undefined}
                 >
-                  <span className="section-name">{section.name}</span>
-                  <span className="section-count">({requirements.length}{filter.trim() ? ` of ${allRequirements.length}` : ''})</span>
+                  {isEditingSection ? (
+                    <div className="section-edit-container">
+                      <div className="section-edit-fields">
+                        <input
+                          type="text"
+                          className="section-edit-input section-name-input"
+                          value={sectionEditText}
+                          onChange={(e) => setSectionEditText(e.target.value)}
+                          onKeyDown={(e) => handleSectionKeyDown(e, section.id)}
+                          placeholder="Section name"
+                          autoFocus
+                          disabled={isSavingSection}
+                        />
+                        <input
+                          type="text"
+                          className="section-edit-input section-shortcode-input"
+                          value={sectionEditShortCode}
+                          onChange={(e) => setSectionEditShortCode(e.target.value)}
+                          onKeyDown={(e) => handleSectionKeyDown(e, section.id)}
+                          placeholder="Short code (optional)"
+                          disabled={isSavingSection}
+                        />
+                      </div>
+                      <div className="section-edit-actions">
+                        <button
+                          className="edit-action-btn save"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSaveSectionEdit(section.id);
+                          }}
+                          disabled={isSavingSection}
+                        >
+                          {isSavingSection ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          className="edit-action-btn cancel"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCancelSectionEdit();
+                          }}
+                          disabled={isSavingSection}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 flex-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSectionCollapse(section.id);
+                          }}
+                          className="section-collapse-toggle"
+                          title={isCollapsed ? "Expand section" : "Collapse section"}
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </button>
+                        <span
+                          className="section-name"
+                          onDoubleClick={(e) => handleSectionDoubleClick(section, e)}
+                          title="Double-click to edit name and short code"
+                        >
+                          {section.name}
+                          {section.shortCode && <span className="section-shortcode"> [{section.shortCode}]</span>}
+                        </span>
+                      </div>
+                      <span className="section-count">({requirements.length}{filter.trim() ? ` of ${allRequirements.length}` : ''})</span>
+                    </>
+                  )}
                 </div>
 
-                {requirements.length > 0 && (
+                {!isCollapsed && requirements.length > 0 && (
                   <div className="requirements-list">
                     {requirements.map(requirement => {
                       const linkInfo = getRequirementLinkInfo(requirement.id);
@@ -311,6 +555,74 @@ export function DocumentTree({
               </div>
             );
           })}
+
+          {/* Add new section UI */}
+          {isAddingSection ? (
+            <div className="section-node section-add-new">
+              <div className="section-header editing">
+                <div className="section-edit-container">
+                  <div className="section-edit-fields">
+                    <input
+                      type="text"
+                      className="section-edit-input section-name-input"
+                      value={newSectionName}
+                      onChange={(e) => setNewSectionName(e.target.value)}
+                      onKeyDown={handleNewSectionKeyDown}
+                      placeholder="Section name"
+                      autoFocus
+                      disabled={isSavingSection}
+                    />
+                    <input
+                      type="text"
+                      className="section-edit-input section-shortcode-input"
+                      value={newSectionShortCode}
+                      onChange={(e) => setNewSectionShortCode(e.target.value)}
+                      onKeyDown={handleNewSectionKeyDown}
+                      placeholder="Short code (optional)"
+                      disabled={isSavingSection}
+                    />
+                  </div>
+                  <div className="section-edit-actions">
+                    <button
+                      className="edit-action-btn save"
+                      onClick={handleSaveNewSection}
+                      disabled={isSavingSection}
+                    >
+                      {isSavingSection ? "Creating..." : "Create"}
+                    </button>
+                    <button
+                      className="edit-action-btn cancel"
+                      onClick={handleCancelAddSection}
+                      disabled={isSavingSection}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="btn-add-section"
+              onClick={handleAddSection}
+              title="Add a new section to this document"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Add Section
+            </button>
+          )}
         </div>
       )}
     </div>

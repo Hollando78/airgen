@@ -139,7 +139,7 @@ export function useDocumentHandlers(
   }, [updateSectionMutation]);
 
   // Section reorder handler
-  const handleSectionReorder = useCallback((draggedId: string, targetId: string) => {
+  const handleSectionReorder = useCallback(async (draggedId: string, targetId: string) => {
     const draggedIndex = sections.findIndex(s => s.id === draggedId);
     const targetIndex = sections.findIndex(s => s.id === targetId);
 
@@ -149,16 +149,24 @@ export function useDocumentHandlers(
     const [draggedSection] = newSections.splice(draggedIndex, 1);
     newSections.splice(targetIndex, 0, draggedSection);
 
-    // Update order numbers and persist to backend
-    newSections.forEach((section, index) => {
-      const newOrder = index + 1;
-      if (section.order !== newOrder) {
-        updateSectionMutation.mutate({
-          sectionId: section.id,
-          updates: { order: newOrder }
-        });
-      }
-    });
+    // Collect all sections that need order updates
+    const updates = newSections
+      .map((section, index) => ({
+        sectionId: section.id,
+        newOrder: index + 1
+      }))
+      .filter(({ sectionId, newOrder }) => {
+        const section = sections.find(s => s.id === sectionId);
+        return section && section.order !== newOrder;
+      });
+
+    // Update all sections sequentially to avoid race conditions
+    for (const { sectionId, newOrder } of updates) {
+      await updateSectionMutation.mutateAsync({
+        sectionId,
+        updates: { order: newOrder }
+      });
+    }
   }, [sections, updateSectionMutation]);
 
   return {

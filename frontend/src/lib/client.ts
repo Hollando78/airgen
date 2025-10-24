@@ -407,7 +407,7 @@ export function useApiClient() {
         request<DocumentSectionsWithRelationsResponse>(`/sections/${tenant}/${project}/${documentSlug}/full`),
       createDocumentSection: (body: CreateSectionRequest) =>
         request<DocumentSectionResponse>(`/sections`, { method: "POST", body: JSON.stringify(body) }),
-      updateDocumentSection: (sectionId: string, body: { name?: string; description?: string; order?: number; shortCode?: string }) =>
+      updateDocumentSection: (sectionId: string, body: { tenant: string; name?: string; description?: string; order?: number; shortCode?: string }) =>
         request<DocumentSectionResponse>(`/sections/${sectionId}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteDocumentSection: (sectionId: string) =>
         request<{ success: boolean }>(`/sections/${sectionId}`, { method: "DELETE" }),

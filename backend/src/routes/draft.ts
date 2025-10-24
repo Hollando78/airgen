@@ -6,6 +6,7 @@ import { INPUT_LIMITS } from "../lib/prompt-security.js";
 
 export default async function draftRoutes(app: FastifyInstance) {
   app.post("/draft/candidates", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["draft"],
       summary: "Generate requirement draft candidates",

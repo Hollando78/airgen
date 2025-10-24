@@ -24,6 +24,7 @@ const semanticSearchRoutes: FastifyPluginAsync = async (fastify) => {
     Querystring: z.infer<typeof similarQuerySchema>;
   }>(
     '/requirements/:tenant/:project/:id/similar',
+    { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       const { tenant, project, id } = similarParamsSchema.parse(request.params);
       const query = similarQuerySchema.parse(request.query ?? {});
@@ -56,6 +57,7 @@ const semanticSearchRoutes: FastifyPluginAsync = async (fastify) => {
     Body: z.infer<typeof semanticSearchBodySchema>;
   }>(
     '/requirements/search/semantic',
+    { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       const { tenant, project, query, minSimilarity, limit } = semanticSearchBodySchema.parse(request.body);
 
@@ -75,6 +77,7 @@ const semanticSearchRoutes: FastifyPluginAsync = async (fastify) => {
     Params: z.infer<typeof duplicatesParamsSchema>;
   }>(
     '/requirements/:tenant/:project/:id/duplicates',
+    { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       const { tenant, project, id } = duplicatesParamsSchema.parse(request.params);
 

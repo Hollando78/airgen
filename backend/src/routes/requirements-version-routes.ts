@@ -16,10 +16,12 @@ import { getRequirementHistory, getRequirementDiff } from "../services/graph/req
 export async function registerVersionRoutes(app: FastifyInstance): Promise<void> {
   // Get requirement version history
   app.get("/requirements/:tenant/:project/:id/history", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Get requirement version history",
       description: "Retrieves the complete version history for a requirement",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["tenant", "project", "id"],
@@ -81,10 +83,12 @@ export async function registerVersionRoutes(app: FastifyInstance): Promise<void>
 
   // Get diff between requirement versions
   app.get("/requirements/:tenant/:project/:id/diff", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Get diff between requirement versions",
       description: "Compares two versions of a requirement and returns field-level differences",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["tenant", "project", "id"],
@@ -168,10 +172,12 @@ export async function registerVersionRoutes(app: FastifyInstance): Promise<void>
 
   // Restore requirement to previous version
   app.post("/requirements/:tenant/:project/:id/restore/:versionNumber", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Restore requirement to previous version",
       description: "Restores a requirement to a specific previous version, creating a new version in the history",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["tenant", "project", "id", "versionNumber"],

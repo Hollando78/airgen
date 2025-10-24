@@ -40,10 +40,12 @@ import {
 export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   // Create requirement
   app.post("/requirements", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Create a new requirement",
       description: "Creates a new requirement and writes it to markdown file",
+      security: [{ bearerAuth: [] }],
       body: requirementBodySchema
     }
   }, async (req, reply) => {
@@ -71,10 +73,12 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
 
   // List requirements
   app.get("/requirements/:tenant/:project", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "List requirements for a project",
       description: "Retrieves paginated list of requirements with optional sorting",
+      security: [{ bearerAuth: [] }],
       params: tenantProjectParamsOpenApiSchema,
       querystring: paginationQuerySchema
     }
@@ -107,10 +111,12 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
 
   // Get requirement by ref
   app.get("/requirements/:tenant/:project/:ref", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Get a specific requirement",
       description: "Retrieves a requirement by reference with markdown content",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["tenant", "project", "ref"],
@@ -139,10 +145,12 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
 
   // Update requirement
   app.patch("/requirements/:tenant/:project/:requirementId", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Update a requirement",
       description: "Updates requirement text, pattern, or verification method",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["tenant", "project", "requirementId"],
@@ -184,10 +192,12 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
 
   // Soft delete requirement
   app.delete("/requirements/:tenant/:project/:requirementId", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Delete a requirement",
       description: "Soft deletes a requirement (marks as deleted)",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         required: ["tenant", "project", "requirementId"],
@@ -230,10 +240,12 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
 
   // Archive requirements
   app.post("/requirements/:tenant/:project/archive", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Archive requirements",
       description: "Archives one or more requirements (hides from default view)",
+      security: [{ bearerAuth: [] }],
       params: tenantProjectParamsOpenApiSchema,
       body: {
         type: "object",
@@ -273,10 +285,12 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
 
   // Unarchive requirements
   app.post("/requirements/:tenant/:project/unarchive", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Unarchive requirements",
       description: "Unarchives one or more requirements (shows in default view)",
+      security: [{ bearerAuth: [] }],
       params: tenantProjectParamsOpenApiSchema,
       body: {
         type: "object",

@@ -13,10 +13,12 @@ import { suggestLinks } from "../services/graph.js";
 export async function registerLinkRoutes(app: FastifyInstance): Promise<void> {
   // Suggest requirement links
   app.post("/link/suggest", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["links"],
       summary: "Suggest requirement links",
       description: "Suggests related requirements based on text similarity",
+      security: [{ bearerAuth: [] }],
       body: {
         type: "object",
         required: ["tenant", "project", "text"],

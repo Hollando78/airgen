@@ -7,7 +7,7 @@ const workersRoutes: FastifyPluginAsync = async (fastify) => {
    * POST /workers/qa-scorer/start
    * Start the QA scoring worker for a project
    */
-  fastify.post("/workers/qa-scorer/start", async (request, reply) => {
+  fastify.post("/workers/qa-scorer/start", { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const { tenant, project } = request.body as { tenant?: string; project?: string };
 
     if (!tenant || !project) {
@@ -37,7 +37,7 @@ const workersRoutes: FastifyPluginAsync = async (fastify) => {
    * GET /workers/qa-scorer/status
    * Get the current status of the QA scorer worker
    */
-  fastify.get("/workers/qa-scorer/status", async (request, reply) => {
+  fastify.get("/workers/qa-scorer/status", { onRequest: [fastify.authenticate] }, async (request, reply) => {
     return reply.send(qaScorer.getStatus());
   });
 
@@ -45,7 +45,7 @@ const workersRoutes: FastifyPluginAsync = async (fastify) => {
    * POST /workers/qa-scorer/stop
    * Stop the QA scoring worker
    */
-  fastify.post("/workers/qa-scorer/stop", async (request, reply) => {
+  fastify.post("/workers/qa-scorer/stop", { onRequest: [fastify.authenticate] }, async (request, reply) => {
     qaScorer.stop();
     return reply.send({
       message: "QA scorer stop requested",
@@ -57,7 +57,7 @@ const workersRoutes: FastifyPluginAsync = async (fastify) => {
    * POST /workers/embedding/start
    * Start the embedding worker for a project
    */
-  fastify.post("/workers/embedding/start", async (request, reply) => {
+  fastify.post("/workers/embedding/start", { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const { tenant, project, operation } = request.body as {
       tenant?: string;
       project?: string;
@@ -101,7 +101,7 @@ const workersRoutes: FastifyPluginAsync = async (fastify) => {
    * GET /workers/embedding/status
    * Get the current status of the embedding worker
    */
-  fastify.get("/workers/embedding/status", async (request, reply) => {
+  fastify.get("/workers/embedding/status", { onRequest: [fastify.authenticate] }, async (request, reply) => {
     return reply.send(embeddingWorker.getStatus());
   });
 
@@ -109,7 +109,7 @@ const workersRoutes: FastifyPluginAsync = async (fastify) => {
    * POST /workers/embedding/stop
    * Stop the embedding worker
    */
-  fastify.post("/workers/embedding/stop", async (request, reply) => {
+  fastify.post("/workers/embedding/stop", { onRequest: [fastify.authenticate] }, async (request, reply) => {
     embeddingWorker.stop();
     return reply.send({
       message: "Embedding worker stop requested",

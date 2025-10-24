@@ -14,10 +14,12 @@ import { tenantProjectParamsSchema, tenantProjectParamsOpenApiSchema } from "../
 export async function registerDuplicateRoutes(app: FastifyInstance): Promise<void> {
   // Find duplicate requirement refs
   app.get("/requirements/:tenant/:project/duplicates", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Find duplicate requirement references",
       description: "Identifies requirements with duplicate reference identifiers",
+      security: [{ bearerAuth: [] }],
       params: tenantProjectParamsOpenApiSchema,
       response: {
         200: {
@@ -40,10 +42,12 @@ export async function registerDuplicateRoutes(app: FastifyInstance): Promise<voi
 
   // Fix duplicate requirement refs
   app.post("/requirements/:tenant/:project/fix-duplicates", {
+    onRequest: [app.authenticate],
     schema: {
       tags: ["requirements"],
       summary: "Fix duplicate requirement references",
       description: "Automatically renumbers duplicate requirement references",
+      security: [{ bearerAuth: [] }],
       params: tenantProjectParamsOpenApiSchema,
       response: {
         200: {
