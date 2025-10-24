@@ -52,6 +52,7 @@ export function ImportModalV2({
   const [targetSectionId, setTargetSectionId] = useState("");
   const [validCounts, setValidCounts] = useState({ valid: 0, invalid: 0, total: 0 });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importOptions, setImportOptions] = useState({
     skipInvalid: true,
     storeCustomAttributes: true
@@ -107,6 +108,28 @@ export function ImportModalV2({
     return "";
   };
 
+  // Helper: delay function for throttling
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Helper: retry with exponential backoff for rate limits
+  const retryWithBackoff = async (fn: () => Promise<any>, maxRetries = 5) => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        const isRateLimit = error?.message?.includes('429') || error?.message?.includes('Too Many Requests');
+        if (!isRateLimit || attempt === maxRetries - 1) {
+          throw error;
+        }
+
+        // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+        const backoffDelay = Math.pow(2, attempt) * 1000;
+        console.log(`Rate limit hit, retrying in ${backoffDelay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await delay(backoffDelay);
+      }
+    }
+  };
+
   const performImport = async () => {
     if (!targetSectionId || !parsedDoc) {
       toast.warning("Please select a target section");
@@ -120,13 +143,16 @@ export function ImportModalV2({
 
     setIsProcessing(true);
     setStep("importing");
+    setImportProgress({ current: 0, total: parsedDoc.rows.length });
 
     try {
       let successCount = 0;
       let errorCount = 0;
+      const throttleDelay = parsedDoc.rows.length > 50 ? 100 : 50; // 100ms for large imports, 50ms for small
 
       for (let i = 0; i < parsedDoc.rows.length; i++) {
         const row = parsedDoc.rows[i];
+        setImportProgress({ current: i + 1, total: parsedDoc.rows.length });
 
         // Build mapped requirement
         const mappedReq: Record<string, any> = {};
@@ -182,8 +208,13 @@ export function ImportModalV2({
         if (mappedReq.source) createRequest.source = String(mappedReq.source);
 
         try {
-          await api.createRequirement(createRequest);
+          await retryWithBackoff(() => api.createRequirement(createRequest));
           successCount++;
+
+          // Throttle requests to avoid rate limiting
+          if (i < parsedDoc.rows.length - 1) {
+            await delay(throttleDelay);
+          }
         } catch (error) {
           console.error(`Failed to create requirement at row ${i + 1}:`, error);
           errorCount++;
@@ -392,33 +423,62 @@ export function ImportModalV2({
     </div>
   );
 
-  const renderImportingStep = () => (
-    <div style={{
-      padding: "32px",
-      textAlign: "center"
-    }}>
+  const renderImportingStep = () => {
+    const percentage = importProgress.total > 0
+      ? Math.round((importProgress.current / importProgress.total) * 100)
+      : 0;
+
+    return (
       <div style={{
-        width: "48px",
-        height: "48px",
-        border: "4px solid #e5e7eb",
-        borderTopColor: "#3b82f6",
-        borderRadius: "50%",
-        animation: "spin 1s linear infinite",
-        margin: "0 auto 16px"
-      }} />
-      <div style={{ fontSize: "16px", fontWeight: "500", marginBottom: "8px" }}>
-        Importing Requirements...
+        padding: "32px",
+        textAlign: "center"
+      }}>
+        <div style={{
+          width: "48px",
+          height: "48px",
+          border: "4px solid #e5e7eb",
+          borderTopColor: "#3b82f6",
+          borderRadius: "50%",
+          animation: "spin 1s linear infinite",
+          margin: "0 auto 16px"
+        }} />
+        <div style={{ fontSize: "16px", fontWeight: "500", marginBottom: "8px" }}>
+          Importing Requirements...
+        </div>
+        <div style={{ fontSize: "14px", color: "#6b7280", marginBottom: "16px" }}>
+          {importProgress.current} of {importProgress.total} ({percentage}%)
+        </div>
+
+        {/* Progress bar */}
+        <div style={{
+          width: "100%",
+          maxWidth: "400px",
+          height: "8px",
+          backgroundColor: "#e5e7eb",
+          borderRadius: "4px",
+          margin: "0 auto",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            width: `${percentage}%`,
+            height: "100%",
+            backgroundColor: "#3b82f6",
+            transition: "width 0.3s ease"
+          }} />
+        </div>
+
+        <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "12px" }}>
+          Please keep this window open
+        </div>
+
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
-      <div style={{ fontSize: "14px", color: "#6b7280" }}>
-        Please wait while we import your requirements
-      </div>
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
-  );
+    );
+  };
 
   const footer = step === "upload" ? (
     <>
