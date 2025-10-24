@@ -30,9 +30,9 @@ export function ForgotPasswordModal({
   }
 
   const handleBackdropClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.target === event.currentTarget) {
-      onClose();
-    }
+    // Prevent closing modal when clicking outside
+    // Users must explicitly click Cancel or X button
+    event.stopPropagation();
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {

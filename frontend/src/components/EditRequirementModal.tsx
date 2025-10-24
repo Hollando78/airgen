@@ -131,6 +131,7 @@ export function EditRequirementModal({
       subtitle={`Update requirement ${requirement.ref}`}
       size="large"
       footer={footer}
+      dismissible={false}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
 

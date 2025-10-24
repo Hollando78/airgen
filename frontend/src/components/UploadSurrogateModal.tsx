@@ -136,6 +136,7 @@ export function UploadSurrogateModal({
       subtitle="Attach PDFs, Word files, spreadsheets, or other supporting artifacts"
       size="medium"
       footer={footer}
+      dismissible={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="form-row">

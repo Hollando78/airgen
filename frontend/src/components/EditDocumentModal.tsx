@@ -91,6 +91,7 @@ export function EditDocumentModal({
       subtitle="Update document properties and short codes"
       size="medium"
       footer={footer}
+      dismissible={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <TextInput

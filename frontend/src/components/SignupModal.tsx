@@ -80,9 +80,9 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+    // Prevent closing modal when clicking outside
+    // Users must explicitly click Cancel or X button
+    e.stopPropagation();
   };
 
   if (success) {

@@ -90,6 +90,7 @@ export function AddRequirementModal({
       subtitle={`Create a new requirement in ${sectionName}`}
       size="large"
       footer={footer}
+      dismissible={false}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
 

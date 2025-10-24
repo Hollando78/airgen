@@ -835,6 +835,7 @@ export function ImportModal({
       subtitle={`${stepTitles[step]} - ${documentName}`}
       size="large"
       footer={footer}
+      dismissible={false}
     >
       {isProcessing && step !== "importing" && (
         <div style={{ 

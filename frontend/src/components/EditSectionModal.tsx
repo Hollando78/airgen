@@ -93,6 +93,7 @@ export function EditSectionModal({
       subtitle="Update section properties and short codes"
       size="medium"
       footer={footer}
+      dismissible={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <TextInput

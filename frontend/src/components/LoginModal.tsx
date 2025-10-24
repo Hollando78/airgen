@@ -65,9 +65,9 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup, onForgotPassword
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+    // Prevent closing modal when clicking outside
+    // Users must explicitly click Cancel or X button
+    e.stopPropagation();
   };
 
   const handleMfaSuccess = () => {

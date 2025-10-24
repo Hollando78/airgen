@@ -66,6 +66,7 @@ export function RenameModal({ isOpen, item, onClose, onRename }: RenameModalProp
       subtitle={`Update the properties of "${item.name}"`}
       size="medium"
       footer={footer}
+      dismissible={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <TextInput

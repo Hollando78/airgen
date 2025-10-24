@@ -58,6 +58,7 @@ export function AddSectionModal({
       subtitle="Create a new section to organize requirements by category"
       size="medium"
       footer={footer}
+      dismissible={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <TextInput

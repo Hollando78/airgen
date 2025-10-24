@@ -32,6 +32,7 @@ export function CreateTenantModal({
       onClose={onClose}
       title="Create New Tenant"
       size="medium"
+      dismissible={false}
       footer={(
         <>
           <ModalActionButton

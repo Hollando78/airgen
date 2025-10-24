@@ -34,6 +34,7 @@ export function CreateProjectModal({
       onClose={onClose}
       title="Create New Project"
       size="medium"
+      dismissible={false}
       footer={(
         <>
           <ModalActionButton

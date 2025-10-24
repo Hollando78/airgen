@@ -98,6 +98,7 @@ export function CreateDocumentModal({
       subtitle="Add a new requirements document to organize your project"
       size="medium"
       footer={footer}
+      dismissible={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <TextInput

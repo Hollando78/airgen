@@ -38,9 +38,9 @@ export function MfaVerificationModal({ isOpen, onClose, onSuccess }: MfaVerifica
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+    // Prevent closing modal when clicking outside
+    // Users must explicitly click Cancel or X button
+    e.stopPropagation();
   };
 
   return (

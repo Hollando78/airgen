@@ -136,6 +136,7 @@ export function ImagineModal({
       title="Imagine Visualization"
       subtitle={`Generate AI visualization for ${elementType}: ${elementName}`}
       size="large"
+      dismissible={false}
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
           <button

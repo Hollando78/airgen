@@ -95,6 +95,7 @@ export function CreateFolderModal({
       subtitle="Add a new folder to organize your documents and requirements"
       size="medium"
       footer={footer}
+      dismissible={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <TextInput
