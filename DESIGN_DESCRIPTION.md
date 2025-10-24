@@ -1893,38 +1893,170 @@ AIRGen supports multiple deployment models to accommodate different organization
 ```yaml
 services:
   traefik:
-    image: traefik:v2.10
+    image: traefik:v3.1
     ports: ["80:80", "443:443"]
-    volumes: ["./letsencrypt:/letsencrypt"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
 
   api:
     build: ./backend
     environment:
+      - DATABASE_URL_TEMPLATE=postgresql://user:__PASSWORD__@postgres:5432/airgen
       - GRAPH_URL=bolt://neo4j:7687
       - REDIS_URL=redis://redis:6379
+    secrets:
+      - postgres_password
+      - neo4j_password
+      - api_jwt_secret
+      - llm_api_key
+      - gemini_api_key
     volumes:
-      - ./workspace:/app/workspace
+      - ./workspace:/workspace
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`airgen.studio`) && PathPrefix(`/api`)"
 
   neo4j:
-    image: neo4j:5-community
+    image: neo4j:5.25
     volumes:
       - neo4jdata:/data
-    environment:
-      - NEO4J_AUTH=neo4j/password
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
 
   redis:
     image: redis:7-alpine
-    volumes:
-      - redisdata:/data
+
+  frontend:
+    build: ./frontend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`airgen.studio`)"
 ```
 
 **Volumes:**
 - `neo4jdata`: Neo4j database files
-- `redisdata`: Redis persistence
-- `./workspace`: Markdown files (bind mount for easy access)
-- `./letsencrypt`: TLS certificates
+- `pgdata`: PostgreSQL database files
+- `redisdata`: Redis persistence (currently ephemeral)
+- `./workspace`: Surrogate documents and Imagine images (bind mount)
+- `./letsencrypt`: TLS certificates (ACME challenge storage)
 
-### 8.3 Build Process
+### 8.3 Traefik Reverse Proxy
+
+**Overview:**
+Traefik v3.1 serves as the production reverse proxy and load balancer, providing automatic HTTPS, service discovery via Docker labels, and centralized routing.
+
+**Core Features:**
+- **Automatic Service Discovery**: Monitors Docker socket for container changes
+- **Let's Encrypt Integration**: Automatic TLS certificate provisioning and renewal
+- **HTTP → HTTPS Redirect**: All port 80 traffic automatically redirected to 443
+- **Dashboard**: Built-in monitoring UI at `https://airgen.studio/traefik`
+- **Zero Downtime Deployments**: Routes traffic away from unhealthy containers
+
+**Configuration:**
+```yaml
+# docker-compose.prod.yml
+traefik:
+  image: traefik:v3.1
+  command:
+    - --api.dashboard=true
+    - --providers.docker=true
+    - --entrypoints.web.address=:80
+    - --entrypoints.websecure.address=:443
+    - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+    - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+    - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    - --entrypoints.web.http.redirections.entrypoint.to=websecure
+    - --entrypoints.web.http.redirections.entrypoint.scheme=https
+  ports:
+    - "80:80"
+    - "443:443"
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ./letsencrypt:/letsencrypt
+```
+
+**Routing Rules (via Docker Labels):**
+
+1. **Traefik Dashboard**:
+   ```yaml
+   labels:
+     - "traefik.http.routers.traefik.rule=Host(`airgen.studio`) && PathPrefix(`/traefik`)"
+     - "traefik.http.routers.traefik.service=api@internal"
+     - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+     # Basic auth via TRAEFIK_BASIC_AUTH_USERS secret
+   ```
+
+2. **API Backend** (priority: default):
+   ```yaml
+   labels:
+     - "traefik.http.routers.api.rule=Host(`airgen.studio`) && PathPrefix(`/api`)"
+     - "traefik.http.routers.api.entrypoints=websecure"
+     - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+     - "traefik.http.services.api.loadbalancer.server.port=8787"
+   ```
+
+3. **Imagine Static Files** (priority: 10):
+   ```yaml
+   labels:
+     - "traefik.http.routers.api-imagine.rule=Host(`airgen.studio`) && PathPrefix(`/imagine/`)"
+     - "traefik.http.routers.api-imagine.priority=10"  # Higher priority than /api
+     - "traefik.http.routers.api-imagine.entrypoints=websecure"
+     - "traefik.http.routers.api-imagine.tls.certresolver=letsencrypt"
+   ```
+
+4. **Frontend SPA** (priority: 1, catch-all):
+   ```yaml
+   labels:
+     - "traefik.http.routers.frontend.rule=Host(`airgen.studio`)"
+     - "traefik.http.routers.frontend.priority=1"  # Lowest priority (fallback)
+     - "traefik.http.routers.frontend.entrypoints=websecure"
+     - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+     - "traefik.http.services.frontend.loadbalancer.server.port=80"
+   ```
+
+**Priority System:**
+Traefik evaluates routes by priority (higher numbers first):
+- Priority 10: `/imagine/` images (specific path)
+- Default: `/api` endpoints (default priority)
+- Priority 1: Frontend catch-all (everything else)
+
+**TLS/HTTPS:**
+- **Certificate Resolver**: `letsencrypt` using ACME TLS challenge
+- **Storage**: `/letsencrypt/acme.json` (persisted volume)
+- **Email**: Configured via `ACME_EMAIL` environment variable
+- **Renewal**: Automatic via Traefik (30 days before expiry)
+
+**Security Features:**
+- **Basic Auth Middleware**: Dashboard protected via `production-auth` middleware
+- **TLS Only**: All HTTP traffic redirected to HTTPS
+- **Docker Socket**: Read-only access (`/var/run/docker.sock:ro`)
+- **Secret Management**: Auth credentials via Docker secrets
+
+**Monitoring:**
+- **Dashboard URL**: `https://airgen.studio/traefik`
+- **Metrics**: Service health, request rates, response times
+- **Certificate Status**: Expiry dates and renewal status
+- **Active Routers**: Real-time routing table
+
+**Health Checks:**
+Traefik automatically routes traffic based on container health:
+- Neo4j: `wget -qO- http://localhost:7474 || exit 1`
+- API: Depends on Neo4j, Postgres, Redis (Docker depends_on)
+- Frontend: Depends on API (ensures backend is ready)
+
+**Deployment Benefits:**
+- **Zero Config SSL**: Let's Encrypt certificates automatically provisioned
+- **Rolling Updates**: New containers receive traffic once healthy, old containers gracefully drained
+- **Service Discovery**: No manual route configuration needed
+- **Centralized Logs**: All routing events logged to stdout
+
+### 8.4 Build Process
 
 **Backend Build:**
 ```bash
