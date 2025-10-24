@@ -11,7 +11,7 @@ import { AddSurrogateModal } from "../AddSurrogateModal";
 import { EditRequirementModal } from "../EditRequirementModal";
 import { EditSectionModal } from "../EditSectionModal";
 import { ExportModal } from "../DocumentView/ExportModal";
-import { ImportModal } from "../DocumentView/ImportModal";
+import { ImportModalV2 as ImportModal } from "../DocumentView/ImportModalV2";
 import { MarkdownEditorView } from "../MarkdownEditor/MarkdownEditorView";
 import type {
   DocumentRecord,

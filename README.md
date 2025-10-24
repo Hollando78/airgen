@@ -1,6 +1,13 @@
-# AIRGen (VPS Edition)
+# AIRGen
 
-AIRGen is an AI-assisted requirements generation service tailored for a self-hosted VPS. It blends deterministic QA with templated EARS-style drafts, persists curated requirements as Markdown, stores metadata/relationships in Neo4j, and exposes a Fastify API that can be consumed by any front-end or automation.
+AIRGen is an AI-assisted requirements generation and management platform for regulated systems engineering. It combines deterministic QA scoring with AI-powered drafts, maintains complete traceability through a Neo4j graph database, and provides modern tooling for teams working on safety-critical systems.
+
+**Available as:**
+- **SaaS** – Production service at [airgen.studio](https://airgen.studio) for immediate access
+- **Self-hosted** – Deploy on your own VPS or cloud infrastructure for full control and compliance requirements
+- **Managed hosting** – Custom deployments available for enterprise teams
+
+Whether you need cloud convenience or self-hosted control, AIRGen adapts to your compliance and security requirements.
 
 ## Features
 
@@ -63,10 +70,12 @@ AIRGen is an AI-assisted requirements generation service tailored for a self-hos
 - **Environment separation** – Development, staging, production configurations with fail-fast validation for production secrets.
 
 ### Deployment & Infrastructure
-- **Docker-native** – Traefik + Neo4j + Fastify API + Redis compose stack for quick VPS deployment.
-- **Multi-tenant** – Full tenant and project isolation with RBAC.
-- **Automated backups** – Daily incremental and weekly full backups with encrypted remote storage, 12-week retention, and one-command restore.
-- **Optimized container builds** – Multi-stage backend Dockerfile leverages pnpm deploy and requires Docker BuildKit with the `docker-buildx` plugin (already installed in production). Run builds with `DOCKER_BUILDKIT=1 docker build ...` or enable BuildKit daemon-wide for best caching.
+- **Flexible deployment** – Available as managed SaaS (airgen.studio), self-hosted VPS, or custom enterprise deployment.
+- **Docker-native** – Traefik + Neo4j + Fastify API + Redis compose stack for quick deployment.
+- **Multi-tenant** – Full tenant and project isolation with RBAC support.
+- **Automated backups** – Daily incremental and weekly full backups with encrypted remote storage, 12-week retention, and one-command restore (self-hosted).
+- **Production-ready** – Battle-tested at airgen.studio with enterprise security features.
+- **Optimized container builds** – Multi-stage backend Dockerfile leverages pnpm deploy and requires Docker BuildKit with the `docker-buildx` plugin. Run builds with `DOCKER_BUILDKIT=1 docker build ...` or enable BuildKit daemon-wide for best caching.
 
 ### Operational feature flags
 - `ENABLE_ADMIN_ROUTES=true` – Opt-in switch that exposes admin routes (user management, requirements recovery) even in production. Defaults to `false` to keep the public surface minimal.
@@ -124,6 +133,11 @@ See `docs/ARCHITECTURE.md` for a detailed component and deployment walkthrough.
 - [Custom Attributes Implementation](./CUSTOM_ATTRIBUTES_IMPLEMENTATION.md) – Guide for implementing extensible custom attributes on requirements.
 - [Neo4j Improvements](./NEO4J_IMPROVEMENTS_SUMMARY.md) – Performance optimizations and security enhancements.
 
+### Business & Market
+- **[Market Analysis](./docs/MARKET_ANALYSIS.md)** – Target markets, competitive positioning, and growth opportunities for AIRGen in regulated industries.
+- **[SaaS MVP Project Plan](./docs/SAAS_MVP_PROJECT_PLAN.md)** – 6-week implementation plan for launching paid subscriptions with Stripe billing.
+- **[AI Data Security & Compliance](./docs/AI_DATA_SECURITY_COMPLIANCE.md)** – Comprehensive guide on AI security, compliance risks by industry (ITAR, HIPAA, automotive NDAs), and mitigation strategies including self-hosted LLM options.
+
 ## Getting started (Docker)
 ```bash
 cp env/development.env.example env/development.env   # Configure local secrets and ports
@@ -148,6 +162,40 @@ pnpm -C packages/req-qa build
 pnpm -C backend dev                # Fastify API at http://localhost:8787
 pnpm -C frontend dev               # Vite dev server at http://localhost:5173 (proxying /api)
 ```
+
+## Deployment Options
+
+### SaaS (Recommended for most teams)
+Visit [airgen.studio](https://airgen.studio) to:
+- Sign up for immediate access
+- Start with a free trial
+- Scale from small teams to enterprise
+- Zero infrastructure management
+- Automatic updates and security patches
+
+**Ideal for:** Startups, small-medium engineering teams, organizations comfortable with cloud tools
+
+### Self-Hosted (Enterprise & compliance-focused)
+Deploy on your own infrastructure when you need:
+- Complete data sovereignty
+- Custom security policies
+- Air-gapped environments
+- Integration with on-premise systems
+- Specific compliance requirements (FedRAMP, ITAR, etc.)
+
+Follow the Docker or local dev setup above, then use `deploy-production.sh` for VPS deployment.
+
+**Ideal for:** Defense contractors, large enterprises, highly regulated organizations
+
+### Managed Hosting (Custom deployments)
+For teams that need:
+- Dedicated instances with custom configurations
+- White-label deployments
+- SLA guarantees and priority support
+- Custom integrations and features
+- Hybrid cloud/on-premise setups
+
+Contact us for managed hosting options tailored to your requirements.
 
 ## Environment configuration
 

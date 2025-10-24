@@ -20,7 +20,8 @@ import {
   ClipboardList,
   RefreshCw,
   ChevronDown,
-  Image
+  Image,
+  Activity
 } from "lucide-react";
 import { TenantProjectProvider } from "../hooks/useTenantProject";
 import { TokenControls } from "./TokenControls";
@@ -60,6 +61,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
         icon: LayoutDashboard,
         items: [
           { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+          { to: "/activity", label: "Activity", icon: Activity },
           { to: "/query", label: "Query", icon: Search }
         ]
       },

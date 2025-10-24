@@ -992,3 +992,76 @@ export type EmbeddingWorkerStopResponse = {
   message: string;
   status: EmbeddingWorkerStatus;
 };
+
+// ============================================================================
+// Activity Timeline Types
+// ============================================================================
+
+export type ActivityType =
+  | 'requirement'
+  | 'document'
+  | 'section'
+  | 'block'
+  | 'diagram'
+  | 'connector'
+  | 'port'
+  | 'package'
+  | 'candidate'
+  | 'diagram-candidate'
+  | 'imagine'
+  | 'baseline'
+  | 'link';
+
+export type ActionType =
+  | 'created'
+  | 'updated'
+  | 'archived'
+  | 'restored'
+  | 'deleted'
+  | 'accepted'
+  | 'rejected'
+  | 'generated';
+
+export interface ActivityEvent {
+  id: string;
+  timestamp: string;
+  activityType: ActivityType;
+  actionType: ActionType;
+  entityId: string;
+  entityName: string;
+  entityRef?: string;
+  userId: string;
+  userName?: string;
+  description: string;
+  metadata: Record<string, any>;
+  tenantSlug: string;
+  projectSlug: string;
+}
+
+export interface ActivityFilters {
+  tenantSlug: string;
+  projectSlug: string;
+  activityTypes?: ActivityType[];
+  actionTypes?: ActionType[];
+  userIds?: string[];
+  startDate?: string;
+  endDate?: string;
+  searchQuery?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ActivityResponse {
+  events: ActivityEvent[];
+  total: number;
+  hasMore: boolean;
+  nextOffset?: number;
+}
+
+export interface ActivityStats {
+  totalEvents: number;
+  eventsByType: Record<ActivityType, number>;
+  eventsByAction: Record<ActionType, number>;
+  recentUsers: Array<{ userId: string; count: number }>;
+  activeUsers: number;
+}

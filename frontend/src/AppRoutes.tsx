@@ -8,6 +8,7 @@ import { UserRole } from "./lib/rbac";
 
 // Lazy load route components for better performance
 const DashboardRoute = lazy(() => import("./routes/DashboardRoute").then(m => ({ default: m.DashboardRoute })));
+const ActivityRoute = lazy(() => import("./routes/ActivityRoute").then(m => ({ default: m.ActivityRoute })));
 const AirGenRoute = lazy(() => import("./routes/AirGenRoute").then(m => ({ default: m.AirGenRoute })));
 const AskAirGenRoute = lazy(() => import("./routes/AskAirGenRoute").then(m => ({ default: m.AskAirGenRoute })));
 const ImagineGalleryRoute = lazy(() => import("./routes/ImagineGalleryRoute").then(m => ({ default: m.ImagineGalleryRoute })));
@@ -38,6 +39,7 @@ export default function AppRoutes(): JSX.Element {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardRoute />} />
+          <Route path="/activity" element={<ActivityRoute />} />
           <Route path="/invites/accept" element={<AcceptInviteRoute />} />
 
           {/* AIRGen route - protected */}

@@ -46,6 +46,7 @@ import semanticSearchRoutes from "./routes/semantic-search.js";
 // ARCHIVED: SnapDraft replaced by Imagine (2025-10-22)
 // import snapdraftRoutes from "./routes/snapdraft-routes.js";
 import imagineRoutes from "./routes/imagine-routes.js";
+import activityRoutes from "./routes/activity-routes.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -323,6 +324,7 @@ await app.register(workersRoutes, { prefix: "/api" });
 // ARCHIVED: SnapDraft replaced by Imagine (2025-10-22)
 // await app.register(snapdraftRoutes, { prefix: "/api" });
 await app.register(imagineRoutes, { prefix: "/api" });
+await app.register(activityRoutes, { prefix: "/api" });
 
 if (config.features.adminRoutesEnabled) {
   const adminRoutes = await import("./routes/admin-users.js");

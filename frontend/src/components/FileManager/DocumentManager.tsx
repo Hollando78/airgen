@@ -90,6 +90,7 @@ export function DocumentManager({
     item: FileItem | null;
   }>({ isOpen: false, item: null });
   const [downloadingItemId, setDownloadingItemId] = useState<string | null>(null);
+  const [cutItem, setCutItem] = useState<FileItem | null>(null);
 
   const api = useApiClient();
   const queryClient = useQueryClient();
@@ -431,6 +432,49 @@ export function DocumentManager({
     setSelectedItems(new Set());
   };
 
+  const handleCutItem = (item: FileItem) => {
+    if (item.type === "document") {
+      setCutItem(item);
+      toast.info(`Cut "${item.name}" - right-click on a folder to paste`);
+    }
+    setContextMenu(null);
+  };
+
+  const handlePasteItem = (targetFolder: string | null) => {
+    if (!cutItem) {
+      toast.error("No item to paste");
+      return;
+    }
+
+    if (cutItem.type !== "document") {
+      toast.error("Only documents can be moved");
+      setCutItem(null);
+      return;
+    }
+
+    // Check if trying to paste in the same folder
+    if (cutItem.parentFolder === targetFolder) {
+      toast.info("Document is already in this folder");
+      setCutItem(null);
+      setContextMenu(null);
+      return;
+    }
+
+    moveDocumentMutation.mutate({
+      documentSlug: cutItem.slug,
+      parentFolder: targetFolder
+    }, {
+      onSuccess: () => {
+        toast.success(`Moved "${cutItem.name}" successfully`);
+        setCutItem(null);
+      },
+      onError: (error) => {
+        toast.error(`Failed to move document: ${(error as Error).message}`);
+      }
+    });
+    setContextMenu(null);
+  };
+
   return (
     <div className="file-manager">
       <FileManagerToolbar
@@ -540,6 +584,10 @@ export function DocumentManager({
               }
             : undefined
           }
+          onCut={() => handleCutItem(contextMenu.item)}
+          onPaste={() => handlePasteItem(contextMenu.item.type === "folder" ? contextMenu.item.slug : contextMenu.item.parentFolder)}
+          hasCutItem={cutItem !== null}
+          isCutItem={cutItem?.id === contextMenu.item.id}
         />
       )}
 

@@ -586,6 +586,15 @@
   background: #fef2f2;
 }
 
+.context-menu-item-active {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.context-menu-item-active:hover {
+  background: #bfdbfe;
+}
+
 .context-menu-separator {
   height: 1px;
   background: #e5e7eb;

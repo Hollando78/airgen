@@ -1,7 +1,7 @@
 # AIRGen Design Description Document
 
-**Version:** 1.1
-**Last Updated:** 2025-10-09
+**Version:** 1.3
+**Last Updated:** 2025-10-23
 **Status:** Living Document
 
 ## Table of Contents
@@ -32,11 +32,11 @@ This Design Description Document (DDD) describes the complete system architectur
 ### 1.3 Key Design Goals
 
 - **Deterministic Quality Assurance**: Provide repeatable, rule-based QA without relying solely on AI
-- **Markdown-First Storage**: Use human-readable, version-controllable files as the source of truth
 - **Graph-Based Traceability**: Enable rich relationship queries through Neo4j
 - **AI Augmentation**: Leverage LLMs to accelerate requirement generation while maintaining quality
 - **Multi-Tenancy**: Support isolated workspaces for different organizations and projects
-- **VPS Deployment**: Self-hosted solution with Docker-native architecture
+- **Flexible Deployment**: Available as SaaS (airgen.studio), self-hosted, or managed hosting
+- **Production-Ready**: Battle-tested architecture with enterprise security and compliance features
 
 ---
 
@@ -46,35 +46,111 @@ This Design Description Document (DDD) describes the complete system architectur
 
 AIRGen follows a **three-tier architecture** with clear separation of concerns:
 
+```mermaid
+graph TB
+    subgraph "Presentation Layer"
+        UI[React SPA - Vite]
+        Routes[Route Components]
+        State[React Query + Context]
+        Canvas[ReactFlow Diagrams]
+    end
+
+    subgraph "Application Layer"
+        API[Fastify API Server]
+        Auth[Authentication Plugin]
+        Routes_API[Route Handlers]
+        Services[Business Logic Services]
+        QA[QA Engine - req-qa]
+        LLM[LLM Service]
+    end
+
+    subgraph "Data Layer"
+        Neo4j[(Neo4j Graph DB)]
+        FS[File System - Markdown]
+        Redis[(Redis Cache)]
+    end
+
+    subgraph "External Services"
+        OpenAI[OpenAI API]
+        Local[Local LLM - Ollama]
+        Backup[Remote Backup Storage]
+    end
+
+    UI -->|HTTPS REST API| API
+    API --> Auth
+    Auth -->|JWT Validation| Redis
+    API --> Routes_API
+    Routes_API --> Services
+    Services -->|Cypher Queries| Neo4j
+    Services -->|Read/Write| FS
+    Services --> QA
+    Services --> LLM
+    LLM -->|Cloud AI| OpenAI
+    LLM -->|Self-Hosted AI| Local
+    Services -->|Async Backups| Backup
+
+    style UI fill:#e1f5ff
+    style API fill:#fff4e1
+    style Neo4j fill:#ffe1e1
+    style OpenAI fill:#e1ffe1
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Presentation Layer                        │
-│  React SPA (Vite) - User Interface, Diagrams, Editors       │
-└─────────────────────────────────────────────────────────────┘
-                            ↓ HTTPS/API
-┌─────────────────────────────────────────────────────────────┐
-│                     Application Layer                        │
-│  Fastify API - Business Logic, QA Engine, LLM Gateway       │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                       Data Layer                             │
-│  Neo4j (Graph) | Markdown Files | Redis (Cache) | LLM API   │
-└─────────────────────────────────────────────────────────────┘
-```
+
+**Architecture Characteristics:**
+
+- **Modular Monolith**: Logically separated components in single deployment
+- **Stateless API**: JWT-based authentication, horizontal scaling ready
+- **Dual Persistence**: Neo4j for metadata/relationships, Markdown for content
+- **Flexible AI**: Supports cloud LLM (OpenAI) or self-hosted (Ollama/vLLM)
+- **Multi-Tenant**: Complete data isolation per tenant
 
 ### 2.2 System Context
 
+```mermaid
+C4Context
+    title System Context Diagram - AIRGen
+
+    Person(engineer, "Systems Engineer", "Creates and manages requirements")
+    Person(reviewer, "Reviewer", "Reviews and approves requirements")
+    Person(admin, "Administrator", "Manages system and users")
+
+    System(airgen, "AIRGen Platform", "AI-assisted requirements management for regulated systems")
+
+    System_Ext(openai, "OpenAI API", "LLM-based requirement generation")
+    System_Ext(ollama, "Self-Hosted LLM", "Local AI for compliance")
+    System_Ext(backup, "Remote Backup", "S3-compatible encrypted backup storage")
+    System_Ext(email, "Email Service", "Transactional emails (Resend)")
+    System_Ext(monitoring, "Monitoring", "Sentry, Prometheus")
+    System_Ext(git, "Git Repository", "Version control integration")
+    System_Ext(stripe, "Stripe", "Payment processing (SaaS)")
+
+    Rel(engineer, airgen, "Creates requirements, diagrams", "HTTPS")
+    Rel(reviewer, airgen, "Reviews and approves", "HTTPS")
+    Rel(admin, airgen, "Manages and monitors", "HTTPS")
+
+    Rel(airgen, openai, "Generates AI drafts", "HTTPS/API")
+    Rel(airgen, ollama, "Generates AI drafts (self-hosted)", "HTTP/API")
+    Rel(airgen, backup, "Uploads encrypted backups", "S3 API")
+    Rel(airgen, email, "Sends notifications", "SMTP/API")
+    Rel(airgen, monitoring, "Sends metrics and errors", "HTTPS")
+    Rel(airgen, git, "Stores markdown files", "Git protocol")
+    Rel(airgen, stripe, "Processes payments", "HTTPS/API")
+
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+```
+
 **External Actors:**
-- **Engineers**: Create, review, and manage requirements
-- **System Administrators**: Deploy, configure, and monitor the system
-- **External Systems**: Git repositories, CI/CD pipelines, document management systems
+- **Engineers**: Create, review, and manage requirements, diagrams, and documents
+- **Reviewers**: Approve baselines, create trace links, quality assurance
+- **System Administrators**: Deploy, configure, monitor system, manage users and backups
+- **Product Managers**: Define needs, track requirements progress
 
 **External Services:**
-- **OpenAI API**: LLM-based requirement generation (optional)
-- **Sentry**: Error tracking and performance monitoring (optional)
-- **Prometheus/Grafana**: Metrics collection and visualization (optional)
-- **Remote Backup Storage**: S3-compatible storage for encrypted backups (DigitalOcean Spaces, AWS S3, Backblaze B2)
+- **AI Providers**: OpenAI (cloud) or Ollama/vLLM (self-hosted) for requirement generation
+- **Payment Processing**: Stripe for SaaS billing and subscriptions
+- **Email Service**: Resend for transactional emails (verification, notifications)
+- **Monitoring**: Sentry (errors), Prometheus/Grafana (metrics) - optional
+- **Backup Storage**: S3-compatible storage (DigitalOcean Spaces, AWS S3, Backblaze B2)
+- **Version Control**: Git repositories for markdown file tracking
 
 ### 2.3 Core Capabilities
 
@@ -110,6 +186,34 @@ AIRGen follows a **three-tier architecture** with clear separation of concerns:
    - Connector relationships with labels
    - Floating diagram windows
    - Diagram snapshot capture
+
+6. **AI Visual Generation (Imagine)**
+   - AI-powered image generation from requirements
+   - Visual mockups for UI/UX requirements
+   - Diagram generation from architecture descriptions
+   - Context-aware image creation using vision AI
+   - Integration with document management
+
+7. **Activity Tracking**
+   - Real-time activity feed for project changes
+   - User action history and audit trail
+   - Requirement modification tracking
+   - Collaboration visibility across teams
+   - Filterable activity streams by type and user
+
+8. **Subscription & Billing (SaaS)**
+   - Freemium model with tiered plans (Free, Pro, Enterprise)
+   - Stripe integration for payment processing
+   - Usage-based limits and enforcement
+   - Self-service subscription management
+   - Billing analytics and reporting
+
+9. **AI Compliance & Security**
+   - Flexible AI deployment options (cloud, self-hosted, disabled)
+   - ITAR/HIPAA/regulatory compliance support
+   - Data sovereignty controls
+   - Per-project AI enablement settings
+   - Comprehensive audit logging for AI usage
 
 ---
 
@@ -196,66 +300,282 @@ Future scaling can transition to microservices if needed.
 
 #### 3.3.1 Requirement Creation Flow
 
-```
-User Input → API (/draft)
-    ↓
-┌─────────────────────────────────────┐
-│  Heuristic Draft Generation         │ (Local, instant)
-│  + Optional LLM Draft Generation    │ (External API, 1-3s)
-└─────────────────────────────────────┘
-    ↓
-QA Engine Scoring (Local, <100ms)
-    ↓
-User Selection → API (/requirements)
-    ↓
-┌─────────────────────────────────────┐
-│  1. Neo4j Transaction               │
-│     - Create Requirement node       │
-│     - Link to Project/Document      │
-│  2. Markdown File Write             │
-│     - YAML front matter + content   │
-└─────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as React UI
+    participant API as Fastify API
+    participant QA as QA Engine
+    participant LLM as LLM Service
+    participant Neo4j as Neo4j DB
+    participant FS as File System
+
+    User->>UI: Enter requirement need
+    UI->>API: POST /draft (need, system, trigger, etc.)
+
+    par Heuristic Generation
+        API->>API: Generate EARS-based drafts
+    and LLM Generation (if enabled)
+        API->>LLM: Request AI drafts
+        LLM->>OpenAI: Generate completions
+        OpenAI-->>LLM: Draft candidates
+        LLM-->>API: AI drafts
+    end
+
+    API->>QA: Score all drafts
+    QA-->>API: QA results (score, verdict, suggestions)
+    API-->>UI: Draft candidates with scores
+
+    User->>UI: Select and edit draft
+    UI->>API: POST /requirements (final text + metadata)
+
+    API->>API: Validate input
+
+    par Dual Write
+        API->>Neo4j: Create Requirement node + relationships
+        Neo4j-->>API: Requirement ID
+    and
+        API->>FS: Write markdown file (REQ-XXX-NNN.md)
+        FS-->>API: File path
+    end
+
+    API->>Neo4j: Create RequirementVersion snapshot
+    API-->>UI: Created requirement
+    UI-->>User: Success notification
 ```
 
 #### 3.3.2 Traceability Query Flow
 
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as React UI
+    participant API as Fastify API
+    participant Neo4j as Neo4j DB
+    participant Cache as Redis Cache
+
+    User->>UI: View traceability matrix
+    UI->>API: GET /trace-links/:tenant/:project
+
+    API->>Cache: Check cache for trace links
+
+    alt Cache Hit
+        Cache-->>API: Cached trace links
+    else Cache Miss
+        API->>Neo4j: Execute Cypher query
+        Note over Neo4j: MATCH (r:Requirement)<br/>-[link]->(:Requirement)<br/>WHERE r.tenant = $tenant
+        Neo4j-->>API: Graph results
+        API->>Cache: Store results (TTL: 5min)
+    end
+
+    API->>API: Transform to JSON
+    API-->>UI: Trace links with metadata
+    UI->>UI: Render traceability matrix
+    UI-->>User: Display relationships
+
+    User->>UI: Hover over requirement
+    UI->>API: GET /link/suggest (requirement)
+    API->>Neo4j: Find similar requirements
+    Note over Neo4j: Graph algorithms:<br/>- Similar text<br/>- Same document<br/>- Related architecture
+    Neo4j-->>API: Suggested links
+    API-->>UI: Suggestions
+    UI-->>User: Show suggested trace links
 ```
-User Request → API (/trace-links/:tenant/:project)
-    ↓
-Neo4j Cypher Query
-    ↓
-MATCH (r:Requirement)-[link:SATISFIES|DERIVES|VERIFIES]->(target)
-WHERE r.tenant = $tenant AND r.projectKey = $project
-RETURN r, type(link), target, link.description
-    ↓
-JSON Response with typed relationships
+
+#### 3.3.3 Authentication Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as React UI
+    participant API as Fastify API
+    participant Auth as Auth Plugin
+    participant Redis as Redis Cache
+    participant Neo4j as Neo4j DB
+
+    User->>UI: Enter credentials
+    UI->>API: POST /auth/login {email, password}
+
+    API->>Neo4j: Find user by email
+    Neo4j-->>API: User record (hashed password, roles)
+
+    API->>API: Verify password (Argon2id)
+
+    alt Password Valid
+        API->>API: Generate JWT token
+        Note over API: Claims: userId, email,<br/>roles, tenantSlugs
+
+        alt 2FA Enabled
+            API-->>UI: {mfaRequired: true, tempToken}
+            UI-->>User: Prompt for 2FA code
+            User->>UI: Enter 2FA code
+            UI->>API: POST /auth/mfa-verify {tempToken, code}
+            API->>API: Verify TOTP code
+        end
+
+        API->>Redis: Store session metadata (optional)
+        API-->>UI: {accessToken, refreshToken, user}
+        UI->>UI: Store tokens (localStorage/cookie)
+        UI-->>User: Redirect to dashboard
+    else Password Invalid
+        API-->>UI: 401 Unauthorized
+        UI-->>User: Show error message
+    end
+
+    Note over UI,Redis: Subsequent Requests
+
+    User->>UI: Navigate to /requirements
+    UI->>API: GET /requirements/:tenant/:project<br/>Authorization: Bearer {token}
+
+    API->>Auth: Validate JWT
+    Auth->>Auth: Verify signature & expiry
+
+    alt Token Valid
+        Auth->>API: Attach user to request
+        API->>Neo4j: Query requirements (filtered by tenant)
+        Neo4j-->>API: Requirements
+        API-->>UI: Requirements list
+    else Token Expired
+        API-->>UI: 401 Unauthorized
+        UI->>API: POST /auth/refresh {refreshToken}
+        API->>API: Generate new access token
+        API-->>UI: {accessToken}
+        UI->>API: Retry original request
+    end
+```
+
+#### 3.3.4 Diagram Rendering Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as React UI
+    participant Canvas as ReactFlow Canvas
+    participant API as Fastify API
+    participant Neo4j as Neo4j DB
+
+    User->>UI: Open Architecture Workspace
+    UI->>API: GET /architecture/diagrams/:tenant/:project
+    API->>Neo4j: Fetch diagram list
+    Neo4j-->>API: Diagrams metadata
+    API-->>UI: Diagrams
+
+    User->>UI: Select diagram
+    UI->>API: GET /architecture/diagrams/:tenant/:project/:id
+
+    API->>Neo4j: Complex query with diagram data
+    Note over Neo4j: MATCH (d:ArchitectureDiagram)<br/>-[p:PLACES]->(b:BlockDefinition)<br/>RETURN d, p, b, b.ports
+    Neo4j-->>API: Diagram + blocks + connectors
+
+    API->>API: Transform to ReactFlow format
+    Note over API: Map blocks to nodes<br/>Map connectors to edges<br/>Apply port overrides
+    API-->>UI: {nodes, edges, viewport}
+
+    UI->>Canvas: Render diagram
+    Canvas->>Canvas: Layout nodes & edges
+    Canvas->>Canvas: Apply per-diagram styles
+    Canvas-->>User: Display diagram
+
+    User->>Canvas: Drag block to new position
+    Canvas->>UI: onNodesChange event
+    UI->>UI: Debounce updates (500ms)
+    UI->>API: PATCH /architecture/blocks/:id
+    Note over API: Update placement properties:<br/>positionX, positionY
+    API->>Neo4j: Update PLACES relationship
+    Neo4j-->>API: Success
+    API-->>UI: Updated block
 ```
 
 ### 3.4 Deployment Architecture
 
-**Production Deployment (Docker Compose):**
+```mermaid
+graph TB
+    subgraph "External Access"
+        User[User Browser]
+        Admin[Admin]
+    end
 
+    subgraph "Reverse Proxy Layer"
+        Traefik[Traefik<br/>:80/:443<br/>SSL/TLS]
+    end
+
+    subgraph "Application Layer"
+        Frontend[Static Frontend<br/>React SPA<br/>Served by Traefik]
+        API[Fastify API<br/>:8787<br/>Node.js 20+]
+    end
+
+    subgraph "Data Layer"
+        Neo4j[(Neo4j<br/>:7687/:7474<br/>Graph DB)]
+        Redis[(Redis<br/>:6379<br/>Cache)]
+        FS[/File System<br/>Markdown Files/]
+    end
+
+    subgraph "External Services"
+        OpenAI[OpenAI API<br/>or<br/>Local LLM]
+        Backup[S3-Compatible<br/>Backup Storage]
+        Email[Email Service<br/>Resend]
+        Stripe[Stripe<br/>Payments]
+    end
+
+    User -->|HTTPS| Traefik
+    Admin -->|HTTPS| Traefik
+    Traefik -->|/*| Frontend
+    Traefik -->|/api/*| API
+    Frontend -.->|API calls| API
+
+    API --> Neo4j
+    API --> Redis
+    API --> FS
+    API -.->|AI drafts| OpenAI
+    API -.->|Async| Backup
+    API -.->|Notifications| Email
+    API -.->|Billing| Stripe
+
+    style Traefik fill:#90EE90
+    style API fill:#FFD700
+    style Neo4j fill:#FF6B6B
+    style Frontend fill:#87CEEB
 ```
-┌─────────────┐
-│   Traefik   │  (Reverse Proxy, TLS, Basic Auth)
-│   :80/:443  │
-└──────┬──────┘
-       │
-       ├──────────→ /api/*  ────→ Fastify API (:8787)
-       └──────────→ /*      ────→ Static Frontend (served by Traefik)
 
-Backend Services:
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│   Neo4j      │  │    Redis     │  │   OpenAI     │
-│  :7687/:7474 │  │    :6379     │  │  (External)  │
-└──────────────┘  └──────────────┘  └──────────────┘
+**Container Architecture:**
+
+```mermaid
+graph LR
+    subgraph "Docker Compose Stack"
+        subgraph "traefik-network"
+            T[traefik<br/>traefik:v2.10]
+            F[frontend<br/>nginx:alpine]
+            A[api<br/>node:20-alpine]
+        end
+
+        subgraph "backend-network"
+            A
+            N[(neo4j<br/>neo4j:5-community)]
+            R[(redis<br/>redis:7-alpine)]
+        end
+    end
+
+    V1[/neo4jdata<br/>volume/]
+    V2[/redisdata<br/>volume/]
+    V3[/workspace<br/>bind mount/]
+    V4[/letsencrypt<br/>volume/]
+
+    N -.-> V1
+    R -.-> V2
+    A -.-> V3
+    T -.-> V4
+
+    style T fill:#90EE90
+    style A fill:#FFD700
+    style N fill:#FF6B6B
+    style R fill:#FFA500
 ```
 
 **Development Setup:**
-- Frontend: Vite dev server (:5173) with API proxy
-- Backend: Direct Fastify (:8787)
-- Neo4j: Docker (:7687/:7474)
-- Redis: Docker (:6379)
+- Frontend: Vite dev server (:5173) with HMR and API proxy
+- Backend: tsx watch mode (:8787) with hot reload
+- Neo4j: Docker (:7687/:7474) with dev credentials
+- Redis: Docker (:6379) optional for caching tests
 
 ---
 
@@ -311,26 +631,65 @@ try {
 }
 ```
 
-#### 4.1.3 LLM Service
+#### 4.1.3 LLM Service (Hybrid Architecture)
 
 **File**: `backend/src/services/llm.ts`
 
-**Purpose**: Abstract LLM provider interactions
+**Purpose**: Abstract LLM provider interactions with compliance-aware backend selection
 
-**Supported Providers:**
-- OpenAI (GPT-4o-mini, GPT-4)
-- Extensible for Anthropic, local models, etc.
+**Architecture**: The LLM service implements a **hybrid architecture** allowing customers to choose their AI backend based on compliance requirements, budget, and data sensitivity:
+
+**Supported Backends:**
+
+1. **OpenAI Cloud (Default)**
+   - Providers: GPT-4o-mini, GPT-4o, GPT-4
+   - Best quality and ease of use
+   - Suitable for: Non-regulated industries, commercial projects
+   - Configuration: `OPENAI_API_KEY` environment variable
+   - Compliance: ⚠️ Not suitable for ITAR, classified, or highly regulated data
+
+2. **Self-Hosted LLM (Ollama/vLLM)**
+   - Models: Llama 3.1 8B/70B, Mistral, CodeLlama, or custom
+   - Complete data control - requirements never leave customer infrastructure
+   - Suitable for: ITAR-controlled defense projects, classified environments, HIPAA (without BAA), automotive NDAs
+   - Configuration: `OLLAMA_API_BASE` or `VLLM_API_BASE` environment variable
+   - Deployment: Docker Compose service or external server with GPU
+   - Compliance: ✅ Suitable for all regulated industries
+
+3. **Disabled Mode**
+   - No AI features - pure deterministic heuristics only
+   - Suitable for: Maximum security, air-gapped environments
+   - Configuration: Omit all AI provider environment variables
+   - Compliance: ✅ No data transmission risks
+
+**Provider Selection Logic:**
+```typescript
+function selectLLMProvider(): LLMProvider {
+  if (process.env.OLLAMA_API_BASE) return new OllamaProvider();
+  if (process.env.VLLM_API_BASE) return new VLLMProvider();
+  if (process.env.OPENAI_API_KEY) return new OpenAIProvider();
+  return new DisabledProvider(); // Fallback to heuristics only
+}
+```
 
 **Key Operations:**
 ```typescript
 generateRequirementDrafts(input)  // Structured prompt → drafts
-embedText(text)                   // Future: vector embeddings
+generateImageAnalysis(imageUrl)   // Vision API for image attachments
+embedText(text)                   // Future: vector embeddings for semantic search
 ```
 
 **Error Handling:**
-- Graceful degradation (return heuristic drafts only)
-- Rate limit retry with exponential backoff
-- Timeout protection
+- Graceful degradation: Always fall back to heuristic drafts if AI fails
+- Rate limit retry with exponential backoff (OpenAI)
+- Timeout protection (30s default, 60s for vision)
+- Provider-specific error mapping (OpenAI errors vs Ollama errors)
+
+**Compliance Benefits:**
+- **Competitive Differentiation**: Only AI requirements tool supporting ITAR/classified environments
+- **Customer Choice**: Let customers balance quality, cost, and compliance
+- **Audit Trail**: All AI requests logged with provider, model, and timestamp
+- **Data Sovereignty**: Self-hosted option ensures data never leaves customer control
 
 #### 4.1.4 Workspace Service
 
@@ -496,6 +855,100 @@ class APIClient {
 
 ### 5.1 Graph Database Schema (Neo4j)
 
+```mermaid
+graph TB
+    subgraph "Core Entities"
+        T[Tenant]
+        P[Project]
+        U[User]
+    end
+
+    subgraph "Requirements Domain"
+        R[Requirement]
+        RV[RequirementVersion]
+        B[Baseline]
+    end
+
+    subgraph "Documents Domain"
+        D[Document]
+        DS[DocumentSection]
+        F[Folder]
+    end
+
+    subgraph "Architecture Domain"
+        AD[ArchitectureDiagram]
+        AB[ArchitectureBlockDefinition]
+        AC[ArchitectureConnector]
+        PI[PortInstance]
+        PD[PortDefinition]
+    end
+
+    subgraph "Traceability"
+        TL[TraceLink]
+        LS[LinkSet]
+    end
+
+    subgraph "Activity & Collaboration"
+        A[Activity]
+        C[Comment]
+    end
+
+    subgraph "SaaS & Billing"
+        S[Subscription]
+        I[Invoice]
+    end
+
+    T -->|OWNS| P
+    T -->|HAS_USER| U
+    P -->|CONTAINS| R
+    R -->|HAS_VERSION| RV
+    RV -->|PREVIOUS_VERSION| RV
+    P -->|HAS_BASELINE| B
+    B -->|SNAPSHOT_OF| R
+
+    P -->|HAS_DOCUMENT| D
+    D -->|HAS_SECTION| DS
+    F -->|CONTAINS_DOCUMENT| D
+    D -->|CONTAINS| R
+    DS -->|CONTAINS| R
+
+    P -->|HAS_DIAGRAM| AD
+    P -->|HAS_BLOCK| AB
+    AD -->|PLACES| AB
+    AB -->|HAS_PORT_DEF| PD
+    AB -->|INSTANTIATES| PI
+    AC -->|CONNECTS| PI
+
+    R -->|SATISFIES| R
+    R -->|DERIVES| R
+    R -->|VERIFIES| R
+    R -->|IN_LINKSET| LS
+
+    P -->|HAS_ACTIVITY| A
+    R -->|HAS_COMMENT| C
+    U -->|CREATED| A
+
+    T -->|HAS_SUBSCRIPTION| S
+    S -->|HAS_INVOICE| I
+
+    style T fill:#FFD700
+    style P fill:#87CEEB
+    style R fill:#FF6B6B
+    style AD fill:#90EE90
+    style S fill:#DDA0DD
+```
+
+**Schema Overview:**
+
+The Neo4j graph database stores all metadata, relationships, and version history. The schema supports:
+
+- **Multi-tenancy**: Complete data isolation via Tenant nodes
+- **Rich traceability**: Typed relationships between requirements (SATISFIES, DERIVES, etc.)
+- **Version history**: Immutable RequirementVersion nodes with full snapshots
+- **Flexible architecture**: Reusable block definitions with per-diagram placements
+- **Activity tracking**: Complete audit trail of all changes
+- **SaaS billing**: Subscription and usage tracking (when enabled)
+
 #### 5.1.1 Core Node Types
 
 **Tenant**
@@ -638,6 +1091,84 @@ class APIClient {
 })
 ```
 
+**User**
+```cypher
+(:User {
+  id: String!,             // UUID
+  email: String!,          // Unique login identifier
+  username: String!,       // Display name
+  passwordHash: String!,   // Argon2id hashed password
+  totpSecret: String?,     // Base32 TOTP secret for 2FA
+  totpEnabled: Boolean,    // Whether 2FA is active
+  role: String!,           // admin|member|viewer
+  tenantSlug: String!,     // Associated tenant
+  lastLoginAt: DateTime?,
+  createdAt: DateTime!,
+  updatedAt: DateTime!
+})
+```
+
+**Activity**
+```cypher
+(:Activity {
+  id: String!,             // UUID
+  type: String!,           // requirement.created|requirement.updated|
+                           // requirement.archived|requirement.deleted|
+                           // baseline.created|document.created|
+                           // diagram.updated|project.created|etc.
+  actor: String!,          // User email or "system"
+  tenantSlug: String!,
+  projectKey: String?,     // Optional - some activities are project-specific
+  entityType: String?,     // requirement|document|diagram|baseline|project
+  entityId: String?,       // ID of affected entity
+  entityRef: String?,      // Human-readable reference (e.g., REQ-BRK-001)
+  metadata: Object?,       // Activity-specific data (changes, old/new values)
+  timestamp: DateTime!
+})
+```
+
+**Subscription**
+```cypher
+(:Subscription {
+  id: String!,             // UUID
+  tenantSlug: String!,     // One subscription per tenant
+  tier: String!,           // free|pro|enterprise
+  status: String!,         // active|trialing|past_due|canceled|incomplete
+  stripeCustomerId: String?,
+  stripeSubscriptionId: String?,
+  stripePriceId: String?,
+  currentPeriodStart: DateTime?,
+  currentPeriodEnd: DateTime?,
+  cancelAtPeriodEnd: Boolean,
+  trialEnd: DateTime?,
+  // Usage tracking
+  projectsUsed: Integer,
+  usersCount: Integer,
+  requirementsCount: Integer,
+  aiDraftsThisMonth: Integer,
+  createdAt: DateTime!,
+  updatedAt: DateTime!
+})
+```
+
+**Invoice**
+```cypher
+(:Invoice {
+  id: String!,             // UUID
+  tenantSlug: String!,
+  stripeInvoiceId: String!,
+  amountDue: Integer!,     // Cents
+  amountPaid: Integer!,    // Cents
+  currency: String!,       // usd|eur|gbp
+  status: String!,         // draft|open|paid|void|uncollectible
+  hostedInvoiceUrl: String?,
+  invoicePdf: String?,
+  periodStart: DateTime!,
+  periodEnd: DateTime!,
+  createdAt: DateTime!
+})
+```
+
 #### 5.1.2 Relationships
 
 **Tenant-Project**
@@ -700,6 +1231,23 @@ class APIClient {
 (:RequirementVersion)-[:PREVIOUS_VERSION]->(:RequirementVersion)
 ```
 
+**Tenant-User Membership**
+```cypher
+(:Tenant)-[:HAS_USER]->(:User)
+```
+
+**Activity Tracking**
+```cypher
+(:Activity)-[:PERFORMED_BY]->(:User)
+(:Activity)-[:AFFECTS]->(:Requirement|:Document|:ArchitectureDiagram|:Baseline|:Project)
+```
+
+**Subscription & Billing**
+```cypher
+(:Tenant)-[:HAS_SUBSCRIPTION]->(:Subscription)
+(:Subscription)-[:HAS_INVOICE]->(:Invoice)
+```
+
 #### 5.1.3 Indexes and Constraints
 
 **Indexes:**
@@ -712,6 +1260,15 @@ CREATE INDEX requirement_tenant_project FOR (r:Requirement) ON (r.tenant, r.proj
 CREATE INDEX requirement_created FOR (r:Requirement) ON (r.createdAt);
 CREATE INDEX document_slug FOR (d:Document) ON (d.slug);
 CREATE INDEX baseline_ref FOR (b:Baseline) ON (b.ref);
+CREATE INDEX user_email FOR (u:User) ON (u.email);
+CREATE INDEX user_tenant FOR (u:User) ON (u.tenantSlug);
+CREATE INDEX activity_timestamp FOR (a:Activity) ON (a.timestamp);
+CREATE INDEX activity_tenant_project FOR (a:Activity) ON (a.tenantSlug, a.projectKey);
+CREATE INDEX activity_entity FOR (a:Activity) ON (a.entityType, a.entityId);
+CREATE INDEX subscription_tenant FOR (s:Subscription) ON (s.tenantSlug);
+CREATE INDEX subscription_stripe_id FOR (s:Subscription) ON (s.stripeSubscriptionId);
+CREATE INDEX invoice_tenant FOR (i:Invoice) ON (i.tenantSlug);
+CREATE INDEX invoice_stripe_id FOR (i:Invoice) ON (i.stripeInvoiceId);
 ```
 
 **Constraints:**
@@ -721,6 +1278,12 @@ CREATE CONSTRAINT project_composite_unique FOR (p:Project) REQUIRE (p.tenantSlug
 CREATE CONSTRAINT requirement_id_unique FOR (r:Requirement) REQUIRE r.id IS UNIQUE;
 CREATE CONSTRAINT document_id_unique FOR (d:Document) REQUIRE d.id IS UNIQUE;
 CREATE CONSTRAINT baseline_id_unique FOR (b:Baseline) REQUIRE b.id IS UNIQUE;
+CREATE CONSTRAINT user_id_unique FOR (u:User) REQUIRE u.id IS UNIQUE;
+CREATE CONSTRAINT user_email_unique FOR (u:User) REQUIRE u.email IS UNIQUE;
+CREATE CONSTRAINT activity_id_unique FOR (a:Activity) REQUIRE a.id IS UNIQUE;
+CREATE CONSTRAINT subscription_id_unique FOR (s:Subscription) REQUIRE s.id IS UNIQUE;
+CREATE CONSTRAINT subscription_tenant_unique FOR (s:Subscription) REQUIRE s.tenantSlug IS UNIQUE;
+CREATE CONSTRAINT invoice_id_unique FOR (i:Invoice) REQUIRE i.id IS UNIQUE;
 ```
 
 ### 5.2 File System Storage
@@ -892,6 +1455,61 @@ POST   /api/admin/recovery/project/retention/:tenant/:projectKey
 POST   /api/admin/recovery/project/sync           - Sync local project backups into metadata (Super Admin)
 ```
 
+**Billing & Subscription** (`/api/billing/*`)
+```
+GET    /api/billing/subscription/:tenantSlug      - Get tenant subscription details
+POST   /api/billing/subscription/checkout         - Create Stripe checkout session
+POST   /api/billing/subscription/portal           - Create Stripe customer portal session
+GET    /api/billing/invoices/:tenantSlug          - List invoices for tenant
+GET    /api/billing/usage/:tenantSlug             - Get current usage metrics
+POST   /api/billing/webhooks/stripe               - Stripe webhook handler (unauthenticated)
+
+// Subscription response format:
+{
+  "id": "uuid",
+  "tenantSlug": "acme-corp",
+  "tier": "pro",                    // free|pro|enterprise
+  "status": "active",               // active|trialing|past_due|canceled
+  "currentPeriodEnd": "2025-11-24T00:00:00Z",
+  "cancelAtPeriodEnd": false,
+  "usage": {
+    "projects": { "used": 5, "limit": null },
+    "users": { "used": 12, "limit": 20 },
+    "requirements": { "used": 1234, "limit": null },
+    "aiDraftsThisMonth": { "used": 89, "limit": 500 }
+  },
+  "limits": {
+    "projects": null,              // null = unlimited
+    "users": 20,
+    "requirements": null,
+    "aiDraftsPerMonth": 500
+  }
+}
+```
+
+**Activity Feed** (`/api/activity/*`)
+```
+GET    /api/activity/:tenantSlug                  - Get tenant-wide activity feed
+GET    /api/activity/:tenantSlug/:projectKey      - Get project-specific activity
+GET    /api/activity/:tenantSlug/user/:userId     - Get user-specific activity
+POST   /api/activity/filter                       - Filter activities by type/date/entity
+
+// Activity response format:
+{
+  "id": "uuid",
+  "type": "requirement.created",
+  "actor": "user@example.com",
+  "timestamp": "2025-10-24T14:30:00Z",
+  "entityType": "requirement",
+  "entityId": "req-uuid",
+  "entityRef": "REQ-BRK-001",
+  "metadata": {
+    "text": "When brake pedal force exceeds 50 N...",
+    "pattern": "event"
+  }
+}
+```
+
 **System** (`/api/*`)
 ```
 GET    /api/health             - System health check
@@ -933,13 +1551,19 @@ GET    /metrics                - Prometheus metrics (unauthenticated)
 /workspace                  - Tenant/project selector
 /requirements               - Requirements list
 /requirements/:ref          - Requirement detail view
+/requirements-schema        - Requirements schema (graph explorer)
 /documents                  - Document manager
 /documents/:slug            - Document detail view
 /architecture               - Architecture diagram workspace
 /interface                  - Interface diagram workspace
-/airgen                     - AI-assisted generation
+/graph-viewer               - Visual graph explorer for all entities
+/airgen                     - AI-assisted generation (conversational)
+/imagine                    - AI image generation (AI Visual Generation)
 /baselines                  - Baseline management
 /trace-links                - Traceability matrix
+/link-sets                  - Managed link sets for traceability
+/activity                   - Activity feed (audit log)
+/billing                    - Subscription and billing management
 /admin/users                - User management (dev mode only)
 ```
 
@@ -1072,6 +1696,16 @@ const createRequirementSchema = z.object({
 
 ### 8.1 Deployment Environments
 
+AIRGen supports multiple deployment models to accommodate different organizational needs:
+
+**SaaS (airgen.studio):**
+- Managed production instance at https://airgen.studio
+- Multi-tenant architecture with complete data isolation
+- Automatic updates and security patches
+- 99.9% uptime SLA
+- Zero infrastructure management required
+- Freemium model with paid tiers
+
 **Development:**
 - Local Docker Compose with hot-reload
 - Frontend: Vite dev server (port 5173)
@@ -1079,17 +1713,24 @@ const createRequirementSchema = z.object({
 - Neo4j: Docker (ports 7474, 7687)
 - Redis: Docker (port 6379)
 
-**Staging (VPS):**
+**Staging (Self-Hosted VPS):**
 - Docker Compose with separate project name
 - High ports to avoid production conflicts
 - Isolated workspace directory
 - Same stack as production for testing
 
-**Production (VPS):**
+**Production (Self-Hosted VPS):**
 - Docker Compose with Traefik reverse proxy
 - HTTPS with Let's Encrypt
-- Basic auth for public access
+- Authentication with 2FA support
 - Persistent volumes for data
+- Automated backups with encrypted remote storage
+
+**Managed Hosting (Enterprise):**
+- Custom deployments on customer infrastructure or dedicated cloud
+- White-label configurations
+- SLA guarantees and priority support
+- Custom integrations and compliance requirements
 
 ### 8.2 Docker Architecture
 
@@ -1580,6 +2221,8 @@ airgen/
 |---------|------------|---------------------|----------------------------------|
 | 1.0     | 2025-10-06 | AI Assistant        | Initial comprehensive DDD        |
 | 1.1     | 2025-10-09 | AI Assistant        | Updated with version history, backup system, QA worker, and custom attributes implementation status |
+| 1.2     | 2025-10-15 | AI Assistant        | Added architecture diagram enhancements, surrogate document improvements, and floating window system |
+| 1.3     | 2025-10-24 | AI Assistant        | Added comprehensive Mermaid diagrams (architecture, flows, deployment, Neo4j schema), new node types (User, Activity, Subscription, Invoice), hybrid LLM architecture documentation, billing/subscription/activity API endpoints, updated frontend routes, and new core capabilities (AI Visual Generation, Activity Tracking, Subscription & Billing, AI Compliance) |
 
 **Approval**
 

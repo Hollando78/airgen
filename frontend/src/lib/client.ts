@@ -75,7 +75,11 @@ import type {
   DuplicatesResponse,
   EmbeddingWorkerStatus,
   EmbeddingWorkerStartResponse,
-  EmbeddingWorkerStopResponse
+  EmbeddingWorkerStopResponse,
+  ActivityEvent,
+  ActivityFilters,
+  ActivityResponse,
+  ActivityStats
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -896,7 +900,35 @@ export function useApiClient() {
             diagramId: string;
             documentIds: string[];
           };
-        }>(`/${tenant}/${project}/imagine/element/${elementId}?elementType=${elementType}`)
+        }>(`/${tenant}/${project}/imagine/element/${elementId}?elementType=${elementType}`),
+
+      // Activity Timeline API
+      listActivity: (filters: ActivityFilters) => {
+        const params = new URLSearchParams();
+        params.append('tenantSlug', filters.tenantSlug);
+        params.append('projectSlug', filters.projectSlug);
+        if (filters.activityTypes) {
+          filters.activityTypes.forEach(type => params.append('activityTypes', type));
+        }
+        if (filters.actionTypes) {
+          filters.actionTypes.forEach(action => params.append('actionTypes', action));
+        }
+        if (filters.userIds) {
+          filters.userIds.forEach(userId => params.append('userIds', userId));
+        }
+        if (filters.startDate) params.append('startDate', filters.startDate);
+        if (filters.endDate) params.append('endDate', filters.endDate);
+        if (filters.searchQuery) params.append('searchQuery', filters.searchQuery);
+        if (filters.limit) params.append('limit', filters.limit.toString());
+        if (filters.offset) params.append('offset', filters.offset.toString());
+
+        return request<ActivityResponse>(`/activity?${params.toString()}`);
+      },
+
+      getActivityStats: (tenantSlug: string, projectSlug: string) => {
+        const params = new URLSearchParams({ tenantSlug, projectSlug });
+        return request<ActivityStats>(`/activity/stats?${params.toString()}`);
+      }
     }),
     [request, requestBlob]
   );
