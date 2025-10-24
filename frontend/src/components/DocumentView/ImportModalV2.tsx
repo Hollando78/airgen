@@ -145,10 +145,22 @@ export function ImportModalV2({
     setStep("importing");
     setImportProgress({ current: 0, total: parsedDoc.rows.length });
 
+    // Disable automatic query refetching during import to reduce API load
+    const previousDefaultOptions = queryClient.getDefaultOptions();
+    queryClient.setDefaultOptions({
+      queries: {
+        refetchInterval: false,
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false
+      }
+    });
+
     try {
       let successCount = 0;
       let errorCount = 0;
-      const throttleDelay = parsedDoc.rows.length > 50 ? 100 : 50; // 100ms for large imports, 50ms for small
+      const throttleDelay = parsedDoc.rows.length > 50 ? 150 : 75; // Increased delays: 150ms for large, 75ms for small
 
       for (let i = 0; i < parsedDoc.rows.length; i++) {
         const row = parsedDoc.rows[i];
@@ -243,6 +255,8 @@ export function ImportModalV2({
       toast.error(`Import failed: ${(error as Error).message}`);
       setStep("validation");
     } finally {
+      // Restore default query options
+      queryClient.setDefaultOptions(previousDefaultOptions);
       setIsProcessing(false);
     }
   };
