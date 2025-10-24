@@ -65,9 +65,10 @@ graph TB
     end
 
     subgraph "Data Layer"
-        Neo4j[(Neo4j Graph DB)]
+        Postgres[(PostgreSQL - Auth/Users)]
+        Neo4j[(Neo4j - Graph/Domain)]
         FS[File System - Markdown]
-        Redis[(Redis Cache)]
+        Redis[(Redis - Cache)]
     end
 
     subgraph "External Services"
@@ -78,9 +79,11 @@ graph TB
 
     UI -->|HTTPS REST API| API
     API --> Auth
+    Auth -->|User/Permissions| Postgres
     Auth -->|JWT Validation| Redis
     API --> Routes_API
     Routes_API --> Services
+    Services -->|User/Audit Queries| Postgres
     Services -->|Cypher Queries| Neo4j
     Services -->|Read/Write| FS
     Services --> QA
@@ -99,7 +102,7 @@ graph TB
 
 - **Modular Monolith**: Logically separated components in single deployment
 - **Stateless API**: JWT-based authentication, horizontal scaling ready
-- **Dual Persistence**: Neo4j for metadata/relationships, Markdown for content
+- **Polyglot Persistence**: PostgreSQL for users/auth, Neo4j for domain graph, Redis for caching, Markdown for content
 - **Flexible AI**: Supports cloud LLM (OpenAI) or self-hosted (Ollama/vLLM)
 - **Multi-Tenant**: Complete data isolation per tenant
 
@@ -853,14 +856,137 @@ class APIClient {
 
 ## 5. Data Design
 
-### 5.1 Graph Database Schema (Neo4j)
+AIRGen uses a **polyglot persistence** architecture with three complementary databases:
+
+- **PostgreSQL**: User accounts, authentication, permissions, audit logs, backup metadata
+- **Neo4j**: Requirements, documents, architecture, traceability graph (domain model)
+- **Redis**: Session caching, JWT token validation
+- **File System**: Markdown files for requirement content
+
+### 5.1 Relational Database (PostgreSQL)
+
+PostgreSQL stores authentication, authorization, and operational data that benefits from ACID transactions and relational integrity.
+
+#### 5.1.1 Tables Overview
+
+**users**
+```sql
+CREATE TABLE users (
+  id UUID PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  name VARCHAR(255),
+  password_hash TEXT NOT NULL,        -- Argon2id
+  email_verified BOOLEAN DEFAULT false,
+  mfa_enabled BOOLEAN DEFAULT false,
+  mfa_secret TEXT,                    -- Encrypted TOTP secret
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  deleted_at TIMESTAMP                -- Soft delete
+);
+```
+
+**user_permissions**
+```sql
+CREATE TABLE user_permissions (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  tenant_slug VARCHAR(255),           -- NULL = global permission
+  project_slug VARCHAR(255),          -- NULL = tenant-level permission
+  role VARCHAR(50) NOT NULL,          -- super-admin|admin|author|viewer
+  is_owner BOOLEAN DEFAULT false,     -- Tenant ownership flag
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  UNIQUE(user_id, tenant_slug, project_slug)
+);
+```
+
+**refresh_tokens**
+```sql
+CREATE TABLE refresh_tokens (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  token_hash TEXT NOT NULL,           -- SHA-256 hash
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  revoked_at TIMESTAMP                -- Token revocation
+);
+```
+
+**mfa_backup_codes**
+```sql
+CREATE TABLE mfa_backup_codes (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  code_hash TEXT NOT NULL,            -- Argon2id hash
+  used_at TIMESTAMP,                  -- NULL = unused
+  created_at TIMESTAMP NOT NULL
+);
+```
+
+**audit_logs**
+```sql
+CREATE TABLE audit_logs (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  action VARCHAR(100) NOT NULL,       -- login|logout|password_change|permission_grant|etc.
+  resource_type VARCHAR(50),          -- user|tenant|project|etc.
+  resource_id VARCHAR(255),
+  metadata JSONB,                     -- Additional context
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMP NOT NULL
+);
+```
+
+**project_backups**
+```sql
+CREATE TABLE project_backups (
+  id UUID PRIMARY KEY,
+  tenant_slug VARCHAR(255) NOT NULL,
+  project_slug VARCHAR(255) NOT NULL,
+  backup_type VARCHAR(50) NOT NULL,   -- manual|scheduled|pre-delete
+  storage_path TEXT NOT NULL,         -- S3/Spaces object key
+  size_bytes BIGINT,
+  checksum TEXT,                      -- SHA-256 of backup file
+  status VARCHAR(50) NOT NULL,        -- pending|uploading|completed|failed
+  error_message TEXT,
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL,
+  completed_at TIMESTAMP
+);
+```
+
+#### 5.1.2 Permission Model
+
+PostgreSQL manages a hierarchical permission system:
+
+1. **Global Permissions**: `super-admin` role (full system access)
+2. **Tenant Permissions**: Owner or member of specific tenant
+3. **Project Permissions**: Role-based access within projects
+   - `admin`: Full project management
+   - `author`: Create/edit requirements, diagrams
+   - `viewer`: Read-only access
+
+**Permission Inheritance:**
+- Super-admins have implicit access to all tenants and projects
+- Tenant owners have implicit `admin` role on all tenant projects
+- Project permissions are explicitly granted per user
+
+#### 5.1.3 Authentication Flow
+
+1. **Login**: Validate email/password against `users` table
+2. **MFA** (optional): Verify TOTP code using `mfa_secret`
+3. **JWT Generation**: Build payload from `user_permissions`
+4. **Refresh Token**: Store in `refresh_tokens` table with 30-day expiry
+5. **Token Caching**: Cache JWT validation results in Redis (5 min TTL)
+
+### 5.2 Graph Database Schema (Neo4j)
 
 ```mermaid
 graph TB
     subgraph "Core Entities"
         T[Tenant]
         P[Project]
-        U[User]
     end
 
     subgraph "Requirements Domain"
@@ -899,7 +1025,6 @@ graph TB
     end
 
     T -->|OWNS| P
-    T -->|HAS_USER| U
     P -->|CONTAINS| R
     R -->|HAS_VERSION| RV
     RV -->|PREVIOUS_VERSION| RV
@@ -926,7 +1051,7 @@ graph TB
 
     P -->|HAS_ACTIVITY| A
     R -->|HAS_COMMENT| C
-    U -->|CREATED| A
+    A -->|CREATED_BY| A
 
     T -->|HAS_SUBSCRIPTION| S
     S -->|HAS_INVOICE| I
@@ -940,16 +1065,18 @@ graph TB
 
 **Schema Overview:**
 
-The Neo4j graph database stores all metadata, relationships, and version history. The schema supports:
+The Neo4j graph database stores the domain model, relationships, and version history. The schema supports:
 
 - **Multi-tenancy**: Complete data isolation via Tenant nodes
 - **Rich traceability**: Typed relationships between requirements (SATISFIES, DERIVES, etc.)
 - **Version history**: Immutable RequirementVersion nodes with full snapshots
 - **Flexible architecture**: Reusable block definitions with per-diagram placements
-- **Activity tracking**: Complete audit trail of all changes
+- **Activity tracking**: Complete audit trail of all changes (users stored in PostgreSQL)
 - **SaaS billing**: Subscription and usage tracking (when enabled)
 
-#### 5.1.1 Core Node Types
+Note: User authentication, permissions, and MFA are managed in PostgreSQL (see section 5.1).
+
+#### 5.2.1 Core Node Types
 
 **Tenant**
 ```cypher
@@ -1091,22 +1218,6 @@ The Neo4j graph database stores all metadata, relationships, and version history
 })
 ```
 
-**User**
-```cypher
-(:User {
-  id: String!,             // UUID
-  email: String!,          // Unique login identifier
-  username: String!,       // Display name
-  passwordHash: String!,   // Argon2id hashed password
-  totpSecret: String?,     // Base32 TOTP secret for 2FA
-  totpEnabled: Boolean,    // Whether 2FA is active
-  role: String!,           // admin|member|viewer
-  tenantSlug: String!,     // Associated tenant
-  lastLoginAt: DateTime?,
-  createdAt: DateTime!,
-  updatedAt: DateTime!
-})
-```
 
 **Activity**
 ```cypher
