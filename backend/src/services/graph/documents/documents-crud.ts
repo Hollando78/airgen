@@ -293,6 +293,7 @@ export async function getDocument(
     const result = await session.run(
       `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
+        WHERE (document.deletedAt IS NULL)
         OPTIONAL MATCH (document)-[:HAS_SECTION]->(section:DocumentSection)-[:CONTAINS]->(requirement:Requirement)
         WHERE (requirement.deleted IS NULL OR requirement.deleted = false) AND (requirement.archived IS NULL OR requirement.archived = false)
         RETURN document, count(DISTINCT requirement) AS requirementCount

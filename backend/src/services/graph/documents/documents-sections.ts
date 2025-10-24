@@ -60,6 +60,7 @@ export async function createDocumentSection(params: {
     const result = await session.executeWrite(async (tx: ManagedTransaction) => {
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})
+        WHERE (document.deletedAt IS NULL)
         CREATE (section:DocumentSection {
           id: $sectionId,
           name: $name,
@@ -133,6 +134,7 @@ export async function listDocumentSections(
     const result = await session.run(
       `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})-[:HAS_SECTION]->(section:DocumentSection)
+        WHERE (document.deletedAt IS NULL)
         RETURN section
         ORDER BY section.order, section.createdAt
       `,
@@ -359,6 +361,7 @@ export async function listDocumentSectionsWithRelations(
     // This is much more efficient than making separate API calls for each section
     const query = `
       MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_DOCUMENT]->(document:Document {slug: $documentSlug})-[:HAS_SECTION]->(section:DocumentSection)
+      WHERE (document.deletedAt IS NULL)
 
       // Get all requirements, infos, and surrogates for each section
       OPTIONAL MATCH (section)-[reqRel:CONTAINS]->(req:Requirement)
