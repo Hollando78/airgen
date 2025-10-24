@@ -73,7 +73,7 @@ graph TB
 
     subgraph "External Services"
         OpenAI[OpenAI API]
-        Local[Local LLM - Ollama]
+        Gemini[Google Gemini API]
         Backup[Remote Backup Storage]
     end
 
@@ -88,8 +88,8 @@ graph TB
     Services -->|Read/Write| FS
     Services --> QA
     Services --> LLM
-    LLM -->|Cloud AI| OpenAI
-    LLM -->|Self-Hosted AI| Local
+    LLM -->|Requirements Generation| OpenAI
+    Services -->|Image Generation| Gemini
     Services -->|Async Backups| Backup
 
     style UI fill:#e1f5ff
@@ -102,8 +102,8 @@ graph TB
 
 - **Modular Monolith**: Logically separated components in single deployment
 - **Stateless API**: JWT-based authentication, horizontal scaling ready
-- **Polyglot Persistence**: PostgreSQL for users/auth, Neo4j for domain graph, Redis for caching, Markdown for content
-- **Flexible AI**: Supports cloud LLM (OpenAI) or self-hosted (Ollama/vLLM)
+- **Polyglot Persistence**: PostgreSQL for users/auth, Neo4j for domain graph, Redis for caching
+- **Multi-Model AI**: OpenAI GPT-4o for requirements, Google Gemini for image generation
 - **Multi-Tenant**: Complete data isolation per tenant
 
 ### 2.2 System Context
@@ -118,24 +118,22 @@ C4Context
 
     System(airgen, "AIRGen Platform", "AI-assisted requirements management for regulated systems")
 
-    System_Ext(openai, "OpenAI API", "LLM-based requirement generation")
-    System_Ext(ollama, "Self-Hosted LLM", "Local AI for compliance")
+    System_Ext(openai, "OpenAI GPT-4o", "Requirements generation")
+    System_Ext(gemini, "Google Gemini", "Image generation (Imagine)")
     System_Ext(backup, "Remote Backup", "S3-compatible encrypted backup storage")
     System_Ext(email, "Email Service", "Transactional emails (Resend)")
     System_Ext(monitoring, "Monitoring", "Sentry, Prometheus")
-    System_Ext(git, "Git Repository", "Version control integration")
     System_Ext(stripe, "Stripe", "Payment processing (SaaS)")
 
     Rel(engineer, airgen, "Creates requirements, diagrams", "HTTPS")
     Rel(reviewer, airgen, "Reviews and approves", "HTTPS")
     Rel(admin, airgen, "Manages and monitors", "HTTPS")
 
-    Rel(airgen, openai, "Generates AI drafts", "HTTPS/API")
-    Rel(airgen, ollama, "Generates AI drafts (self-hosted)", "HTTP/API")
+    Rel(airgen, openai, "Generates requirement drafts", "HTTPS/API")
+    Rel(airgen, gemini, "Generates images", "HTTPS/API")
     Rel(airgen, backup, "Uploads encrypted backups", "S3 API")
     Rel(airgen, email, "Sends notifications", "SMTP/API")
     Rel(airgen, monitoring, "Sends metrics and errors", "HTTPS")
-    Rel(airgen, git, "Stores markdown files", "Git protocol")
     Rel(airgen, stripe, "Processes payments", "HTTPS/API")
 
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
@@ -148,12 +146,13 @@ C4Context
 - **Product Managers**: Define needs, track requirements progress
 
 **External Services:**
-- **AI Providers**: OpenAI (cloud) or Ollama/vLLM (self-hosted) for requirement generation
+- **AI Providers**:
+  - OpenAI GPT-4o for requirements generation
+  - Google Gemini (gemini-2.5-flash-image) for image generation via Imagine
 - **Payment Processing**: Stripe for SaaS billing and subscriptions
 - **Email Service**: Resend for transactional emails (verification, notifications)
 - **Monitoring**: Sentry (errors), Prometheus/Grafana (metrics) - optional
 - **Backup Storage**: S3-compatible storage (DigitalOcean Spaces, AWS S3, Backblaze B2)
-- **Version Control**: Git repositories for markdown file tracking
 
 ### 2.3 Core Capabilities
 
@@ -191,11 +190,14 @@ C4Context
    - Diagram snapshot capture
 
 6. **AI Visual Generation (Imagine)**
-   - AI-powered image generation from requirements
-   - Visual mockups for UI/UX requirements
-   - Diagram generation from architecture descriptions
-   - Context-aware image creation using vision AI
-   - Integration with document management
+   - AI-powered image generation using Google Gemini (gemini-2.5-flash-image)
+   - Generate visualizations from architecture blocks and interfaces
+   - Context-aware: includes requirements, connections, and documentation
+   - Re-imagine workflow: iterative refinement with user feedback
+   - Version history: track all generated variations
+   - Integrated gallery: browse past generations per project
+   - Configurable aspect ratios (16:9, 4:3, 1:1, etc.)
+   - Automatic cost estimation per generation
 
 7. **Activity Tracking**
    - Real-time activity feed for project changes
@@ -640,61 +642,104 @@ try {
 
 **Purpose**: Abstract LLM provider interactions with compliance-aware backend selection
 
-**Architecture**: The LLM service implements a **hybrid architecture** allowing customers to choose their AI backend based on compliance requirements, budget, and data sensitivity:
+**Current Implementation:**
 
-**Supported Backends:**
+**OpenAI - ONLY SUPPORTED PROVIDER**
+- Models: GPT-4o (default), GPT-4o-mini, GPT-4-turbo
+- Used for: Requirements generation, drafting, quality analysis
+- Configuration: `LLM_API_KEY` or `OPENAI_API_KEY` (managed via Docker secret in production)
+- Temperature: 0.2 (deterministic outputs)
+- Rate Limiting: 20 requests/hour in production
+- Suitable for: Commercial projects, non-regulated environments
+- Compliance: ⚠️ Not suitable for ITAR, classified, or highly regulated data
 
-1. **OpenAI Cloud (Default)**
-   - Providers: GPT-4o-mini, GPT-4o, GPT-4
-   - Best quality and ease of use
-   - Suitable for: Non-regulated industries, commercial projects
-   - Configuration: `OPENAI_API_KEY` environment variable
-   - Compliance: ⚠️ Not suitable for ITAR, classified, or highly regulated data
-
-2. **Self-Hosted LLM (Ollama/vLLM)**
-   - Models: Llama 3.1 8B/70B, Mistral, CodeLlama, or custom
-   - Complete data control - requirements never leave customer infrastructure
-   - Suitable for: ITAR-controlled defense projects, classified environments, HIPAA (without BAA), automotive NDAs
-   - Configuration: `OLLAMA_API_BASE` or `VLLM_API_BASE` environment variable
-   - Deployment: Docker Compose service or external server with GPU
-   - Compliance: ✅ Suitable for all regulated industries
-
-3. **Disabled Mode**
-   - No AI features - pure deterministic heuristics only
-   - Suitable for: Maximum security, air-gapped environments
-   - Configuration: Omit all AI provider environment variables
-   - Compliance: ✅ No data transmission risks
-
-**Provider Selection Logic:**
+**Implementation Details:**
 ```typescript
-function selectLLMProvider(): LLMProvider {
-  if (process.env.OLLAMA_API_BASE) return new OllamaProvider();
-  if (process.env.VLLM_API_BASE) return new VLLMProvider();
-  if (process.env.OPENAI_API_KEY) return new OpenAIProvider();
-  return new DisabledProvider(); // Fallback to heuristics only
+// backend/src/services/llm.ts - Line 40-42
+if (config.llm.provider !== "openai") {
+  throw new Error(`Unsupported LLM provider '${config.llm.provider}'`);
 }
 ```
 
 **Key Operations:**
 ```typescript
-generateRequirementDrafts(input)  // Structured prompt → drafts
-generateImageAnalysis(imageUrl)   // Vision API for image attachments
-embedText(text)                   // Future: vector embeddings for semantic search
+generateLlmDrafts(request)         // Requirements generation from needs
+analyzeRequirement(text)           // Quality scoring (uses @airgen/req-qa)
+generateImageAnalysis(imageUrl)    // Vision API for image attachments (planned)
+embedText(text)                    // Vector embeddings (uses embedding.ts)
 ```
 
 **Error Handling:**
-- Graceful degradation: Always fall back to heuristic drafts if AI fails
-- Rate limit retry with exponential backoff (OpenAI)
-- Timeout protection (30s default, 60s for vision)
-- Provider-specific error mapping (OpenAI errors vs Ollama errors)
+- Graceful degradation: Falls back to heuristic drafts if AI fails
+- Rate limit retry with exponential backoff
+- Timeout protection (30s default)
+- Prompt injection protection via input sanitization
+- Suspicious output detection
 
-**Compliance Benefits:**
-- **Competitive Differentiation**: Only AI requirements tool supporting ITAR/classified environments
-- **Customer Choice**: Let customers balance quality, cost, and compliance
-- **Audit Trail**: All AI requests logged with provider, model, and timestamp
-- **Data Sovereignty**: Self-hosted option ensures data never leaves customer control
+**Future Considerations:**
+- Self-hosted LLM support (Ollama/vLLM) for ITAR/classified environments (not yet implemented)
+- Alternative cloud providers (Anthropic Claude, Google Gemini for text)
+- Disabled mode with pure heuristics
 
-#### 4.1.4 Workspace Service
+#### 4.1.4 Imagine Service (AI Image Generation)
+
+**Files**: `backend/src/services/imagine/*.ts`, `backend/src/routes/imagine-routes.ts`
+
+**Purpose**: Generate AI visualizations from architecture blocks and interfaces using Google Gemini
+
+**Architecture:**
+- **ImagineService**: Main orchestrator
+- **ContextBuilder**: Gather requirements, connections, documents from Neo4j
+- **PromptGenerator**: Build structured prompts for Gemini
+- **GeminiClient**: Google Gemini API client (gemini-2.5-flash-image)
+- **ImageStorage**: Save generated images to file system
+
+**Configuration:**
+```typescript
+// backend/src/config.ts - Lines 176-180
+imagine: {
+  geminiApiKey: geminiApiKey ?? null,              // From Docker secret
+  model: env.IMAGINE_MODEL ?? "gemini-2.5-flash-image",
+  aspectRatio: env.IMAGINE_ASPECT_RATIO ?? "16:9"
+}
+```
+
+**Key Features:**
+1. **Context-Aware Generation**: Automatically includes:
+   - Element name, description, type
+   - Up to 5 linked requirements
+   - Connected elements (ports/connectors)
+   - Linked documents (up to 2)
+2. **Re-Imagine Workflow**: Iterative refinement with feedback
+3. **Version History**: Track all generations per element
+4. **Gallery View**: Browse all project images
+5. **Cost Estimation**: Track Gemini API usage
+
+**API Endpoints:**
+```
+POST   /api/:tenant/:project/imagine/generate       - Generate image
+POST   /api/:tenant/:project/imagine/reimagine      - Refine existing image
+GET    /api/:tenant/:project/imagine/requirements/:elementId  - Get requirements
+GET    /api/:tenant/:project/imagine/list           - List all images
+GET    /api/:tenant/:project/imagine/image/:imageId - Get image details
+GET    /api/:tenant/:project/imagine/metadata/:elementId - Get element metadata
+```
+
+**Storage:**
+- Images: `/workspace/imagine/<imageId>.<ext>`
+- Metadata: Stored in JSON file alongside image
+- Served via: `GET /imagine/<imageId>.<ext>` (static file serving)
+
+**Error Handling:**
+- Validates Gemini API key before generation
+- Returns user-friendly errors for API failures
+- Logs detailed error information for debugging
+
+**Replaced Feature:**
+- SnapDraft (archived 2025-10-22) - Technical drawing generation
+- Imagine is simpler, more reliable, and uses better AI models
+
+#### 4.1.5 Workspace Service
 
 **File**: `backend/src/services/workspace.ts`
 
