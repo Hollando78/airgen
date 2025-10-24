@@ -197,67 +197,168 @@ export function ImportModal({
     }
   };
 
+  // Normalize pattern values to standard EARS keywords
+  const normalizePattern = (pattern: string): string => {
+    if (!pattern) return "";
+    const lower = pattern.toLowerCase();
+
+    // Map descriptive patterns to EARS keywords
+    if (lower.includes('event') || lower.includes('when')) return 'event';
+    if (lower.includes('state') || lower.includes('while')) return 'state';
+    if (lower === 'ubiquitous' || lower.includes('ubiquitous')) return 'ubiquitous';
+    if (lower.includes('unwanted') || lower.includes('if ')) return 'unwanted';
+    if (lower.includes('optional') || lower.includes('where')) return 'optional';
+
+    // Return as-is if already normalized
+    if (['event', 'state', 'ubiquitous', 'unwanted', 'optional'].includes(lower)) {
+      return lower;
+    }
+
+    return pattern; // Keep original if no match
+  };
+
   const parseMarkdown = async (text: string) => {
     const lines = text.split('\n');
     const requirements: ParsedRequirement[] = [];
 
-    let inRequirementBlock = false;
-    let currentRequirement: ParsedRequirement | null = null;
-    let requirementStartLine = 0;
+    // Auto-detect format
+    const hasBlockFormat = /:::requirement/.test(text);
+    const hasHeadingFormat = /^###\s+REQ-/m.test(text);
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? "";
-      const lineNum = i + 1;
+    // Parse block format (:::requirement{} blocks)
+    if (hasBlockFormat) {
+      let inRequirementBlock = false;
+      let currentRequirement: ParsedRequirement | null = null;
 
-      // Parse requirement blocks (:::requirement{...})
-      if (!inRequirementBlock && line.trim().startsWith(":::requirement")) {
-        inRequirementBlock = true;
-        requirementStartLine = lineNum;
-        currentRequirement = { _rowIndex: lineNum };
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        const lineNum = i + 1;
 
-        const attrMatch = line.match(/:::requirement\{([^}]+)\}/);
-        if (attrMatch) {
-          const attrs = attrMatch[1];
-          const idMatch = attrs.match(/#([^\s]+)/);
-          const titleMatch = attrs.match(/title="([^"]+)"/);
+        // Parse requirement blocks (:::requirement{...})
+        if (!inRequirementBlock && line.trim().startsWith(":::requirement")) {
+          inRequirementBlock = true;
+          currentRequirement = { _rowIndex: lineNum };
 
-          if (idMatch) {
-            currentRequirement.id = idMatch[1];
-            currentRequirement.ref = idMatch[1];
+          const attrMatch = line.match(/:::requirement\{([^}]+)\}/);
+          if (attrMatch) {
+            const attrs = attrMatch[1];
+            const idMatch = attrs.match(/#([^\s]+)/);
+            const titleMatch = attrs.match(/title="([^"]+)"/);
+
+            if (idMatch) {
+              currentRequirement.id = idMatch[1];
+              currentRequirement.ref = idMatch[1];
+            }
+            if (titleMatch) {
+              currentRequirement.title = titleMatch[1];
+            }
           }
-          if (titleMatch) {
-            currentRequirement.title = titleMatch[1];
+          continue;
+        }
+
+        // Check for requirement block end
+        if (inRequirementBlock && line.trim() === ":::") {
+          if (currentRequirement && currentRequirement.text) {
+            // Normalize pattern before adding
+            if (currentRequirement.pattern) {
+              currentRequirement.pattern = normalizePattern(currentRequirement.pattern as string);
+            }
+            requirements.push(currentRequirement);
           }
+          inRequirementBlock = false;
+          currentRequirement = null;
+          continue;
         }
-        continue;
-      }
 
-      // Check for requirement block end
-      if (inRequirementBlock && line.trim() === ":::") {
-        if (currentRequirement && currentRequirement.text) {
-          requirements.push(currentRequirement);
-        }
-        inRequirementBlock = false;
-        currentRequirement = null;
-        continue;
-      }
-
-      // Capture requirement content
-      if (inRequirementBlock && currentRequirement) {
-        if (line.trim().startsWith("**Pattern:**")) {
-          currentRequirement.pattern = line.replace(/\*\*Pattern:\*\*\s*/, "").trim();
-        } else if (line.trim().startsWith("**Verification:**")) {
-          currentRequirement.verification = line.replace(/\*\*Verification:\*\*\s*/, "").trim();
-        } else if (line.trim() && !currentRequirement.text) {
-          currentRequirement.text = line.trim();
-        } else if (currentRequirement.text && line.trim()) {
-          currentRequirement.text += " " + line.trim();
+        // Capture requirement content
+        if (inRequirementBlock && currentRequirement) {
+          if (line.trim().startsWith("**Pattern:**")) {
+            currentRequirement.pattern = line.replace(/\*\*Pattern:\*\*\s*/, "").trim();
+          } else if (line.trim().startsWith("**Verification:**")) {
+            currentRequirement.verification = line.replace(/\*\*Verification:\*\*\s*/, "").trim();
+          } else if (line.trim() && !currentRequirement.text) {
+            currentRequirement.text = line.trim();
+          } else if (currentRequirement.text && line.trim()) {
+            currentRequirement.text += " " + line.trim();
+          }
         }
       }
     }
 
+    // Parse heading format (### REQ-ID: Title)
+    if (hasHeadingFormat) {
+      let currentRequirement: ParsedRequirement | null = null;
+      let currentField: string | null = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        const lineNum = i + 1;
+
+        // Match heading format: ### REQ-SYS-001: Title
+        const headingMatch = line.match(/^###\s+(REQ-[^\s:]+):\s*(.+)$/);
+        if (headingMatch) {
+          // Save previous requirement
+          if (currentRequirement && currentRequirement.text) {
+            // Normalize pattern before adding
+            if (currentRequirement.pattern) {
+              currentRequirement.pattern = normalizePattern(currentRequirement.pattern as string);
+            }
+            requirements.push(currentRequirement);
+          }
+
+          // Start new requirement
+          currentRequirement = {
+            _rowIndex: lineNum,
+            id: headingMatch[1],
+            ref: headingMatch[1],
+            title: headingMatch[2].trim()
+          };
+          currentField = null;
+          continue;
+        }
+
+        // Parse field lines
+        if (currentRequirement) {
+          const statementMatch = line.match(/^\*\*Statement:\*\*\s*(.+)$/);
+          const patternMatch = line.match(/^\*\*Pattern:\*\*\s*(.+)$/);
+          const verificationMatch = line.match(/^\*\*Verification:\*\*\s*(.+)$/);
+          const priorityMatch = line.match(/^\*\*Priority:\*\*\s*(.+)$/);
+          const sourceMatch = line.match(/^\*\*Source:\*\*\s*(.+)$/);
+
+          if (statementMatch) {
+            currentRequirement.text = statementMatch[1].trim();
+            currentField = 'text';
+          } else if (patternMatch) {
+            currentRequirement.pattern = patternMatch[1].trim();
+            currentField = null;
+          } else if (verificationMatch) {
+            currentRequirement.verification = verificationMatch[1].trim();
+            currentField = null;
+          } else if (priorityMatch) {
+            currentRequirement.priority = priorityMatch[1].trim();
+            currentField = null;
+          } else if (sourceMatch) {
+            currentRequirement.source = sourceMatch[1].trim();
+            currentField = null;
+          } else if (line.trim() && currentField === 'text') {
+            // Continue multi-line statement
+            currentRequirement.text += " " + line.trim();
+          }
+        }
+      }
+
+      // Don't forget the last requirement
+      if (currentRequirement && currentRequirement.text) {
+        // Normalize pattern before adding
+        if (currentRequirement.pattern) {
+          currentRequirement.pattern = normalizePattern(currentRequirement.pattern as string);
+        }
+        requirements.push(currentRequirement);
+      }
+    }
+
     if (requirements.length === 0) {
-      throw new Error("No requirements found in markdown file. Make sure to use :::requirement{} blocks.");
+      throw new Error("No requirements found in markdown file. Supported formats:\n1. :::requirement{} blocks\n2. ### REQ-ID: Title with **Statement:** fields");
     }
 
     setParsedData(requirements);
