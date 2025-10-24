@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useApiClient } from "../lib/client";
 import { Spinner } from "./Spinner";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import { MermaidRenderer } from "./MarkdownEditor/MermaidRenderer";
 
 interface FloatingSurrogateDocumentWindowProps {
   tenant: string;
@@ -121,6 +122,26 @@ function preprocessMarkdown(markdown: string): string {
 
   return processed;
 }
+
+// Custom components for ReactMarkdown to handle mermaid diagrams
+const markdownComponents: Components = {
+  code: ({ node, inline, className, children, ...props }) => {
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+
+    // Render mermaid diagrams
+    if (!inline && language === 'mermaid') {
+      return <MermaidRenderer chart={String(children).trim()} />;
+    }
+
+    // Regular code blocks
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  }
+};
 
 export function FloatingSurrogateDocumentWindow({
   tenant,
@@ -589,6 +610,7 @@ export function FloatingSurrogateDocumentWindow({
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     rehypePlugins={[rehypeRaw]}
+                    components={markdownComponents}
                   >
                     {preprocessMarkdown(markdownContent)}
                   </ReactMarkdown>
