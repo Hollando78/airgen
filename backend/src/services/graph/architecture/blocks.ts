@@ -341,13 +341,18 @@ export async function getArchitectureBlockLibrary(params: {
       { tenantSlug, projectSlug, tenant: params.tenant, projectKey: params.projectKey }
     );
 
-    return result.records.map(record => {
-      const blockNode = record.get("block") as Neo4jNode;
-      const packageId = record.get("packageId");
-      const diagrams = record.get("diagrams") as Array<{ id?: unknown; name?: unknown }>;
-      const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
-      return mapBlockLibraryEntry(blockNode, diagrams, documentIds, packageId ? String(packageId) : null);
-    });
+    return result.records
+      .filter(record => {
+        const blockNode = record.get("block");
+        return blockNode !== null && blockNode !== undefined;
+      })
+      .map(record => {
+        const blockNode = record.get("block") as Neo4jNode;
+        const packageId = record.get("packageId");
+        const diagrams = record.get("diagrams") as Array<{ id?: unknown; name?: unknown }>;
+        const documentIds = (record.get("documentIds") as unknown[] | undefined)?.map(String) ?? [];
+        return mapBlockLibraryEntry(blockNode, diagrams, documentIds, packageId ? String(packageId) : null);
+      });
   } finally {
     await session.close();
   }

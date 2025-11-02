@@ -165,6 +165,7 @@ export function calculateEdgeOffset(
 
 /**
  * Calculate port label style based on edge and offsets
+ * SysML style: minimal, clean appearance
  */
 export function calculatePortLabelStyle(
   edge: EdgeType,
@@ -174,16 +175,17 @@ export function calculatePortLabelStyle(
 ): React.CSSProperties {
   const baseStyle: React.CSSProperties = {
     position: "absolute",
-    fontSize: "11px",
-    fontWeight: 600,
-    background: "rgba(255,255,255,0.92)",
-    padding: "2px 6px",
-    borderRadius: "6px",
-    color: "#0f172a",
-    border: "1px solid #e2e8f0",
+    fontSize: "10px",
+    fontWeight: 400,
+    fontFamily: "'Inter', -apple-system, sans-serif",
+    background: "#ffffff",  // Solid white
+    padding: "2px 4px",
+    borderRadius: "0px",  // SysML: no rounded corners
+    color: "#000000",  // SysML: black text
+    border: "1px solid #000000",  // SysML: black border
     pointerEvents: "auto",
-    boxShadow: "0 1px 3px rgba(15, 23, 42, 0.15)",
-    maxWidth: "160px",
+    boxShadow: "none",  // SysML: no shadows
+    maxWidth: "140px",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     overflow: "hidden",

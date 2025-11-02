@@ -20,45 +20,49 @@ export function getStrokeDashArray(linePattern?: string): string | undefined {
 }
 
 export function getDefaultColorByKind(kind: string): string {
-  switch (kind) {
-    case "flow": return "#2563eb";
-    case "dependency": return "#7c3aed";
-    case "association": return "#334155";
-    case "composition": return "#16a34a"; // Green for parent-child hierarchy
-    default: return "#334155";
-  }
+  // SysML standard: all connectors are black
+  return "#000000";
 }
 
 export function mapConnectorToEdge(connector: SysmlConnector, blocks?: SysmlBlock[]): Edge {
   const kind = connector.kind;
   const isFlow = kind === "flow";
   const isComposition = kind === "composition";
+  const isAggregation = kind === "aggregation";
+  const isGeneralization = kind === "generalization";
+  const isDependency = kind === "dependency";
 
-  // Use explicit values if set, otherwise fall back to kind-based defaults
-  // Check if properties are explicitly set (even to "none") vs. undefined (not set)
+  // Use explicit values if set, otherwise fall back to SysML standard defaults
   const lineStyle = connector.lineStyle !== undefined && connector.lineStyle !== null
     ? connector.lineStyle
-    : (isComposition ? "step" : isFlow ? "smoothstep" : "straight");
+    : (isComposition || isAggregation ? "straight" :
+       isFlow ? "smoothstep" :
+       "straight");
 
   const strokeColor = connector.color !== undefined && connector.color !== null
     ? connector.color
-    : getDefaultColorByKind(kind);
+    : "#000000";  // SysML standard: black
 
   const strokeWidth = connector.strokeWidth !== undefined && connector.strokeWidth !== null
     ? connector.strokeWidth
-    : (isComposition ? 3 : 2);
+    : 1;  // SysML standard: thin lines
 
   const linePattern = connector.linePattern !== undefined && connector.linePattern !== null
     ? connector.linePattern
-    : "solid";
+    : (isDependency ? "dashed" : "solid");
 
+  // SysML standard markers based on relationship type
   const markerEndType = connector.markerEnd !== undefined && connector.markerEnd !== null
     ? getMarkerType(connector.markerEnd)
-    : getMarkerType(isComposition ? "arrow" : "arrowclosed");
+    : (isGeneralization ? getMarkerType("arrowclosed") :  // Hollow triangle
+       isDependency ? getMarkerType("arrow") :  // Open arrow
+       isComposition ? getMarkerType("arrowclosed") :  // Filled diamond (using arrow as placeholder)
+       getMarkerType("none"));
 
   const markerStartType = connector.markerStart !== undefined && connector.markerStart !== null
     ? getMarkerType(connector.markerStart)
-    : getMarkerType(isComposition ? "arrowclosed" : "none");
+    : ((isComposition || isAggregation) ? getMarkerType("arrowclosed") :  // Diamond (using arrow as placeholder)
+       getMarkerType("none"));
 
   const getReactFlowEdgeType = (style: string): string => {
     switch (style) {
@@ -122,10 +126,10 @@ export function mapConnectorToEdge(connector: SysmlConnector, blocks?: SysmlBloc
       strokeDasharray: getStrokeDashArray(linePattern),
       stroke: strokeColor
     },
-    labelStyle: { fontSize: 12, fill: "#0f172a", fontWeight: 500 },
-    labelBgPadding: [6, 4],
-    labelBgBorderRadius: 4,
-    labelBgStyle: { fill: "#ffffff", stroke: "#e2e8f0", strokeWidth: 1 },
+    labelStyle: { fontSize: 11, fill: "#000000", fontWeight: 400, fontFamily: "'Inter', sans-serif" },
+    labelBgPadding: [4, 2],
+    labelBgBorderRadius: 0,  // SysML: no rounded corners
+    labelBgStyle: { fill: "#ffffff", stroke: "#000000", strokeWidth: 1 },
     markerEnd: markerEndType ? {
       type: markerEndType,
       color: strokeColor,

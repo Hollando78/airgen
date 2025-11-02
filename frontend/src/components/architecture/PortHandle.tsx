@@ -84,15 +84,16 @@ export function PortHandle({
   const isSelected = selectedPortId === port.id;
 
   // Shared positioning and size for perfect alignment of source/target handles
+  // SysML style: square, smaller ports
   const sharedHandleStyle = {
     ...style, // Contains positioning: left/right/top/bottom and transform
-    width: `${port.size ?? portSize}px`,
-    height: `${port.size ?? portSize}px`,
-    borderRadius: "3px",
+    width: `${port.size ?? 10}px`,  // Smaller for SysML
+    height: `${port.size ?? 10}px`,
+    borderRadius: "0px",  // Square for SysML
     display: "flex" as const,
     alignItems: "center" as const,
     justifyContent: "center" as const,
-    transition: draggingPort?.portId === port.id ? "none" : "all 0.2s ease",
+    transition: draggingPort?.portId === port.id ? "none" : "all 0.15s ease",
     boxSizing: "border-box" as const
   };
 
@@ -212,16 +213,15 @@ export function PortHandle({
         }}
         style={{
           ...sharedHandleStyle,
-          background: hidePortsVisually ? "transparent" : (port.backgroundColor ?? "#ffffff"),
+          background: hidePortsVisually ? "transparent" : "#000000",  // SysML: black
           border: hidePortsVisually ? "none" : (isSelected
-            ? "2px solid #2563eb"
-            : `${port.borderWidth ?? 2}px solid ${port.borderColor ?? "#64748b"}`),
+            ? "2px solid #000000"
+            : "1px solid #000000"),  // SysML: black border
           cursor: isHidden ? "default" : (isConnectMode ? "crosshair" : "pointer"),
           zIndex: selectedPortId === port.id ? 50 : 30,
           pointerEvents: hidePortsVisually || isHidden ? "none" : "auto",
-          boxShadow: hidePortsVisually ? "none" : (isSelected ? "0 4px 12px rgba(37, 99, 235, 0.4)" : "none"),
-          outline: hidePortsVisually ? "none" : (isSelected ? "2px solid rgba(59, 130, 246, 0.35)" : "none"),
-          outlineOffset: isSelected ? "2px" : "0",
+          boxShadow: "none",  // SysML: no shadows
+          outline: "none",  // SysML: no outline
           opacity: hidePortsVisually ? 0 : (isHidden ? 0 : 1)
         }}
         title={!isHidden
@@ -245,7 +245,7 @@ export function PortHandle({
             className="nodrag nopan"
             style={{
               ...labelStyle,
-              border: "2px solid #2563eb",
+              border: "2px solid #000000",  // SysML: black border when editing
               outline: "none",
               minWidth: "80px"
             }}

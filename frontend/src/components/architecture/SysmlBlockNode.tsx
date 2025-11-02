@@ -27,26 +27,29 @@ export type SysmlBlockNodeData = {
 };
 
 /**
- * Get vanilla block styling for AI diagram previews
- * Uses design tokens for consistent, clean appearance
+ * Get SysML-compliant block styling following OMG SysML standards
+ * - Sharp rectangular corners
+ * - Black borders on white background
+ * - No shadows or gradients
+ * - Clean, technical appearance
  */
-function getVanillaBlockStyle(
+function getSysMLBlockStyle(
   block: SysmlBlock,
   selected: boolean,
   isPreview: boolean = false
 ): React.CSSProperties {
-  // For AI diagram previews, use minimal vanilla styling
+  // For AI diagram previews, use minimal styling
   if (isPreview) {
     return {
       width: block.size.width,
       height: block.size.height,
       background: "#ffffff",
-      border: "1px solid var(--border)",
-      borderRadius: "var(--radius-sm)",
+      border: "1px solid #000000",
+      borderRadius: "0px",
       boxShadow: "none",
-      fontFamily: "var(--font-sans)",
-      color: "var(--foreground)",
-      fontSize: "14px",
+      fontFamily: "'Inter', -apple-system, sans-serif",
+      color: "#000000",
+      fontSize: "13px",
       fontWeight: "normal",
       position: "relative" as const,
       overflow: "visible" as const,
@@ -54,24 +57,21 @@ function getVanillaBlockStyle(
     };
   }
 
-  // For interactive diagrams, allow customization but with cleaner defaults
+  // For interactive diagrams, use SysML standard styling
   return {
     width: block.size.width,
     height: block.size.height,
-    background: block.backgroundColor || "#ffffff",
+    background: "#ffffff",
     border: selected
-      ? "2px solid var(--ring)"
-      : `1px solid ${block.borderColor || "var(--border)"}`,
-    borderRadius: "var(--radius-sm)",
-    boxShadow: selected
-      ? "var(--elevation-2)"
-      : "var(--elevation-1)",
-    outline: selected ? "2px solid var(--ring)" : "none",
-    outlineOffset: "2px",
-    fontFamily: "var(--font-sans)",
-    color: block.textColor || "var(--foreground)",
-    fontSize: `${block.fontSize || 14}px`,
-    fontWeight: block.fontWeight || "normal",
+      ? "2px solid #000000"  // Thicker border when selected
+      : "1px solid #000000",
+    borderRadius: "0px",  // Sharp corners per SysML spec
+    boxShadow: "none",  // No shadows
+    outline: "none",
+    fontFamily: "'Inter', -apple-system, sans-serif",
+    color: "#000000",
+    fontSize: "13px",
+    fontWeight: "normal",
     position: "relative" as const,
     overflow: "visible" as const,
     cursor: "pointer"
@@ -346,29 +346,8 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
   const baseHeight = 56;
   const portSpacing = 22;
 
-  // Use vanilla styling for previews, or allow customization for interactive diagrams
-  const blockStyle = (isPreview || useVanillaStyle)
-    ? getVanillaBlockStyle(block, selected, isPreview)
-    : {
-        // Legacy styling for backward compatibility (interactive diagrams without vanilla flag)
-        width: block.size.width,
-        height: block.size.height,
-        background: block.backgroundColor || "#ffffff",
-        border: selected
-          ? "2px solid #2563eb"
-          : `${block.borderWidth || 1}px ${block.borderStyle || "solid"} ${block.borderColor || "#cbd5f5"}`,
-        borderRadius: `${block.borderRadius || 8}px`,
-        boxShadow: selected ? "0 8px 16px rgba(37, 99, 235, 0.25)" : "0 4px 12px rgba(15, 23, 42, 0.18)",
-        outline: selected ? "3px solid rgba(59, 130, 246, 0.35)" : "none",
-        outlineOffset: "4px",
-        fontFamily: "'Inter', sans-serif",
-        color: block.textColor || "#1f2937",
-        position: "relative" as const,
-        overflow: "visible" as const,
-        cursor: "pointer",
-        fontSize: `${block.fontSize || 14}px`,
-        fontWeight: block.fontWeight || "normal"
-      };
+  // Use SysML-compliant styling
+  const blockStyle = getSysMLBlockStyle(block, selected, isPreview);
 
   const hiddenPortCount = block.ports.filter(port => port.hidden).length;
   const hidePortsVisually = !hideDefaultHandles; // Hide ports visually in Architecture view
@@ -381,172 +360,168 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
         isVisible={selected}
         shouldResize={() => true}
         lineStyle={{
-          stroke: "#2563eb",
-          strokeWidth: 2,
+          stroke: "#000000",  // SysML: black
+          strokeWidth: 1,
           strokeDasharray: "4 4"
         }}
         handleStyle={{
-          fill: "#2563eb",
+          fill: "#000000",  // SysML: black
           stroke: "#ffffff",
-          strokeWidth: 2,
-          width: 16,
-          height: 16,
-          borderRadius: 3,
+          strokeWidth: 1,
+          width: 10,  // Smaller handles
+          height: 10,
+          borderRadius: 0,  // SysML: square handles
           cursor: "nwse-resize"
         }}
         lineClassName="node-resizer-line"
         handleClassName="node-resizer-handle"
       />
       <div style={{
-        padding: "12px 16px",
+        padding: "0",
         position: "relative",
         height: "100%",
         pointerEvents: "auto",
-        overflow: "hidden"
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column"
       }}>
-        {!hidePortsVisually && hiddenPortCount > 0 && (
-          <div
-            style={{
-              position: "absolute",
-              top: 10,
-              right: 12,
-              background: "rgba(15, 23, 42, 0.75)",
-              color: "#ffffff",
-              borderRadius: "999px",
-              padding: "2px 8px",
-              fontSize: "10px",
-              fontWeight: 600,
-              letterSpacing: "0.02em",
-              pointerEvents: "none",
-              zIndex: 5
-            }}
-            title={`${hiddenPortCount} hidden port${hiddenPortCount === 1 ? "" : "s"}`}
-          >
-            {hiddenPortCount} hidden
-          </div>
-        )}
+        {/* Header Compartment - Stereotype and Name (centered per SysML spec) */}
         <div style={{
-          fontSize: `${(block.fontSize || 14) * 0.85}px`,
-          textTransform: "uppercase",
-          color: block.textColor ? `${block.textColor}99` : "#475569",
-          letterSpacing: "0.08em",
-          fontWeight: block.fontWeight || "normal"
+          padding: "10px 12px",
+          borderBottom: (block.description || linkedDocuments.length > 0) ? "1px solid #000000" : "none"
         }}>
-          {portHelpers.formatStereotype(block.stereotype)}
-        </div>
-        {isEditingName ? (
-          <input
-            ref={nameInputRef}
-            type="text"
-            value={editedName}
-            onChange={(e) => setEditedName(e.target.value)}
-            onKeyDown={handleNameKeyDown}
-            onBlur={handleNameSubmit}
-            className="nodrag nopan"
-            style={{
-              fontWeight: block.fontWeight === "bold" ? 700 : 600,
-              fontSize: `${(block.fontSize || 14) * 1.15}px`,
-              marginTop: "4px",
-              color: block.textColor || "#1f2937",
-              background: "#ffffff",
-              border: "2px solid #2563eb",
-              borderRadius: "4px",
-              padding: "2px 4px",
-              width: "100%",
-              outline: "none"
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              fontWeight: block.fontWeight === "bold" ? 700 : 600,
-              fontSize: `${(block.fontSize || 14) * 1.15}px`,
-              marginTop: "4px",
-              color: block.textColor || "#1f2937",
-              cursor: "text"
-            }}
-            onDoubleClick={handleNameDoubleClick}
-            title="Double-click or press F2 to rename"
-          >
-            {block.name}
-          </div>
-        )}
-        {block.description && (
-          <div style={{ 
-            marginTop: "8px", 
-            fontSize: `${(block.fontSize || 14) * 0.85}px`, 
-            color: block.textColor ? `${block.textColor}cc` : "#6b7280",
-            fontWeight: block.fontWeight || "normal"
+          <div style={{
+            fontSize: "11px",
+            color: "#000000",
+            textAlign: "center",
+            fontWeight: "normal",
+            marginBottom: "4px"
           }}>
-            {block.description}
+            {portHelpers.formatStereotype(block.stereotype)}
           </div>
-        )}
-        
-        {linkedDocuments.length > 0 && (
-          <div style={{ marginTop: "12px", borderTop: "1px solid #e2e8f0", paddingTop: "8px" }}>
+          {isEditingName ? (
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              onKeyDown={handleNameKeyDown}
+              onBlur={handleNameSubmit}
+              className="nodrag nopan"
+              style={{
+                fontWeight: "600",
+                fontSize: "14px",
+                color: "#000000",
+                background: "#ffffff",
+                border: "1px solid #000000",
+                borderRadius: "0px",
+                padding: "2px 4px",
+                width: "100%",
+                outline: "none",
+                textAlign: "center"
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                fontWeight: "600",
+                fontSize: "14px",
+                color: "#000000",
+                cursor: "text",
+                textAlign: "center"
+              }}
+              onDoubleClick={handleNameDoubleClick}
+              title="Double-click or press F2 to rename"
+            >
+              {block.name}
+            </div>
+          )}
+        </div>
+
+        {/* Properties/Description Compartment */}
+        {block.description && (
+          <div style={{
+            padding: "10px 12px",
+            borderBottom: linkedDocuments.length > 0 ? "1px solid #000000" : "none"
+          }}>
             <div style={{
               fontSize: "11px",
-              color: "#64748b",
+              color: "#666666",
               marginBottom: "6px",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px"
+              fontStyle: "italic"
             }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14,2 14,8 20,8"/>
-              </svg>
-              Documents ({linkedDocuments.length})
+              properties
             </div>
-            <div style={{ display: "grid", gap: "4px" }}>
+            <div style={{
+              fontSize: "12px",
+              color: "#000000",
+              fontFamily: "'Courier New', monospace",
+              lineHeight: "1.5"
+            }}>
+              {block.description}
+            </div>
+          </div>
+        )}
+
+        {/* References Compartment - Simplified SysML style */}
+        {linkedDocuments.length > 0 && (
+          <div style={{
+            padding: "10px 12px"
+          }}>
+            <div style={{
+              fontSize: "11px",
+              color: "#666666",
+              marginBottom: "6px",
+              fontStyle: "italic"
+            }}>
+              references
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
               {linkedDocuments.map(doc => (
-                <button
+                <div
                   key={doc.id}
                   onClick={(e) => {
                     e.stopPropagation();
                     onOpenDocument?.(doc.slug);
                   }}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
                     fontSize: "12px",
-                    background: "#dbeafe",
-                    borderRadius: "6px",
-                    padding: "6px 8px",
-                    border: "1px solid #bfdbfe",
+                    color: "#000000",
+                    fontFamily: "'Courier New', monospace",
                     cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    width: "100%",
-                    textAlign: "left"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#bfdbfe";
-                    e.currentTarget.style.borderColor = "#93c5fd";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "#dbeafe";
-                    e.currentTarget.style.borderColor = "#bfdbfe";
-                  }}
-                  title={`Open document: ${doc.name}`}
-                >
-                  <span style={{
-                    color: "#1e40af",
-                    fontWeight: 500,
+                    textDecoration: "underline",
                     textOverflow: "ellipsis",
                     overflow: "hidden",
                     whiteSpace: "nowrap"
-                  }}>
-                    {doc.name}
-                  </span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "#3b82f6", flexShrink: 0 }}>
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                    <polyline points="15,3 21,3 21,9"/>
-                    <line x1="10" y1="14" x2="21" y2="3"/>
-                  </svg>
-                </button>
+                  }}
+                  title={`Open document: ${doc.name}`}
+                >
+                  {doc.name}
+                </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Hidden ports indicator (minimal, top-right corner) */}
+        {!hidePortsVisually && hiddenPortCount > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: 4,
+              right: 4,
+              background: "#000000",
+              color: "#ffffff",
+              borderRadius: "0px",
+              padding: "2px 6px",
+              fontSize: "9px",
+              fontWeight: 600,
+              pointerEvents: "none",
+              zIndex: 5
+            }}
+            title={`${hiddenPortCount} hidden port${hiddenPortCount === 1 ? "" : "s"}`}
+          >
+            {hiddenPortCount}
           </div>
         )}
       </div>
@@ -583,7 +558,7 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
         ))
       )}
 
-      {/* Default top/bottom handles - hidden in interface view */}
+      {/* Default top/bottom handles - SysML style: square, black */}
       {!hideDefaultHandles && (
         <>
           <Handle
@@ -594,23 +569,19 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
             isConnectableStart={false}
             isConnectableEnd={true}
             style={{
-              background: "#0ea5e9",
-              border: "3px solid #bae6fd",
-              width: "16px",
-              height: "16px",
-              borderRadius: "8px",
+              background: "#000000",
+              border: "1px solid #000000",
+              width: "8px",
+              height: "8px",
+              borderRadius: "0px",  // Square for SysML
               cursor: "crosshair",
-              transition: "all 0.2s ease",
+              transition: "all 0.15s ease",
               zIndex: 10
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#0284c7";
-              e.currentTarget.style.borderColor = "#7dd3fc";
-              e.currentTarget.style.transform = "scale(1.2)";
+              e.currentTarget.style.transform = "scale(1.3)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#0ea5e9";
-              e.currentTarget.style.borderColor = "#bae6fd";
               e.currentTarget.style.transform = "scale(1)";
             }}
           />
@@ -622,23 +593,19 @@ export function SysmlBlockNode({ id, data, selected }: NodeProps) {
             isConnectableStart={true}
             isConnectableEnd={false}
             style={{
-              background: "#22c55e",
-              border: "3px solid #bbf7d0",
-              width: "16px",
-              height: "16px",
-              borderRadius: "8px",
+              background: "#000000",
+              border: "1px solid #000000",
+              width: "8px",
+              height: "8px",
+              borderRadius: "0px",  // Square for SysML
               cursor: "crosshair",
-              transition: "all 0.2s ease",
+              transition: "all 0.15s ease",
               zIndex: 10
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#16a34a";
-              e.currentTarget.style.borderColor = "#86efac";
-              e.currentTarget.style.transform = "scale(1.2)";
+              e.currentTarget.style.transform = "scale(1.3)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#22c55e";
-              e.currentTarget.style.borderColor = "#bbf7d0";
               e.currentTarget.style.transform = "scale(1)";
             }}
           />
