@@ -12,7 +12,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { verifyTenantAccessHook, verifyTenantAccessFromBodyHook } from "../lib/authorization.js";
 import { createBaseline, listBaselines } from "../services/graph.js";
-import { getBaselineDetails, compareBaselines } from "../services/graph/requirement-baselines.js";
+import { getBaselineDetails, compareBaselines, deleteBaseline } from "../services/graph/requirement-baselines.js";
 import { baselineSchema, tenantProjectParamsSchema, tenantProjectParamsOpenApiSchema } from "../schemas/requirements.js";
 
 export async function registerBaselineRoutes(app: FastifyInstance): Promise<void> {
@@ -129,6 +129,58 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
     try {
       const snapshot = await getBaselineDetails(params.tenant, params.project, params.baselineRef);
       return snapshot;
+    } catch (error: any) {
+      if (error.message?.includes("not found")) {
+        return reply.status(404).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
+
+  // Delete baseline
+  app.delete("/baselines/:tenant/:project/:baselineRef", {
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
+    schema: {
+      tags: ["baselines"],
+      summary: "Delete a baseline",
+      description: "Deletes a baseline and all its snapshot relationships",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        required: ["tenant", "project", "baselineRef"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" },
+          baselineRef: { type: "string", description: "Baseline reference" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            deleted: { type: "boolean" }
+          }
+        },
+        404: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      baselineRef: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+
+    try {
+      const result = await deleteBaseline(params.tenant, params.project, params.baselineRef);
+      return result;
     } catch (error: any) {
       if (error.message?.includes("not found")) {
         return reply.status(404).send({ error: error.message });

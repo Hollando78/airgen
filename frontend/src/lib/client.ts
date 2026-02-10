@@ -79,7 +79,23 @@ import type {
   ActivityEvent,
   ActivityFilters,
   ActivityResponse,
-  ActivityStats
+  ActivityStats,
+  SysmlPackagesResponse,
+  SysmlPackageResponse,
+  CreateSysmlPackageRequest,
+  UpdateSysmlPackageRequest,
+  SysmlElementListResponse,
+  SysmlElementResponse,
+  SysmlElementDetailResponse,
+  CreateSysmlElementRequest,
+  UpdateSysmlElementRequest,
+  CreateSysmlRelationshipRequest,
+  SysmlRelationshipResponse,
+  SysmlDiagramsResponse,
+  SysmlDiagramResponse,
+  SysmlDiagramDetailResponse,
+  CreateSysmlDiagramRequest,
+  UpdateSysmlDiagramRequest
 } from "../types";
 
 type RequestOptions = RequestInit & { skipAuth?: boolean };
@@ -295,6 +311,8 @@ export function useApiClient() {
         const params = new URLSearchParams({ from: fromRef, to: toRef });
         return request<any>(`/baselines/${tenant}/${project}/compare?${params}`);
       },
+      deleteBaseline: (tenant: string, project: string, baselineRef: string) =>
+        request<{ deleted: boolean }>(`/baselines/${tenant}/${project}/${baselineRef}`, { method: "DELETE" }),
       listDocuments: (tenant: string, project: string) =>
         request<DocumentsResponse>(`/documents/${tenant}/${project}`),
       getDocument: (tenant: string, project: string, documentSlug: string) =>
@@ -462,6 +480,78 @@ export function useApiClient() {
         request<ArchitectureConnectorResponse>(`/architecture/connectors/${tenant}/${project}/${connectorId}`, { method: "PATCH", body: JSON.stringify(body) }),
       deleteArchitectureConnector: (tenant: string, project: string, diagramId: string, connectorId: string) =>
         request<{ success: boolean }>(`/architecture/connectors/${tenant}/${project}/${connectorId}?diagramId=${diagramId}`, { method: "DELETE" }),
+
+      // SysML API methods
+      listSysmlPackages: (tenant: string, project: string) =>
+        request<SysmlPackagesResponse>(`/sysml/${tenant}/${project}/packages`),
+      createSysmlPackage: (tenant: string, project: string, body: CreateSysmlPackageRequest) =>
+        request<SysmlPackageResponse>(`/sysml/${tenant}/${project}/packages`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      updateSysmlPackage: (tenant: string, project: string, packageId: string, body: UpdateSysmlPackageRequest) =>
+        request<SysmlPackageResponse>(`/sysml/${tenant}/${project}/packages/${packageId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body)
+        }),
+      deleteSysmlPackage: (tenant: string, project: string, packageId: string) =>
+        request<void>(`/sysml/${tenant}/${project}/packages/${packageId}`, { method: "DELETE" }),
+      listSysmlElements: (
+        tenant: string,
+        project: string,
+        filters?: { elementType?: string; packageId?: string; search?: string; limit?: number }
+      ) => {
+        const params = new URLSearchParams();
+        if (filters?.elementType) params.set("elementType", filters.elementType);
+        if (filters?.packageId) params.set("packageId", filters.packageId);
+        if (filters?.search) params.set("search", filters.search);
+        if (filters?.limit) params.set("limit", String(filters.limit));
+        const query = params.toString() ? `?${params.toString()}` : "";
+        return request<SysmlElementListResponse>(`/sysml/${tenant}/${project}/elements${query}`);
+      },
+      getSysmlElement: (tenant: string, project: string, elementId: string) =>
+        request<SysmlElementDetailResponse>(`/sysml/${tenant}/${project}/elements/${elementId}`),
+      createSysmlElement: (tenant: string, project: string, body: CreateSysmlElementRequest) =>
+        request<SysmlElementResponse>(`/sysml/${tenant}/${project}/elements`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      updateSysmlElement: (tenant: string, project: string, elementId: string, body: UpdateSysmlElementRequest) =>
+        request<SysmlElementResponse>(`/sysml/${tenant}/${project}/elements/${elementId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body)
+        }),
+      deleteSysmlElement: (tenant: string, project: string, elementId: string) =>
+        request<void>(`/sysml/${tenant}/${project}/elements/${elementId}`, { method: "DELETE" }),
+      createSysmlElementRelationship: (tenant: string, project: string, elementId: string, body: CreateSysmlRelationshipRequest) =>
+        request<SysmlRelationshipResponse>(`/sysml/${tenant}/${project}/elements/${elementId}/relationships`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      deleteSysmlElementRelationship: (tenant: string, project: string, elementId: string, relationshipId: string) =>
+        request<void>(`/sysml/${tenant}/${project}/elements/${elementId}/relationships/${relationshipId}`, { method: "DELETE" }),
+      listSysmlDiagrams: (tenant: string, project: string, filters?: { packageId?: string; diagramType?: string; search?: string }) => {
+        const params = new URLSearchParams();
+        if (filters?.packageId) params.set("packageId", filters.packageId);
+        if (filters?.diagramType) params.set("diagramType", filters.diagramType);
+        if (filters?.search) params.set("search", filters.search);
+        const query = params.toString() ? `?${params.toString()}` : "";
+        return request<SysmlDiagramsResponse>(`/sysml/${tenant}/${project}/diagrams${query}`);
+      },
+      getSysmlDiagram: (tenant: string, project: string, diagramId: string) =>
+        request<SysmlDiagramDetailResponse>(`/sysml/${tenant}/${project}/diagrams/${diagramId}`),
+      createSysmlDiagram: (tenant: string, project: string, body: CreateSysmlDiagramRequest) =>
+        request<SysmlDiagramResponse>(`/sysml/${tenant}/${project}/diagrams`, {
+          method: "POST",
+          body: JSON.stringify(body)
+        }),
+      updateSysmlDiagram: (tenant: string, project: string, diagramId: string, body: UpdateSysmlDiagramRequest) =>
+        request<SysmlDiagramResponse>(`/sysml/${tenant}/${project}/diagrams/${diagramId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body)
+        }),
+      deleteSysmlDiagram: (tenant: string, project: string, diagramId: string) =>
+        request<void>(`/sysml/${tenant}/${project}/diagrams/${diagramId}`, { method: "DELETE" }),
 
       // Package API methods
       listArchitecturePackages: (tenant: string, project: string) =>

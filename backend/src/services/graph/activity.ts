@@ -338,11 +338,11 @@ export async function listActivity(filters: ActivityFilters): Promise<ActivityRe
         'baseline' as activityType,
         'created' as actionType,
         baseline.id as entityId,
-        baseline.name as entityName,
+        coalesce(baseline.label, baseline.ref) as entityName,
         baseline.ref as entityRef,
-        baseline.createdBy as userId,
-        baseline.description as description,
-        {status: baseline.status, requirementCount: COUNT { (baseline)<-[:BASELINED_IN]-() }} as metadata,
+        baseline.author as userId,
+        'Baseline created' as description,
+        {requirementCount: baseline.requirementVersions, documentCount: baseline.documentVersions} as metadata,
         $tenantSlug as tenantSlug,
         $projectSlug as projectSlug
       WHERE baseline IS NOT NULL
@@ -471,7 +471,7 @@ export async function getActivityStats(tenantSlug: string, projectSlug: string):
            blockCount, blockUsers, blockCreated, blockUpdated, diagramCount, diagramUsers, diagramCreated, diagramUpdated,
            imagineCount, imgUsers,
            count(baseline) as baselineCount,
-           collect(distinct baseline.createdBy) as baselineUsers
+           collect(distinct baseline.author) as baselineUsers
 
       // Aggregate all users
       WITH requirementCount, reqCreated, reqUpdated, documentCount, docCreated, docUpdated,

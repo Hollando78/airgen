@@ -876,3 +876,43 @@ export async function compareBaselines(
     connectors
   };
 }
+
+/**
+ * Delete a baseline and all its SNAPSHOT_OF_* relationships
+ */
+export async function deleteBaseline(
+  tenant: string,
+  projectKey: string,
+  baselineRef: string
+): Promise<{ deleted: boolean }> {
+  const tenantSlug = slugify(tenant);
+  const projectSlug = slugify(projectKey);
+  const session = getSession();
+
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      // Delete all SNAPSHOT_OF_* relationships first, then the baseline node
+      const res = await tx.run(
+        `MATCH (t:Tenant {slug: $tenantSlug})-[:OWNS]->(p:Project {slug: $projectSlug})-[:HAS_BASELINE]->(b:Baseline {ref: $baselineRef})
+         OPTIONAL MATCH (b)-[r]->()
+         DELETE r
+         WITH b
+         OPTIONAL MATCH (b)<-[r2]-()
+         DELETE r2
+         WITH b
+         DELETE b
+         RETURN count(b) as deleted`,
+        { tenantSlug, projectSlug, baselineRef }
+      );
+      return res.records[0]?.get("deleted")?.toNumber?.() ?? 0;
+    });
+
+    if (result === 0) {
+      throw new Error(`Baseline ${baselineRef} not found in project ${tenant}/${projectKey}`);
+    }
+
+    return { deleted: true };
+  } finally {
+    await session.close();
+  }
+}
