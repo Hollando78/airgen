@@ -22,7 +22,7 @@ export function registerResetPasswordRoute(app: FastifyInstance) {
   }, async (req, reply) => {
     const { token, password } = validateInput(authSchemas.resetPassword, req.body);
 
-    const tokenRecord = verifyAndConsumeToken(token, "password_reset");
+    const tokenRecord = await verifyAndConsumeToken(token, "password_reset");
 
     if (!tokenRecord) {
       return reply.code(400).send({ error: "Invalid or expired reset token" });
@@ -38,7 +38,7 @@ export function registerResetPasswordRoute(app: FastifyInstance) {
     await userRepository.update(user.id, { passwordHash: hashedPassword });
 
     await revokeAllUserTokens(user.id);
-    revokeUserTokens(user.id, "password_reset");
+    await revokeUserTokens(user.id, "password_reset");
 
     app.log.info({
       event: "auth.password.reset",

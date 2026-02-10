@@ -119,6 +119,7 @@ export async function buildJwtPayloadFromPostgres(userId: string) {
     id: user.id,
     email: user.email,
     name: user.name || user.email,
+    emailVerified: user.emailVerified,
     roles,
     tenantSlugs,
     ownedTenantSlugs,

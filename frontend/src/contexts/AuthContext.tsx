@@ -5,6 +5,7 @@ export type User = {
   id: string;
   email: string;
   name?: string;
+  emailVerified?: boolean;
 
   // NEW: Structured permissions (preferred)
   permissions?: UserPermissions;
@@ -42,6 +43,7 @@ function normalizeUserPayload(raw: any): User {
     id: raw?.id ?? raw?.sub ?? "",
     email: raw?.email ?? "",
     name: raw?.name,
+    emailVerified: typeof raw?.emailVerified === "boolean" ? raw.emailVerified : false,
     permissions: raw?.permissions && typeof raw.permissions === "object" ? raw.permissions : undefined,
     roles: Array.isArray(raw?.roles) ? raw.roles : [],
     tenantSlugs: Array.isArray(raw?.tenantSlugs) ? raw.tenantSlugs : [],

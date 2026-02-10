@@ -195,7 +195,16 @@ export function useApiClient() {
           method: "POST",
           body: JSON.stringify({ token })
         }),
-      
+      verifyEmail: (token: string) =>
+        request<{ message: string }>(`/auth/verify-email`, {
+          method: "POST",
+          body: JSON.stringify({ token })
+        }),
+      requestVerification: () =>
+        request<{ message: string }>(`/auth/request-verification`, {
+          method: "POST"
+        }),
+
       // Tenant management functions
       createTenant: (data: { slug: string; name?: string }) => 
         request<{ tenant: TenantRecord }>(`/tenants`, { method: "POST", body: JSON.stringify(data) }),

@@ -36,6 +36,7 @@ import { QuickStartManager } from "./quickstart/QuickStartManager";
 import { QuickStartPageHint } from "./quickstart/QuickStartPageHint";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { MobileViewToggle } from "../mobile/components/MobileViewToggle";
+import { EmailVerificationBanner } from "./EmailVerificationBanner";
 
  type NavItemConfig = {
   to: string;
@@ -245,6 +246,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
                 })}
               </nav>
               <main className="app-main">
+                <EmailVerificationBanner />
                 <QuickStartPageHint />
                 <ErrorBoundary>
                   {children}

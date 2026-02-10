@@ -16,6 +16,7 @@ const NaturalLanguageQuery = lazy(() => import("./pages/NaturalLanguageQuery").t
 const DocumentsRoute = lazy(() => import("./routes/DocumentsRoute").then(m => ({ default: m.DocumentsRoute })));
 const ArchitectureRoute = lazy(() => import("./routes/ArchitectureRoute").then(m => ({ default: m.ArchitectureRoute })));
 const InterfaceRoute = lazy(() => import("./routes/InterfaceRoute").then(m => ({ default: m.InterfaceRoute })));
+// const SysmlRoute = lazy(() => import("./routes/SysmlRoute").then(m => ({ default: m.SysmlRoute }))); // Hidden - in development
 const DraftsRoute = lazy(() => import("./routes/DraftsRoute").then(m => ({ default: m.DraftsRoute })));
 const RequirementsRoute = lazy(() => import("./routes/RequirementsRoute").then(m => ({ default: m.RequirementsRoute })));
 const BaselinesRoute = lazy(() => import("./routes/BaselinesRoute").then(m => ({ default: m.BaselinesRoute })));
@@ -24,6 +25,7 @@ const RequirementsSchemaRoute = lazy(() => import("./routes/RequirementsSchemaRo
 const GraphViewerRoute = lazy(() => import("./routes/GraphViewerRoute").then(m => ({ default: m.GraphViewerRoute })));
 const SettingsRoute = lazy(() => import("./routes/SettingsRoute").then(m => ({ default: m.SettingsRoute })));
 const AcceptInviteRoute = lazy(() => import("./routes/AcceptInviteRoute").then(m => ({ default: m.AcceptInviteRoute })));
+const VerifyEmailRoute = lazy(() => import("./routes/VerifyEmailRoute").then(m => ({ default: m.VerifyEmailRoute })));
 
 // Admin routes
 const AdminUsersRoute = lazy(() => import("./routes/AdminUsersRoute").then(m => ({ default: m.AdminUsersRoute })));
@@ -41,6 +43,7 @@ export default function AppRoutes(): JSX.Element {
           <Route path="/dashboard" element={<DashboardRoute />} />
           <Route path="/activity" element={<ActivityRoute />} />
           <Route path="/invites/accept" element={<AcceptInviteRoute />} />
+          <Route path="/verify-email" element={<VerifyEmailRoute />} />
 
           {/* AIRGen route - protected */}
           <Route
@@ -59,6 +62,7 @@ export default function AppRoutes(): JSX.Element {
           <Route path="/documents" element={<DocumentsRoute />} />
           <Route path="/architecture" element={<ArchitectureRoute />} />
           <Route path="/interfaces" element={<InterfaceRoute />} />
+          {/* <Route path="/sysml-models" element={<SysmlRoute />} /> */} {/* Hidden - in development */}
           <Route path="/drafts" element={<DraftsRoute />} />
           <Route path="/requirements" element={<RequirementsRoute />} />
           <Route path="/baselines" element={<BaselinesRoute />} />

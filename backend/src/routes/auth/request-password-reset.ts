@@ -22,7 +22,7 @@ export function registerRequestPasswordResetRoute(app: FastifyInstance) {
     const user = await userRepository.findByEmail(email);
 
     if (user) {
-      const token = createToken(user.id, user.email, "password_reset", 30);
+      const token = await createToken(user.id, user.email, "password_reset", 30);
       await sendPasswordResetEmail(user.email, user.name ?? undefined, token);
     }
 

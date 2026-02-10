@@ -19,7 +19,7 @@ export function registerVerifyEmailRoute(app: FastifyInstance) {
     }
   }, async (req, reply) => {
     const { token } = validateInput(authSchemas.verifyEmail, req.body);
-    const tokenRecord = verifyAndConsumeToken(token, "email_verification");
+    const tokenRecord = await verifyAndConsumeToken(token, "email_verification");
 
     if (!tokenRecord) {
       return reply.code(400).send({ error: "Invalid or expired verification token" });

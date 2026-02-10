@@ -126,7 +126,7 @@ export function registerRegistrationRoute(app: FastifyInstance) {
         ip: req.ip
       }, "User registered successfully");
 
-      const verificationToken = createToken(user.id, user.email, "email_verification");
+      const verificationToken = await createToken(user.id, user.email, "email_verification");
 
       Promise.all([
         sendSuccessfulSignupNotification(user.email, user.name ?? undefined, tenantSlug, req.ip),

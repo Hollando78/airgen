@@ -32,7 +32,7 @@ export function registerRequestVerificationRoute(app: FastifyInstance) {
       return reply.code(400).send({ error: "Email already verified" });
     }
 
-    const token = createToken(user.id, user.email, "email_verification");
+    const token = await createToken(user.id, user.email, "email_verification");
     await sendVerificationEmail(user.email, user.name ?? undefined, token);
 
     return { message: "Verification email sent" };

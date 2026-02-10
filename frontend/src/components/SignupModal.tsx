@@ -58,7 +58,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
 
       setSuccess(true);
 
-      // Auto-switch to login after 2 seconds
+      // Auto-switch to login after 4 seconds
       setTimeout(() => {
         setSuccess(false);
         setEmail('');
@@ -70,7 +70,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
         } else {
           onClose();
         }
-      }, 2000);
+      }, 4000);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -116,7 +116,10 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
           <h2 style={{ margin: '0 0 1rem', color: '#10b981', fontSize: '1.5rem' }}>
             Account Created!
           </h2>
-          <p style={{ margin: 0, color: '#64748b' }}>
+          <p style={{ margin: '0 0 0.75rem', color: '#1c2530', fontWeight: 500 }}>
+            Check your email for a verification link.
+          </p>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
             Redirecting to sign in...
           </p>
         </div>
