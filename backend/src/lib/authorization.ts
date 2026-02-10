@@ -183,16 +183,44 @@ export function requireRole(
  * }, handler);
  */
 export async function verifyTenantAccessHook(
-  request: FastifyRequest<{ Params: { tenant: string } }>,
+  request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
   const user = request.currentUser as AuthUser | undefined;
-  const tenant = request.params.tenant;
+  const tenant = (request.params as Record<string, string>)?.tenant;
 
   if (!tenant) {
     reply.code(400).send({
       error: "Bad Request",
       message: "Tenant parameter is required"
+    });
+    return;
+  }
+
+  requireTenantAccess(user, tenant, reply);
+}
+
+/**
+ * Fastify preHandler hook to verify tenant access from request body
+ * Use for POST/PUT/PATCH routes where tenant is in the body
+ *
+ * Example:
+ * app.post("/trace-links", {
+ *   preHandler: [app.authenticate, verifyTenantAccessFromBodyHook]
+ * }, handler);
+ */
+export async function verifyTenantAccessFromBodyHook(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const user = request.currentUser as AuthUser | undefined;
+  const body = request.body as Record<string, unknown> | undefined;
+  const tenant = body?.tenant || body?.tenantSlug;
+
+  if (typeof tenant !== "string") {
+    reply.code(400).send({
+      error: "Bad Request",
+      message: "Tenant is required in request body"
     });
     return;
   }

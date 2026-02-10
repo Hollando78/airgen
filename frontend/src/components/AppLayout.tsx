@@ -31,6 +31,10 @@ import { useUserRole } from "../hooks/useUserRole";
 import { UserRole } from "../lib/rbac";
 import { FloatingDocumentsProvider } from "../contexts/FloatingDocumentsContext";
 import { FloatingDocumentsManager } from "./FloatingDocumentsManager";
+import { QuickStartProvider } from "../contexts/QuickStartContext";
+import { QuickStartManager } from "./quickstart/QuickStartManager";
+import { QuickStartPageHint } from "./quickstart/QuickStartPageHint";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { MobileViewToggle } from "../mobile/components/MobileViewToggle";
 
  type NavItemConfig = {
@@ -90,6 +94,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
         items: [
           { to: "/architecture", label: "Architecture", icon: Box },
           { to: "/interfaces", label: "Interfaces", icon: Network }
+          // { to: "/sysml-models", label: "SysML Models", icon: Share2 } // Hidden - in development
         ]
       },
       {
@@ -179,71 +184,81 @@ export function AppLayout({ children }: { children: React.ReactNode }): JSX.Elem
   return (
     <TenantProjectProvider>
       <FloatingDocumentsProvider>
-        <div className="app-shell">
-          <header className="app-header">
-            <div className="app-brand">
-              <img src="/AIRGen_logo.png" alt="AIRGen" className="brand-logo-img" />
-              <div className="brand-text">
-                <span className="brand-logo">AIRGen</span>
-                <span className="brand-subtitle">Studio</span>
+        <QuickStartProvider>
+          <div className="app-shell">
+            <header className="app-header">
+              <div className="app-brand">
+                <img src="/AIRGen_logo.png" alt="AIRGen" className="brand-logo-img" />
+                <div className="brand-text">
+                  <span className="brand-logo">AIRGen</span>
+                  <span className="brand-subtitle">Studio</span>
+                </div>
               </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginLeft: "auto" }}>
-              <MobileViewToggle />
-              <TokenControls />
-              <UserMenu />
-            </div>
-          </header>
-          <div className="app-body">
-            <nav className="app-nav">
-              {navSections.map(section => {
-                const SectionIcon = section.icon;
-                const isOpen = openSections[section.id];
-                return (
-                  <div className="nav-section" key={section.id}>
-                    <button
-                      type="button"
-                      className="nav-section-header"
-                      onClick={() => toggleSection(section.id)}
-                      aria-expanded={isOpen ?? false}
-                    >
-                      <span className="nav-section-title">
-                        <SectionIcon size={16} />
-                        <span>{section.label}</span>
-                      </span>
-                      <ChevronDown
-                        size={16}
-                        className={`nav-section-chevron ${isOpen ? "open" : ""}`}
-                        aria-hidden="true"
-                      />
-                    </button>
-                    <div className={`nav-section-items ${isOpen ? "open" : "closed"}`}>
-                      {section.items.map(item => {
-                        const ItemIcon = item.icon;
-                        return (
-                          <NavLink
-                            key={item.to}
-                            to={item.to}
-                            className={({ isActive }) =>
-                              `nav-link nav-item${isActive ? " active" : ""}`
-                            }
-                          >
-                            <ItemIcon size={16} className="nav-item-icon" />
-                            <span>{item.label}</span>
-                          </NavLink>
-                        );
-                      })}
+              <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginLeft: "auto" }}>
+                <MobileViewToggle />
+                <TokenControls />
+                <UserMenu />
+              </div>
+            </header>
+            <div className="app-body">
+              <nav className="app-nav">
+                {navSections.map(section => {
+                  const SectionIcon = section.icon;
+                  const isOpen = openSections[section.id];
+                  return (
+                    <div className="nav-section" key={section.id}>
+                      <button
+                        type="button"
+                        className="nav-section-header"
+                        onClick={() => toggleSection(section.id)}
+                        aria-expanded={isOpen ?? false}
+                      >
+                        <span className="nav-section-title">
+                          <SectionIcon size={16} />
+                          <span>{section.label}</span>
+                        </span>
+                        <ChevronDown
+                          size={16}
+                          className={`nav-section-chevron ${isOpen ? "open" : ""}`}
+                          aria-hidden="true"
+                        />
+                      </button>
+                      <div className={`nav-section-items ${isOpen ? "open" : "closed"}`}>
+                        {section.items.map(item => {
+                          const ItemIcon = item.icon;
+                          return (
+                            <NavLink
+                              key={item.to}
+                              to={item.to}
+                              className={({ isActive }) =>
+                                `nav-link nav-item${isActive ? " active" : ""}`
+                              }
+                            >
+                              <ItemIcon size={16} className="nav-item-icon" />
+                              <span>{item.label}</span>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </nav>
-            <main className="app-main">{children}</main>
+                  );
+                })}
+              </nav>
+              <main className="app-main">
+                <QuickStartPageHint />
+                <ErrorBoundary>
+                  {children}
+                </ErrorBoundary>
+              </main>
+            </div>
           </div>
-        </div>
 
-        {/* Render persistent floating document windows */}
-        <FloatingDocumentsManager />
+          {/* Render persistent floating document windows */}
+          <FloatingDocumentsManager />
+
+          {/* Quick Start Guide overlay */}
+          <QuickStartManager />
+        </QuickStartProvider>
       </FloatingDocumentsProvider>
     </TenantProjectProvider>
   );

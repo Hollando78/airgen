@@ -1,7 +1,3 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTenantProject } from "../hooks/useTenantProject";
-import { useApiClient } from "../lib/client";
 import { Spinner } from "../components/Spinner";
 import { ErrorState } from "../components/ErrorState";
 import { AcceptCandidateModal } from "../components/AirGen/AcceptCandidateModal";
@@ -10,227 +6,19 @@ import { QueryForm } from "../components/AirGen/QueryForm";
 import { CandidateFilters } from "../components/AirGen/CandidateFilters";
 import { RequirementCandidateList } from "../components/AirGen/RequirementCandidateList";
 import { DiagramCandidateList } from "../components/AirGen/DiagramCandidatePreview";
-import type { RequirementCandidate, DocumentAttachment, DiagramAttachment, DiagramCandidate } from "../types";
 import { PageLayout } from "../components/layout/PageLayout";
+import { useAirGenData } from "../hooks/useAirGenData";
+import "./AirGenRoute.css";
 
 export function AirGenRoute(): JSX.Element {
-  const { state } = useTenantProject();
-  const api = useApiClient();
-  const queryClient = useQueryClient();
-
-  // Form state
-  const [instruction, setInstruction] = useState("");
-  const [glossary, setGlossary] = useState("");
-  const [constraints, setConstraints] = useState("");
-  const [count, setCount] = useState(5);
-  const [attachedDocuments, setAttachedDocuments] = useState<DocumentAttachment[]>([]);
-  const [attachedDiagrams, setAttachedDiagrams] = useState<DiagramAttachment[]>([]);
-  const [mode, setMode] = useState<'requirements' | 'diagram'>('requirements');
-
-  // UI state
-  const [selectedCandidate, setSelectedCandidate] = useState<RequirementCandidate | null>(null);
-  const [showAcceptModal, setShowAcceptModal] = useState(false);
-  const [selectedDiagramCandidate, setSelectedDiagramCandidate] = useState<DiagramCandidate | null>(null);
-  const [showAcceptDiagramModal, setShowAcceptDiagramModal] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
-  const [textFilter, setTextFilter] = useState('');
-
-  // Track which specific diagram candidate is being processed (prevent duplicate clicks)
-  const [acceptingDiagramId, setAcceptingDiagramId] = useState<string | null>(null);
-  const [rejectingDiagramId, setRejectingDiagramId] = useState<string | null>(null);
-  const [returningDiagramId, setReturningDiagramId] = useState<string | null>(null);
-
-  const tenant = state.tenant ?? "";
-  const project = state.project ?? "";
-
-  // Queries
-  const candidatesQuery = useQuery({
-    queryKey: ["airgen", "candidates", "grouped", tenant, project],
-    queryFn: () => api.listRequirementCandidatesGrouped(tenant, project),
-    enabled: Boolean(tenant && project && mode === 'requirements')
-  });
-
-  const diagramCandidatesQuery = useQuery({
-    queryKey: ["airgen", "diagram-candidates", tenant, project],
-    queryFn: () => api.listDiagramCandidates(tenant, project),
-    enabled: Boolean(tenant && project && mode === 'diagram')
-  });
-
-  // Mutations
-  const chatMutation = useMutation({
-    mutationFn: async () => {
-      if (!tenant || !project) {throw new Error("Select a tenant and project first");}
-      if (!instruction.trim()) {throw new Error("Enter a stakeholder instruction");}
-      return api.airgenChat({
-        tenant,
-        projectKey: project,
-        user_input: instruction.trim(),
-        glossary: glossary.trim() || undefined,
-        constraints: constraints.trim() || undefined,
-        n: count,
-        mode,
-        attachedDocuments: attachedDocuments.length > 0 ? attachedDocuments : undefined,
-        attachedDiagrams: attachedDiagrams.length > 0 ? attachedDiagrams : undefined
-      });
-    },
-    onSuccess: () => {
-      if (mode === 'requirements') {
-        queryClient.invalidateQueries({ queryKey: ["airgen", "candidates", "grouped", tenant, project] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["airgen", "diagram-candidates", tenant, project] });
-      }
-      setInstruction("");
-    }
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: async (candidate: RequirementCandidate) => {
-      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
-      return api.rejectRequirementCandidate(candidate.id, { tenant, projectKey: project });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["airgen", "candidates", "grouped", tenant, project] });
-    }
-  });
-
-  const returnMutation = useMutation({
-    mutationFn: async (candidate: RequirementCandidate) => {
-      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
-      return api.returnRequirementCandidate(candidate.id, { tenant, projectKey: project });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["airgen", "candidates", "grouped", tenant, project] });
-    }
-  });
-
-  const rejectDiagramMutation = useMutation({
-    mutationFn: async (candidate: DiagramCandidate) => {
-      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
-      return api.rejectDiagramCandidate(candidate.id, { tenant, projectKey: project });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["airgen", "diagram-candidates", tenant, project] });
-    },
-    onSettled: () => {
-      // Clear the rejecting ID when done
-      setRejectingDiagramId(null);
-    }
-  });
-
-  const returnDiagramMutation = useMutation({
-    mutationFn: async (candidate: DiagramCandidate) => {
-      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
-      return api.returnDiagramCandidate(candidate.id, { tenant, projectKey: project });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["airgen", "diagram-candidates", tenant, project] });
-    },
-    onSettled: () => {
-      // Clear the returning ID when done
-      setReturningDiagramId(null);
-    }
-  });
-
-  const acceptDiagramMutation = useMutation({
-    mutationFn: async (params: { candidate: DiagramCandidate; mode: "new" | "update"; targetDiagramId?: string; diagramName?: string; diagramDescription?: string }) => {
-      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
-      return api.acceptDiagramCandidate(params.candidate.id, {
-        tenant,
-        projectKey: project,
-        diagramId: params.mode === "update" ? params.targetDiagramId : undefined,
-        diagramName: params.mode === "new" ? params.diagramName : undefined,
-        diagramDescription: params.mode === "new" ? params.diagramDescription : undefined
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["airgen", "diagram-candidates", tenant, project] });
-      queryClient.invalidateQueries({ queryKey: ["architecture", "diagrams", tenant, project] });
-      setShowAcceptDiagramModal(false);
-      setSelectedDiagramCandidate(null);
-    },
-    onSettled: () => {
-      // Clear the accepting ID when done (success or error)
-      setAcceptingDiagramId(null);
-    }
-  });
-
-  // Archive mutation for batch archiving candidates (accepted or rejected only)
-  const archiveGroupMutation = useMutation({
-    mutationFn: async (candidateIds: string[]) => {
-      if (!tenant || !project) {throw new Error("Select a tenant/project first");}
-      return api.archiveCandidates(candidateIds);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["airgen", "candidates", "grouped", tenant, project] });
-    }
-  });
-
-  // Computed values
-  const candidateGroups = useMemo(() => {
-    let groups = candidatesQuery.data?.groups ?? [];
-
-    if (textFilter.trim()) {
-      const filterText = textFilter.toLowerCase();
-      groups = groups.filter(group => {
-        const promptMatch = group.prompt?.toLowerCase().includes(filterText);
-        const candidateMatch = group.candidates.some(candidate =>
-          candidate.text.toLowerCase().includes(filterText)
-        );
-        return promptMatch || candidateMatch;
-      });
-    }
-
-    const sortedGroups = [...groups].sort((a, b) => {
-      const aTime = new Date(a.candidates[0]?.createdAt || 0).getTime();
-      const bTime = new Date(b.candidates[0]?.createdAt || 0).getTime();
-      return sortOrder === 'newest' ? bTime - aTime : aTime - bTime;
-    });
-
-    return sortedGroups;
-  }, [candidatesQuery.data, textFilter, sortOrder]);
-
-  // Effects
-  useEffect(() => {
-    if (candidateGroups.length > 1) {
-      const groupsToCollapse = candidateGroups.slice(1).map(group => group.sessionId);
-      setCollapsedGroups(new Set(groupsToCollapse));
-    } else if (candidateGroups.length === 1) {
-      setCollapsedGroups(new Set());
-    }
-  }, [candidateGroups]);
-
-  // Handlers
-  const toggleGroupCollapse = (sessionId: string) => {
-    setCollapsedGroups(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(sessionId)) {
-        newSet.delete(sessionId);
-      } else {
-        newSet.add(sessionId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleAcceptClick = (candidate: RequirementCandidate) => {
-    setSelectedCandidate(candidate);
-    setShowAcceptModal(true);
-  };
-
-  const handleGenerate = (event: React.FormEvent) => {
-    event.preventDefault();
-    chatMutation.mutate();
-  };
-
-  const disabled = !tenant || !project;
+  const d = useAirGenData();
 
   return (
     <PageLayout
       title="AIRGen"
       description={
-        tenant && project
-          ? `${tenant} / ${project}`
+        d.tenant && d.project
+          ? `${d.tenant} / ${d.project}`
           : "Select a tenant and project to begin drafting requirements"
       }
       breadcrumbs={[
@@ -240,7 +28,7 @@ export function AirGenRoute(): JSX.Element {
       maxWidth="full"
     >
       {/* Loading Overlay */}
-      {chatMutation.isPending && (
+      {d.chatMutation.isPending && (
         <div className="llm-loading-overlay">
           <div className="llm-loading-content">
             <video
@@ -257,98 +45,83 @@ export function AirGenRoute(): JSX.Element {
       )}
 
       <div className="airgen-container-inner">
-
         <div className="airgen-layout">
           <section className="airgen-chat">
             <QueryForm
-              mode={mode}
-              instruction={instruction}
-              glossary={glossary}
-              constraints={constraints}
-              count={count}
-              attachedDocuments={attachedDocuments}
-              attachedDiagrams={attachedDiagrams}
-              tenant={tenant}
-              project={project}
-              disabled={disabled}
-              isPending={chatMutation.isPending}
-              onModeChange={setMode}
-              onInstructionChange={setInstruction}
-              onGlossaryChange={setGlossary}
-              onConstraintsChange={setConstraints}
-              onCountChange={setCount}
-              onAttachedDocumentsChange={setAttachedDocuments}
-              onAttachedDiagramsChange={setAttachedDiagrams}
-              onSubmit={handleGenerate}
+              mode={d.mode}
+              instruction={d.instruction}
+              glossary={d.glossary}
+              constraints={d.constraints}
+              count={d.count}
+              attachedDocuments={d.attachedDocuments}
+              attachedDiagrams={d.attachedDiagrams}
+              tenant={d.tenant}
+              project={d.project}
+              disabled={d.disabled}
+              isPending={d.chatMutation.isPending}
+              onModeChange={d.setMode}
+              onInstructionChange={d.setInstruction}
+              onGlossaryChange={d.setGlossary}
+              onConstraintsChange={d.setConstraints}
+              onCountChange={d.setCount}
+              onAttachedDocumentsChange={d.setAttachedDocuments}
+              onAttachedDiagramsChange={d.setAttachedDiagrams}
+              onSubmit={d.handleGenerate}
             />
           </section>
 
           <section className="airgen-results">
             <div className="results-card">
               <header className="results-header">
-                <h2 className="results-title">{mode === 'requirements' ? 'Candidate requirements' : 'Candidate diagrams'}</h2>
+                <h2 className="results-title">{d.mode === 'requirements' ? 'Candidate requirements' : 'Candidate diagrams'}</h2>
                 <CandidateFilters
-                  textFilter={textFilter}
-                  sortOrder={sortOrder}
-                  onTextFilterChange={setTextFilter}
-                  onSortOrderChange={setSortOrder}
+                  textFilter={d.textFilter}
+                  sortOrder={d.sortOrder}
+                  onTextFilterChange={d.setTextFilter}
+                  onSortOrderChange={d.setSortOrder}
                 />
               </header>
 
-              {(mode === 'requirements' ? candidatesQuery.isLoading : diagramCandidatesQuery.isLoading) && (
+              {(d.mode === 'requirements' ? d.candidatesQuery.isLoading : d.diagramCandidatesQuery.isLoading) && (
                 <div className="results-loading">
                   <Spinner />
                   <p className="hint">Loading candidates…</p>
                 </div>
               )}
 
-              {(mode === 'requirements' ? candidatesQuery.isError : diagramCandidatesQuery.isError) && (
-                <ErrorState message={((mode === 'requirements' ? candidatesQuery.error : diagramCandidatesQuery.error) as Error)?.message ?? "Unknown error"} />
+              {(d.mode === 'requirements' ? d.candidatesQuery.isError : d.diagramCandidatesQuery.isError) && (
+                <ErrorState message={((d.mode === 'requirements' ? d.candidatesQuery.error : d.diagramCandidatesQuery.error) as Error)?.message ?? "Unknown error"} />
               )}
 
-              {mode === 'requirements' && (
+              {d.mode === 'requirements' && (
                 <RequirementCandidateList
-                  candidateGroups={candidateGroups}
-                  collapsedGroups={collapsedGroups}
-                  textFilter={textFilter}
-                  disabled={disabled}
-                  onToggleGroupCollapse={toggleGroupCollapse}
-                  onAcceptClick={handleAcceptClick}
-                  onRejectClick={(candidate) => rejectMutation.mutate(candidate)}
-                  onReturnClick={(candidate) => returnMutation.mutate(candidate)}
-                  onArchiveGroup={(requirementIds) => archiveGroupMutation.mutate(requirementIds)}
-                  isRejectPending={rejectMutation.isPending}
-                  isReturnPending={returnMutation.isPending}
+                  candidateGroups={d.candidateGroups}
+                  collapsedGroups={d.collapsedGroups}
+                  textFilter={d.textFilter}
+                  disabled={d.disabled}
+                  onToggleGroupCollapse={d.toggleGroupCollapse}
+                  onAcceptClick={d.handleAcceptClick}
+                  onRejectClick={(candidate) => d.rejectMutation.mutate(candidate)}
+                  onReturnClick={(candidate) => d.returnMutation.mutate(candidate)}
+                  onArchiveGroup={(requirementIds) => d.archiveGroupMutation.mutate(requirementIds)}
+                  isRejectPending={d.rejectMutation.isPending}
+                  isReturnPending={d.returnMutation.isPending}
                 />
               )}
 
-              {mode === 'diagram' && (
+              {d.mode === 'diagram' && (
                 <DiagramCandidateList
-                  candidates={diagramCandidatesQuery.data?.items ?? []}
-                  disabled={disabled}
-                  onAcceptClick={(candidate) => {
-                    // Open modal to choose between new or update
-                    setSelectedDiagramCandidate(candidate);
-                    setShowAcceptDiagramModal(true);
-                  }}
-                  onRejectClick={(candidate) => {
-                    // Prevent duplicate clicks on the same candidate
-                    if (rejectingDiagramId === candidate.id) return;
-                    setRejectingDiagramId(candidate.id);
-                    rejectDiagramMutation.mutate(candidate);
-                  }}
-                  onReturnClick={(candidate) => {
-                    // Prevent duplicate clicks on the same candidate
-                    if (returningDiagramId === candidate.id) return;
-                    setReturningDiagramId(candidate.id);
-                    returnDiagramMutation.mutate(candidate);
-                  }}
-                  isAcceptPending={acceptDiagramMutation.isPending}
-                  isRejectPending={rejectDiagramMutation.isPending}
-                  isReturnPending={returnDiagramMutation.isPending}
-                  acceptingCandidateId={acceptingDiagramId}
-                  rejectingCandidateId={rejectingDiagramId}
-                  returningCandidateId={returningDiagramId}
+                  candidates={d.diagramCandidatesQuery.data?.items ?? []}
+                  disabled={d.disabled}
+                  onAcceptClick={d.handleAcceptDiagramClick}
+                  onRejectClick={d.handleRejectDiagramClick}
+                  onReturnClick={d.handleReturnDiagramClick}
+                  isAcceptPending={d.acceptDiagramMutation.isPending}
+                  isRejectPending={d.rejectDiagramMutation.isPending}
+                  isReturnPending={d.returnDiagramMutation.isPending}
+                  acceptingCandidateId={d.acceptingDiagramId}
+                  rejectingCandidateId={d.rejectingDiagramId}
+                  returningCandidateId={d.returningDiagramId}
                 />
               )}
             </div>
@@ -357,567 +130,22 @@ export function AirGenRoute(): JSX.Element {
       </div>
 
       <AcceptCandidateModal
-        isOpen={showAcceptModal}
-        candidate={selectedCandidate}
-        tenant={tenant}
-        project={project}
-        onClose={() => {
-          setShowAcceptModal(false);
-          setSelectedCandidate(null);
-        }}
-        onAccepted={() => {
-          setSelectedCandidate(null);
-          queryClient.invalidateQueries({ queryKey: ["airgen", "candidates", "grouped", tenant, project] });
-        }}
+        isOpen={d.showAcceptModal}
+        candidate={d.selectedCandidate}
+        tenant={d.tenant}
+        project={d.project}
+        onClose={d.closeAcceptModal}
+        onAccepted={d.onAccepted}
       />
 
       <AcceptDiagramModal
-        isOpen={showAcceptDiagramModal}
-        candidate={selectedDiagramCandidate}
-        tenant={tenant}
-        project={project}
-        onClose={() => {
-          setShowAcceptDiagramModal(false);
-          setSelectedDiagramCandidate(null);
-        }}
-        onAccept={(params) => {
-          setAcceptingDiagramId(params.candidate.id);
-          acceptDiagramMutation.mutate(params);
-        }}
+        isOpen={d.showAcceptDiagramModal}
+        candidate={d.selectedDiagramCandidate}
+        tenant={d.tenant}
+        project={d.project}
+        onClose={d.closeAcceptDiagramModal}
+        onAccept={d.handleAcceptDiagramConfirm}
       />
-
-      <style>{`
-        /* Main Container */
-        .airgen-container-inner {
-          max-width: 100%;
-        }
-
-        /* Two Column Layout */
-        .airgen-layout {
-          display: grid;
-          grid-template-columns: 380px 1fr;
-          gap: 28px;
-          align-items: start;
-          min-height: calc(100vh - 200px);
-        }
-
-        /* Left Column - Input Form */
-        .airgen-chat {
-          position: sticky;
-          top: 20px;
-        }
-
-        .chat-card {
-          background: white;
-          border-radius: 12px;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-          overflow: hidden;
-        }
-
-        /* Mode Selector */
-        .mode-selector {
-          padding: 20px;
-          background: #f8fafc;
-          border-bottom: 1px solid #e2e8f0;
-        }
-
-        .section-title {
-          font-size: 15px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0 0 12px 0;
-        }
-
-        .mode-options {
-          display: flex;
-          gap: 12px;
-        }
-
-        .mode-option {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          cursor: pointer;
-          padding: 6px 10px;
-          border-radius: 6px;
-          transition: all 0.2s ease;
-          background: white;
-          border: 1px solid #e2e8f0;
-          flex: 1;
-          justify-content: center;
-        }
-
-        .mode-option:hover {
-          background: #f1f5f9;
-          border-color: #cbd5e1;
-        }
-
-        .mode-option input[type="radio"] {
-          margin: 0;
-          accent-color: #3b82f6;
-        }
-
-        .mode-option span {
-          font-weight: 500;
-          color: #475569;
-          font-size: 13px;
-        }
-
-        /* Form Section */
-        .form-section {
-          padding: 20px;
-        }
-
-        .form-title {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0 0 18px 0;
-        }
-
-        .airgen-form {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        .airgen-form .space-y-2 {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-
-        .airgen-form label {
-          font-size: 13px;
-          font-weight: 500;
-          color: #374151;
-        }
-
-        .airgen-form textarea {
-          min-height: 70px;
-          resize: vertical;
-        }
-
-        .airgen-form input[type="number"] {
-          width: 80px;
-        }
-
-        /* Right Column - Results */
-        .airgen-results {
-          min-height: 600px;
-        }
-
-        .results-card {
-          background: white;
-          border-radius: 12px;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-          overflow: hidden;
-        }
-
-        .results-header {
-          padding: 24px;
-          border-bottom: 1px solid #e2e8f0;
-          background: #f8fafc;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 16px;
-        }
-
-        .results-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0;
-        }
-
-        .results-actions {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-        }
-
-        .results-loading {
-          padding: 48px 24px;
-          text-align: center;
-          color: #64748b;
-        }
-
-        .filter-results {
-          padding: 16px 24px;
-          background: #fef3c7;
-          border-bottom: 1px solid #f59e0b;
-          color: #92400e;
-          font-size: 14px;
-          font-weight: 500;
-        }
-
-        /* Candidate Groups */
-        .candidate-groups {
-          padding: 24px;
-        }
-
-        .candidate-group {
-          margin-bottom: 32px;
-        }
-
-        .candidate-group:last-child {
-          margin-bottom: 0;
-        }
-
-        .group-header {
-          cursor: pointer;
-          padding: 16px 20px;
-          background: #f1f5f9;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          margin-bottom: 16px;
-          transition: all 0.2s ease;
-        }
-
-        .group-header:hover {
-          background: #e2e8f0;
-        }
-
-        .group-title {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0;
-        }
-
-        .candidate-list {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        /* Candidate Cards */
-        .candidate-card {
-          background: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          padding: 20px;
-          transition: all 0.2s ease;
-        }
-
-        .candidate-card:hover {
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .candidate-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .candidate-status {
-          padding: 4px 12px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.025em;
-        }
-
-        .status-pending .candidate-status {
-          background: #fef3c7;
-          color: #92400e;
-        }
-
-        .status-accepted .candidate-status {
-          background: #d1fae5;
-          color: #065f46;
-        }
-
-        .status-rejected .candidate-status {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-
-        .status-unknown .candidate-status {
-          background: #e2e8f0;
-          color: #475569;
-        }
-
-        .candidate-ref {
-          font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-          background: #f1f5f9;
-          color: #475569;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: 500;
-        }
-
-        .candidate-text {
-          color: #1e293b;
-          font-size: 15px;
-          line-height: 1.6;
-          margin: 0 0 16px 0;
-        }
-
-        .candidate-meta {
-          display: flex;
-          gap: 24px;
-          margin-bottom: 16px;
-          font-size: 13px;
-          color: #64748b;
-        }
-
-        .candidate-actions {
-          display: flex;
-          gap: 8px;
-          margin-top: 16px;
-        }
-
-        .candidate-actions button {
-          padding: 8px 16px;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          border: 1px solid;
-        }
-
-        .candidate-actions button:first-child {
-          background: #3b82f6;
-          color: white;
-          border-color: #3b82f6;
-        }
-
-        .candidate-actions button:first-child:hover {
-          background: #2563eb;
-          border-color: #2563eb;
-        }
-
-        .candidate-reject {
-          background: white;
-          color: #dc2626;
-          border-color: #dc2626;
-        }
-
-        .candidate-reject:hover {
-          background: #dc2626;
-          color: white;
-        }
-
-        .candidate-return {
-          background: white;
-          color: #059669;
-          border-color: #059669;
-        }
-
-        .candidate-return:hover {
-          background: #059669;
-          color: white;
-        }
-
-        .candidate-note {
-          background: #f0f9ff;
-          border: 1px solid #bae6fd;
-          color: #0c4a6e;
-          padding: 12px;
-          border-radius: 6px;
-          font-size: 14px;
-          margin-top: 16px;
-        }
-
-        /* Diagram Specific Styles */
-        .diagram-candidates {
-          padding: 24px;
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
-
-        .diagram-info h3 {
-          font-size: 18px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0 0 8px 0;
-        }
-
-        .diagram-description {
-          color: #64748b;
-          font-size: 14px;
-          margin: 0 0 12px 0;
-          line-height: 1.5;
-        }
-
-        .diagram-meta {
-          display: flex;
-          gap: 20px;
-          flex-wrap: wrap;
-          margin-bottom: 16px;
-          font-size: 13px;
-        }
-
-        .diagram-meta span {
-          color: #475569;
-        }
-
-        .diagram-action {
-          background: #f1f5f9;
-          color: #475569;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.025em;
-        }
-
-        .diagram-reasoning {
-          margin-bottom: 20px;
-        }
-
-        .diagram-reasoning details {
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          padding: 16px;
-        }
-
-        .diagram-reasoning summary {
-          cursor: pointer;
-          font-weight: 500;
-          color: #475569;
-          margin-bottom: 12px;
-          user-select: none;
-        }
-
-        .diagram-reasoning p {
-          margin: 0;
-          color: #64748b;
-          font-size: 14px;
-          line-height: 1.6;
-        }
-
-        .diagram-preview {
-          margin: 20px 0;
-          border-radius: 8px;
-          overflow: hidden;
-          border: 1px solid #e2e8f0;
-        }
-
-        .hint {
-          color: #64748b;
-          font-style: italic;
-          text-align: center;
-          padding: 48px 24px;
-        }
-
-        /* Responsive Design */
-        @media (max-width: 1200px) {
-          .airgen-layout {
-            grid-template-columns: 340px 1fr;
-            gap: 20px;
-          }
-        }
-
-        @media (max-width: 1024px) {
-          .airgen-layout {
-            grid-template-columns: 1fr;
-            gap: 20px;
-          }
-
-          .airgen-chat {
-            position: static;
-          }
-
-          .mode-selector {
-            padding: 16px;
-          }
-
-          .form-section {
-            padding: 16px;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .airgen-container {
-            padding: 0 16px;
-          }
-
-          .results-header {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .results-actions {
-            justify-content: stretch;
-          }
-
-          .candidate-meta {
-            flex-direction: column;
-            gap: 8px;
-          }
-        }
-
-        /* LLM Loading Overlay */
-        .llm-loading-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(255, 255, 255, 0.95);
-          backdrop-filter: blur(8px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-          animation: fadeIn 0.3s ease-in-out;
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-
-        .llm-loading-content {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 24px;
-        }
-
-        .llm-loading-video {
-          max-width: 90vw;
-          max-height: 60vh;
-          object-fit: contain;
-          mix-blend-mode: multiply;
-          border-radius: 24px;
-          filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.6));
-        }
-
-        .llm-loading-text {
-          font-size: 18px;
-          font-weight: 500;
-          color: #475569;
-          margin: 0;
-          animation: pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-      `}</style>
     </PageLayout>
   );
 }
