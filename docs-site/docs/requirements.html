@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements Management — AIRGen Documentation</title>
+  <meta name="description" content="Create, score, edit, and manage requirements with AI assistance and deterministic quality checks in AIRGen.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/docs.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/docs/" class="active">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile sidebar toggle -->
+  <div class="container" style="padding-top: 1rem;">
+    <button class="docs-sidebar-toggle" aria-label="Toggle sidebar navigation">
+      Menu
+    </button>
+  </div>
+
+  <!-- Docs Layout -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="docs-sidebar">
+      <div class="docs-sidebar__section">
+        <div class="docs-sidebar__title">Documentation</div>
+        <ul>
+          <li><a href="/docs/getting-started">Getting Started</a></li>
+          <li><a href="/docs/requirements" class="active">Requirements</a></li>
+          <li><a href="/docs/documents">Documents</a></li>
+          <li><a href="/docs/ai-generation">AI Generation</a></li>
+          <li><a href="/docs/architecture">Architecture</a></li>
+          <li><a href="/docs/traceability">Traceability</a></li>
+          <li><a href="/docs/baselines">Baselines</a></li>
+          <li><a href="/docs/admin">Admin</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="docs-content">
+      <h1>Requirements Management</h1>
+      <p>Create, score, edit, and manage requirements with AI assistance and deterministic quality checks.</p>
+
+      <h2 id="creating-requirements">Creating Requirements</h2>
+      <p>You can create requirements manually from the <strong>Requirements</strong> page in your project.</p>
+      <p>Click <strong>Add Requirement</strong> in the toolbar. A new row appears in the requirements table with editable fields. Fill in the following:</p>
+      <ul>
+        <li><strong>Title</strong> &mdash; A short, descriptive name for the requirement.</li>
+        <li><strong>Description</strong> &mdash; The full requirement statement. Use precise, unambiguous language with measurable criteria where possible.</li>
+        <li><strong>Rationale</strong> &mdash; Why this requirement exists. Link it to a business need, safety goal, or regulatory mandate.</li>
+        <li><strong>Verification Method</strong> &mdash; How the requirement will be verified: inspection, analysis, demonstration, or test.</li>
+      </ul>
+      <p>To edit an existing requirement, double-click any field in the table to open the inline editor. Changes are saved automatically when you click away or press <strong>Enter</strong>.</p>
+      <div class="callout callout--tip">
+        <strong>Tip:</strong> You can select multiple requirements using the checkboxes in the first column, then perform bulk actions such as scoring, archiving, or exporting.
+      </div>
+
+      <h2 id="ai-assisted-generation">AI-Assisted Generation</h2>
+      <p>AIRGen can generate requirement candidates from natural-language descriptions. This is especially useful when translating stakeholder needs, safety goals, or high-level objectives into formal requirements.</p>
+      <p>To generate requirements with AI:</p>
+      <ol>
+        <li>Open the <strong>AIRGen Chat</strong> panel from the right-hand side of the Requirements page.</li>
+        <li>Describe your need in natural language. For example: <em>"The infotainment system shall boot to the home screen within 3 seconds of ignition on."</em></li>
+        <li>AIRGen analyses your project context &mdash; existing requirements, documents, and architecture &mdash; and generates 1 to 5 candidate requirements.</li>
+        <li>Review each candidate. Click <strong>Edit</strong> to refine the wording, or click <strong>Accept</strong> to add it directly to your project.</li>
+        <li>Click <strong>Reject</strong> to discard any candidate that does not meet your needs.</li>
+      </ol>
+      <div class="callout callout--info">
+        <strong>How it works:</strong> AI generation uses your project graph as context, which means the candidates are tailored to your specific system, terminology, and existing requirement structure.
+      </div>
+
+      <h2 id="qa-scoring">QA Scoring</h2>
+      <p>AIRGen includes a deterministic quality assurance scorer that evaluates requirements against ISO/IEC/IEEE 29148 quality rules. Unlike AI-based checks, these rules are repeatable, auditable, and produce the same result every time.</p>
+      <p>To score requirements:</p>
+      <ol>
+        <li>Select one or more requirements using the checkboxes in the requirements table.</li>
+        <li>Click <strong>Run QA Scorer</strong> in the toolbar.</li>
+        <li>The scorer runs as a background worker. A progress indicator shows real-time status as each requirement is evaluated.</li>
+        <li>When scoring completes, each requirement displays an overall score and individual rule results.</li>
+      </ol>
+      <p>The scorer checks the following quality attributes:</p>
+      <ul>
+        <li><strong>Atomic</strong> &mdash; The requirement addresses a single concern. It does not combine multiple behaviours or constraints into one statement.</li>
+        <li><strong>Unambiguous</strong> &mdash; The language is clear and cannot be interpreted in more than one way. Vague terms like "fast", "user-friendly", or "adequate" are flagged.</li>
+        <li><strong>Verifiable</strong> &mdash; The requirement includes measurable criteria that can be objectively tested or inspected.</li>
+        <li><strong>Traceable</strong> &mdash; The requirement can be linked back to a source (document, stakeholder need, or higher-level requirement) and forward to verification evidence.</li>
+        <li><strong>Consistent</strong> &mdash; The requirement does not conflict with other requirements in the project.</li>
+        <li><strong>Feasible</strong> &mdash; The requirement is technically achievable within the constraints of the system.</li>
+      </ul>
+      <div class="callout callout--tip">
+        <strong>Tip:</strong> After fixing flagged issues, re-run the scorer on the updated requirements to confirm your improvements. Tracking score trends over time is a strong indicator of project quality maturity.
+      </div>
+
+      <h2 id="custom-attributes">Custom Attributes</h2>
+      <p>Every project has different metadata needs. AIRGen lets you define project-specific attributes that appear as additional columns in the requirements table.</p>
+      <p>Navigate to <strong>Requirements Schema</strong> in your project settings. Click <strong>Add Attribute</strong> and configure:</p>
+      <ul>
+        <li><strong>Attribute name</strong> &mdash; The column header displayed in the table (e.g., "Priority", "Status", "Category").</li>
+        <li><strong>Data type</strong> &mdash; Text, number, date, or dropdown (enumerated list).</li>
+        <li><strong>Default value</strong> &mdash; Optional. Pre-fills the field for new requirements.</li>
+      </ul>
+      <p>Common custom attributes include:</p>
+      <ul>
+        <li><strong>Priority</strong> &mdash; High, Medium, Low.</li>
+        <li><strong>Status</strong> &mdash; Draft, Under Review, Approved, Rejected.</li>
+        <li><strong>Category</strong> &mdash; Functional, Performance, Safety, Interface.</li>
+        <li><strong>Source</strong> &mdash; The originating document, stakeholder, or standard.</li>
+        <li><strong>Verification Method</strong> &mdash; Inspection, Analysis, Demonstration, Test.</li>
+      </ul>
+      <p>Once defined, custom attributes appear as editable columns in the requirements table and are included in exports and baseline snapshots.</p>
+
+      <h2 id="version-history">Version History</h2>
+      <p>AIRGen tracks the complete history of every requirement. Each time you edit a requirement's text, rationale, or any attribute, a new version is created automatically.</p>
+      <p>To view version history:</p>
+      <ol>
+        <li>Click on a requirement to open its detail panel.</li>
+        <li>Select the <strong>History</strong> tab.</li>
+        <li>Browse the list of versions, ordered from most recent to oldest. Each entry shows the date, the user who made the change, and a summary of what changed.</li>
+        <li>Click <strong>Compare</strong> on any two versions to see a side-by-side diff with additions highlighted in green and deletions highlighted in red.</li>
+        <li>Click <strong>Restore</strong> on any previous version to revert the requirement to that state. Restoring creates a new version rather than overwriting history.</li>
+      </ol>
+      <div class="callout callout--info">
+        <strong>Audit trail:</strong> Version history is immutable. Restoring a previous version adds a new entry to the history &mdash; it never deletes or overwrites past versions. This guarantees a complete audit trail for compliance reviews.
+      </div>
+
+      <h2 id="archive-duplicate-detection">Archive &amp; Duplicate Detection</h2>
+      <p>Over the course of a project, some requirements become obsolete or redundant. AIRGen provides two features to keep your requirements set clean without losing data.</p>
+      <h3>Archiving</h3>
+      <p>Select one or more requirements and click <strong>Archive</strong>. Archived requirements are hidden from the default table view but are not deleted. They remain in the project graph and are included in baseline snapshots taken before the archive action.</p>
+      <p>To view archived requirements, toggle the <strong>Show Archived</strong> filter in the table toolbar. You can restore an archived requirement at any time by selecting it and clicking <strong>Restore</strong>.</p>
+      <h3>Duplicate Detection</h3>
+      <p>AIRGen automatically scans for potential duplicates based on text similarity. When the system detects two or more requirements with highly similar descriptions, a notification appears in the requirements toolbar.</p>
+      <p>Click the notification to review the flagged pairs. For each pair, you can:</p>
+      <ul>
+        <li><strong>Merge</strong> &mdash; Combine the two requirements into one, preserving trace links from both.</li>
+        <li><strong>Dismiss</strong> &mdash; Mark the pair as intentionally distinct. The system will not flag them again.</li>
+        <li><strong>Archive one</strong> &mdash; Keep the preferred version and archive the duplicate.</li>
+      </ul>
+    </main>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/docs-sidebar.js"></script>
+</body>
+</html>

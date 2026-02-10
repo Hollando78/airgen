@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Management — AIRGen Documentation</title>
+  <meta name="description" content="Upload, parse, organize, and link your project documentation in AIRGen. Supports Word and PDF with automatic section extraction.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/docs.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/docs/" class="active">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile sidebar toggle -->
+  <div class="container" style="padding-top: 1rem;">
+    <button class="docs-sidebar-toggle" aria-label="Toggle sidebar navigation">
+      Menu
+    </button>
+  </div>
+
+  <!-- Docs Layout -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="docs-sidebar">
+      <div class="docs-sidebar__section">
+        <div class="docs-sidebar__title">Documentation</div>
+        <ul>
+          <li><a href="/docs/getting-started">Getting Started</a></li>
+          <li><a href="/docs/requirements">Requirements</a></li>
+          <li><a href="/docs/documents" class="active">Documents</a></li>
+          <li><a href="/docs/ai-generation">AI Generation</a></li>
+          <li><a href="/docs/architecture">Architecture</a></li>
+          <li><a href="/docs/traceability">Traceability</a></li>
+          <li><a href="/docs/baselines">Baselines</a></li>
+          <li><a href="/docs/admin">Admin</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="docs-content">
+      <h1>Document Management</h1>
+      <p>Upload, parse, organize, and link your project documentation.</p>
+
+      <h2 id="uploading-documents">Uploading Documents</h2>
+      <p>All project documentation lives on the <strong>Documents</strong> page, accessible from the left-hand sidebar of your project.</p>
+      <p>To upload a document:</p>
+      <ol>
+        <li>Navigate to <strong>Documents</strong> in the project sidebar.</li>
+        <li>If you want to organize the file into a folder, create or select a folder first (see <a href="#folder-organization">Folder Organization</a> below).</li>
+        <li>Click <strong>Upload</strong> in the toolbar and select one or more files from your computer.</li>
+        <li>AIRGen accepts <strong>Word (.docx)</strong> and <strong>PDF</strong> files.</li>
+        <li>Once the upload completes, AIRGen automatically parses the document and extracts its sections based on headings and structural markers.</li>
+      </ol>
+      <p>The parsed document appears in the file list immediately. Click on it to open the section tree and begin working with individual sections.</p>
+      <div class="callout callout--info">
+        <strong>Supported formats:</strong> AIRGen currently supports .docx and .pdf files. For best results with automatic section extraction, use documents with well-structured headings (Heading 1, Heading 2, etc. in Word, or bookmarked sections in PDF).
+      </div>
+
+      <h2 id="section-management">Section Management</h2>
+      <p>After a document is uploaded and parsed, AIRGen splits it into a hierarchy of sections based on the document's heading structure. Each section becomes a first-class entity in your project graph.</p>
+      <p>To work with sections:</p>
+      <ol>
+        <li>Click on a document in the file list to open it.</li>
+        <li>The <strong>Section Tree</strong> panel displays the document's structure as a collapsible tree. Top-level headings appear at the root, with nested subheadings beneath them.</li>
+        <li>Click any section in the tree to view its content in the reading pane.</li>
+        <li>Click <strong>Edit</strong> to modify the section content using the built-in Markdown editor.</li>
+      </ol>
+      <p>Each section has its own metadata, including a unique identifier, title, and level in the document hierarchy. Sections can be individually linked to requirements, architecture blocks, and other entities through AIRGen's traceability system.</p>
+      <div class="callout callout--tip">
+        <strong>Tip:</strong> If the automatic parser did not split sections the way you expected, you can manually split or merge sections. Select a section and use the <strong>Split</strong> or <strong>Merge</strong> actions in the section toolbar.
+      </div>
+
+      <h2 id="linking-sections-to-requirements">Linking Sections to Requirements</h2>
+      <p>One of the most valuable capabilities in AIRGen is connecting document sections directly to requirements. These trace links provide compliance evidence that every requirement has a documented source and every document section has been addressed by the engineering process.</p>
+      <p>To link a section to a requirement:</p>
+      <ol>
+        <li>Open a document and select a section in the section tree.</li>
+        <li>In the section detail panel, click <strong>Link to Requirement</strong>.</li>
+        <li>Search for the target requirement by title or ID. You can also browse the full requirements list.</li>
+        <li>Select the link type. Common types include <strong>derives-from</strong> (the requirement was derived from this section) and <strong>satisfies</strong> (the section provides evidence that the requirement is addressed).</li>
+        <li>Click <strong>Create Link</strong> to save the trace relationship.</li>
+      </ol>
+      <p>Once created, the link is visible from both the section detail panel and the requirement detail panel. Navigate in either direction by clicking the linked entity.</p>
+      <div class="callout callout--info">
+        <strong>Why this matters:</strong> Regulatory frameworks such as ISO 26262, DO-178C, and IEC 62304 require bidirectional traceability between source documents and derived requirements. Linking sections to requirements in AIRGen satisfies this audit requirement.
+      </div>
+
+      <h2 id="folder-organization">Folder Organization</h2>
+      <p>As your project grows, organizing documents into folders keeps the file list manageable and reflects your project's structure.</p>
+      <p>To create and manage folders:</p>
+      <ol>
+        <li>On the <strong>Documents</strong> page, click <strong>New Folder</strong> in the toolbar.</li>
+        <li>Enter a folder name. Common naming conventions include organizing by project phase (e.g., "Concept", "Design", "Verification"), by discipline (e.g., "Systems", "Software", "Hardware"), or by document type (e.g., "Specifications", "Standards", "Meeting Notes").</li>
+        <li>Click <strong>Create</strong>. The folder appears in the file list.</li>
+        <li>Drag and drop documents into folders to reorganize them. You can also drag documents between folders or back to the root level.</li>
+      </ol>
+      <p>Folders can be nested to any depth. The folder structure is reflected in the file manager's grid and list views. You can switch between views using the toggle in the toolbar.</p>
+      <div class="callout callout--tip">
+        <strong>Tip:</strong> Establish your folder structure early in the project. A consistent hierarchy makes it easier for team members to find documents and ensures a clean organization when you take baselines.
+      </div>
+
+      <h2 id="markdown-editor">Markdown Editor</h2>
+      <p>AIRGen includes a built-in Markdown editor for working with section content. The editor supports full Markdown syntax with a live preview pane so you can see the rendered output as you type.</p>
+      <p>Supported Markdown features include:</p>
+      <ul>
+        <li><strong>Headings</strong> &mdash; Use <code>#</code> through <code>######</code> for heading levels 1 through 6.</li>
+        <li><strong>Bold and italic</strong> &mdash; Use <code>**bold**</code> and <code>*italic*</code> for emphasis.</li>
+        <li><strong>Lists</strong> &mdash; Ordered (<code>1.</code>) and unordered (<code>-</code>) lists, with nesting support.</li>
+        <li><strong>Tables</strong> &mdash; Standard Markdown table syntax with alignment support.</li>
+        <li><strong>Code blocks</strong> &mdash; Inline code with backticks and fenced code blocks with triple backticks.</li>
+        <li><strong>Links and images</strong> &mdash; Standard Markdown link and image syntax.</li>
+      </ul>
+      <h3>Entity References</h3>
+      <p>The editor supports a special reference syntax for linking to other entities in your project graph. Type <code>@</code> followed by the entity type and ID to insert a clickable reference:</p>
+      <ul>
+        <li><code>@REQ-001</code> &mdash; References a requirement.</li>
+        <li><code>@ARCH-012</code> &mdash; References an architecture block.</li>
+        <li><code>@DOC-005/S3</code> &mdash; References a specific section within a document.</li>
+      </ul>
+      <p>These references are resolved at render time and display as clickable links that navigate directly to the referenced entity. They also create implicit trace relationships in the project graph.</p>
+    </main>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/docs-sidebar.js"></script>
+</body>
+</html>

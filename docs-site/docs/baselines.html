@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baselines &amp; Compliance — AIRGen Documentation</title>
+  <meta name="description" content="Capture, compare, and audit point-in-time snapshots of your project state. Learn how AIRGen baselines support ISO 26262, DO-178C, and IEC 62304 compliance.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/docs.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/docs/" class="active">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile sidebar toggle -->
+  <div class="container" style="padding-top: 1rem;">
+    <button class="docs-sidebar-toggle" aria-label="Toggle sidebar navigation">
+      Menu
+    </button>
+  </div>
+
+  <!-- Docs Layout -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="docs-sidebar">
+      <div class="docs-sidebar__section">
+        <div class="docs-sidebar__title">Documentation</div>
+        <ul>
+          <li><a href="/docs/getting-started">Getting Started</a></li>
+          <li><a href="/docs/requirements">Requirements</a></li>
+          <li><a href="/docs/documents">Documents</a></li>
+          <li><a href="/docs/ai-generation">AI Generation</a></li>
+          <li><a href="/docs/architecture">Architecture</a></li>
+          <li><a href="/docs/traceability">Traceability</a></li>
+          <li><a href="/docs/baselines" class="active">Baselines</a></li>
+          <li><a href="/docs/admin">Admin</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="docs-content">
+      <h1>Baselines &amp; Compliance</h1>
+      <p>Capture, compare, and audit point-in-time snapshots of your project state.</p>
+
+      <h2 id="what-are-baselines">What Are Baselines?</h2>
+      <p>A baseline is a <strong>point-in-time snapshot</strong> of your entire project. When you create a baseline, AIRGen captures the current version of every entity in your project graph:</p>
+      <ul>
+        <li>All requirements (with their full text, status, and QA scores)</li>
+        <li>All documents and their parsed sections</li>
+        <li>All architecture blocks and interfaces</li>
+        <li>All trace links between entities</li>
+        <li>All diagrams and their configurations</li>
+      </ul>
+      <p>Baselines are <strong>immutable</strong>. Once created, a baseline cannot be modified or deleted. This immutability is by design — it ensures that the snapshot you present during an audit is exactly what existed at the time of capture, with no possibility of retroactive changes.</p>
+      <p>Common uses for baselines include release milestones, review gates, regulatory submissions, and change impact analysis between development phases.</p>
+      <div class="callout callout--info">
+        <strong>Baselines vs. version history.</strong> Individual entities (requirements, documents) maintain their own version history as you edit them. A baseline is different: it captures the entire project as a coordinated snapshot. Think of it as a "group photo" of every entity at a specific moment.
+      </div>
+
+      <h2 id="creating-a-baseline">Creating a Baseline</h2>
+      <p>To create a new baseline:</p>
+      <ol>
+        <li>Navigate to the <strong>Baselines</strong> page from the left-hand sidebar.</li>
+        <li>Click <strong>Create Baseline</strong>.</li>
+        <li>Enter a <strong>label</strong> that identifies this snapshot — for example, "v1.0 Release", "CDR Snapshot", "SRR Submission", or "Sprint 14 Freeze".</li>
+        <li>Enter your <strong>name as author</strong>. This records who created the baseline for audit purposes.</li>
+        <li>Click <strong>Save</strong>. AIRGen captures the current version of every entity in your project.</li>
+      </ol>
+      <p>The baseline creation process runs in the background. For small to medium projects (up to a few hundred requirements), it completes in a few seconds. Larger projects may take slightly longer. You will see a confirmation when the baseline is ready.</p>
+      <div class="callout callout--tip">
+        <strong>Name baselines consistently.</strong> Adopt a naming convention early. A pattern like "v1.0-SRR", "v1.0-CDR", "v1.0-Release" makes it easy to locate specific snapshots later. Include the version number and the review gate or milestone name.
+      </div>
+
+      <h2 id="viewing-baseline-details">Viewing Baseline Details</h2>
+      <p>The Baselines page displays all baselines in a table, ordered by creation date (newest first). Each row shows the baseline label, author, creation timestamp, and entity counts.</p>
+      <p>Click any baseline row to expand its details. The expanded view shows a summary of all captured entities, organized by category:</p>
+      <ul>
+        <li><strong>Requirements</strong> — The number of requirements captured, with a link to view the full list and their exact text at the time of the snapshot.</li>
+        <li><strong>Documents</strong> — The number of documents and their parsed section trees.</li>
+        <li><strong>Sections</strong> — The total number of document sections captured.</li>
+        <li><strong>Architecture Blocks</strong> — System blocks, subsystem blocks, and their interface definitions.</li>
+        <li><strong>Trace Links</strong> — All linksets and individual trace links that existed at baseline time.</li>
+        <li><strong>Diagrams</strong> — Architecture diagram layouts and configurations.</li>
+      </ul>
+      <p>Click on any category to drill down and view the specific entity versions that were captured. Each entity displays the exact content it had at the moment the baseline was created, regardless of any changes made since then.</p>
+
+      <h2 id="comparing-baselines">Comparing Baselines</h2>
+      <p>Baseline comparison is one of AIRGen's most powerful features for change management. To compare two baselines:</p>
+      <ol>
+        <li>On the Baselines page, select two baselines using the checkboxes in the table.</li>
+        <li>Click <strong>Compare</strong>.</li>
+        <li>AIRGen generates a detailed diff showing all changes between the two snapshots.</li>
+      </ol>
+      <p>The comparison report is organized into three categories:</p>
+      <ul>
+        <li><strong>Added</strong> — Entities that exist in the newer baseline but not in the older one. These are new requirements, documents, or links created between the two snapshots.</li>
+        <li><strong>Removed</strong> — Entities that exist in the older baseline but not in the newer one. These were deleted or removed between snapshots.</li>
+        <li><strong>Modified</strong> — Entities that exist in both baselines but have different content. The diff highlights exactly what changed in each entity's text, status, or attributes.</li>
+      </ul>
+      <div class="callout callout--tip">
+        <strong>Change impact analysis.</strong> Use baseline comparison before a release to understand the full scope of changes since the last review gate. Compare the current baseline against the previous release baseline to generate a comprehensive change report for your review board or auditor.
+      </div>
+      <p>Baseline comparison works across any two baselines in your project, regardless of how far apart they are in time. You can compare the first baseline with the most recent one to see the complete evolution of your project.</p>
+
+      <h2 id="compliance-evidence">Compliance Evidence</h2>
+      <p>Baselines provide the evidence trail required by safety and quality standards in regulated industries. AIRGen baselines directly support compliance with:</p>
+      <ul>
+        <li><strong>ISO 26262</strong> (Automotive Functional Safety) — Requires configuration management and traceability of safety requirements. Baselines capture the exact requirement versions, trace link states, and document content at each ASIL review gate.</li>
+        <li><strong>DO-178C</strong> (Airborne Software) — Mandates configuration identification and baseline establishment at each software life cycle phase. AIRGen baselines serve as the Configuration Identification (CI) records for your requirements data.</li>
+        <li><strong>IEC 62304</strong> (Medical Device Software) — Requires maintenance of a software development plan with identified baselines. Each baseline provides the snapshot needed for design reviews and regulatory submissions.</li>
+      </ul>
+      <p>When an auditor requests evidence of your project state at a particular milestone, you provide the corresponding baseline. Because baselines are immutable and timestamped, they serve as tamper-proof records of your project's configuration at any point in time.</p>
+      <div class="callout callout--info">
+        <strong>Audit workflow.</strong> For a typical audit, create baselines at each major review gate (SRR, PDR, CDR, release). When the auditor asks "What were the requirements at CDR?", open the CDR baseline and show the exact content. Use baseline comparison to demonstrate change control between gates.
+      </div>
+      <p>Baselines also capture trace link coverage at the moment of creation. This means you can demonstrate that all requirements were traced to test cases, architecture blocks, or design documents at the time of the review — even if trace links have been modified since then.</p>
+    </main>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/docs-sidebar.js"></script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+/* Tablet: 768px - 1023px */
+@media (max-width: 1023px) {
+  .grid--3, .feature-grid, .steps, .deploy-cards, .pricing-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .grid--4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .site-footer__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .docs-layout {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .docs-hub-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .hero h1 {
+    font-size: 2.25rem;
+  }
+}
+
+/* Mobile: up to 767px */
+@media (max-width: 767px) {
+  .hero {
+    padding: 3rem 0;
+  }
+
+  .hero h1 {
+    font-size: 1.75rem;
+  }
+
+  .hero__subtitle {
+    font-size: 1rem;
+  }
+
+  .section {
+    padding: 2.5rem 0;
+  }
+
+  .grid--2, .grid--3, .grid--4,
+  .feature-grid, .steps, .deploy-cards, .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .site-footer__grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Mobile nav */
+  .main-nav {
+    display: none;
+    position: absolute;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    background: var(--white);
+    border-bottom: 1px solid var(--neutral-200);
+    flex-direction: column;
+    padding: 1rem;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .main-nav.open {
+    display: flex;
+  }
+
+  .nav-toggle {
+    display: block;
+  }
+
+  .header-actions .btn--outline {
+    display: none;
+  }
+
+  /* Docs layout */
+  .docs-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .docs-sidebar {
+    position: static;
+    max-height: none;
+    display: none;
+    padding-right: 0;
+    border-bottom: 1px solid var(--neutral-200);
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .docs-sidebar.open {
+    display: block;
+  }
+
+  .docs-sidebar-toggle {
+    display: block;
+  }
+
+  .docs-hub-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Comparison table */
+  .comparison-table {
+    font-size: 0.85rem;
+  }
+
+  .comparison-table th, .comparison-table td {
+    padding: 0.5rem;
+  }
+
+  .site-footer__bottom {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+}

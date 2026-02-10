@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started — AIRGen Documentation</title>
+  <meta name="description" content="Get started with AIRGen. Create your account, set up a workspace, upload documents, generate requirements, and take your first baseline.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/docs.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/docs/" class="active">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile sidebar toggle -->
+  <div class="container" style="padding-top: 1rem;">
+    <button class="docs-sidebar-toggle" aria-label="Toggle sidebar navigation">
+      Menu
+    </button>
+  </div>
+
+  <!-- Docs Layout -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="docs-sidebar">
+      <div class="docs-sidebar__section">
+        <div class="docs-sidebar__title">Documentation</div>
+        <ul>
+          <li><a href="/docs/getting-started" class="active">Getting Started</a></li>
+          <li><a href="/docs/requirements">Requirements</a></li>
+          <li><a href="/docs/documents">Documents</a></li>
+          <li><a href="/docs/ai-generation">AI Generation</a></li>
+          <li><a href="/docs/architecture">Architecture</a></li>
+          <li><a href="/docs/traceability">Traceability</a></li>
+          <li><a href="/docs/baselines">Baselines</a></li>
+          <li><a href="/docs/admin">Admin</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="docs-content">
+      <h1>Getting Started</h1>
+      <p>Go from zero to your first baselined requirement in under ten minutes. This guide walks you through every step.</p>
+
+      <h2 id="create-your-account">1. Create Your Account</h2>
+      <p>Head to <a href="https://airgen.studio">airgen.studio</a> and click <strong>Get Started</strong>. Fill in your name, email address, and a password. You will receive a verification email within a few seconds — click the link inside to activate your account.</p>
+      <p>If you are joining an existing team, ask your administrator to send you an invitation link instead. Accepting the invite will add you to your team's tenant automatically.</p>
+
+      <h2 id="set-up-your-workspace">2. Set Up Your Workspace</h2>
+      <p>After you sign in for the first time, AIRGen creates a default workspace (tenant) for you. A workspace is the top-level container that holds all of your projects, users, and settings.</p>
+      <p>To create your first project, open the <strong>Dashboard</strong> and click <strong>New Project</strong>. Give it a name and an optional description. Projects contain requirements, documents, architecture diagrams, linksets, and baselines — everything lives inside a project.</p>
+
+      <h2 id="upload-a-document">3. Upload a Document</h2>
+      <p>Navigate to <strong>Documents</strong> in the left-hand sidebar. Create a folder to keep things organized, then click <strong>Upload</strong>. AIRGen accepts Word (.docx) and PDF files.</p>
+      <p>Once uploaded, AIRGen parses the document into a hierarchical tree of sections automatically. Each section becomes a first-class node in the project graph, ready to be linked to requirements, architecture blocks, and other sections.</p>
+
+      <h2 id="create-your-first-requirement">4. Create Your First Requirement</h2>
+      <p>Go to <strong>Requirements</strong> and click <strong>Add Requirement</strong>. You can write the requirement text manually using the inline editor.</p>
+      <p>Alternatively, open AIRGen's <strong>AI Chat</strong> panel and describe what you need in plain language — for example, <em>"The braking system shall respond within 150 ms of pedal input."</em> AIRGen generates 1-5 compliant requirement candidates. Review each candidate, edit as needed, and click <strong>Accept</strong> to add it to your project.</p>
+
+      <h2 id="run-qa-scoring">5. Run QA Scoring</h2>
+      <p>Select one or more requirements in the list and click <strong>Run QA Scorer</strong>. AIRGen's background worker evaluates each requirement against a set of deterministic quality checks based on ISO/IEC/IEEE 29148.</p>
+      <p>Every requirement receives an overall score plus individual rule results. Common checks include: unambiguous language, measurability, feasibility, singular responsibility, and correct use of "shall" vs. "should". Fix any flagged issues and re-score to confirm improvements.</p>
+
+      <h2 id="create-trace-links">6. Create Trace Links</h2>
+      <p>Go to <strong>Links</strong> and click <strong>Create Linkset</strong>. A linkset defines a category of trace relationships — for example, "Requirements to Document Sections" or "System to Subsystem Requirements".</p>
+      <p>Inside the linkset, add individual links by selecting a source node and a target node. You can link requirements to document sections, architecture blocks, or other requirements. All links are stored in AIRGen's Neo4j graph and can be navigated visually or queried programmatically.</p>
+
+      <h2 id="take-a-baseline">7. Take a Baseline</h2>
+      <p>Go to <strong>Baselines</strong> and click <strong>Create Baseline</strong>. A baseline is a point-in-time snapshot of your entire project state — every requirement, document, link, and architecture block at that moment.</p>
+      <p>Name the baseline with a version identifier (e.g., "v1.0-draft") and add an optional description. After creation, you can compare any two baselines side-by-side to see exactly what was added, changed, or removed between releases. Baselines serve as your official release evidence and audit trail.</p>
+
+      <h2 id="next-steps">8. Next Steps</h2>
+      <p>You now have a working project with a document, requirements, QA scores, trace links, and a baseline. Here is where to go next:</p>
+      <ul>
+        <li><a href="/docs/requirements">Requirements Management Guide</a> — Deep dive into requirement editing, versioning, filtering, and bulk operations.</li>
+        <li><a href="/docs/architecture">Architecture Diagrams Guide</a> — Build visual block diagrams, define interfaces, and link components to requirements.</li>
+        <li><a href="/docs/admin">Administration Guide</a> — Configure users, roles, RBAC policies, and tenant-level settings.</li>
+      </ul>
+    </main>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/docs-sidebar.js"></script>
+</body>
+</html>

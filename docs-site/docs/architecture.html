@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture Diagrams — AIRGen Documentation</title>
+  <meta name="description" content="Build and maintain system architecture with a visual block editor. Create components, define connectors, and capture diagram snapshots in AIRGen.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/docs.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/docs/" class="active">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <button class="docs-sidebar-toggle" aria-label="Toggle sidebar navigation">
+      Show Navigation
+    </button>
+
+    <!-- Docs Layout -->
+    <div class="docs-layout">
+
+      <!-- Sidebar -->
+      <nav class="docs-sidebar">
+        <div class="docs-sidebar__section">
+          <div class="docs-sidebar__title">Guides</div>
+          <ul>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+            <li><a href="/docs/requirements">Requirements</a></li>
+            <li><a href="/docs/documents">Documents</a></li>
+            <li><a href="/docs/ai-generation">AI Generation</a></li>
+            <li><a href="/docs/architecture" class="active">Architecture</a></li>
+            <li><a href="/docs/traceability">Traceability</a></li>
+            <li><a href="/docs/baselines">Baselines</a></li>
+            <li><a href="/docs/admin">Admin</a></li>
+          </ul>
+        </div>
+      </nav>
+
+      <!-- Content -->
+      <div class="docs-content">
+        <h1>Architecture Diagrams</h1>
+        <p>Build and maintain system architecture with a visual block editor.</p>
+
+        <h2 id="the-architecture-editor">The Architecture Editor</h2>
+        <p>Navigate to the <strong>Architecture</strong> page from the left-hand sidebar of your project. The editor provides a visual canvas — built on <strong>ReactFlow</strong> — where you create and connect system blocks to define your architecture.</p>
+        <p>Use the mouse wheel or trackpad pinch gesture to zoom in and out. Click and drag on an empty area of the canvas to pan. The toolbar at the top of the canvas provides block creation tools, connector tools, and layout options for automatically arranging blocks.</p>
+        <div class="callout callout--tip">
+          <strong>Tip:</strong> Use the minimap in the bottom-right corner of the canvas to orient yourself in large diagrams. Click anywhere on the minimap to jump directly to that area.
+        </div>
+
+        <h2 id="creating-blocks">Creating Blocks</h2>
+        <p>Click <strong>Add Block</strong> in the toolbar to create a new component on the canvas. Each block represents a system element. Common block types include:</p>
+        <ul>
+          <li><strong>ECUs</strong> — Electronic control units that host software and manage hardware interfaces.</li>
+          <li><strong>Software Modules</strong> — Logical groupings of functionality within an ECU or computing platform.</li>
+          <li><strong>Sensors</strong> — Input devices that provide data to the system (temperature probes, accelerometers, cameras).</li>
+          <li><strong>Actuators</strong> — Output devices that act on the physical world (motors, valves, displays).</li>
+          <li><strong>Custom Types</strong> — Define your own component types to match your domain vocabulary.</li>
+        </ul>
+        <p>After placing a block, give it a descriptive name and add an optional description that explains its role in the system. Blocks appear as draggable rectangles on the canvas. Resize them by dragging the corner handles, and reposition them by dragging the block body.</p>
+        <div class="callout callout--info">
+          <strong>Naming convention:</strong> Use clear, consistent names that your team will recognise. For example, prefix ECU names with "ECU-" and sensor names with "SNS-". Consistent naming makes it easier to search for blocks and identify them in trace views.
+        </div>
+
+        <h2 id="defining-connectors">Defining Connectors</h2>
+        <p>Connect blocks by dragging from one block's output port to another block's input port. A line appears as you drag, snapping to the target port when you release.</p>
+        <p>Each connector represents a relationship between two blocks. Common connector types include:</p>
+        <ul>
+          <li><strong>Data Flows</strong> — Information exchanged between components (CAN messages, Ethernet frames, shared memory).</li>
+          <li><strong>Control Signals</strong> — Command-and-response pathways between controllers and actuators.</li>
+          <li><strong>Power Connections</strong> — Electrical power distribution between components.</li>
+          <li><strong>Logical Dependencies</strong> — Abstract relationships indicating that one component depends on another.</li>
+        </ul>
+        <p>After creating a connector, click on it to open its detail panel. Label the connector with a meaningful name, specify its direction (unidirectional or bidirectional), and optionally define the data type or protocol it carries.</p>
+        <div class="callout callout--tip">
+          <strong>Tip:</strong> Label every connector immediately after creating it. Unlabelled connectors become difficult to interpret as the diagram grows. A label such as "brake_pressure_psi" is far more useful than a bare line.
+        </div>
+
+        <h2 id="block-library">Block Library</h2>
+        <p>Frequently used blocks can be saved to the <strong>Block Library</strong> for reuse across diagrams within the same project. This ensures consistency when the same component appears in multiple architecture views.</p>
+        <p>To save a block to the library:</p>
+        <ol>
+          <li>Right-click the block on the canvas and select <strong>Save to Library</strong>.</li>
+          <li>The block — including its name, description, ports, and styling — is stored in the library.</li>
+          <li>To reuse it, open the library panel and drag the saved block onto any diagram canvas.</li>
+        </ol>
+        <p>Library blocks retain their identity. When you update a library entry, existing instances on diagrams are not changed automatically; you can choose to sync them manually. This prevents unintended changes to diagrams that have already been reviewed or baselined.</p>
+
+        <h2 id="floating-diagram-windows">Floating Diagram Windows</h2>
+        <p>Open multiple diagram views simultaneously in floating, draggable windows. Each window maintains its own independent viewport — its own zoom level and pan position — so you can inspect different areas of the architecture side by side without losing your place.</p>
+        <p>To open a floating window:</p>
+        <ol>
+          <li>Right-click on a block or an empty area of the canvas.</li>
+          <li>Select <strong>Open in Floating Window</strong>.</li>
+          <li>A new draggable window appears, showing the selected view.</li>
+        </ol>
+        <p>Floating windows are especially useful when working on large systems where the architecture spans multiple levels of decomposition. For example, keep the top-level system view in one window while editing a detailed subsystem view in another.</p>
+        <div class="callout callout--info">
+          <strong>Window management:</strong> Drag the title bar of a floating window to reposition it. Drag the edges to resize it. Close a floating window by clicking the X button in its title bar. All floating windows are temporary and are not saved between sessions.
+        </div>
+
+        <h2 id="diagram-snapshots">Diagram Snapshots</h2>
+        <p>Capture a screenshot of any diagram and save it directly to the <strong>Document Manager</strong>. Snapshots are useful for including architecture views in requirements documents, design review packages, and compliance evidence.</p>
+        <p>To capture a snapshot:</p>
+        <ol>
+          <li>Arrange the diagram so the area you want to capture is visible on the canvas.</li>
+          <li>Click <strong>Snapshot</strong> in the toolbar (or right-click and select <strong>Take Snapshot</strong>).</li>
+          <li>AIRGen renders a high-resolution image of the current viewport.</li>
+          <li>Choose a destination folder in the Document Manager and click <strong>Save</strong>.</li>
+        </ol>
+        <p>The saved image appears in your Documents file list and can be inserted into any document section using the Markdown editor's image syntax. Snapshots are included when you take a project baseline, providing a visual record of the architecture at that point in time.</p>
+        <div class="callout callout--tip">
+          <strong>Tip:</strong> Before taking a snapshot, use the <strong>Fit View</strong> button in the toolbar to ensure all blocks are visible on the canvas. This produces a clean, complete image that is suitable for formal documentation.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/docs-sidebar.js"></script>
+</body>
+</html>

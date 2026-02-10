@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI-Powered Generation — AIRGen Documentation</title>
+  <meta name="description" content="Use conversational AI to generate compliant requirement candidates from natural language. Learn how AIRGen's context-aware generation works.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/docs.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/docs/" class="active">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile sidebar toggle -->
+  <div class="container" style="padding-top: 1rem;">
+    <button class="docs-sidebar-toggle" aria-label="Toggle sidebar navigation">
+      Menu
+    </button>
+  </div>
+
+  <!-- Docs Layout -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="docs-sidebar">
+      <div class="docs-sidebar__section">
+        <div class="docs-sidebar__title">Documentation</div>
+        <ul>
+          <li><a href="/docs/getting-started">Getting Started</a></li>
+          <li><a href="/docs/requirements">Requirements</a></li>
+          <li><a href="/docs/documents">Documents</a></li>
+          <li><a href="/docs/ai-generation" class="active">AI Generation</a></li>
+          <li><a href="/docs/architecture">Architecture</a></li>
+          <li><a href="/docs/traceability">Traceability</a></li>
+          <li><a href="/docs/baselines">Baselines</a></li>
+          <li><a href="/docs/admin">Admin</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="docs-content">
+      <h1>AI-Powered Generation</h1>
+      <p>Use conversational AI to generate compliant requirement candidates from natural language.</p>
+
+      <h2 id="the-airgen-chat">The AIRGen Chat</h2>
+      <p>Navigate to the <strong>Ask AIRGen</strong> page from the left-hand sidebar. The chat interface works like a conversation: you describe your system need, constraint, or objective in plain language, and AIRGen responds with structured requirement candidates.</p>
+      <p>There is no special syntax to learn. Write the way you would explain a requirement to a colleague. For example:</p>
+      <ul>
+        <li><em>"The battery management system shall disconnect the pack when cell temperature exceeds 60 degrees C."</em></li>
+        <li><em>"We need a requirement that limits the display refresh latency to under 100 ms."</em></li>
+        <li><em>"Define a safety constraint for the steering actuator fail-safe mode."</em></li>
+      </ul>
+      <p>Each message you send becomes part of the conversation history. AIRGen uses the full conversation thread to maintain context across follow-up messages, so you can refine and iterate without repeating yourself.</p>
+
+      <h2 id="generating-candidates">Generating Candidates</h2>
+      <p>When you submit a message, AIRGen uses your project context — existing requirements, uploaded documents, and architecture data stored in the Neo4j project graph — to generate <strong>1 to 5 candidate requirements</strong>.</p>
+      <p>Each candidate is formatted as a proper requirement with three parts:</p>
+      <ul>
+        <li><strong>Title</strong> — A concise label that identifies the requirement (e.g., "Battery Thermal Disconnect Threshold").</li>
+        <li><strong>Description</strong> — The full requirement statement, written in "shall" language following ISO/IEC/IEEE 29148 conventions.</li>
+        <li><strong>Rationale</strong> — An explanation of why this requirement exists and what system need it addresses.</li>
+      </ul>
+      <div class="callout callout--info">
+        <strong>How many candidates?</strong> AIRGen generates between 1 and 5 candidates per prompt, depending on the complexity and ambiguity of your input. A narrow, specific prompt typically produces 1-2 candidates. A broader system need may produce up to 5 variations for you to choose from.
+      </div>
+
+      <h2 id="reviewing-candidates">Reviewing Candidates</h2>
+      <p>Candidates appear in the <strong>Smart Candidates</strong> panel on the Ask AIRGen page. Each candidate is displayed as an editable card. You have three actions available for every candidate:</p>
+      <ol>
+        <li><strong>Edit</strong> — Modify the title, description, or rationale directly in the card. Fix wording, adjust thresholds, or tighten scope before accepting.</li>
+        <li><strong>Accept</strong> — Add the candidate to your project as a new requirement. It immediately becomes part of your requirement set and is available for QA scoring, tracing, and baselining.</li>
+        <li><strong>Reject</strong> — Discard the candidate entirely. Rejected candidates are removed from the panel and are not added to your project.</li>
+      </ol>
+      <div class="callout callout--tip">
+        <strong>Edit before accepting.</strong> AI-generated candidates are starting points, not final requirements. Take a moment to sharpen the language, add measurable criteria, and verify the scope before you accept. This small step significantly improves your QA scores.
+      </div>
+
+      <h2 id="context-aware-generation">Context-Aware Generation</h2>
+      <p>AIRGen does not generate requirements in a vacuum. The AI uses data from your <strong>Neo4j project graph</strong> to produce contextually relevant candidates. Specifically, it considers:</p>
+      <ul>
+        <li><strong>Existing requirements</strong> — To avoid duplicates and ensure new candidates complement what you already have.</li>
+        <li><strong>Document content</strong> — Parsed sections from uploaded Word and PDF files provide domain-specific terminology and constraints.</li>
+        <li><strong>Architecture structure</strong> — System blocks, interfaces, and component hierarchies inform the AI about your system decomposition.</li>
+      </ul>
+      <p>This context-awareness means the AI gets better results the more data your project contains. A project with uploaded specifications and a defined architecture will produce more precise candidates than an empty project.</p>
+      <div class="callout callout--info">
+        <strong>Privacy note.</strong> Your project data is used only to generate candidates within your session. It is not shared across tenants or used to train models. Self-hosted deployments keep all data on your own infrastructure.
+      </div>
+
+      <h2 id="best-practices">Best Practices</h2>
+      <p>Follow these guidelines to get the most out of AI-powered generation:</p>
+      <h3>Be Specific in Your Prompts</h3>
+      <p>Include the system boundary, performance targets, environmental conditions, or safety constraints. The more concrete your input, the more precise the output.</p>
+      <ul>
+        <li><strong>Good:</strong> <em>"The braking system shall achieve full stop from 100 km/h within 35 metres on dry pavement."</em></li>
+        <li><strong>Too vague:</strong> <em>"Make braking safe."</em></li>
+      </ul>
+
+      <h3>Iterate with Follow-Up Messages</h3>
+      <p>Use the conversation thread to refine candidates. If the first set of candidates is close but not right, send a follow-up message explaining what to change:</p>
+      <ul>
+        <li><em>"Make that requirement apply only to the rear axle."</em></li>
+        <li><em>"Add a degraded-mode variant with a 50 metre stopping distance."</em></li>
+        <li><em>"Split this into separate requirements for dry and wet conditions."</em></li>
+      </ul>
+
+      <h3>Upload Documents First</h3>
+      <p>Before generating requirements, upload your system specifications, concept of operations, and interface documents. The richer your project context, the better the AI can align its output with your actual system.</p>
+
+      <h3>Review QA Scores After Accepting</h3>
+      <p>After accepting a candidate, run QA scoring immediately. This catches quality issues — ambiguous language, missing measurability, or compound statements — while the requirement is still fresh in your mind and easy to fix.</p>
+    </main>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/docs-sidebar.js"></script>
+</body>
+</html>

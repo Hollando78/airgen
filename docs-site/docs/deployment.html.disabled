@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Self-Hosted Deployment — AIRGen Documentation</title>
+  <meta name="description" content="Deploy AIRGen on your own infrastructure with Docker Compose. Complete guide covering prerequisites, environment variables, SSL, backups, and monitoring.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/docs.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/docs/" class="active">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile sidebar toggle -->
+  <div class="container" style="padding-top: 1rem;">
+    <button class="docs-sidebar-toggle" aria-label="Toggle sidebar navigation">
+      Menu
+    </button>
+  </div>
+
+  <!-- Docs Layout -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="docs-sidebar">
+      <div class="docs-sidebar__section">
+        <div class="docs-sidebar__title">Documentation</div>
+        <ul>
+          <li><a href="/docs/getting-started">Getting Started</a></li>
+          <li><a href="/docs/requirements">Requirements</a></li>
+          <li><a href="/docs/documents">Documents</a></li>
+          <li><a href="/docs/ai-generation">AI Generation</a></li>
+          <li><a href="/docs/architecture">Architecture</a></li>
+          <li><a href="/docs/traceability">Traceability</a></li>
+          <li><a href="/docs/baselines">Baselines</a></li>
+          <li><a href="/docs/admin">Admin</a></li>
+          <li><a href="/docs/deployment" class="active">Deployment</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="docs-content">
+      <h1>Self-Hosted Deployment</h1>
+      <p>Deploy AIRGen on your own infrastructure with Docker Compose.</p>
+
+      <h2 id="prerequisites">Prerequisites</h2>
+      <p>Before you begin, make sure you have the following in place:</p>
+      <ul>
+        <li><strong>Linux VPS</strong> — Ubuntu 22.04 or later is recommended. Debian 12+ and RHEL 9+ are also supported.</li>
+        <li><strong>Docker Engine 24+</strong> — Install Docker from the <a href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener">official documentation</a>.</li>
+        <li><strong>Docker Compose</strong> — Version 2.x (the <code>docker compose</code> plugin, not the legacy <code>docker-compose</code> standalone binary).</li>
+        <li><strong>Minimum 4 GB RAM</strong> — AIRGen runs PostgreSQL, Neo4j, a Node.js backend, and the frontend behind Traefik. 4 GB is the minimum; 8 GB is recommended for production.</li>
+        <li><strong>20 GB disk</strong> — For the operating system, Docker images, database storage, and uploaded workspace files.</li>
+        <li><strong>Domain name</strong> — A registered domain with a DNS A record pointing to your server's public IP address.</li>
+      </ul>
+      <div class="callout callout--info">
+        <strong>Firewall ports.</strong> Ensure that ports <strong>80</strong> (HTTP) and <strong>443</strong> (HTTPS) are open in your server's firewall and any upstream security groups. Traefik needs both ports for TLS certificate issuance and renewal.
+      </div>
+
+      <h2 id="quick-start">Quick Start</h2>
+      <p>Follow these steps to get AIRGen running on your server:</p>
+      <ol>
+        <li>
+          <strong>Clone the repository</strong>
+          <pre><code>git clone https://github.com/your-org/airgen.git
+cd airgen</code></pre>
+        </li>
+        <li>
+          <strong>Create your environment file</strong>
+          <pre><code>cp .env.example .env.production</code></pre>
+        </li>
+        <li>
+          <strong>Configure required variables</strong> — Open <code>.env.production</code> in your editor and set the values described in the Environment Variables section below. At minimum, you must set database passwords, a JWT secret, and your domain.
+        </li>
+        <li>
+          <strong>Start all services</strong>
+          <pre><code>docker compose -f docker-compose.prod.yml up -d</code></pre>
+        </li>
+        <li>
+          <strong>Verify the deployment</strong> — Wait 30-60 seconds for all containers to start, then open your domain in a browser. You should see the AIRGen login page. Confirm the health endpoint returns a healthy status:
+          <pre><code>curl https://your-domain.com/api/health</code></pre>
+        </li>
+      </ol>
+      <div class="callout callout--tip">
+        <strong>First-time setup.</strong> On the first launch, AIRGen automatically runs database migrations for both PostgreSQL and Neo4j. This may take an additional 15-30 seconds. Check the backend container logs if the application does not respond immediately: <code>docker compose -f docker-compose.prod.yml logs backend</code>.
+      </div>
+
+      <h2 id="environment-variables">Environment Variables</h2>
+      <p>The following table lists the key environment variables you must configure in <code>.env.production</code>:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>APP_URL</code></td>
+            <td>The public URL of your AIRGen instance (including protocol).</td>
+            <td><code>https://airgen.example.com</code></td>
+          </tr>
+          <tr>
+            <td><code>JWT_SECRET</code></td>
+            <td>A random string used to sign authentication tokens. Generate with <code>openssl rand -hex 32</code>.</td>
+            <td><code>a1b2c3d4e5...64-char-hex</code></td>
+          </tr>
+          <tr>
+            <td><code>POSTGRES_PASSWORD</code></td>
+            <td>Password for the PostgreSQL database.</td>
+            <td><code>strong-random-password</code></td>
+          </tr>
+          <tr>
+            <td><code>NEO4J_PASSWORD</code></td>
+            <td>Password for the Neo4j graph database.</td>
+            <td><code>strong-random-password</code></td>
+          </tr>
+          <tr>
+            <td><code>SMTP_HOST</code></td>
+            <td>SMTP server hostname for outbound email (verification, password reset).</td>
+            <td><code>smtp.mailgun.org</code></td>
+          </tr>
+          <tr>
+            <td><code>SMTP_USER</code></td>
+            <td>SMTP authentication username.</td>
+            <td><code>postmaster@mg.example.com</code></td>
+          </tr>
+          <tr>
+            <td><code>SMTP_PASSWORD</code></td>
+            <td>SMTP authentication password.</td>
+            <td><code>smtp-secret</code></td>
+          </tr>
+          <tr>
+            <td><code>CORS_ORIGINS</code></td>
+            <td>Comma-separated list of allowed CORS origins.</td>
+            <td><code>https://airgen.example.com</code></td>
+          </tr>
+          <tr>
+            <td><code>ACME_EMAIL</code></td>
+            <td>Email address for Let's Encrypt certificate registration.</td>
+            <td><code>admin@example.com</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout callout--warning">
+        <strong>Security reminder.</strong> Use strong, unique passwords for <code>JWT_SECRET</code>, <code>POSTGRES_PASSWORD</code>, and <code>NEO4J_PASSWORD</code>. Never commit your <code>.env.production</code> file to version control.
+      </div>
+
+      <h2 id="ssl-tls-setup">SSL/TLS Setup</h2>
+      <p>AIRGen uses <strong>Traefik</strong> as its reverse proxy, and Traefik handles TLS certificate issuance and renewal automatically via Let's Encrypt.</p>
+      <p>To enable automatic TLS:</p>
+      <ol>
+        <li>Ensure ports <strong>80</strong> and <strong>443</strong> are open and reachable from the internet.</li>
+        <li>Set <code>ACME_EMAIL</code> in your <code>.env.production</code> file to a valid email address. Let's Encrypt uses this for expiration notices.</li>
+        <li>Verify that your domain's DNS A record resolves to your server's public IP.</li>
+      </ol>
+      <p>That is all. On first startup, Traefik automatically requests a certificate from Let's Encrypt using the HTTP-01 challenge. Certificates are stored in <code>letsencrypt/acme.json</code> and auto-renew before expiration.</p>
+      <div class="callout callout--tip">
+        <strong>Testing with staging certificates.</strong> If you are testing your deployment and want to avoid hitting Let's Encrypt rate limits, you can configure Traefik to use the Let's Encrypt staging server. Add <code>--certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory</code> to the Traefik command in <code>docker-compose.prod.yml</code>. Switch back to production once your configuration is confirmed working.
+      </div>
+
+      <h2 id="backups">Backups</h2>
+      <p>AIRGen includes automated daily backups powered by <strong>Restic</strong>. Backups capture everything needed to restore your instance:</p>
+      <ul>
+        <li><strong>PostgreSQL dumps</strong> — Full database exports of all relational data (users, tenants, requirements metadata).</li>
+        <li><strong>Neo4j exports</strong> — Graph database snapshots containing requirements, documents, trace links, and architecture data.</li>
+        <li><strong>Workspace files</strong> — Uploaded documents, generated diagrams, and project assets.</li>
+      </ul>
+      <p>Configure your backup destination by setting the appropriate environment variables for your storage provider:</p>
+      <ul>
+        <li><strong>DigitalOcean Spaces</strong> — Set <code>RESTIC_REPOSITORY</code> to <code>s3:https://nyc3.digitaloceanspaces.com/your-bucket</code>.</li>
+        <li><strong>AWS S3</strong> — Set <code>RESTIC_REPOSITORY</code> to <code>s3:s3.amazonaws.com/your-bucket</code>.</li>
+        <li><strong>Backblaze B2</strong> — Set <code>RESTIC_REPOSITORY</code> to <code>b2:your-bucket</code>.</li>
+        <li><strong>SFTP</strong> — Set <code>RESTIC_REPOSITORY</code> to <code>sftp:user@host:/path/to/backups</code>.</li>
+      </ul>
+      <p>All backups are <strong>encrypted at rest</strong> using a password you configure in <code>RESTIC_PASSWORD</code>. Restic handles deduplication automatically, so incremental backups are fast and storage-efficient.</p>
+      <div class="callout callout--info">
+        <strong>Test your restores.</strong> A backup you have never tested is a backup you cannot trust. Periodically restore a backup to a staging environment and verify that the data is complete and the application starts correctly.
+      </div>
+
+      <h2 id="updating">Updating</h2>
+      <p>To update AIRGen to the latest version:</p>
+      <ol>
+        <li>
+          <strong>Create a backup</strong> — Always back up before updating.
+          <pre><code>docker compose -f docker-compose.prod.yml exec backup restic backup /data</code></pre>
+        </li>
+        <li>
+          <strong>Pull the latest code</strong>
+          <pre><code>git pull origin master</code></pre>
+        </li>
+        <li>
+          <strong>Rebuild images</strong>
+          <pre><code>docker compose -f docker-compose.prod.yml build</code></pre>
+        </li>
+        <li>
+          <strong>Restart services</strong>
+          <pre><code>docker compose -f docker-compose.prod.yml up -d</code></pre>
+        </li>
+      </ol>
+      <p>Database migrations run automatically on startup. The backend detects pending migrations and applies them before accepting requests. Check the backend logs if the application takes longer than usual to start after an update.</p>
+      <div class="callout callout--warning">
+        <strong>Breaking changes.</strong> Before updating, read the release notes for your target version. Major version updates may include breaking changes that require manual configuration adjustments. The release notes will list any required actions.
+      </div>
+
+      <h2 id="monitoring">Monitoring</h2>
+      <p>AIRGen exposes three health check endpoints for integration with your monitoring and orchestration tools:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Endpoint</th>
+            <th>Purpose</th>
+            <th>Returns</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/api/health</code></td>
+            <td>Full health status including database connectivity, Neo4j status, and disk usage.</td>
+            <td>JSON object with component-level details.</td>
+          </tr>
+          <tr>
+            <td><code>/api/healthz</code></td>
+            <td>Liveness probe. Confirms the backend process is running and responsive.</td>
+            <td><code>200 OK</code> if alive.</td>
+          </tr>
+          <tr>
+            <td><code>/api/readyz</code></td>
+            <td>Readiness probe. Confirms the backend is ready to accept traffic (databases connected, migrations complete).</td>
+            <td><code>200 OK</code> if ready, <code>503</code> if not.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Point your preferred uptime monitoring tool (UptimeRobot, Healthchecks.io, Prometheus Blackbox Exporter, or similar) at <code>/api/healthz</code> for basic liveness alerts. Use <code>/api/health</code> for richer dashboards that track individual component status over time.</p>
+      <div class="callout callout--tip">
+        <strong>Container logs.</strong> All AIRGen services write structured logs to stdout. Use <code>docker compose -f docker-compose.prod.yml logs -f backend</code> to tail the backend logs in real time. For centralized logging, configure the Docker logging driver to forward to your log aggregation platform (e.g., Loki, Datadog, or CloudWatch).
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="/pricing">Pricing</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+            <li><a href="/docs/deployment">Self-Hosted Setup</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/docs-sidebar.js"></script>
+</body>
+</html>

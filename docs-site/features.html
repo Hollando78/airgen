@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Features — AIRGen</title>
+  <meta name="description" content="Explore AIRGen's full feature set: AI-powered requirement generation, deterministic QA scoring, graph-based traceability, architecture diagrams, baselines, and enterprise-grade security.">
+  <meta property="og:title" content="Features — AIRGen">
+  <meta property="og:description" content="AI-powered requirement generation, deterministic QA scoring, graph-based traceability, architecture diagrams, baselines, and enterprise security.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://docs.airgen.studio/features">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <style>
+    .feature-section {
+      padding: 4rem 0;
+    }
+
+    .feature-section--alt {
+      background: var(--white);
+    }
+
+    .feature-section__inner {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .feature-section h2 {
+      font-size: 1.875rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .feature-section > .container > p,
+    .feature-section__inner > p {
+      color: var(--neutral-500);
+      font-size: 1.05rem;
+      line-height: 1.7;
+      margin-bottom: 1.5rem;
+    }
+
+    .feature-section .check-list {
+      margin-bottom: 0;
+    }
+
+    .feature-section .check-list li {
+      font-size: 0.95rem;
+      color: var(--neutral-700);
+      line-height: 1.6;
+      margin-bottom: 0.625rem;
+    }
+
+    .page-hero {
+      padding: 4rem 0 3rem;
+      text-align: center;
+      background: linear-gradient(135deg, var(--neutral-50) 0%, var(--brand-50) 50%, var(--accent-50) 100%);
+    }
+
+    .page-hero h1 {
+      font-size: 2.75rem;
+      max-width: 700px;
+      margin: 0 auto 1rem;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+
+    .page-hero p {
+      font-size: 1.2rem;
+      color: var(--neutral-500);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features" class="active">Features</a>
+        <a href="/docs/">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Page Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <h1>Features</h1>
+      <p>Everything you need to go from need statement to compliant, traced, baselined requirement — with AI assistance at every step.</p>
+    </div>
+  </section>
+
+  <!-- 1. AI-Powered Generation -->
+  <section class="feature-section">
+    <div class="container">
+      <div class="feature-section__inner">
+        <h2>AI-Powered Generation</h2>
+        <p>
+          Describe what you need in plain language and let AIRGen do the heavy lifting. The conversational chat interface understands your project context — existing requirements, architecture data, uploaded documents — and generates compliant requirement candidates ready for your review.
+        </p>
+        <ul class="check-list">
+          <li>Conversational AI chat interface for natural-language requirement authoring</li>
+          <li>Generates 1 to 5 candidate requirements from a single need statement</li>
+          <li>Context-aware generation that draws on your project graph data</li>
+          <li>Accept/reject workflow so you stay in full control of what enters the baseline</li>
+          <li>Smart candidate suggestions that improve with each interaction</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Requirements Management -->
+  <section class="feature-section feature-section--alt">
+    <div class="container">
+      <div class="feature-section__inner">
+        <h2>Requirements Management</h2>
+        <p>
+          Every requirement is scored, versioned, and auditable from the moment it is created. Quality checks follow ISO/IEC/IEEE 29148 rules — deterministic, not AI-generated — so your QA results are repeatable and audit-ready. Edit inline, extend with custom attributes, and track every change over time.
+        </p>
+        <ul class="check-list">
+          <li>Deterministic QA scoring based on ISO/IEC/IEEE 29148 quality criteria</li>
+          <li>Background QA worker with real-time progress indicators</li>
+          <li>Inline editing — double-click any requirement to edit in place</li>
+          <li>Custom attributes that are extensible and project-specific</li>
+          <li>Version history with side-by-side diff and one-click restore</li>
+          <li>Archive management for deprecated or superseded requirements</li>
+          <li>Duplicate detection to keep your requirement set clean</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Document Management -->
+  <section class="feature-section">
+    <div class="container">
+      <div class="feature-section__inner">
+        <h2>Document Management</h2>
+        <p>
+          Upload your existing specs, standards, and reference documents. AIRGen parses them into structured sections, organizes them in a hierarchical folder view, and connects them to your requirements graph. Author new documents with a Markdown editor that has live access to your project data.
+        </p>
+        <ul class="check-list">
+          <li>Multi-format upload supporting Word (.docx) and PDF files</li>
+          <li>Automatic document parsing and section extraction</li>
+          <li>Hierarchical folder organization for large document sets</li>
+          <li>Markdown editor with live graph data for dynamic content</li>
+          <li>Section-to-requirement linking for fine-grained traceability</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Architecture Diagrams -->
+  <section class="feature-section feature-section--alt">
+    <div class="container">
+      <div class="feature-section__inner">
+        <h2>Architecture Diagrams</h2>
+        <p>
+          Build and maintain your system architecture visually. The block editor lets you define components, specify interfaces, and map data flows — all within the same tool where you manage requirements. Snap diagram screenshots directly into your documents to keep everything in sync.
+        </p>
+        <ul class="check-list">
+          <li>Visual block editor built on ReactFlow for intuitive drag-and-drop layout</li>
+          <li>Block library with reusable components across diagrams</li>
+          <li>Connector definitions for relationships, interfaces, and data flows</li>
+          <li>Floating draggable diagram windows for side-by-side work</li>
+          <li>Independent per-diagram viewports so each diagram keeps its own zoom and position</li>
+          <li>Diagram snapshots exported directly to the document manager</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Traceability & Linking -->
+  <section class="feature-section">
+    <div class="container">
+      <div class="feature-section__inner">
+        <h2>Traceability &amp; Linking</h2>
+        <p>
+          Traceability is the backbone of any regulated project, and AIRGen treats it as a first-class concept. Every requirement, document section, architecture block, and baseline lives in a Neo4j graph. Navigate relationships visually, organize links into collections, and let AI suggest connections you might have missed.
+        </p>
+        <ul class="check-list">
+          <li>Neo4j graph-based trace links connecting all project artifacts</li>
+          <li>Linksets — organized collections of trace links for structured navigation</li>
+          <li>AI-powered link suggestions that surface potential relationships</li>
+          <li>Visual traceability navigation to walk the graph interactively</li>
+          <li>Graph viewer for exploring relationships across requirements, documents, and architecture</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Baselines & Compliance -->
+  <section class="feature-section feature-section--alt">
+    <div class="container">
+      <div class="feature-section__inner">
+        <h2>Baselines &amp; Compliance</h2>
+        <p>
+          Capture your project state at every release milestone. Baselines are immutable snapshots — you can compare them side-by-side to see exactly what changed, review the full version history, and produce the evidence auditors need without scrambling at the last minute.
+        </p>
+        <ul class="check-list">
+          <li>Point-in-time baseline snapshots of your entire project</li>
+          <li>Baseline comparison with detailed, line-level diff</li>
+          <li>Version history with a full audit trail for every change</li>
+          <li>Immutable version snapshots that serve as regulatory evidence</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Security & Multi-Tenant -->
+  <section class="feature-section">
+    <div class="container">
+      <div class="feature-section__inner">
+        <h2>Security &amp; Multi-Tenant</h2>
+        <p>
+          AIRGen is built for teams that handle sensitive engineering data. Role-based access control, two-factor authentication, and full tenant isolation ensure that your data stays where it belongs. Deploy as SaaS or self-host on your own infrastructure for maximum control over data residency.
+        </p>
+        <ul class="check-list">
+          <li>Role-based access control (RBAC) with granular permissions</li>
+          <li>Two-factor authentication using TOTP with backup codes</li>
+          <li>Multi-tenant architecture with tenant/project hierarchy</li>
+          <li>Automated encrypted daily backups</li>
+          <li>Tenant isolation — data is strictly separated between organizations</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Banner -->
+  <section class="cta-banner">
+    <div class="container">
+      <h2>Ready to See It in Action?</h2>
+      <p>Free to start. No credit card required. Upgrade when you're ready.</p>
+      <div class="hero__actions">
+        <a href="https://airgen.studio" class="btn btn--white btn--lg">Get Started Free</a>
+        <a href="/docs/getting-started" class="btn btn--outline btn--lg" style="color: var(--white); border-color: rgba(255,255,255,0.3);">Read the Docs</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+</body>
+</html>

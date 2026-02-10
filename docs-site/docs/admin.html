@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administration — AIRGen Documentation</title>
+  <meta name="description" content="Manage users, roles, tenants, and security settings in AIRGen. Configure RBAC, two-factor authentication, and automated backups.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/docs.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/docs/" class="active">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <button class="docs-sidebar-toggle" aria-label="Toggle sidebar navigation">
+      Show Navigation
+    </button>
+
+    <!-- Docs Layout -->
+    <div class="docs-layout">
+
+      <!-- Sidebar -->
+      <nav class="docs-sidebar">
+        <div class="docs-sidebar__section">
+          <div class="docs-sidebar__title">Guides</div>
+          <ul>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+            <li><a href="/docs/requirements">Requirements</a></li>
+            <li><a href="/docs/documents">Documents</a></li>
+            <li><a href="/docs/ai-generation">AI Generation</a></li>
+            <li><a href="/docs/architecture">Architecture</a></li>
+            <li><a href="/docs/traceability">Traceability</a></li>
+            <li><a href="/docs/baselines">Baselines</a></li>
+            <li><a href="/docs/admin" class="active">Admin</a></li>
+          </ul>
+        </div>
+      </nav>
+
+      <!-- Content -->
+      <div class="docs-content">
+        <h1>Administration</h1>
+        <p>Manage users, roles, tenants, and security settings.</p>
+
+        <h2 id="tenant-project-hierarchy">Tenant &amp; Project Hierarchy</h2>
+        <p>AIRGen organizes all data into a two-level hierarchy: <strong>tenants</strong> and <strong>projects</strong>.</p>
+        <p>A <strong>tenant</strong> is a workspace — typically one per organisation or team. Each tenant is fully isolated: its data, users, and configuration are separate from every other tenant in the system. This isolation applies to both the relational database and the Neo4j graph store.</p>
+        <p>Within a tenant, work is organized into <strong>projects</strong>. Each project contains its own requirements, documents, architecture diagrams, linksets, and baselines. Users are granted roles at either the tenant level (which applies to all projects in that tenant) or at the individual project level for more granular control.</p>
+        <div class="callout callout--info">
+          <strong>Planning your hierarchy:</strong> Most organisations start with a single tenant and create one project per product or system under development. If you have multiple independent teams that should not see each other's data, create separate tenants for each team.
+        </div>
+
+        <h2 id="role-based-access-control">Role-Based Access Control</h2>
+        <p>AIRGen uses role-based access control (RBAC) to determine what each user can see and do. Five built-in roles are available, listed from most to least privileged:</p>
+        <ol>
+          <li><strong>Super Admin</strong> — Full system access. Can manage all tenants, users, and global settings. Intended for platform operators and IT administrators.</li>
+          <li><strong>Tenant Admin</strong> — Manages a specific tenant. Can create and delete projects, invite and remove users, assign roles, and configure tenant-level settings.</li>
+          <li><strong>Approver</strong> — Can perform all Author actions plus approve and release requirements. Approvers are typically senior engineers or project leads responsible for sign-off.</li>
+          <li><strong>Author</strong> — Can create and edit requirements, documents, architecture blocks, linksets, and baselines. Authors are the primary content creators in a project.</li>
+          <li><strong>User</strong> — Read-only access. Can view all project data but cannot create, edit, or delete anything. Suitable for stakeholders and reviewers who need visibility without edit rights.</li>
+        </ol>
+        <p>Roles are assigned per-tenant or per-project. A user might be an Author in one project and a User (read-only) in another within the same tenant.</p>
+        <div class="callout callout--tip">
+          <strong>Tip:</strong> Follow the principle of least privilege. Grant each user the minimum role they need to do their work. You can always elevate a role later if responsibilities change.
+        </div>
+
+        <h2 id="user-management">User Management</h2>
+        <p>Tenant Admins manage users from the <strong>Settings &gt; Users</strong> page within their tenant.</p>
+        <p>To invite a new user:</p>
+        <ol>
+          <li>Navigate to <strong>Settings &gt; Users</strong> and click <strong>Invite User</strong>.</li>
+          <li>Enter the user's email address and select the role to assign.</li>
+          <li>Click <strong>Send Invitation</strong>. The user receives an email with a link to accept the invitation and create their account.</li>
+        </ol>
+        <p>To modify an existing user:</p>
+        <ul>
+          <li><strong>Change role</strong> — Click the role badge next to the user's name and select a new role from the dropdown.</li>
+          <li><strong>Remove access</strong> — Click the remove button next to the user's entry. The user loses access immediately but their historical activity (audit log entries, authored requirements) is preserved.</li>
+        </ul>
+        <p>Super Admins can manage users across all tenants from the global <strong>Admin &gt; Users</strong> panel. This panel lists every user in the system and allows cross-tenant role assignment.</p>
+
+        <h2 id="two-factor-authentication">Two-Factor Authentication</h2>
+        <p>Users can enable TOTP-based two-factor authentication (2FA) to add an additional verification step during login. When 2FA is enabled, signing in requires both a password and a time-based one-time code from an authenticator app.</p>
+        <p>To enable 2FA:</p>
+        <ol>
+          <li>Go to <strong>Account Settings &gt; Security</strong>.</li>
+          <li>Click <strong>Enable Two-Factor Authentication</strong>.</li>
+          <li>Scan the QR code with your authenticator app (Google Authenticator, Authy, 1Password, or any TOTP-compatible app).</li>
+          <li>Enter the six-digit code displayed by your app to confirm setup.</li>
+          <li>AIRGen generates a set of <strong>backup codes</strong>. Save these codes in a secure location — they are your only recovery method if you lose access to your authenticator device.</li>
+        </ol>
+        <div class="callout callout--info">
+          <strong>Backup codes:</strong> Each backup code can be used exactly once. After all backup codes are consumed, you must contact a Tenant Admin or Super Admin to reset your 2FA. Store backup codes separately from your authenticator device.
+        </div>
+
+        <h2 id="security-features">Security Features</h2>
+        <p>AIRGen implements multiple layers of security to protect your data and user accounts:</p>
+        <ul>
+          <li><strong>Password hashing</strong> — All passwords are hashed using <strong>Argon2id</strong>, the winner of the Password Hashing Competition. Argon2id is resistant to both GPU-based attacks and side-channel attacks.</li>
+          <li><strong>JWT access tokens</strong> — Short-lived access tokens expire after <strong>15 minutes</strong>. This limits the window of exposure if a token is compromised.</li>
+          <li><strong>HTTP-only refresh tokens</strong> — Session continuity is handled by refresh tokens stored in HTTP-only cookies. These cookies are not accessible to client-side JavaScript, mitigating XSS-based token theft.</li>
+          <li><strong>Rate limiting</strong> — Authentication endpoints (login, registration, password reset) are rate-limited to prevent brute-force attacks. Repeated failed attempts trigger temporary lockouts.</li>
+          <li><strong>Audit logging</strong> — All authentication events — logins, failed attempts, password changes, 2FA enrollment, and role changes — are logged with timestamps and IP addresses. Access the audit log from <strong>Settings &gt; Audit Log</strong>.</li>
+        </ul>
+        <div class="callout callout--tip">
+          <strong>Tip:</strong> Review the audit log regularly, especially after onboarding new users or changing role assignments. The log provides a clear record of who did what and when, which is essential for compliance audits.
+        </div>
+
+        <h2 id="automated-backups">Automated Backups</h2>
+        <p>AIRGen runs automated encrypted backups on a daily and weekly schedule. Backups capture the full system state: the relational database, the Neo4j graph store, uploaded files, and configuration data.</p>
+        <p>To configure backups:</p>
+        <ol>
+          <li>Navigate to <strong>Admin &gt; Backups</strong> (Super Admin access required).</li>
+          <li>Select your remote storage provider. Supported providers include:
+            <ul>
+              <li><strong>DigitalOcean Spaces</strong></li>
+              <li><strong>AWS S3</strong></li>
+              <li><strong>Backblaze B2</strong></li>
+              <li><strong>SFTP</strong> (any server with SSH access)</li>
+            </ul>
+          </li>
+          <li>Enter your storage credentials and bucket or path information.</li>
+          <li>Click <strong>Test Connection</strong> to verify that AIRGen can write to the remote storage.</li>
+          <li>Save the configuration. Backups begin running on the next scheduled cycle.</li>
+        </ol>
+        <p>The default retention policy keeps:</p>
+        <ul>
+          <li><strong>7 daily</strong> backups (one per day for the last week)</li>
+          <li><strong>4 weekly</strong> backups (one per week for the last month)</li>
+          <li><strong>12 monthly</strong> backups (one per month for the last year)</li>
+        </ul>
+        <p>Older backups are deleted automatically according to this policy. Verify backup health at any time from the <strong>Admin &gt; Backups</strong> dashboard, which displays the timestamp, size, and status of each backup.</p>
+        <div class="callout callout--info">
+          <strong>Encryption:</strong> All backups are encrypted at rest using AES-256 before being uploaded to remote storage. The encryption key is derived from your backup passphrase, which you set during initial configuration. Store this passphrase securely — without it, backups cannot be restored.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/docs-sidebar.js"></script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traceability &amp; Linking — AIRGen Documentation</title>
+  <meta name="description" content="Create and manage trace links across your entire project graph in AIRGen. Understand linksets, AI-powered suggestions, and the Graph Viewer.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/docs.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/docs/" class="active">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile sidebar toggle -->
+  <div class="container" style="padding-top: 1rem;">
+    <button class="docs-sidebar-toggle" aria-label="Toggle sidebar navigation">
+      Menu
+    </button>
+  </div>
+
+  <!-- Docs Layout -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="docs-sidebar">
+      <div class="docs-sidebar__section">
+        <div class="docs-sidebar__title">Documentation</div>
+        <ul>
+          <li><a href="/docs/getting-started">Getting Started</a></li>
+          <li><a href="/docs/requirements">Requirements</a></li>
+          <li><a href="/docs/documents">Documents</a></li>
+          <li><a href="/docs/ai-generation">AI Generation</a></li>
+          <li><a href="/docs/architecture">Architecture</a></li>
+          <li><a href="/docs/traceability" class="active">Traceability</a></li>
+          <li><a href="/docs/baselines">Baselines</a></li>
+          <li><a href="/docs/admin">Admin</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="docs-content">
+      <h1>Traceability &amp; Linking</h1>
+      <p>Create and manage trace links across your entire project graph.</p>
+
+      <h2 id="understanding-traceability">Understanding Traceability</h2>
+      <p>Traceability is the ability to trace any requirement back to its source and forward to its verification. It answers two fundamental questions for every requirement in your project:</p>
+      <ul>
+        <li><strong>Where did this come from?</strong> &mdash; Which document section, stakeholder need, or higher-level requirement gave rise to this requirement?</li>
+        <li><strong>How is this verified?</strong> &mdash; Which test case, analysis report, or inspection record demonstrates that this requirement has been met?</li>
+      </ul>
+      <p>AIRGen implements traceability using a <strong>Neo4j graph database</strong>. Every entity in your project &mdash; requirements, documents, document sections, architecture blocks, and diagrams &mdash; is stored as a node in the graph. Trace links are stored as edges connecting those nodes.</p>
+      <p>This graph-based approach provides several advantages over traditional traceability matrices:</p>
+      <ul>
+        <li><strong>Multi-hop navigation</strong> &mdash; Follow chains of trace links across multiple levels (e.g., stakeholder need to system requirement to software requirement to test case) without manual cross-referencing.</li>
+        <li><strong>Impact analysis</strong> &mdash; When a requirement changes, instantly see all downstream entities that may be affected.</li>
+        <li><strong>Coverage gaps</strong> &mdash; Identify requirements that lack upstream sources or downstream verification evidence.</li>
+      </ul>
+      <div class="callout callout--info">
+        <strong>Compliance note:</strong> Bidirectional traceability is a mandatory requirement in ISO 26262 (automotive), DO-178C (aerospace), and IEC 62304 (medical devices). AIRGen's graph model satisfies these standards by storing both forward and backward trace links as first-class relationships.
+      </div>
+
+      <h2 id="creating-trace-links">Creating Trace Links</h2>
+      <p>You can create trace links from the <strong>Links</strong> page or from the detail panel of any entity (requirement, document section, or architecture block).</p>
+      <h3>From the Links Page</h3>
+      <ol>
+        <li>Navigate to <strong>Links</strong> in the project sidebar.</li>
+        <li>Select an existing linkset or create a new one (see <a href="#linksets">Linksets</a> below).</li>
+        <li>Click <strong>Add Link</strong>.</li>
+        <li>In the <strong>Source</strong> field, search for or browse to the source entity. This can be a requirement, document section, or architecture block.</li>
+        <li>In the <strong>Target</strong> field, search for or browse to the target entity.</li>
+        <li>Select the <strong>Link Type</strong> from the dropdown. Available types include:
+          <ul>
+            <li><strong>derives-from</strong> &mdash; The target was derived from the source (e.g., a software requirement derived from a system requirement).</li>
+            <li><strong>satisfies</strong> &mdash; The target satisfies or fulfils the source (e.g., a design element satisfies a requirement).</li>
+            <li><strong>verifies</strong> &mdash; The target provides verification evidence for the source (e.g., a test case verifies a requirement).</li>
+            <li><strong>refines</strong> &mdash; The target provides a more detailed statement of the source (e.g., a detailed requirement refines a high-level requirement).</li>
+          </ul>
+        </li>
+        <li>Click <strong>Create</strong> to save the link.</li>
+      </ol>
+      <h3>From an Entity Detail Panel</h3>
+      <p>Open any requirement, section, or architecture block and scroll to the <strong>Trace Links</strong> section. Click <strong>Add Link</strong> to create a new link with the current entity pre-filled as the source. This is the fastest way to build traceability as you review individual entities.</p>
+      <div class="callout callout--tip">
+        <strong>Tip:</strong> All links are bidirectional and navigable from either end. If you create a "derives-from" link from Requirement A to Document Section B, you will see the link listed on both entities &mdash; as "derives-from" on Requirement A and as "derived-by" on Document Section B.
+      </div>
+
+      <h2 id="linksets">Linksets</h2>
+      <p>A linkset is a named collection of related trace links, grouped by purpose. Linksets make it practical to review traceability in context rather than viewing every link in the project at once.</p>
+      <p>To create a linkset:</p>
+      <ol>
+        <li>Navigate to <strong>Links</strong> in the project sidebar.</li>
+        <li>Click <strong>Create Linkset</strong>.</li>
+        <li>Enter a descriptive name that reflects the relationship category. Examples:
+          <ul>
+            <li>"Stakeholder Needs to System Requirements"</li>
+            <li>"System Requirements to Software Requirements"</li>
+            <li>"Requirements to Test Cases"</li>
+            <li>"Document Sections to Requirements"</li>
+          </ul>
+        </li>
+        <li>Add an optional description to clarify the linkset's scope and purpose.</li>
+        <li>Click <strong>Create</strong>.</li>
+      </ol>
+      <p>Once a linkset exists, all new links created within it are automatically grouped together. You can view linksets as filterable tabs on the Links page. Each linkset shows the total number of links it contains and a summary of source and target entity types.</p>
+      <div class="callout callout--info">
+        <strong>Best practice:</strong> Create one linkset per traceability relationship in your V-model or process. This maps directly to the traceability matrices required by most safety and quality standards, making audit reviews straightforward.
+      </div>
+
+      <h2 id="ai-powered-link-suggestions">AI-Powered Link Suggestions</h2>
+      <p>Manually creating every trace link in a project can be time-consuming. AIRGen offers AI-powered suggestions to accelerate the process.</p>
+      <p>To generate link suggestions:</p>
+      <ol>
+        <li>Open a linkset on the <strong>Links</strong> page.</li>
+        <li>Click <strong>Suggest Links</strong> in the toolbar.</li>
+        <li>AIRGen analyses the entities in your project using two methods:
+          <ul>
+            <li><strong>Text similarity</strong> &mdash; Compares the textual content of requirements, sections, and architecture blocks to find semantically related pairs.</li>
+            <li><strong>Graph proximity</strong> &mdash; Examines existing connections in the project graph to identify entities that are likely related but not yet linked.</li>
+          </ul>
+        </li>
+        <li>A list of suggested links appears, ranked by confidence score. Each suggestion shows the proposed source, target, link type, and a brief explanation of why the link was suggested.</li>
+      </ol>
+      <p>For each suggestion, you can:</p>
+      <ul>
+        <li><strong>Accept</strong> &mdash; Click to create the link immediately.</li>
+        <li><strong>Edit</strong> &mdash; Modify the link type or swap the source and target before accepting.</li>
+        <li><strong>Dismiss</strong> &mdash; Remove the suggestion from the list. Dismissed suggestions will not reappear unless the underlying entities change significantly.</li>
+      </ul>
+      <div class="callout callout--tip">
+        <strong>Tip:</strong> AI suggestions work best when your project has a critical mass of content. Upload your key documents and create your core requirements before running link suggestions for the most relevant results.
+      </div>
+
+      <h2 id="graph-viewer">Graph Viewer</h2>
+      <p>The <strong>Graph Viewer</strong> page provides a visual, interactive exploration of your entire project graph. It renders entities as nodes and trace links as edges in a force-directed layout.</p>
+      <p>To use the Graph Viewer:</p>
+      <ol>
+        <li>Navigate to <strong>Graph Viewer</strong> in the project sidebar.</li>
+        <li>The viewer loads all entities and links in the current project. Nodes are colour-coded by type:
+          <ul>
+            <li><strong>Blue</strong> &mdash; Requirements</li>
+            <li><strong>Green</strong> &mdash; Document sections</li>
+            <li><strong>Purple</strong> &mdash; Architecture blocks</li>
+            <li><strong>Orange</strong> &mdash; Diagrams</li>
+          </ul>
+        </li>
+        <li>Use the mouse wheel or pinch gesture to <strong>zoom</strong> in and out.</li>
+        <li>Click and drag the background to <strong>pan</strong> across the graph.</li>
+        <li>Click on any node to select it. The detail panel on the right displays the entity's metadata, attributes, and a list of all trace links connected to it.</li>
+        <li>Double-click a node to <strong>expand</strong> its neighbourhood, showing all directly connected entities.</li>
+      </ol>
+      <h3>Filtering the Graph</h3>
+      <p>For large projects, the full graph can be dense. Use the filter controls in the Graph Viewer toolbar to focus on what matters:</p>
+      <ul>
+        <li><strong>Entity type</strong> &mdash; Toggle visibility of requirements, sections, architecture blocks, or diagrams.</li>
+        <li><strong>Linkset</strong> &mdash; Show only links belonging to a specific linkset.</li>
+        <li><strong>Search</strong> &mdash; Type a keyword to highlight matching nodes and dim everything else.</li>
+      </ul>
+      <div class="callout callout--info">
+        <strong>Coverage analysis:</strong> The Graph Viewer highlights orphan nodes &mdash; entities with no trace links &mdash; with a dashed border. Use this to quickly identify requirements that lack source documentation or verification evidence, which is a common finding in compliance audits.
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+  <script src="/js/docs-sidebar.js"></script>
+</body>
+</html>

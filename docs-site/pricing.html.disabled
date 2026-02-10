@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pricing — AIRGen</title>
+  <meta name="description" content="AIRGen pricing plans — Free, Professional, and Enterprise. Start for free, scale as your team grows.">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/marketing.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="site-header__brand">
+        <img src="/images/logo.png" alt="AIRGen" class="site-header__logo">
+        <span class="site-header__name">AIRGen</span>
+      </a>
+      <nav class="main-nav">
+        <a href="/">Home</a>
+        <a href="/features">Features</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/docs/">Documentation</a>
+        <a href="/about">About</a>
+      </nav>
+      <div class="header-actions">
+        <a href="https://airgen.studio" class="btn btn--outline btn--sm">Sign In</a>
+        <a href="https://airgen.studio" class="btn btn--primary btn--sm">Get Started</a>
+      </div>
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Pricing Hero -->
+  <section class="hero" style="padding: 3.5rem 0 2rem;">
+    <div class="container">
+      <h1>Simple, Transparent Pricing</h1>
+      <p class="hero__subtitle">Start for free. Upgrade when your team is ready. No surprises.</p>
+    </div>
+  </section>
+
+  <!-- Pricing Cards -->
+  <section class="section" style="padding-top: 0;">
+    <div class="container">
+      <div class="pricing-grid">
+
+        <!-- Free -->
+        <div class="pricing-card">
+          <div class="pricing-card__name">Free</div>
+          <div class="pricing-card__price">$0 <span>/month</span></div>
+          <p class="pricing-card__desc">For individuals and small teams getting started with structured requirements.</p>
+          <ul class="check-list">
+            <li>1 project</li>
+            <li>Up to 100 requirements</li>
+            <li>50 AI generations per month</li>
+            <li>QA scoring</li>
+            <li>Document upload &amp; parsing</li>
+            <li>Basic traceability</li>
+            <li>Community support</li>
+          </ul>
+          <a href="https://airgen.studio" class="btn btn--outline" style="width: 100%;">Get Started Free</a>
+        </div>
+
+        <!-- Professional -->
+        <div class="pricing-card pricing-card--featured">
+          <span class="badge badge--brand" style="position: absolute; top: -0.75rem; left: 50%; transform: translateX(-50%);">Most Popular</span>
+          <div class="pricing-card__name">Professional</div>
+          <div class="pricing-card__price">$75 <span>/user/month</span></div>
+          <p class="pricing-card__desc">For engineering teams that need full AI capabilities and unlimited scale.</p>
+          <ul class="check-list">
+            <li>Unlimited projects</li>
+            <li>Unlimited requirements</li>
+            <li>Unlimited AI generations</li>
+            <li>Full QA scoring &amp; background worker</li>
+            <li>Architecture diagrams</li>
+            <li>Baselines &amp; comparison</li>
+            <li>Version history &amp; audit trail</li>
+            <li>Priority email support</li>
+          </ul>
+          <a href="https://airgen.studio" class="btn btn--primary" style="width: 100%;">Start Free Trial</a>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="pricing-card">
+          <div class="pricing-card__name">Enterprise</div>
+          <div class="pricing-card__price">Custom</div>
+          <p class="pricing-card__desc">For organisations with compliance, data sovereignty, or integration requirements.</p>
+          <ul class="check-list">
+            <li>Everything in Professional</li>
+            <li>Self-hosted deployment (Docker)</li>
+            <li>SSO / SAML integration</li>
+            <li>Custom data residency</li>
+            <li>Dedicated account manager</li>
+            <li>SLA with guaranteed uptime</li>
+            <li>Custom onboarding &amp; training</li>
+            <li>Priority phone &amp; video support</li>
+          </ul>
+          <a href="/contact" class="btn btn--outline" style="width: 100%;">Contact Sales</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section section--alt">
+    <div class="container">
+      <div class="section__header">
+        <h2>Frequently Asked Questions</h2>
+      </div>
+
+      <div class="faq-list">
+        <div class="faq-item">
+          <h3>Is there a free trial for Professional?</h3>
+          <p>Yes. Start with a 14-day free trial of the Professional plan. No credit card required. You'll keep all your data if you upgrade, or drop back to the Free plan when the trial ends.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Can I self-host AIRGen?</h3>
+          <p>Absolutely. AIRGen ships as a Docker Compose deployment that runs on any Linux VPS or cloud instance. The Enterprise plan includes self-hosted support and SLA. See the <a href="/docs/deployment">deployment guide</a> for details.</p>
+        </div>
+        <div class="faq-item">
+          <h3>What happens if I exceed the Free plan limits?</h3>
+          <p>You won't lose any data. You'll be prompted to upgrade when you hit a limit. Existing requirements, documents, and links remain accessible — you simply can't create new ones until you upgrade or remove existing items.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Where is my data stored?</h3>
+          <p>SaaS data is stored on Hetzner infrastructure in Europe. Enterprise customers can self-host anywhere — your VPS, your cloud, your rules. We never access your data without explicit permission.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Do you support ITAR / export control requirements?</h3>
+          <p>Self-hosted Enterprise deployments run entirely on your infrastructure with no external data transfers. This makes AIRGen suitable for ITAR-controlled and export-restricted projects. Contact us for details.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Can I switch plans at any time?</h3>
+          <p>Yes. Upgrade or downgrade at any time. Changes take effect immediately, and billing is prorated.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-banner">
+    <div class="container">
+      <h2>Ready to Get Started?</h2>
+      <p>Create your free account in 30 seconds. No credit card required.</p>
+      <a href="https://airgen.studio" class="btn btn--white btn--lg">Get Started Free</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">
+            <img src="/images/logo.png" alt="AIRGen">
+            <span>AIRGen</span>
+          </div>
+          <p class="site-footer__desc">AI-powered requirements management for regulated systems engineering. Built for teams that build things that matter.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/features">Features</a></li>
+            <li><a href="/pricing">Pricing</a></li>
+            <li><a href="https://airgen.studio">Sign In</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/docs/">Overview</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+            <li><a href="/docs/deployment">Self-Hosted Setup</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/about">About</a></li>
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="mailto:info@airgen.studio">info@airgen.studio</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 AIRGen Studio. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/nav.js"></script>
+</body>
+</html>

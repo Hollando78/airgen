@@ -27,6 +27,7 @@ services:
       - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
       # - "traefik.http.routers.traefik.middlewares=production-auth@docker"
       - "traefik.http.middlewares.production-auth.basicauth.users=${TRAEFIK_BASIC_AUTH_USERS}"
+    restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine
@@ -171,6 +172,19 @@ services:
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
     depends_on:
       - api
+    restart: unless-stopped
+
+  docs:
+    build:
+      context: ./docs-site
+      dockerfile: Dockerfile
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.docs.rule=Host(`docs.airgen.studio`)"
+      - "traefik.http.routers.docs.entrypoints=websecure"
+      - "traefik.http.routers.docs.tls=true"
+      - "traefik.http.routers.docs.tls.certresolver=letsencrypt"
+      - "traefik.http.services.docs.loadbalancer.server.port=80"
     restart: unless-stopped
 
 volumes:
