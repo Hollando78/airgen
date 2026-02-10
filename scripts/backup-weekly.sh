@@ -184,7 +184,7 @@ cleanup_old_weekly_backups() {
     # Find directories older than 4 weeks
     while IFS= read -r -d '' dir; do
         rm -rf "$dir"
-        ((count++))
+        count=$((count + 1))
         log "Removed old weekly backup: $(basename $dir)"
     done < <(find "${BACKUP_WEEKLY_DIR}" -mindepth 1 -maxdepth 1 -type d -mtime +28 -print0 2>/dev/null)
 

@@ -30,6 +30,7 @@
 
 import { exportProjectToCypher, exportProjectToJSON } from "../services/backup/project-backup-service.js";
 import { registerBackup } from "../services/backup/backup-metadata.js";
+import { initGraph, closeGraph } from "../services/graph/driver.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -179,6 +180,9 @@ async function main() {
   const startTime = Date.now();
 
   try {
+    // Initialize Neo4j connection
+    await initGraph();
+
     // Export project based on format
     let metadata;
 
@@ -237,8 +241,10 @@ async function main() {
       console.warn("The backup file is valid, but it won't appear in the backup listing.");
     }
 
+    await closeGraph();
     process.exit(0);
   } catch (error) {
+    await closeGraph().catch(() => {});
     console.error();
     console.error("=".repeat(70));
     console.error("Export failed!");

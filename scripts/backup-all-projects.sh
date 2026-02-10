@@ -212,7 +212,8 @@ fi
 log_info "Discovering projects in Neo4j..."
 
 # Query Neo4j for all unique tenant/project combinations
-CYPHER_QUERY="MATCH (p:Project) RETURN DISTINCT p.tenant as tenant, p.key as projectKey ORDER BY tenant, projectKey"
+# Note: There are no :Project nodes; projects are identified by tenant+projectKey on data nodes
+CYPHER_QUERY="MATCH (n) WHERE n.tenant IS NOT NULL AND n.projectKey IS NOT NULL RETURN DISTINCT n.tenant as tenant, n.projectKey as projectKey ORDER BY tenant, projectKey"
 
 PROJECTS_JSON=$(docker exec "$NEO4J_CONTAINER" \
   cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" \
@@ -230,10 +231,10 @@ fi
 declare -a TENANTS
 declare -a PROJECT_KEYS
 
-while IFS='|' read -r tenant projectKey; do
-  # Trim whitespace
-  tenant=$(echo "$tenant" | xargs)
-  projectKey=$(echo "$projectKey" | xargs)
+while IFS=',' read -r tenant projectKey; do
+  # Trim whitespace and quotes
+  tenant=$(echo "$tenant" | xargs | tr -d '"')
+  projectKey=$(echo "$projectKey" | xargs | tr -d '"')
 
   if [[ -n "$tenant" && -n "$projectKey" && "$tenant" != "tenant" ]]; then
     TENANTS+=("$tenant")

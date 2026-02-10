@@ -25,8 +25,12 @@ detect_container() {
     shift
     local candidates=("$@")
 
+    # Capture docker ps output once (avoids pipefail issues in cron)
+    local output
+    output=$(docker ps --format '{{.Names}}' 2>/dev/null) || true
+
     for name in "${configured}" "${candidates[@]}"; do
-        if [ -n "${name}" ] && docker ps --format '{{.Names}}' | grep -q "^${name}$"; then
+        if [ -n "${name}" ] && [ -n "${output}" ] && echo "${output}" | grep -q "^${name}$"; then
             echo "${name}"
             return
         fi
@@ -51,13 +55,22 @@ detect_volume() {
     echo "${configured}"
 }
 
-NEO4J_CONTAINER="$(detect_container "${NEO4J_CONTAINER:-airgen_dev_neo4j_1}" "airgen_neo4j_1" "airgen_api_neo4j_1" "neo4j_1")"
-POSTGRES_CONTAINER="$(detect_container "${POSTGRES_CONTAINER:-airgen_dev_postgres_1}" "airgen_postgres_1" "airgen_api_postgres_1" "postgres_1")"
-REDIS_CONTAINER="$(detect_container "${REDIS_CONTAINER:-airgen_dev_redis_1}" "airgen_redis_1" "redis_1")"
+# Log detected infrastructure for debugging
+_log_detection() {
+    if [ -n "${BACKUP_LOG_DIR:-}" ]; then
+        echo "[$(date +'%Y-%m-%d %H:%M:%S')] Detected: neo4j=${NEO4J_CONTAINER} postgres=${POSTGRES_CONTAINER} redis=${REDIS_CONTAINER} neo4j_vol=${NEO4J_VOLUME} pg_vol=${POSTGRES_VOLUME}" >> "${BACKUP_LOG_DIR}/detection.log" 2>/dev/null || true
+    fi
+}
+
+NEO4J_CONTAINER="$(detect_container "${NEO4J_CONTAINER:-airgen_neo4j_1}" "airgen_dev_neo4j_1" "airgen_api_neo4j_1" "neo4j_1")"
+POSTGRES_CONTAINER="$(detect_container "${POSTGRES_CONTAINER:-airgen_postgres_1}" "airgen_dev_postgres_1" "airgen_api_postgres_1" "postgres_1")"
+REDIS_CONTAINER="$(detect_container "${REDIS_CONTAINER:-airgen_redis_1}" "airgen_dev_redis_1" "redis_1")"
 
 # Docker volumes
-NEO4J_VOLUME="$(detect_volume "${NEO4J_VOLUME:-airgen_neo4jdata_dev}" "airgen_neo4jdata" "airgen_api_neo4jdata")"
-POSTGRES_VOLUME="$(detect_volume "${POSTGRES_VOLUME:-airgen_pgdata_dev}" "airgen_pgdata" "airgen_api_pgdata")"
+NEO4J_VOLUME="$(detect_volume "${NEO4J_VOLUME:-airgen_neo4jdata}" "airgen_neo4jdata_dev" "airgen_api_neo4jdata")"
+POSTGRES_VOLUME="$(detect_volume "${POSTGRES_VOLUME:-airgen_pgdata}" "airgen_pgdata_dev" "airgen_api_pgdata")"
+
+_log_detection
 
 # Retention settings
 DAILY_RETENTION_DAYS=7
@@ -396,11 +409,19 @@ cleanup_old_backups() {
     local count=0
     while IFS= read -r -d '' file; do
         rm -f "$file"
-        ((count++))
+        count=$((count + 1))
     done < <(find "${backup_dir}" -type f -mtime +${retention_days} -print0 2>/dev/null)
 
-    if [ $count -gt 0 ]; then
-        log "Removed ${count} old backup file(s)"
+    # Remove empty directories older than retention period
+    local dir_count=0
+    while IFS= read -r -d '' dir; do
+        if [ -z "$(ls -A "$dir" 2>/dev/null)" ]; then
+            rmdir "$dir" 2>/dev/null && dir_count=$((dir_count + 1)) || true
+        fi
+    done < <(find "${backup_dir}" -mindepth 1 -maxdepth 1 -type d -mtime +${retention_days} -print0 2>/dev/null)
+
+    if [ $count -gt 0 ] || [ $dir_count -gt 0 ]; then
+        log "Removed ${count} old file(s) and ${dir_count} empty directory(ies)"
     else
         log "No old backups to clean up"
     fi

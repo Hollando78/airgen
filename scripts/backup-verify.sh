@@ -212,25 +212,32 @@ verify_manifest() {
 check_backup_age() {
     log "\nChecking backup freshness..."
 
-    # Find most recent backup
-    local most_recent=$(find "${BACKUP_DIR}" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2)
+    # Find most recent actual backup file (not directory — directories are created even when backups fail)
+    local most_recent_file
+    most_recent_file=$(find "${BACKUP_DIR}" -type f \( -name "neo4j-*.tar.gz" -o -name "postgres-*.sql.gz" \) -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2)
 
-    if [ -n "${most_recent}" ]; then
-        local backup_time=$(stat -f%m "${most_recent}" 2>/dev/null || stat -c%Y "${most_recent}" 2>/dev/null)
-        local current_time=$(date +%s)
-        local age_hours=$(( (current_time - backup_time) / 3600 ))
+    if [ -z "${most_recent_file}" ]; then
+        log_error "  No backup files found in ${BACKUP_DIR}!"
+        log_error "  Backups may be completely failing — check cron.log"
+        send_notification "AirGen Backup CRITICAL" "No backup files found! Backups may be failing." 2
+        return
+    fi
 
-        log "  Most recent backup: $(basename ${most_recent})"
-        log "  Age: ${age_hours} hours"
+    local backup_time=$(stat -f%m "${most_recent_file}" 2>/dev/null || stat -c%Y "${most_recent_file}" 2>/dev/null)
+    local current_time=$(date +%s)
+    local age_hours=$(( (current_time - backup_time) / 3600 ))
 
-        if [ $age_hours -gt 48 ]; then
-            log_error "  ⚠ Backup is older than 48 hours!"
-            send_notification "AirGen Backup Alert" "Most recent backup is ${age_hours} hours old" 1
-        elif [ $age_hours -gt 26 ]; then
-            log "  ⚠ Backup is older than 24 hours"
-        else
-            log "  ✓ Backup is recent"
-        fi
+    log "  Most recent backup file: $(basename ${most_recent_file})"
+    log "  Age: ${age_hours} hours"
+
+    if [ $age_hours -gt 48 ]; then
+        log_error "  ⚠ Backup is older than 48 hours!"
+        send_notification "AirGen Backup CRITICAL" "Most recent backup is ${age_hours} hours old! Backups may be failing." 2
+    elif [ $age_hours -gt 26 ]; then
+        log "  ⚠ Backup is older than 24 hours"
+        send_notification "AirGen Backup Warning" "Most recent backup is ${age_hours} hours old" 1
+    else
+        log "  ✓ Backup is recent"
     fi
 }
 

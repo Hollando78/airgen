@@ -220,8 +220,17 @@ log_info ""
 
 log_info "Starting project export..."
 
+# Resolve container IPs for CLI access from host
+# The CLI runs on the host but Neo4j/Postgres are in Docker containers
+NEO4J_IP=$(docker inspect "$NEO4J_CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "localhost")
+POSTGRES_IP=$(docker inspect "$POSTGRES_CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "localhost")
+
+export GRAPH_URL="bolt://${NEO4J_IP}:7687"
+export GRAPH_PASSWORD="${NEO4J_PASSWORD:-${GRAPH_PASSWORD:-}}"
+export DATABASE_URL="postgresql://airgen:airgen@${POSTGRES_IP}:5432/airgen"
+
 # Build CLI command
-CLI_CMD="cd $BACKEND_DIR && pnpm cli export-project"
+CLI_CMD="cd $BACKEND_DIR && npx tsx src/cli/export-project.ts"
 CLI_CMD="$CLI_CMD --tenant \"$TENANT\""
 CLI_CMD="$CLI_CMD --project \"$PROJECT_KEY\""
 CLI_CMD="$CLI_CMD --output \"$OUTPUT_PATH\""
