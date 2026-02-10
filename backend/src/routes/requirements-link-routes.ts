@@ -7,13 +7,14 @@
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
+import { verifyTenantAccessFromBodyHook } from "../lib/authorization.js";
 import { suggestLinks } from "../services/graph.js";
 
 export async function registerLinkRoutes(app: FastifyInstance): Promise<void> {
   // Suggest requirement links
   app.post("/link/suggest", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["links"],
       summary: "Suggest requirement links",
@@ -44,9 +45,6 @@ export async function registerLinkRoutes(app: FastifyInstance): Promise<void> {
       text: z.string().min(10)
     });
     const payload = schema.parse(req.body);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     const suggestions = await suggestLinks({
       tenant: payload.tenant,

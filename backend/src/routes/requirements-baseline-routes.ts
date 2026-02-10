@@ -10,7 +10,7 @@
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
+import { verifyTenantAccessHook, verifyTenantAccessFromBodyHook } from "../lib/authorization.js";
 import { createBaseline, listBaselines } from "../services/graph.js";
 import { getBaselineDetails, compareBaselines } from "../services/graph/requirement-baselines.js";
 import { baselineSchema, tenantProjectParamsSchema, tenantProjectParamsOpenApiSchema } from "../schemas/requirements.js";
@@ -19,6 +19,7 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
   // Create baseline
   app.post("/baseline", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["baselines"],
       summary: "Create a new baseline",
@@ -46,9 +47,6 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
   }, async (req, reply) => {
     const payload = baselineSchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
-
     const record = await createBaseline({
       tenant: payload.tenant,
       projectKey: payload.projectKey,
@@ -61,6 +59,7 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
   // List baselines
   app.get("/baselines/:tenant/:project", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["baselines"],
       summary: "List baselines for a project",
@@ -72,9 +71,6 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
   }, async (req, reply) => {
     const params = tenantProjectParamsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
-
     const items = await listBaselines(params.tenant, params.project);
     return { items };
   });
@@ -82,6 +78,7 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
   // Get baseline details
   app.get("/baselines/:tenant/:project/:baselineRef", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["baselines"],
       summary: "Get baseline details with version snapshots",
@@ -129,9 +126,6 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
     });
     const params = paramsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
-
     try {
       const snapshot = await getBaselineDetails(params.tenant, params.project, params.baselineRef);
       return snapshot;
@@ -146,6 +140,7 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
   // Compare baselines
   app.get("/baselines/:tenant/:project/compare", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["baselines"],
       summary: "Compare two baselines",
@@ -201,9 +196,6 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
     try {
       const params = tenantProjectParamsSchema.parse(req.params);
       const query = querySchema.parse(req.query);
-
-      // Verify tenant access
-      requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
       if (query.from === query.to) {
         return reply.status(400).send({ error: "Source and target baselines must be different" });

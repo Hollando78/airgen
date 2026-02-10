@@ -17,7 +17,7 @@ import {
   reorderSurrogateReferences,
   reorderSurrogateReferencesWithOrder
 } from "../../../services/graph/surrogates.js";
-import { requireTenantAccess, type AuthUser } from "../../../lib/authorization.js";
+import { requireTenantAccess, verifyTenantAccessFromBodyHook, type AuthUser } from "../../../lib/authorization.js";
 
 /**
  * Register all section content routes (requirements, infos, surrogates)
@@ -95,6 +95,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
   // Create a new info
   app.post("/infos", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["infos"],
       summary: "Create a new info",
@@ -131,9 +132,6 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
     });
     const payload = bodySchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
-
     // Generate ref for the info
     const ref = `INFO-${Date.now()}`;
 
@@ -154,6 +152,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
   // Create a new surrogate reference
   app.post("/surrogates", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["surrogates"],
       summary: "Create a new surrogate reference",
@@ -190,9 +189,6 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
     });
     const payload = bodySchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
-
     const record = await createSurrogateReference({
       tenant: payload.tenant,
       projectKey: payload.projectKey,
@@ -213,6 +209,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
   // Reorder infos in a section
   app.post("/sections/:sectionId/reorder-infos", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["sections"],
       summary: "Reorder infos in a section",
@@ -243,9 +240,6 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
     });
     const payload = bodySchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
-
     await reorderInfos(sectionId, payload.infoIds);
 
     return { success: true };
@@ -254,6 +248,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
   // Reorder surrogate references in a section
   app.post("/sections/:sectionId/reorder-surrogates", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["sections"],
       summary: "Reorder surrogate references in a section",
@@ -284,9 +279,6 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
     });
     const payload = bodySchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
-
     await reorderSurrogateReferences(sectionId, payload.surrogateIds);
 
     return { success: true };
@@ -295,6 +287,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
   // Reorder requirements in a section
   app.post("/sections/:sectionId/reorder-requirements", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["sections"],
       summary: "Reorder requirements in a section",
@@ -325,9 +318,6 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
     });
     const payload = bodySchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
-
     await reorderRequirements(sectionId, payload.requirementIds);
 
     return { success: true };
@@ -337,6 +327,7 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
   // Reorders requirements, infos, and surrogates with explicit order values for each item
   app.post("/sections/:sectionId/reorder-with-order", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["sections"],
       summary: "Reorder requirements, infos, and surrogates with explicit order values",
@@ -406,9 +397,6 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
       surrogates: z.array(z.object({ id: z.string(), order: z.number() })).optional()
     });
     const payload = bodySchema.parse(req.body);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     await Promise.all([
       payload.requirements && payload.requirements.length > 0

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { analyzeRequirement } from "@airgen/req-qa";
 import { INPUT_LIMITS } from "../lib/prompt-security.js";
-import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
+import { verifyTenantAccessHook, verifyTenantAccessFromBodyHook } from "../lib/authorization.js";
 import { config } from "../config.js";
 import type {
   RequirementCandidateRecord
@@ -107,7 +107,7 @@ export default async function airgenRoutes(app: FastifyInstance) {
   });
 
   app.post("/airgen/chat", {
-    preHandler: [app.authenticate],
+    preHandler: [app.authenticate, verifyTenantAccessFromBodyHook],
     config: {
       rateLimit: llmRateLimitConfig
     }
@@ -125,9 +125,6 @@ export default async function airgenRoutes(app: FastifyInstance) {
       }
       throw error;
     }
-
-    // Verify tenant access before proceeding
-    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     // Generate a unique session ID for this query
     const { randomUUID } = await import("crypto");
@@ -288,21 +285,15 @@ export default async function airgenRoutes(app: FastifyInstance) {
     project: z.string().min(1)
   });
 
-  app.get("/airgen/candidates/:tenant/:project", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.get("/airgen/candidates/:tenant/:project", { preHandler: [app.authenticate, verifyTenantAccessHook] }, async (req, reply) => {
     const params = listParams.parse(req.params);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const items = await listRequirementCandidates(params.tenant, params.project);
     return { items: items.map(mapCandidate) };
   });
 
-  app.get("/airgen/candidates/:tenant/:project/grouped", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.get("/airgen/candidates/:tenant/:project/grouped", { preHandler: [app.authenticate, verifyTenantAccessHook] }, async (req, reply) => {
     const params = listParams.parse(req.params);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const items = await listRequirementCandidates(params.tenant, params.project);
     const mapped = items.map(mapCandidate);
@@ -335,12 +326,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
   const rejectParams = z.object({ id: z.string().min(1) });
   const rejectBody = z.object({ tenant: z.string().min(1), projectKey: z.string().min(1) });
 
-  app.post("/airgen/candidates/:id/reject", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.post("/airgen/candidates/:id/reject", { preHandler: [app.authenticate, verifyTenantAccessFromBodyHook] }, async (req, reply) => {
     const params = rejectParams.parse(req.params);
     const body = rejectBody.parse(req.body);
-
-    // Verify tenant access FIRST
-    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getRequirementCandidate(params.id);
     if (!candidate) {
@@ -386,12 +374,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
   const returnParams = z.object({ id: z.string().min(1) });
   const returnBody = z.object({ tenant: z.string().min(1), projectKey: z.string().min(1) });
 
-  app.post("/airgen/candidates/:id/return", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.post("/airgen/candidates/:id/return", { preHandler: [app.authenticate, verifyTenantAccessFromBodyHook] }, async (req, reply) => {
     const params = returnParams.parse(req.params);
     const body = returnBody.parse(req.body);
-
-    // Verify tenant access FIRST
-    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getRequirementCandidate(params.id);
     if (!candidate) {
@@ -422,12 +407,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
     tags: z.array(z.string()).optional()
   });
 
-  app.post("/airgen/candidates/:id/accept", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.post("/airgen/candidates/:id/accept", { preHandler: [app.authenticate, verifyTenantAccessFromBodyHook] }, async (req, reply) => {
     const params = acceptParams.parse(req.params);
     const body = acceptBody.parse(req.body);
-
-    // Verify tenant access FIRST
-    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getRequirementCandidate(params.id);
     if (!candidate) {
@@ -498,22 +480,16 @@ export default async function airgenRoutes(app: FastifyInstance) {
   });
 
   // Diagram candidate endpoints
-  app.get("/airgen/diagram-candidates/:tenant/:project", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.get("/airgen/diagram-candidates/:tenant/:project", { preHandler: [app.authenticate, verifyTenantAccessHook] }, async (req, reply) => {
     const params = listParams.parse(req.params);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const items = await listDiagramCandidates(params.tenant, params.project);
     return { items };
   });
 
-  app.post("/airgen/diagram-candidates/:id/reject", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.post("/airgen/diagram-candidates/:id/reject", { preHandler: [app.authenticate, verifyTenantAccessFromBodyHook] }, async (req, reply) => {
     const params = rejectParams.parse(req.params);
     const body = rejectBody.parse(req.body);
-
-    // Verify tenant access FIRST
-    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getDiagramCandidate(params.id);
     if (!candidate) {
@@ -533,12 +509,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
     return { candidate: updated ?? candidate };
   });
 
-  app.post("/airgen/diagram-candidates/:id/return", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.post("/airgen/diagram-candidates/:id/return", { preHandler: [app.authenticate, verifyTenantAccessFromBodyHook] }, async (req, reply) => {
     const params = returnParams.parse(req.params);
     const body = returnBody.parse(req.body);
-
-    // Verify tenant access FIRST
-    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getDiagramCandidate(params.id);
     if (!candidate) {
@@ -566,12 +539,9 @@ export default async function airgenRoutes(app: FastifyInstance) {
     diagramDescription: z.string().optional()
   });
 
-  app.post("/airgen/diagram-candidates/:id/accept", { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.post("/airgen/diagram-candidates/:id/accept", { preHandler: [app.authenticate, verifyTenantAccessFromBodyHook] }, async (req, reply) => {
     const params = acceptParams.parse(req.params);
     const body = acceptDiagramBody.parse(req.body);
-
-    // Verify tenant access FIRST
-    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     const candidate = await getDiagramCandidate(params.id);
     if (!candidate) {

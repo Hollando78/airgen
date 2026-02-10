@@ -7,7 +7,7 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
+import { verifyTenantAccessHook } from "../lib/authorization.js";
 import { findDuplicateRequirementRefs, fixDuplicateRequirementRefs } from "../services/graph.js";
 import { tenantProjectParamsSchema, tenantProjectParamsOpenApiSchema } from "../schemas/requirements.js";
 
@@ -15,6 +15,7 @@ export async function registerDuplicateRoutes(app: FastifyInstance): Promise<voi
   // Find duplicate requirement refs
   app.get("/requirements/:tenant/:project/duplicates", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Find duplicate requirement references",
@@ -33,9 +34,6 @@ export async function registerDuplicateRoutes(app: FastifyInstance): Promise<voi
   }, async (req, reply) => {
     const params = tenantProjectParamsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
-
     const duplicates = await findDuplicateRequirementRefs(params.tenant, params.project);
     return { duplicates };
   });
@@ -43,6 +41,7 @@ export async function registerDuplicateRoutes(app: FastifyInstance): Promise<voi
   // Fix duplicate requirement refs
   app.post("/requirements/:tenant/:project/fix-duplicates", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Fix duplicate requirement references",
@@ -61,9 +60,6 @@ export async function registerDuplicateRoutes(app: FastifyInstance): Promise<voi
     }
   }, async (req, reply) => {
     const params = tenantProjectParamsSchema.parse(req.params);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const result = await fixDuplicateRequirementRefs(params.tenant, params.project);
     return result;

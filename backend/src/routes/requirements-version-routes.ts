@@ -9,7 +9,7 @@
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
+import { verifyTenantAccessHook } from "../lib/authorization.js";
 import { updateRequirement } from "../services/graph.js";
 import { getRequirementHistory, getRequirementDiff } from "../services/graph/requirements/requirements-versions.js";
 
@@ -17,6 +17,7 @@ export async function registerVersionRoutes(app: FastifyInstance): Promise<void>
   // Get requirement version history
   app.get("/requirements/:tenant/:project/:id/history", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Get requirement version history",
@@ -70,9 +71,6 @@ export async function registerVersionRoutes(app: FastifyInstance): Promise<void>
     });
     const params = paramsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
-
     try {
       const history = await getRequirementHistory(params.tenant, params.project, params.id);
       return { history };
@@ -84,6 +82,7 @@ export async function registerVersionRoutes(app: FastifyInstance): Promise<void>
   // Get diff between requirement versions
   app.get("/requirements/:tenant/:project/:id/diff", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Get diff between requirement versions",
@@ -153,9 +152,6 @@ export async function registerVersionRoutes(app: FastifyInstance): Promise<void>
       const params = paramsSchema.parse(req.params);
       const query = querySchema.parse(req.query);
 
-      // Verify tenant access
-      requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
-
       if (query.from === query.to) {
         return reply.status(400).send({ error: "Source and target versions must be different" });
       }
@@ -173,6 +169,7 @@ export async function registerVersionRoutes(app: FastifyInstance): Promise<void>
   // Restore requirement to previous version
   app.post("/requirements/:tenant/:project/:id/restore/:versionNumber", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Restore requirement to previous version",
@@ -220,9 +217,6 @@ export async function registerVersionRoutes(app: FastifyInstance): Promise<void>
 
     try {
       const params = paramsSchema.parse(req.params);
-
-      // Verify tenant access
-      requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
       // Get the version history to find the target version
       const history = await getRequirementHistory(params.tenant, params.project, params.id);

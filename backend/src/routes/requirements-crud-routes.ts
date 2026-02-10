@@ -12,7 +12,7 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
+import { verifyTenantAccessHook, verifyTenantAccessFromBodyHook } from "../lib/authorization.js";
 import {
   createRequirement,
   listRequirements,
@@ -41,6 +41,7 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   // Create requirement
   app.post("/requirements", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["requirements"],
       summary: "Create a new requirement",
@@ -50,9 +51,6 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
     }
   }, async (req, reply) => {
     const payload = requirementSchema.parse(req.body);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     const record = await createRequirement({
       tenant: payload.tenant,
@@ -74,6 +72,7 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   // List requirements
   app.get("/requirements/:tenant/:project", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "List requirements for a project",
@@ -84,9 +83,6 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
     }
   }, async (req, reply) => {
     const params = tenantProjectParamsSchema.parse(req.params);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const pagination = parsePaginationParams(req.query);
 
@@ -112,6 +108,7 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   // Get requirement by ref
   app.get("/requirements/:tenant/:project/:ref", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Get a specific requirement",
@@ -130,9 +127,6 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   }, async (req, reply) => {
     const params = requirementRefParamsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
-
     const record = await getRequirement(params.tenant, params.project, params.ref);
     if (!record) {
       return reply.status(404).send({ error: "Requirement not found" });
@@ -146,6 +140,7 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   // Update requirement
   app.patch("/requirements/:tenant/:project/:requirementId", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Update a requirement",
@@ -180,9 +175,6 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
     const params = requirementIdParamsSchema.parse(req.params);
     const body = requirementUpdateSchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
-
     const requirement = await updateRequirement(params.tenant, params.project, params.requirementId, body);
     if (!requirement) {
       return reply.status(404).send({ error: "Requirement not found" });
@@ -193,6 +185,7 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   // Soft delete requirement
   app.delete("/requirements/:tenant/:project/:requirementId", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Delete a requirement",
@@ -225,9 +218,6 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   }, async (req, reply) => {
     const params = requirementIdParamsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
-
     // Extract user context for version history
     const deletedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
 
@@ -241,6 +231,7 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   // Archive requirements
   app.post("/requirements/:tenant/:project/archive", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Archive requirements",
@@ -273,9 +264,6 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
     const params = tenantProjectParamsSchema.parse(req.params);
     const body = requirementIdsSchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
-
     // Extract user context for version history
     const archivedBy = (req as any).user?.email || (req as any).user?.sub || undefined;
 
@@ -286,6 +274,7 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   // Unarchive requirements
   app.post("/requirements/:tenant/:project/unarchive", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["requirements"],
       summary: "Unarchive requirements",
@@ -317,9 +306,6 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
   }, async (req, reply) => {
     const params = tenantProjectParamsSchema.parse(req.params);
     const body = requirementIdsSchema.parse(req.body);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     // Extract user context for version history
     const unarchivedBy = (req as any).user?.email || (req as any).user?.sub || undefined;

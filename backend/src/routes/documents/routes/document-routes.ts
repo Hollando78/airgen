@@ -17,7 +17,7 @@ import { tryGeneratePreviewPdf } from "../helpers/file-upload-helpers.js";
 import { parseMultipartFormData } from "../helpers/multipart-parser.js";
 import { buildDownloadUrl, buildPreviewUrl } from "../helpers/document-url-builders.js";
 import { ensureUniqueDocumentSlug } from "../helpers/slug-helpers.js";
-import { requireTenantAccess, type AuthUser } from "../../../lib/authorization.js";
+import { requireTenantAccess, verifyTenantAccessHook, verifyTenantAccessFromBodyHook, type AuthUser } from "../../../lib/authorization.js";
 
 const documentSchema = z.object({
   tenant: z.string().min(1),
@@ -161,6 +161,7 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
   // Create document
   app.post("/documents", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook],
     schema: {
       tags: ["documents"],
       summary: "Create a new document",
@@ -189,9 +190,6 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
   }, async (req, reply) => {
     const payload = documentSchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
-
     const document = await createDocument({
       tenant: payload.tenant,
       projectKey: payload.projectKey,
@@ -219,6 +217,7 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
   // List documents
   app.get("/documents/:tenant/:project", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["documents"],
       summary: "List documents",
@@ -236,8 +235,6 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
     const paramsSchema = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
     const params = paramsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
     const documents = await listDocuments(params.tenant, params.project);
     const documentsWithDownload = documents.map(document => ({
       ...document,
@@ -256,7 +253,8 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
 
   // Get single document
   app.get("/documents/:tenant/:project/:documentSlug", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook]
   }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
@@ -265,8 +263,6 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
     });
     const params = paramsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
     const document = await getDocument(params.tenant, params.project, params.documentSlug);
     if (!document) {return reply.status(404).send({ error: "Document not found" });}
     const documentWithDownload = {
@@ -286,7 +282,8 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
 
   // Download document file
   app.get("/documents/:tenant/:project/:documentSlug/file", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook]
   }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
@@ -294,9 +291,6 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
       documentSlug: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const document = await getDocument(params.tenant, params.project, params.documentSlug);
     if (!document || document.kind !== "surrogate" || !document.storagePath) {
@@ -333,7 +327,8 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
 
   // Get document preview
   app.get("/documents/:tenant/:project/:documentSlug/preview", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook]
   }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
@@ -341,9 +336,6 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
       documentSlug: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const document = await getDocument(params.tenant, params.project, params.documentSlug);
     if (!document || document.kind !== "surrogate" || !document.previewPath) {
@@ -380,7 +372,8 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
 
   // View document (preview or original)
   app.get("/documents/:tenant/:project/:documentSlug/view", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook]
   }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
@@ -388,9 +381,6 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
       documentSlug: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const document = await getDocument(params.tenant, params.project, params.documentSlug);
     if (!document || document.kind !== "surrogate") {
@@ -440,7 +430,8 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
 
   // Update document
   app.patch("/documents/:tenant/:project/:documentSlug", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook]
   }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
@@ -455,9 +446,6 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     let document;
     if (body.parentFolder !== undefined) {
@@ -496,6 +484,7 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
   // Delete document
   app.delete("/documents/:tenant/:project/:documentSlug", {
     onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook],
     schema: {
       tags: ["documents"],
       summary: "Delete a document",
@@ -531,9 +520,6 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
       documentSlug: z.string().min(1)
     });
     const params = paramsSchema.parse(req.params);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
 
     const document = await softDeleteDocument(params.tenant, params.project, params.documentSlug, req.currentUser!.sub);
     if (!document) {return reply.status(404).send({ error: "Document not found" });}

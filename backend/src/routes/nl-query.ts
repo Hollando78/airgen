@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { requireTenantAccess, type AuthUser } from "../lib/authorization.js";
+import { verifyTenantAccessFromBodyHook } from "../lib/authorization.js";
 import { config } from "../config.js";
 import {
   processNaturalLanguageQuery,
@@ -37,7 +37,7 @@ export default async function nlQueryRoutes(app: FastifyInstance) {
   app.post(
     "/query/natural-language",
     {
-      preHandler: [app.authenticate],
+      preHandler: [app.authenticate, verifyTenantAccessFromBodyHook],
       config: {
         rateLimit: nlQueryRateLimitConfig
       }
@@ -55,16 +55,6 @@ export default async function nlQueryRoutes(app: FastifyInstance) {
           });
         }
         throw error;
-      }
-
-      // Verify tenant access before proceeding
-      try {
-        requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
-      } catch {
-        return reply.status(403).send({
-          error: "Forbidden",
-          message: "You do not have access to this tenant"
-        });
       }
 
       try {

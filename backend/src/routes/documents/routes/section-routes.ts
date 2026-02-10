@@ -7,7 +7,7 @@ import {
   updateDocumentSection,
   deleteDocumentSection
 } from "../../../services/graph.js";
-import { requireTenantAccess, type AuthUser } from "../../../lib/authorization.js";
+import { verifyTenantAccessHook, verifyTenantAccessFromBodyHook } from "../../../lib/authorization.js";
 
 const documentSectionSchema = z.object({
   tenant: z.string().min(1),
@@ -25,12 +25,10 @@ const documentSectionSchema = z.object({
 export async function registerSectionRoutes(app: FastifyInstance): Promise<void> {
   // Create section
   app.post("/sections", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook]
   }, async (req, reply) => {
     const payload = documentSectionSchema.parse(req.body);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, payload.tenant, reply);
 
     const section = await createDocumentSection({
       tenant: payload.tenant,
@@ -47,7 +45,8 @@ export async function registerSectionRoutes(app: FastifyInstance): Promise<void>
 
   // List sections
   app.get("/sections/:tenant/:project/:documentSlug", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook]
   }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
@@ -56,8 +55,6 @@ export async function registerSectionRoutes(app: FastifyInstance): Promise<void>
     });
     const params = paramsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
     const sections = await listDocumentSections(params.tenant, params.project, params.documentSlug);
     return { sections };
   });
@@ -65,7 +62,8 @@ export async function registerSectionRoutes(app: FastifyInstance): Promise<void>
   // List sections with full relations (optimized endpoint)
   // Reduces N+1 queries: 30 API calls → 1 API call for 10 sections (~97% reduction)
   app.get("/sections/:tenant/:project/:documentSlug/full", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessHook]
   }, async (req, reply) => {
     const paramsSchema = z.object({
       tenant: z.string().min(1),
@@ -74,15 +72,14 @@ export async function registerSectionRoutes(app: FastifyInstance): Promise<void>
     });
     const params = paramsSchema.parse(req.params);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
     const sections = await listDocumentSectionsWithRelations(params.tenant, params.project, params.documentSlug);
     return { sections };
   });
 
   // Update section
   app.patch("/sections/:sectionId", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook]
   }, async (req, reply) => {
     const paramsSchema = z.object({
       sectionId: z.string().min(1)
@@ -97,9 +94,6 @@ export async function registerSectionRoutes(app: FastifyInstance): Promise<void>
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
 
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
-
     try {
       const section = await updateDocumentSection(params.sectionId, body, req.currentUser!.sub);
       return { section };
@@ -113,7 +107,8 @@ export async function registerSectionRoutes(app: FastifyInstance): Promise<void>
 
   // Delete section
   app.delete("/sections/:sectionId", {
-    onRequest: [app.authenticate]
+    onRequest: [app.authenticate],
+    preHandler: [verifyTenantAccessFromBodyHook]
   }, async (req, reply) => {
     const paramsSchema = z.object({
       sectionId: z.string().min(1)
@@ -123,9 +118,6 @@ export async function registerSectionRoutes(app: FastifyInstance): Promise<void>
     });
     const params = paramsSchema.parse(req.params);
     const body = bodySchema.parse(req.body);
-
-    // Verify tenant access
-    requireTenantAccess(req.currentUser as AuthUser, body.tenant, reply);
 
     try {
       await deleteDocumentSection(params.sectionId, req.currentUser!.sub);
