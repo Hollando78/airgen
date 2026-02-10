@@ -1,6 +1,7 @@
 import { analyzeRequirement } from "@airgen/req-qa";
 import { getSession } from "../services/graph/driver.js";
 import { updateRequirement } from "../services/graph/requirements/requirements-crud.js";
+import { logger } from "../lib/logger.js";
 import type { ManagedTransaction } from "neo4j-driver";
 
 export type QAScorerStatus = {
@@ -109,7 +110,7 @@ class QAScorer {
 
           this.processedCount++;
         } catch (error) {
-          console.error(`Error scoring requirement ${req.ref}:`, error);
+          logger.error({ err: error, ref: req.ref }, `Error scoring requirement ${req.ref}`);
           this.lastError = `Failed to score ${req.ref}: ${(error as Error).message}`;
           // Continue with next requirement
         }

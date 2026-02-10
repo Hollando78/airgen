@@ -6,6 +6,7 @@
 
 import pg from "pg";
 import { readFileSync } from "node:fs";
+import { logger } from "./logger.js";
 
 const { Pool } = pg;
 
@@ -27,7 +28,7 @@ export function getPool(): pg.Pool {
         const password = readFileSync(passwordFile, "utf-8").trim();
         connectionString = process.env.DATABASE_URL_TEMPLATE.replace("__PASSWORD__", password);
       } catch (error) {
-        console.error("[PostgreSQL] Failed to read postgres_password secret:", error);
+        logger.error({ err: error }, "[PostgreSQL] Failed to read postgres_password secret");
       }
     }
 
@@ -43,7 +44,7 @@ export function getPool(): pg.Pool {
     });
 
     pool.on("error", (err: Error) => {
-      console.error("[PostgreSQL] Unexpected error on idle client", err);
+      logger.error({ err }, "[PostgreSQL] Unexpected error on idle client");
     });
   }
 

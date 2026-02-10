@@ -15,6 +15,7 @@
  */
 
 import { getSession } from "../graph/driver.js";
+import { logger } from "../../lib/logger.js";
 import { promises as fs } from "node:fs";
 import type { ProjectBackupMetadata, ExportedNode, ExportedRelationship, ProjectExportData } from "./project-backup-service.js";
 
@@ -69,7 +70,7 @@ export async function importProjectFromCypher(
   const session = getSession();
 
   try {
-    console.log(`[Project Import] Loading backup: ${backupFilePath}`);
+    logger.info(`[Project Import] Loading backup: ${backupFilePath}`);
 
     // Load backup file
     const cypherScript = await fs.readFile(backupFilePath, "utf-8");
@@ -82,18 +83,18 @@ export async function importProjectFromCypher(
       const metadataContent = await fs.readFile(metadataPath, "utf-8");
       metadata = JSON.parse(metadataContent);
     } catch {
-      console.warn("[Project Import] No metadata file found, continuing without it");
+      logger.warn("[Project Import] No metadata file found, continuing without it");
     }
 
     // Determine target tenant/project
     const targetTenant = options.targetTenant || metadata?.tenant || "unknown";
     const targetProjectKey = options.targetProjectKey || metadata?.projectKey || "unknown";
 
-    console.log(`[Project Import] Target: ${targetTenant}/${targetProjectKey}`);
+    logger.info(`[Project Import] Target: ${targetTenant}/${targetProjectKey}`);
 
     // Dry run check
     if (options.dryRun) {
-      console.log("[Project Import] DRY RUN MODE - No changes will be made");
+      logger.info("[Project Import] DRY RUN MODE - No changes will be made");
       const validation = await validateCypherScript(cypherScript, metadata);
 
       return {
@@ -110,18 +111,18 @@ export async function importProjectFromCypher(
 
     // Delete existing project data if requested
     if (options.deleteExisting) {
-      console.log(`[Project Import] Deleting existing project data...`);
+      logger.info(`[Project Import] Deleting existing project data...`);
       await deleteProjectData(session, targetTenant, targetProjectKey);
     }
 
     // Execute Cypher script
-    console.log("[Project Import] Executing Cypher script...");
+    logger.info("[Project Import] Executing Cypher script...");
     const result = await executeCypherScript(session, cypherScript, targetTenant, targetProjectKey, metadata);
 
-    console.log(`[Project Import] Import completed successfully`);
-    console.log(`[Project Import] Nodes created: ${result.nodesCreated}`);
-    console.log(`[Project Import] Relationships created: ${result.relationshipsCreated}`);
-    console.log(`[Project Import] Duration: ${result.duration}ms`);
+    logger.info(`[Project Import] Import completed successfully`);
+    logger.info(`[Project Import] Nodes created: ${result.nodesCreated}`);
+    logger.info(`[Project Import] Relationships created: ${result.relationshipsCreated}`);
+    logger.info(`[Project Import] Duration: ${result.duration}ms`);
 
     return {
       success: true,
@@ -134,7 +135,7 @@ export async function importProjectFromCypher(
       targetProjectKey
     };
   } catch (error) {
-    console.error("[Project Import] Import failed:", error);
+    logger.error({ err: error }, "[Project Import] Import failed");
     return {
       success: false,
       nodesCreated: 0,
@@ -161,7 +162,7 @@ export async function importProjectFromJSON(
   const session = getSession();
 
   try {
-    console.log(`[Project Import] Loading JSON backup: ${backupFilePath}`);
+    logger.info(`[Project Import] Loading JSON backup: ${backupFilePath}`);
 
     // Load JSON file
     const jsonContent = await fs.readFile(backupFilePath, "utf-8");
@@ -171,13 +172,13 @@ export async function importProjectFromJSON(
     const targetTenant = options.targetTenant || exportData.metadata.tenant;
     const targetProjectKey = options.targetProjectKey || exportData.metadata.projectKey;
 
-    console.log(`[Project Import] Target: ${targetTenant}/${targetProjectKey}`);
-    console.log(`[Project Import] Nodes to import: ${exportData.nodes.length}`);
-    console.log(`[Project Import] Relationships to import: ${exportData.relationships.length}`);
+    logger.info(`[Project Import] Target: ${targetTenant}/${targetProjectKey}`);
+    logger.info(`[Project Import] Nodes to import: ${exportData.nodes.length}`);
+    logger.info(`[Project Import] Relationships to import: ${exportData.relationships.length}`);
 
     // Dry run check
     if (options.dryRun) {
-      console.log("[Project Import] DRY RUN MODE - No changes will be made");
+      logger.info("[Project Import] DRY RUN MODE - No changes will be made");
       return {
         success: true,
         nodesCreated: 0,
@@ -192,19 +193,19 @@ export async function importProjectFromJSON(
 
     // Delete existing if requested
     if (options.deleteExisting) {
-      console.log(`[Project Import] Deleting existing project data...`);
+      logger.info(`[Project Import] Deleting existing project data...`);
       await deleteProjectData(session, targetTenant, targetProjectKey);
     }
 
     // Import nodes
-    console.log("[Project Import] Importing nodes...");
+    logger.info("[Project Import] Importing nodes...");
     const nodeIdMap = await importNodes(session, exportData.nodes, targetTenant, targetProjectKey);
 
     // Import relationships
-    console.log("[Project Import] Importing relationships...");
+    logger.info("[Project Import] Importing relationships...");
     const relationshipsCreated = await importRelationships(session, exportData.relationships, nodeIdMap);
 
-    console.log(`[Project Import] Import completed successfully`);
+    logger.info(`[Project Import] Import completed successfully`);
 
     return {
       success: true,
@@ -217,7 +218,7 @@ export async function importProjectFromJSON(
       targetProjectKey
     };
   } catch (error) {
-    console.error("[Project Import] Import failed:", error);
+    logger.error({ err: error }, "[Project Import] Import failed");
     return {
       success: false,
       nodesCreated: 0,
@@ -255,7 +256,7 @@ async function deleteProjectData(
   const result = await session.run(query, { tenant, projectKey });
   const deleteCount = result.summary.counters.updates().nodesDeleted;
 
-  console.log(`[Project Import] Deleted ${deleteCount} existing nodes`);
+  logger.info(`[Project Import] Deleted ${deleteCount} existing nodes`);
 }
 
 /**
@@ -278,7 +279,7 @@ async function executeCypherScript(
 
   // If importing to different tenant/project, update the script
   if (metadata && (targetTenant !== metadata.tenant || targetProjectKey !== metadata.projectKey)) {
-    console.log(`[Project Import] Remapping from ${metadata.tenant}/${metadata.projectKey} to ${targetTenant}/${targetProjectKey}`);
+    logger.info(`[Project Import] Remapping from ${metadata.tenant}/${metadata.projectKey} to ${targetTenant}/${targetProjectKey}`);
 
     cypherScript = cypherScript
       .replace(new RegExp(`tenant: "${metadata.tenant}"`, "g"), `tenant: "${targetTenant}"`)
@@ -307,7 +308,7 @@ async function executeCypherScript(
       nodesCreated += counters.nodesCreated || 0;
       relationshipsCreated += counters.relationshipsCreated || 0;
     } catch (error) {
-      console.warn(`[Project Import] Statement warning:`, error);
+      logger.warn({ err: error }, `[Project Import] Statement warning`);
       warnings.push(`Statement execution warning: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
@@ -361,7 +362,7 @@ async function importRelationships(
     const endId = nodeIdMap.get(rel.endNodeId);
 
     if (!startId || !endId) {
-      console.warn(`[Project Import] Skipping relationship ${rel.type}: missing node mapping`);
+      logger.warn(`[Project Import] Skipping relationship ${rel.type}: missing node mapping`);
       continue;
     }
 
@@ -504,7 +505,7 @@ export async function restoreToTempProject(
   const tempTenant = `temp-restore-${timestamp}`;
   const tempProject = `temp-${timestamp}`;
 
-  console.log(`[Project Import] Restoring to temporary project: ${tempTenant}/${tempProject}`);
+  logger.info(`[Project Import] Restoring to temporary project: ${tempTenant}/${tempProject}`);
 
   const result = await importProjectFromCypher(backupFilePath, {
     targetTenant: tempTenant,
@@ -513,9 +514,9 @@ export async function restoreToTempProject(
   });
 
   if (result.success) {
-    console.log(`[Project Import] Temporary project created successfully`);
-    console.log(`[Project Import] Review at: ${tempTenant}/${tempProject}`);
-    console.log(`[Project Import] Delete when done: MATCH (n {tenant: "${tempTenant}", projectKey: "${tempProject}"}) DETACH DELETE n`);
+    logger.info(`[Project Import] Temporary project created successfully`);
+    logger.info(`[Project Import] Review at: ${tempTenant}/${tempProject}`);
+    logger.info(`[Project Import] Delete when done: MATCH (n {tenant: "${tempTenant}", projectKey: "${tempProject}"}) DETACH DELETE n`);
   }
 
   return result;

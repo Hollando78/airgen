@@ -1,6 +1,7 @@
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { slugify } from "../../workspace.js";
 import { getSession } from "../driver.js";
+import { logger } from "../../../lib/logger.js";
 import type { ArchitectureConnectorRecord, ConnectorKind } from "./types.js";
 import { mapArchitectureConnector } from "./mappers.js";
 import { toNumber } from "../../../lib/neo4j-utils.js";
@@ -48,7 +49,7 @@ async function syncConnectorLinksets(params: {
           }
         } catch (error) {
           // Log but don't fail - linkset creation is best-effort
-          console.warn(`Failed to sync linkset ${sourceDocSlug} -> ${targetDocSlug}:`, error);
+          logger.warn({ err: error, sourceDocSlug, targetDocSlug }, `Failed to sync linkset ${sourceDocSlug} -> ${targetDocSlug}`);
         }
       }
     }

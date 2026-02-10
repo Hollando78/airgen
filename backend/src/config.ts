@@ -1,5 +1,6 @@
 import { resolve } from "path";
 import { readFileSync, existsSync } from "fs";
+import { logger } from "./lib/logger.js";
 
 type Environment = "development" | "staging" | "production" | "test";
 
@@ -37,7 +38,7 @@ function getSecret(secretName: string, envVarName?: string): string | undefined 
         return content;
       }
     } catch (error) {
-      console.warn(`[CONFIG] Failed to read Docker secret ${secretName}:`, error);
+      logger.warn({ err: error, secretName }, `[CONFIG] Failed to read Docker secret ${secretName}`);
     }
   }
 
@@ -102,7 +103,7 @@ if (!resolvedJwtSecret) {
 // App URL (for email links, etc.)
 const resolvedAppUrl = env.APP_URL ?? (environment === "production" ? undefined : "http://localhost:5173");
 if (environment === "production" && !resolvedAppUrl) {
-  console.warn("[WARNING] APP_URL not set in production. Email links may not work correctly.");
+  logger.warn("[WARNING] APP_URL not set in production. Email links may not work correctly.");
 }
 
 // API URL (for CORS, frontend API calls)
@@ -210,6 +211,10 @@ export const config = {
     llm: {
       max: parseNumber(env.RATE_LIMIT_LLM_MAX, environment === "production" ? 20 : 100),
       timeWindow: parseNumber(env.RATE_LIMIT_LLM_WINDOW, 3600000) // 1 hour
+    },
+    sysml: {
+      max: parseNumber(env.RATE_LIMIT_SYSML_MAX, environment === "production" ? 150 : 400),
+      timeWindow: parseNumber(env.RATE_LIMIT_SYSML_WINDOW, 60000) // 1 minute
     }
   },
 
@@ -222,7 +227,9 @@ export const config = {
 
   // Feature flags
   features: {
-    adminRoutesEnabled: parseBoolean(env.ENABLE_ADMIN_ROUTES, true)
+    adminRoutesEnabled: parseBoolean(env.ENABLE_ADMIN_ROUTES, true),
+    sysmlBetaEnabled: parseBoolean(env.SYSML_BETA_ENABLED, false),
+    sysmlAiAssistEnabled: parseBoolean(env.SYSML_AI_ASSIST_ENABLED, false)
 
     // ARCHIVED: SnapDraft feature flags (2025-10-22)
     // Replaced by Imagine visualization feature
@@ -239,12 +246,12 @@ export type AppConfig = typeof config;
 
 // Log configuration summary on startup (without sensitive data)
 if (environment !== "test") {
-  console.log(`[CONFIG] Environment: ${environment}`);
-  console.log(`[CONFIG] Host: ${config.host}:${config.port}`);
-  console.log(`[CONFIG] App URL: ${config.appUrl}`);
-  console.log(`[CONFIG] CORS Origins: ${corsOrigins.length > 0 ? corsOrigins.join(", ") : "none (allow all)"}`);
-  console.log(`[CONFIG] Email: ${config.email.enabled ? "enabled" : "disabled (console mode)"}`);
-  console.log(`[CONFIG] Graph: ${config.graph.url}`);
-  console.log(`[CONFIG] Cookie Prefix: ${cookiePrefix || "(none)"}`);
-  console.log(`[CONFIG] Trust Proxy: ${config.trustProxy ? "enabled" : "disabled"}`);
+  logger.info(`[CONFIG] Environment: ${environment}`);
+  logger.info(`[CONFIG] Host: ${config.host}:${config.port}`);
+  logger.info(`[CONFIG] App URL: ${config.appUrl}`);
+  logger.info(`[CONFIG] CORS Origins: ${corsOrigins.length > 0 ? corsOrigins.join(", ") : "none (allow all)"}`);
+  logger.info(`[CONFIG] Email: ${config.email.enabled ? "enabled" : "disabled (console mode)"}`);
+  logger.info(`[CONFIG] Graph: ${config.graph.url}`);
+  logger.info(`[CONFIG] Cookie Prefix: ${cookiePrefix || "(none)"}`);
+  logger.info(`[CONFIG] Trust Proxy: ${config.trustProxy ? "enabled" : "disabled"}`);
 }

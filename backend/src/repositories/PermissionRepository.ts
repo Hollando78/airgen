@@ -7,6 +7,7 @@
 
 import type { Pool } from "pg";
 import { getPool } from "../lib/postgres.js";
+import { logger } from "../lib/logger.js";
 import type { UserPermissions, TenantPermission, ProjectPermission } from "../types/permissions.js";
 import { UserRole } from "../types/roles.js";
 import type { User } from "./UserRepository.js";
@@ -50,21 +51,21 @@ export class PermissionRepository {
    * Get all permissions for a user in structured format
    */
   async getUserPermissions(userId: string): Promise<UserPermissions> {
-    console.log('[PermissionRepository.getUserPermissions] Getting permissions for user:', userId);
+    logger.info({ userId }, '[PermissionRepository.getUserPermissions] Getting permissions for user');
 
     const result = await this.pool.query(
       `SELECT * FROM user_permissions WHERE user_id = $1 ORDER BY granted_at`,
       [userId]
     );
 
-    console.log('[PermissionRepository.getUserPermissions] Found', result.rows.length, 'permission rows');
-    console.log('[PermissionRepository.getUserPermissions] Raw rows:', result.rows);
+    logger.info({ rowCount: result.rows.length }, '[PermissionRepository.getUserPermissions] Found permission rows');
+    logger.debug({ rows: result.rows }, '[PermissionRepository.getUserPermissions] Raw rows');
 
     const permissions: UserPermissions = {};
 
     for (const row of result.rows) {
       const record = this.mapRowToPermissionRecord(row);
-      console.log('[PermissionRepository.getUserPermissions] Processing record:', record);
+      logger.debug({ record }, '[PermissionRepository.getUserPermissions] Processing record');
 
       if (record.scopeType === "global") {
         permissions.globalRole = UserRole.SUPER_ADMIN;
@@ -97,7 +98,7 @@ export class PermissionRepository {
       }
     }
 
-    console.log('[PermissionRepository.getUserPermissions] Final permissions object:', permissions);
+    logger.debug({ permissions }, '[PermissionRepository.getUserPermissions] Final permissions object');
     return permissions;
   }
 
@@ -105,7 +106,7 @@ export class PermissionRepository {
    * Grant a permission to a user
    */
   async grantPermission(input: GrantPermissionInput): Promise<PermissionRecord> {
-    console.log('[PermissionRepository.grantPermission] Input:', input);
+    logger.info({ input }, '[PermissionRepository.grantPermission] Input');
 
     // Validate scope constraints
     if (input.scopeType === "global" && input.scopeId) {
@@ -129,7 +130,7 @@ export class PermissionRepository {
       input.isOwner ?? false,
       input.grantedBy || null
     ];
-    console.log('[PermissionRepository.grantPermission] Query params:', queryParams);
+    logger.debug({ queryParams }, '[PermissionRepository.grantPermission] Query params');
 
     const result = await this.pool.query(
       `INSERT INTO user_permissions (user_id, scope_type, scope_id, role, is_owner, granted_by)
@@ -144,7 +145,7 @@ export class PermissionRepository {
       queryParams
     );
 
-    console.log('[PermissionRepository.grantPermission] Result row:', result.rows[0]);
+    logger.debug({ row: result.rows[0] }, '[PermissionRepository.grantPermission] Result row');
     return this.mapRowToPermissionRecord(result.rows[0]);
   }
 

@@ -6,11 +6,12 @@
  */
 
 import { getSession } from '../graph/driver.js';
+import { logger } from '../../lib/logger.js';
 import type { ImagineContext, ImagineRequest } from './types.js';
 
 export class ContextBuilder {
   async buildContext(request: ImagineRequest): Promise<ImagineContext> {
-    console.log(`[Imagine] Building context for ${request.elementType} ${request.elementId}`);
+    logger.info(`[Imagine] Building context for ${request.elementType} ${request.elementId}`);
 
     const session = getSession();
     try {
@@ -65,7 +66,7 @@ export class ContextBuilder {
           ports = elementNode.properties.ports;
         }
       } catch (err) {
-        console.warn('[Imagine] Failed to parse ports:', err);
+        logger.warn({ err }, '[Imagine] Failed to parse ports');
       }
 
       // Parse requirements and filter by IDs if provided
@@ -83,7 +84,7 @@ export class ContextBuilder {
       if (request.requirementIds && request.requirementIds.length > 0) {
         const selectedIds = new Set(request.requirementIds);
         parsedRequirements = parsedRequirements.filter((r: any) => selectedIds.has(r.id));
-        console.log(`[Imagine] Filtered to ${parsedRequirements.length} selected requirements`);
+        logger.info(`[Imagine] Filtered to ${parsedRequirements.length} selected requirements`);
       } else {
         parsedRequirements = parsedRequirements.slice(0, 5); // Top 5 requirements if no filter
       }
@@ -110,7 +111,7 @@ export class ContextBuilder {
                 content = sections.map((s: any) => s.content || '').join('\n\n');
               }
             } catch (err) {
-              console.warn('[Imagine] Failed to parse document sections:', err);
+              logger.warn({ err }, '[Imagine] Failed to parse document sections');
             }
 
             return {
@@ -121,7 +122,7 @@ export class ContextBuilder {
           .slice(0, 2), // Top 2 documents
       };
 
-      console.log(`[Imagine] Context built: ${context.requirements.length} requirements, ${context.documents.length} documents, ${context.element.connections?.length || 0} connections`);
+      logger.info(`[Imagine] Context built: ${context.requirements.length} requirements, ${context.documents.length} documents, ${context.element.connections?.length || 0} connections`);
 
       return context;
     } finally {

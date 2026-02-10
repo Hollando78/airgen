@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import sharp from "sharp";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { config } from "../config.js";
+import { logger } from "../lib/logger.js";
 import { getArchitectureBlocks, getArchitectureConnectors } from "./graph/architecture/index.js";
 
 const execAsync = promisify(exec);
@@ -23,7 +24,7 @@ let canvasAvailable = false;
     // Set global Image for pdfjs-dist
     (global as any).Image = Image;
   } catch (error) {
-    console.warn("[thumbnail-generator] Canvas module not available - PDF thumbnail generation will be disabled");
+    logger.warn("[thumbnail-generator] Canvas module not available - PDF thumbnail generation will be disabled");
   }
 })();
 

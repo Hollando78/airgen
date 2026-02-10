@@ -1,4 +1,5 @@
 import { getSession } from "./driver.js";
+import { logger } from "../../lib/logger.js";
 
 /**
  * Creates database indexes and constraints for optimal query performance
@@ -71,9 +72,9 @@ export async function createDatabaseIndexes(): Promise<void> {
       }
     });
 
-    console.log("✓ Database indexes and constraints created successfully");
+    logger.info("Database indexes and constraints created successfully");
   } catch (error) {
-    console.error("Failed to create database indexes:", error);
+    logger.error({ err: error }, "Failed to create database indexes");
     throw error;
   } finally {
     await session.close();

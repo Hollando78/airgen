@@ -4,6 +4,7 @@
 
 import { config } from '../../config.js';
 import { getSession } from '../graph/driver.js';
+import { logger } from '../../lib/logger.js';
 import { ContextBuilder } from './context-builder.js';
 import { PromptGenerator } from './prompt-generator.js';
 import { GeminiClient } from './gemini-client.js';
@@ -29,7 +30,7 @@ export class ImagineService {
         config.imagine.aspectRatio
       );
     } else {
-      console.warn('[Imagine] Gemini API key not configured - image generation will fail');
+      logger.warn('[Imagine] Gemini API key not configured - image generation will fail');
       this.geminiClient = null;
     }
   }
@@ -39,14 +40,14 @@ export class ImagineService {
       throw new Error('[Imagine] Gemini API key not configured');
     }
 
-    console.log(`[Imagine] Starting visualization generation for ${request.elementType} ${request.elementId}`);
+    logger.info(`[Imagine] Starting visualization generation for ${request.elementType} ${request.elementId}`);
 
     // Step 1: Build context
     const context = await this.contextBuilder.buildContext(request);
 
     // Step 2: Generate prompt
     const prompt = this.promptGenerator.generatePrompt(context, request.customPrompt);
-    console.log(`[Imagine] Generated prompt (${prompt.length} chars)`);
+    logger.info(`[Imagine] Generated prompt (${prompt.length} chars)`);
 
     // Step 3: Generate image with Gemini
     const imageResult = await this.geminiClient.generateImage(prompt);
@@ -85,7 +86,7 @@ export class ImagineService {
     // Step 6: Persist to Neo4j
     await this.persistImageToDatabase(imagine);
 
-    console.log(`[Imagine] Visualization generated successfully: ${imageId}`);
+    logger.info(`[Imagine] Visualization generated successfully: ${imageId}`);
 
     return imagine;
   }
@@ -151,7 +152,7 @@ export class ImagineService {
           createdAt: image.createdAt,
         }
       );
-      console.log(`[Imagine] Persisted image ${image.id} to database`);
+      logger.info(`[Imagine] Persisted image ${image.id} to database`);
     } finally {
       await session.close();
     }
@@ -234,7 +235,7 @@ export class ImagineService {
       throw new Error('[Imagine] Gemini API key not configured');
     }
 
-    console.log(`[Imagine] Starting re-imagination for image ${request.parentImageId}`);
+    logger.info(`[Imagine] Starting re-imagination for image ${request.parentImageId}`);
 
     const session = getSession();
     try {
@@ -259,7 +260,7 @@ export class ImagineService {
         parentImage.prompt,
         request.iterationInstructions
       );
-      console.log(`[Imagine] Generated iteration prompt (${iterationPrompt.length} chars)`);
+      logger.info(`[Imagine] Generated iteration prompt (${iterationPrompt.length} chars)`);
 
       // Generate new image
       const imageResult = await this.geminiClient.generateImage(iterationPrompt);
@@ -299,7 +300,7 @@ export class ImagineService {
       // Persist to Neo4j
       await this.persistImageToDatabase(newImage);
 
-      console.log(`[Imagine] Re-imagination successful: ${imageId} (version ${newImage.version})`);
+      logger.info(`[Imagine] Re-imagination successful: ${imageId} (version ${newImage.version})`);
 
       return newImage;
     } finally {

@@ -257,23 +257,23 @@ if (areMetricsAvailable()) {
   app.addHook("onRequest", metricsMiddleware);
 }
 
-// Register error handler for Sentry
-if (isSentryEnabled()) {
-  app.setErrorHandler((error, request, reply) => {
-    // Capture error in Sentry
+// Global error handler — always registered
+app.setErrorHandler((error, request, reply) => {
+  // Capture error in Sentry when available
+  if (isSentryEnabled()) {
     sentryErrorHandler(error, request);
+  }
 
-    // Log the error
-    app.log.error({ err: error }, 'Request error');
+  // Log the error
+  app.log.error({ err: error }, 'Request error');
 
-    // Send error response
-    const serialized = serializeError(error);
-    reply.status(error.statusCode || 500).send({
-      error: serialized.message,
-      ...(config.environment !== 'production' && { stack: serialized.stack })
-    });
+  // Send error response
+  const serialized = serializeError(error);
+  reply.status(error.statusCode || 500).send({
+    error: serialized.message,
+    ...(config.environment !== 'production' && { stack: serialized.stack })
   });
-}
+});
 
 // Start refresh token cleanup
 startTokenCleanup();
@@ -328,6 +328,11 @@ await app.register(workersRoutes, { prefix: "/api" });
 // await app.register(snapdraftRoutes, { prefix: "/api" });
 await app.register(imagineRoutes, { prefix: "/api" });
 await app.register(activityRoutes, { prefix: "/api" });
+
+if (config.features.sysmlBetaEnabled) {
+  const sysmlRoutes = await import("./routes/sysml.js");
+  await app.register(sysmlRoutes.default, { prefix: "/api" });
+}
 
 if (config.features.adminRoutesEnabled) {
   const adminRoutes = await import("./routes/admin-users.js");

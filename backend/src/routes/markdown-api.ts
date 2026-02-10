@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { analyzeRequirement } from "@airgen/req-qa";
 import { getDocument } from "../services/graph.js";
 import { config } from "../config.js";
+import { logger } from "../lib/logger.js";
 import { CacheInvalidation } from "../lib/cache.js";
 import { parseMarkdownDocument, validateMarkdownStructure } from "../services/markdown-parser.js";
 import { syncParsedDocument } from "../services/markdown-sync.js";
@@ -248,7 +249,7 @@ export async function generateMarkdownFromNeo4j(
 
     return markdown;
   } catch (error) {
-    console.error("Error generating markdown from Neo4j:", error);
+    logger.error({ err: error }, "Error generating markdown from Neo4j");
     return `# ${documentName}\n\n*Error loading document content. Please try again.*\n`;
   } finally {
     await session.close();

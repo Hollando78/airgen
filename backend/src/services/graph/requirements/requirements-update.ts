@@ -1,5 +1,6 @@
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { computeRequirementHash } from "../../../lib/requirement-hash.js";
+import { logger } from "../../../lib/logger.js";
 import { slugify } from "../../workspace.js";
 import type { RequirementRecord, RequirementPattern, VerificationMethod } from "../../workspace.js";
 import { getSession } from "../driver.js";
@@ -129,12 +130,12 @@ export async function updateRequirement(
           if (updates.text && updates.text !== currentRequirement.text) {
             try {
               const newEmbedding = await embeddingService.generateEmbedding(updates.text);
-              console.log(`[Requirement] Generated new embedding for updated requirement (${newEmbedding.length} dimensions)`);
+              logger.info(`[Requirement] Generated new embedding for updated requirement (${newEmbedding.length} dimensions)`);
               propertyUpdates.embedding = newEmbedding;
               propertyUpdates.embeddingModel = 'text-embedding-3-small';
               propertyUpdates.embeddingGeneratedAt = new Date().toISOString();
             } catch (error) {
-              console.warn(`[Requirement] Failed to generate embedding:`, error);
+              logger.warn({ err: error }, `[Requirement] Failed to generate embedding`);
               // Continue without embedding update
             }
           }

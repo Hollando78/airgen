@@ -1,5 +1,6 @@
 import { getSession } from "../services/graph/driver.js";
 import { embeddingService } from "../services/embedding.js";
+import { logger } from "../lib/logger.js";
 import type { ManagedTransaction } from "neo4j-driver";
 
 export type EmbeddingWorkerStatus = {
@@ -112,12 +113,12 @@ class EmbeddingWorker {
 
       this.totalCount = requirements.length;
 
-      console.log(`[EmbeddingWorker] Starting ${operation} for ${this.totalCount} requirements`);
+      logger.info(`[EmbeddingWorker] Starting ${operation} for ${this.totalCount} requirements`);
 
       // Process each requirement
       for (const req of requirements) {
         if (this.shouldStop) {
-          console.log(`[EmbeddingWorker] Stopping at ${this.processedCount}/${this.totalCount}`);
+          logger.info(`[EmbeddingWorker] Stopping at ${this.processedCount}/${this.totalCount}`);
           break;
         }
 
@@ -150,10 +151,10 @@ class EmbeddingWorker {
 
           // Log progress every 10 requirements
           if (this.processedCount % 10 === 0) {
-            console.log(`[EmbeddingWorker] Progress: ${this.processedCount}/${this.totalCount}`);
+            logger.info(`[EmbeddingWorker] Progress: ${this.processedCount}/${this.totalCount}`);
           }
         } catch (error) {
-          console.error(`[EmbeddingWorker] Error processing requirement ${req.ref}:`, error);
+          logger.error({ err: error, ref: req.ref }, `[EmbeddingWorker] Error processing requirement ${req.ref}`);
           this.lastError = `Failed to process ${req.ref}: ${(error as Error).message}`;
           // Continue with next requirement
         }
@@ -163,10 +164,10 @@ class EmbeddingWorker {
       }
 
       this.completedAt = new Date().toISOString();
-      console.log(`[EmbeddingWorker] Completed: ${this.processedCount}/${this.totalCount} requirements`);
+      logger.info(`[EmbeddingWorker] Completed: ${this.processedCount}/${this.totalCount} requirements`);
     } catch (error) {
       this.lastError = `Worker error: ${(error as Error).message}`;
-      console.error('[EmbeddingWorker] Fatal error:', error);
+      logger.error({ err: error }, '[EmbeddingWorker] Fatal error');
       throw error;
     } finally {
       this.isRunning = false;

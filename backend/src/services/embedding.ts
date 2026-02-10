@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { config } from "../config.js";
 import { getOpenAiClient } from "./llm.js";
+import { logger } from "../lib/logger.js";
 import crypto from "crypto";
 
 // Type definitions
@@ -56,7 +57,7 @@ class EmbeddingService {
     // Level 1: Check memory cache
     const cached = this.memoryCache.get(hash);
     if (cached) {
-      console.log(`[Embedding] Memory cache hit for ${hash.substring(0, 8)}`);
+      logger.info(`[Embedding] Memory cache hit for ${hash.substring(0, 8)}`);
       return cached;
     }
 
@@ -64,7 +65,7 @@ class EmbeddingService {
     // For now, skip Redis caching
 
     // Generate fresh embedding
-    console.log(`[Embedding] Generating fresh embedding for text (${text.length} chars)`);
+    logger.info(`[Embedding] Generating fresh embedding for text (${text.length} chars)`);
 
     try {
       const client = this.getClient();
@@ -88,7 +89,7 @@ class EmbeddingService {
 
       return embedding;
     } catch (error) {
-      console.error(`[Embedding] Generation failed:`, error);
+      logger.error({ err: error }, `[Embedding] Generation failed`);
       throw new Error(`Failed to generate embedding: ${(error as Error).message}`);
     }
   }
@@ -104,7 +105,7 @@ class EmbeddingService {
   ): Promise<Embedding> {
     // If text unchanged and we have an embedding, reuse it
     if (previousText === currentText && existingEmbedding && existingEmbedding.length > 0) {
-      console.log(`[Embedding] Text unchanged, reusing existing embedding`);
+      logger.info(`[Embedding] Text unchanged, reusing existing embedding`);
       return existingEmbedding;
     }
 
@@ -126,7 +127,7 @@ class EmbeddingService {
     }
 
     // For larger batches, use OpenAI batch API
-    console.log(`[Embedding] Batch generating ${texts.length} embeddings`);
+    logger.info(`[Embedding] Batch generating ${texts.length} embeddings`);
 
     try {
       const client = this.getClient();
@@ -146,7 +147,7 @@ class EmbeddingService {
 
       return embeddings;
     } catch (error) {
-      console.error(`[Embedding] Batch generation failed:`, error);
+      logger.error({ err: error }, `[Embedding] Batch generation failed`);
       throw new Error(`Failed to generate batch embeddings: ${(error as Error).message}`);
     }
   }
@@ -211,7 +212,7 @@ class EmbeddingService {
    */
   clearCache(): void {
     this.memoryCache.clear();
-    console.log(`[Embedding] Cache cleared`);
+    logger.info(`[Embedding] Cache cleared`);
   }
 }
 

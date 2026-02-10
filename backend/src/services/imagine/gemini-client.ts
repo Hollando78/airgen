@@ -5,6 +5,7 @@
  */
 
 import type { GeminiImageGenerationResult } from './types.js';
+import { logger } from '../../lib/logger.js';
 
 export class GeminiClient {
   private apiKey: string;
@@ -21,15 +22,15 @@ export class GeminiClient {
     this.model = model;
     this.aspectRatio = aspectRatio;
 
-    console.log(`[Imagine] Gemini client initialized with model: ${this.model}, aspect ratio: ${this.aspectRatio}`);
+    logger.info(`[Imagine] Gemini client initialized with model: ${this.model}, aspect ratio: ${this.aspectRatio}`);
   }
 
   /**
    * Generate an image from a text prompt using Gemini 2.5 Flash Image
    */
   async generateImage(prompt: string): Promise<GeminiImageGenerationResult> {
-    console.log('[Imagine] Starting image generation with Gemini...');
-    console.log('[Imagine] Prompt length:', prompt.length, 'characters');
+    logger.info('[Imagine] Starting image generation with Gemini...');
+    logger.info({ promptLength: prompt.length }, '[Imagine] Prompt length');
 
     try {
       const url = `${this.baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
@@ -54,7 +55,7 @@ export class GeminiClient {
       // Check HTTP response status
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[Imagine] Gemini API HTTP error:', response.status, errorText);
+        logger.error({ status: response.status, errorText }, '[Imagine] Gemini API HTTP error');
         throw new Error(`[Imagine] Gemini API returned ${response.status}: ${errorText}`);
       }
 
@@ -87,16 +88,16 @@ export class GeminiClient {
       // Convert base64 to buffer
       const imageBuffer = Buffer.from(data, 'base64');
 
-      console.log('[Imagine] Image generated successfully');
-      console.log('[Imagine] Image size:', imageBuffer.length, 'bytes');
-      console.log('[Imagine] MIME type:', mimeType);
+      logger.info('[Imagine] Image generated successfully');
+      logger.info({ imageSize: imageBuffer.length }, '[Imagine] Image size');
+      logger.info({ mimeType }, '[Imagine] MIME type');
 
       return {
         imageData: imageBuffer,
         mimeType: mimeType || 'image/png',
       };
     } catch (error: any) {
-      console.error('[Imagine] Gemini API error:', error);
+      logger.error({ err: error }, '[Imagine] Gemini API error');
 
       // Provide more detailed error messages
       if (error.message?.includes('API key')) {

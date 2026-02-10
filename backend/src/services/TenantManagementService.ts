@@ -8,6 +8,7 @@
  */
 
 import type { AuthUser } from "../lib/authorization.js";
+import { logger } from "../lib/logger.js";
 import { slugify, type TenantRecord } from "./workspace.js";
 import { listTenants, createTenant, deleteTenant } from "./graph.js";
 import {
@@ -217,7 +218,7 @@ export async function inviteUserToTenant(
   try {
     await sendTenantInvitationEmail(email, normalizedTenant, invitedBy.name, invitation.token);
   } catch (emailError) {
-    console.error("Failed to send tenant invitation email:", emailError);
+    logger.error({ err: emailError }, "Failed to send tenant invitation email");
     // Continue - invitation was created successfully
   }
 

@@ -5,6 +5,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { config } from '../../config.js';
+import { logger } from '../../lib/logger.js';
 
 export class ImageStorage {
   private storageDir: string;
@@ -34,7 +35,7 @@ export class ImageStorage {
 
     await fs.writeFile(filepath, imageData);
 
-    console.log(`[Imagine] Image saved: ${filepath} (${imageData.length} bytes)`);
+    logger.info(`[Imagine] Image saved: ${filepath} (${imageData.length} bytes)`);
 
     return `/imagine/${filename}`;
   }

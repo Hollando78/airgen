@@ -13,6 +13,7 @@
  */
 
 import { query } from "../../lib/postgres.js";
+import { logger } from "../../lib/logger.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ProjectBackupMetadata } from "./project-backup-service.js";
@@ -88,7 +89,7 @@ export interface BackupRetentionPolicy {
  * Register a new backup in the metadata store.
  */
 export async function registerBackup(record: Omit<BackupRecord, "id" | "createdAt">): Promise<BackupRecord> {
-  console.log(`[Backup Metadata] Registering backup for ${record.tenant}/${record.projectKey}`);
+  logger.info(`[Backup Metadata] Registering backup for ${record.tenant}/${record.projectKey}`);
 
   const queryText = `
     INSERT INTO project_backups (
@@ -118,7 +119,7 @@ export async function registerBackup(record: Omit<BackupRecord, "id" | "createdA
     const row = result.rows[0] as any;
     return mapRowToBackupRecord(row);
   } catch (error) {
-    console.error("[Backup Metadata] Failed to register backup:", error);
+    logger.error({ err: error }, "[Backup Metadata] Failed to register backup");
     throw error;
   }
 }
@@ -170,7 +171,7 @@ export async function updateBackup(
 
     return mapRowToBackupRecord(result.rows[0] as any);
   } catch (error) {
-    console.error("[Backup Metadata] Failed to update backup:", error);
+    logger.error({ err: error }, "[Backup Metadata] Failed to update backup");
     throw error;
   }
 }
@@ -225,7 +226,7 @@ export async function listBackups(options: BackupListOptions = {}): Promise<Back
     const result = await query(queryText, values);
     return result.rows.map((row: any) => mapRowToBackupRecord(row));
   } catch (error) {
-    console.error("[Backup Metadata] Failed to list backups:", error);
+    logger.error({ err: error }, "[Backup Metadata] Failed to list backups");
     throw error;
   }
 }
@@ -245,7 +246,7 @@ export async function getBackup(id: string): Promise<BackupRecord | null> {
 
     return mapRowToBackupRecord(result.rows[0] as any);
   } catch (error) {
-    console.error("[Backup Metadata] Failed to get backup:", error);
+    logger.error({ err: error }, "[Backup Metadata] Failed to get backup");
     throw error;
   }
 }
@@ -279,7 +280,7 @@ export async function getLatestBackup(
 
     return mapRowToBackupRecord(result.rows[0] as any);
   } catch (error) {
-    console.error("[Backup Metadata] Failed to get latest backup:", error);
+    logger.error({ err: error }, "[Backup Metadata] Failed to get latest backup");
     throw error;
   }
 }
@@ -348,7 +349,7 @@ export async function applyRetentionPolicy(
   keptCount: number;
   expiredCount: number;
 }> {
-  console.log(`[Backup Metadata] Applying retention policy to ${tenant}/${projectKey}`);
+  logger.info(`[Backup Metadata] Applying retention policy to ${tenant}/${projectKey}`);
 
   const backups = await listBackups({
     tenant,
@@ -415,7 +416,7 @@ export async function applyRetentionPolicy(
 
   const keptCount = backups.length - toExpire.length;
 
-  console.log(`[Backup Metadata] Retention applied: kept ${keptCount}, expired ${toExpire.length}`);
+  logger.info(`[Backup Metadata] Retention applied: kept ${keptCount}, expired ${toExpire.length}`);
 
   return {
     keptCount,
@@ -431,7 +432,7 @@ export async function cleanupExpiredBackups(dryRun = false): Promise<{
   deletedRemote: number;
   errors: string[];
 }> {
-  console.log(`[Backup Metadata] Cleaning up expired backups (dryRun: ${dryRun})`);
+  logger.info(`[Backup Metadata] Cleaning up expired backups (dryRun: ${dryRun})`);
 
   const expiredBackups = await listBackups({ status: "expired", limit: 1000 });
 
@@ -474,7 +475,7 @@ export async function cleanupExpiredBackups(dryRun = false): Promise<{
     }
   }
 
-  console.log(`[Backup Metadata] Cleanup complete: ${deletedLocal} local, ${deletedRemote} remote`);
+  logger.info(`[Backup Metadata] Cleanup complete: ${deletedLocal} local, ${deletedRemote} remote`);
 
   return { deletedLocal, deletedRemote, errors };
 }
@@ -520,7 +521,7 @@ export async function getBackupStats(tenant: string, projectKey: string): Promis
       oldestBackup: row.oldest_backup ? new Date(row.oldest_backup) : null
     };
   } catch (error) {
-    console.error("[Backup Metadata] Failed to get stats:", error);
+    logger.error({ err: error }, "[Backup Metadata] Failed to get stats");
     throw error;
   }
 }
@@ -555,7 +556,7 @@ export async function syncLocalBackups(backupDir: string): Promise<{
   registered: number;
   skipped: number;
 }> {
-  console.log(`[Backup Metadata] Syncing local backups from ${backupDir}`);
+  logger.info(`[Backup Metadata] Syncing local backups from ${backupDir}`);
 
   let registered = 0;
   let skipped = 0;
@@ -605,16 +606,16 @@ export async function syncLocalBackups(backupDir: string): Promise<{
 
         registered++;
       } catch (error) {
-        console.warn(`[Backup Metadata] Could not register ${file}:`, error);
+        logger.warn({ err: error, file }, `[Backup Metadata] Could not register ${file}`);
         skipped++;
       }
     }
 
-    console.log(`[Backup Metadata] Sync complete: ${registered} registered, ${skipped} skipped`);
+    logger.info(`[Backup Metadata] Sync complete: ${registered} registered, ${skipped} skipped`);
 
     return { registered, skipped };
   } catch (error) {
-    console.error("[Backup Metadata] Failed to sync local backups:", error);
+    logger.error({ err: error }, "[Backup Metadata] Failed to sync local backups");
     throw error;
   }
 }

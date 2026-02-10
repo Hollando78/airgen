@@ -101,18 +101,13 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
       logger.info({ to: options.to, bcc: config.email.systemBcc, subject: options.subject }, "Email sent via SMTP");
     } else {
       // Log to console for development
-      console.log("\n" + "=".repeat(80));
-      console.log("📧 EMAIL (Development Mode - Not Actually Sent)");
-      console.log("=".repeat(80));
-      console.log(`From: ${mailOptions.from}`);
-      console.log(`To: ${mailOptions.to}`);
-      if (mailOptions.bcc) {
-        console.log(`Bcc: ${Array.isArray(mailOptions.bcc) ? mailOptions.bcc.join(", ") : mailOptions.bcc}`);
-      }
-      console.log(`Subject: ${mailOptions.subject}`);
-      console.log("-".repeat(80));
-      console.log(mailOptions.text);
-      console.log("=".repeat(80) + "\n");
+      logger.info({
+        from: mailOptions.from,
+        to: mailOptions.to,
+        bcc: mailOptions.bcc ? (Array.isArray(mailOptions.bcc) ? mailOptions.bcc.join(", ") : mailOptions.bcc) : undefined,
+        subject: mailOptions.subject,
+        text: mailOptions.text
+      }, "EMAIL (Development Mode - Not Actually Sent)");
       logger.info({ to: options.to, bcc: mailOptions.bcc, subject: options.subject }, "Email logged to console (dev mode)");
     }
   } catch (error) {

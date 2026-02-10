@@ -1,4 +1,5 @@
 import { getSession } from "../driver.js";
+import { logger } from "../../../lib/logger.js";
 
 /**
  * Create vector indexes for semantic search
@@ -8,7 +9,7 @@ export async function createVectorIndexes(): Promise<void> {
   const session = getSession();
 
   try {
-    console.log('[Schema] Creating vector indexes...');
+    logger.info('[Schema] Creating vector indexes...');
 
     // Create vector index for requirements
     await session.run(`
@@ -23,7 +24,7 @@ export async function createVectorIndexes(): Promise<void> {
       }
     `);
 
-    console.log('[Schema] ✓ Created requirement_embeddings vector index');
+    logger.info('[Schema] Created requirement_embeddings vector index');
 
     // Wait for index to become available
     let indexReady = false;
@@ -42,25 +43,25 @@ export async function createVectorIndexes(): Promise<void> {
         const state = result.records[0].get('state');
         if (state === 'ONLINE') {
           indexReady = true;
-          console.log('[Schema] ✓ Vector index is online and ready');
+          logger.info('[Schema] Vector index is online and ready');
         } else {
-          console.log(`[Schema] Waiting for index... (state: ${state})`);
+          logger.info(`[Schema] Waiting for index... (state: ${state})`);
           await new Promise(resolve => setTimeout(resolve, 1000));
           attempts++;
         }
       } else {
-        console.log('[Schema] Waiting for index to appear...');
+        logger.info('[Schema] Waiting for index to appear...');
         await new Promise(resolve => setTimeout(resolve, 1000));
         attempts++;
       }
     }
 
     if (!indexReady) {
-      console.warn('[Schema] ⚠ Vector index may not be ready yet, but continuing...');
+      logger.warn('[Schema] Vector index may not be ready yet, but continuing...');
     }
 
   } catch (error) {
-    console.error('[Schema] Error creating vector indexes:', error);
+    logger.error({ err: error }, '[Schema] Error creating vector indexes');
     throw error;
   } finally {
     await session.close();
@@ -82,18 +83,18 @@ export async function checkVectorIndexes(): Promise<boolean> {
     `);
 
     if (result.records.length === 0) {
-      console.log('[Schema] ⚠ Vector index does not exist');
+      logger.info('[Schema] Vector index does not exist');
       return false;
     }
 
     const state = result.records[0].get('state');
     const type = result.records[0].get('type');
 
-    console.log(`[Schema] Vector index status: ${state} (${type})`);
+    logger.info(`[Schema] Vector index status: ${state} (${type})`);
 
     return state === 'ONLINE';
   } catch (error) {
-    console.error('[Schema] Error checking vector indexes:', error);
+    logger.error({ err: error }, '[Schema] Error checking vector indexes');
     return false;
   } finally {
     await session.close();

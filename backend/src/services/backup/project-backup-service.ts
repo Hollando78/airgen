@@ -13,6 +13,7 @@
  */
 
 import { getSession } from "../graph/driver.js";
+import { logger } from "../../lib/logger.js";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -119,15 +120,15 @@ export async function exportProjectToCypher(
   };
 
   try {
-    console.log(`[Project Backup] Exporting ${tenant}/${projectKey}...`);
+    logger.info(`[Project Backup] Exporting ${tenant}/${projectKey}...`);
 
     // Step 1: Export all nodes for this project
     const nodes = await exportProjectNodes(session, tenant, projectKey, defaultOptions);
-    console.log(`[Project Backup] Exported ${nodes.length} nodes`);
+    logger.info(`[Project Backup] Exported ${nodes.length} nodes`);
 
     // Step 2: Export all relationships between project nodes
     const relationships = await exportProjectRelationships(session, tenant, projectKey, nodes);
-    console.log(`[Project Backup] Exported ${relationships.length} relationships`);
+    logger.info(`[Project Backup] Exported ${relationships.length} relationships`);
 
     // Step 3: Generate Cypher script
     const cypherScript = generateCypherScript(tenant, projectKey, nodes, relationships, defaultOptions);
@@ -161,10 +162,10 @@ export async function exportProjectToCypher(
     const metadataPath = outputPath.replace(/\.cypher$/, ".metadata.json");
     await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), "utf-8");
 
-    console.log(`[Project Backup] Backup completed: ${outputPath}`);
-    console.log(`[Project Backup] Metadata: ${metadataPath}`);
-    console.log(`[Project Backup] Total nodes: ${metadata.stats.totalNodes}`);
-    console.log(`[Project Backup] Total relationships: ${metadata.stats.totalRelationships}`);
+    logger.info(`[Project Backup] Backup completed: ${outputPath}`);
+    logger.info(`[Project Backup] Metadata: ${metadataPath}`);
+    logger.info(`[Project Backup] Total nodes: ${metadata.stats.totalNodes}`);
+    logger.info(`[Project Backup] Total relationships: ${metadata.stats.totalRelationships}`);
 
     return metadata;
   } finally {
@@ -593,7 +594,7 @@ export async function exportProjectToJSON(
     // Update file with checksums
     await fs.writeFile(outputPath, JSON.stringify(exportData, null, 2), "utf-8");
 
-    console.log(`[Project Backup] JSON export completed: ${outputPath}`);
+    logger.info(`[Project Backup] JSON export completed: ${outputPath}`);
     return exportData.metadata;
   } finally {
     await session.close();

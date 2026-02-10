@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { ManagedTransaction, Node as Neo4jNode } from "neo4j-driver";
 import { config } from "../../../config.js";
 import { computeRequirementHash } from "../../../lib/requirement-hash.js";
+import { logger } from "../../../lib/logger.js";
 import { slugify } from "../../workspace.js";
 import type { RequirementRecord } from "../../workspace.js";
 import { getSession } from "../driver.js";
@@ -33,9 +34,9 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
   let embedding: number[] | null = null;
   try {
     embedding = await embeddingService.generateEmbedding(input.text);
-    console.log(`[Requirement] Generated embedding for new requirement (${embedding.length} dimensions)`);
+    logger.info(`[Requirement] Generated embedding for new requirement (${embedding.length} dimensions)`);
   } catch (error) {
-    console.warn(`[Requirement] Failed to generate embedding:`, error);
+    logger.warn({ err: error }, `[Requirement] Failed to generate embedding`);
     // Continue without embedding - it can be backfilled later
   }
 
