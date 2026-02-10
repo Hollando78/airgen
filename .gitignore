@@ -6,10 +6,11 @@ node_modules
 dist
 build
 
-# Env
+# Env (all env files with real or potential secrets)
 .env
 .env.*
-env/development.env
+env/*.env
+workspace/env/
 
 # Allow tracked environment templates
 !/env/**/*.example
@@ -95,4 +96,12 @@ workspace/info-*/
 *.MOV
 *.mov
 *.mp4
+
+# TLS certificates (private keys)
+letsencrypt/
+
+# Generated/workspace images and thumbnails
+workspace/imagine/
+workspace/**/*.png
+backend/workspace/**/*.png
 
