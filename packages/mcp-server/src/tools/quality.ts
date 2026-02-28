@@ -6,11 +6,15 @@ import { ok, formatError } from "../format.js";
 export function registerQualityTools(server: McpServer, client: AirgenClient) {
   server.tool(
     "analyze_requirement_quality",
-    "Analyze the quality of a requirement text using AIRGen's deterministic QA engine (ISO/IEC/IEEE 29148 + EARS). Returns a score (0-100), verdict, and specific improvement suggestions.",
+    "Analyze requirement quality using AIRGen's deterministic QA engine (ISO/IEC/IEEE 29148 + EARS). Returns score, verdict, and suggestions. Set autoFix=true to also get an automatically fixed version.",
     {
-      text: z.string().describe("Requirement text to analyze (e.g. 'The system shall...')"),
+      text: z.string().describe("Requirement text to analyze"),
+      autoFix: z
+        .boolean()
+        .optional()
+        .describe("If true, also return an auto-fixed version with ambiguities removed and weak modals strengthened. Default: false"),
     },
-    async ({ text }) => {
+    async ({ text, autoFix }) => {
       try {
         const data = await client.post<{
           score: number;
@@ -35,13 +39,13 @@ export function registerQualityTools(server: McpServer, client: AirgenClient) {
           if (failed.length > 0) {
             lines.push(`\n**Failed Rules (${failed.length}):**`);
             for (const h of failed) {
-              lines.push(`- ❌ ${h.rule}${h.message ? `: ${h.message}` : ""}`);
+              lines.push(`- \u274C ${h.rule}${h.message ? `: ${h.message}` : ""}`);
             }
           }
           if (passed.length > 0) {
             lines.push(`\n**Passed Rules (${passed.length}):**`);
             for (const h of passed) {
-              lines.push(`- ✅ ${h.rule}`);
+              lines.push(`- \u2705 ${h.rule}`);
             }
           }
         }
@@ -50,6 +54,30 @@ export function registerQualityTools(server: McpServer, client: AirgenClient) {
           lines.push(`\n**Suggestions:**`);
           for (const s of data.suggestions) {
             lines.push(`- ${s}`);
+          }
+        }
+
+        // Auto-fix if requested
+        if (autoFix) {
+          try {
+            const fixData = await client.post<{
+              before: string;
+              after: string;
+              notes?: string[];
+            }>("/apply-fix", { text });
+
+            lines.push(`\n## Auto-Fix`);
+            lines.push(`**Original:** ${fixData.before}`);
+            lines.push(`**Fixed:** ${fixData.after}`);
+
+            if (fixData.notes?.length) {
+              lines.push(`\n**Changes Applied:**`);
+              for (const note of fixData.notes) {
+                lines.push(`- ${note}`);
+              }
+            }
+          } catch {
+            lines.push(`\n_Auto-fix unavailable._`);
           }
         }
 
@@ -100,39 +128,6 @@ export function registerQualityTools(server: McpServer, client: AirgenClient) {
             for (const s of c.qa.suggestions) {
               lines.push(`   - ${s}`);
             }
-          }
-        }
-
-        return ok(lines.join("\n"));
-      } catch (err) {
-        return formatError(err);
-      }
-    },
-  );
-
-  server.tool(
-    "suggest_fixes",
-    "Automatically suggest fixes for a requirement text: replace ambiguous terms, strengthen weak modal verbs (should → shall), add measurable units. Returns the improved text.",
-    {
-      text: z.string().describe("Requirement text to fix"),
-    },
-    async ({ text }) => {
-      try {
-        const data = await client.post<{
-          before: string;
-          after: string;
-          notes?: string[];
-        }>("/apply-fix", { text });
-
-        const lines: string[] = [
-          `**Original:** ${data.before}`,
-          `**Fixed:** ${data.after}`,
-        ];
-
-        if (data.notes?.length) {
-          lines.push(`\n**Changes Applied:**`);
-          for (const note of data.notes) {
-            lines.push(`- ${note}`);
           }
         }
 

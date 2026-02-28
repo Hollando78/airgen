@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AirgenClient } from "../client.js";
-import { ok, formatError, formatTable } from "../format.js";
+import { ok, formatError } from "../format.js";
 
 interface DocRecord {
   slug: string;
@@ -24,235 +24,214 @@ export function registerDocumentManagementTools(
   server: McpServer,
   client: AirgenClient,
 ) {
-  // ── create_document ─────────────────────────────────────────
+  // ── manage_document ───────────────────────────────────────────
   server.tool(
-    "create_document",
-    "Create a new document in a project. Use type 'structured' for native AIRGen documents with sections and requirements.",
+    "manage_document",
+    "Create, update, or delete a document. Action 'create' requires name. Action 'update' requires documentSlug. Action 'delete' requires documentSlug.",
     {
-      projectKey: z.string().describe("Project slug/key"),
+      action: z.enum(["create", "update", "delete"]).describe("Operation to perform"),
       tenant: z.string().describe("Tenant slug"),
-      name: z.string().describe("Document name (e.g. 'System Requirements Document')"),
+      project: z.string().describe("Project slug"),
+      documentSlug: z
+        .string()
+        .optional()
+        .describe("(update, delete) Document slug to modify"),
+      name: z
+        .string()
+        .optional()
+        .describe("(create) Document name, or (update) new name"),
       code: z
         .string()
         .optional()
-        .describe("Short document code (e.g. 'SRD', 'URD', 'ICD')"),
-      description: z.string().optional().describe("Document description"),
-    },
-    async ({ projectKey, tenant, name, code, description }) => {
-      try {
-        const body: Record<string, unknown> = {
-          tenant,
-          projectKey,
-          name,
-        };
-        if (code) body.shortCode = code;
-        if (description) body.description = description;
-
-        const data = await client.post<{ document: DocRecord }>("/documents", body);
-        const doc = data.document;
-        return ok(
-          `Document created successfully.\n\n` +
-            `- **Slug:** ${doc.slug}\n` +
-            `- **Name:** ${doc.name}\n` +
-            `- **Code:** ${doc.shortCode ?? "(none)"}\n` +
-            `- **Type:** ${doc.kind ?? "structured"}\n` +
-            (doc.description ? `- **Description:** ${doc.description}\n` : ""),
-        );
-      } catch (err) {
-        return formatError(err);
-      }
-    },
-  );
-
-  // ── update_document ─────────────────────────────────────────
-  server.tool(
-    "update_document",
-    "Update a document's name, code, or description.",
-    {
-      documentSlug: z.string().describe("Document slug"),
-      project: z.string().describe("Project slug"),
-      tenant: z.string().describe("Tenant slug"),
-      name: z.string().optional().describe("New name"),
-      code: z.string().optional().describe("New short code"),
-      description: z.string().optional().describe("New description"),
-    },
-    async ({ documentSlug, project, tenant, name, code, description }) => {
-      try {
-        const body: Record<string, unknown> = {};
-        if (name !== undefined) body.name = name;
-        if (code !== undefined) body.shortCode = code;
-        if (description !== undefined) body.description = description;
-
-        const data = await client.patch<{ document: DocRecord }>(
-          `/documents/${tenant}/${project}/${documentSlug}`,
-          body,
-        );
-        const doc = data.document;
-        return ok(
-          `Document updated.\n\n` +
-            `- **Slug:** ${doc.slug}\n` +
-            `- **Name:** ${doc.name}\n` +
-            `- **Code:** ${doc.shortCode ?? "(none)"}\n` +
-            (doc.description ? `- **Description:** ${doc.description}\n` : ""),
-        );
-      } catch (err) {
-        return formatError(err);
-      }
-    },
-  );
-
-  // ── delete_document ─────────────────────────────────────────
-  server.tool(
-    "delete_document",
-    "Delete a document (soft delete). Requirements in the document are NOT deleted — they become unassigned.",
-    {
-      documentSlug: z.string().describe("Document slug"),
-      project: z.string().describe("Project slug"),
-      tenant: z.string().describe("Tenant slug"),
-    },
-    async ({ documentSlug, project, tenant }) => {
-      try {
-        await client.delete(`/documents/${tenant}/${project}/${documentSlug}`);
-        return ok(`Document '${documentSlug}' deleted.`);
-      } catch (err) {
-        return formatError(err);
-      }
-    },
-  );
-
-  // ── create_section ──────────────────────────────────────────
-  server.tool(
-    "create_section",
-    "Add a section to a document. Sections provide hierarchical structure (e.g. '3.1 Functional Requirements').",
-    {
-      documentSlug: z.string().describe("Parent document slug"),
-      project: z.string().describe("Project slug"),
-      tenant: z.string().describe("Tenant slug"),
-      title: z.string().describe("Section title (e.g. 'Functional Requirements')"),
-      orderIndex: z
-        .number()
-        .optional()
-        .describe("Position within parent (0-based). Default: 0"),
+        .describe("(create, update) Short document code (e.g. 'SRD')"),
       description: z
         .string()
         .optional()
-        .describe("Optional section description"),
+        .describe("(create, update) Document description"),
+    },
+    async ({ action, tenant, project, documentSlug, name, code, description }) => {
+      try {
+        switch (action) {
+          case "create": {
+            if (!name) return ok("create requires 'name'.");
+            const body: Record<string, unknown> = {
+              tenant,
+              projectKey: project,
+              name,
+            };
+            if (code) body.shortCode = code;
+            if (description) body.description = description;
+
+            const data = await client.post<{ document: DocRecord }>("/documents", body);
+            const doc = data.document;
+            return ok(
+              `Document created.\n\n` +
+                `- **Slug:** ${doc.slug}\n` +
+                `- **Name:** ${doc.name}\n` +
+                `- **Code:** ${doc.shortCode ?? "(none)"}\n` +
+                `- **Type:** ${doc.kind ?? "structured"}\n` +
+                (doc.description ? `- **Description:** ${doc.description}\n` : ""),
+            );
+          }
+
+          case "update": {
+            if (!documentSlug) return ok("update requires 'documentSlug'.");
+            const body: Record<string, unknown> = {};
+            if (name !== undefined) body.name = name;
+            if (code !== undefined) body.shortCode = code;
+            if (description !== undefined) body.description = description;
+
+            const data = await client.patch<{ document: DocRecord }>(
+              `/documents/${tenant}/${project}/${documentSlug}`,
+              body,
+            );
+            const doc = data.document;
+            return ok(
+              `Document updated.\n\n` +
+                `- **Slug:** ${doc.slug}\n` +
+                `- **Name:** ${doc.name}\n` +
+                `- **Code:** ${doc.shortCode ?? "(none)"}\n` +
+                (doc.description ? `- **Description:** ${doc.description}\n` : ""),
+            );
+          }
+
+          case "delete": {
+            if (!documentSlug) return ok("delete requires 'documentSlug'.");
+            await client.delete(`/documents/${tenant}/${project}/${documentSlug}`);
+            return ok(`Document '${documentSlug}' deleted.`);
+          }
+        }
+      } catch (err) {
+        return formatError(err);
+      }
+    },
+  );
+
+  // ── manage_section ────────────────────────────────────────────
+  server.tool(
+    "manage_section",
+    "Create, update, or delete a document section. Action 'create' requires documentSlug and title. Action 'update' requires sectionId. Action 'delete' requires sectionId.",
+    {
+      action: z.enum(["create", "update", "delete"]).describe("Operation to perform"),
+      tenant: z.string().describe("Tenant slug"),
+      project: z.string().describe("Project slug"),
+      documentSlug: z
+        .string()
+        .optional()
+        .describe("(create) Parent document slug"),
+      sectionId: z
+        .string()
+        .optional()
+        .describe("(update, delete) Section ID"),
+      title: z
+        .string()
+        .optional()
+        .describe("(create) Section title, or (update) new title"),
+      orderIndex: z
+        .number()
+        .optional()
+        .describe("(create, update) Position within parent (0-based)"),
+      description: z
+        .string()
+        .optional()
+        .describe("(create, update) Section description"),
       shortCode: z
         .string()
         .optional()
-        .describe("Short code for requirement numbering (e.g. 'FUNC')"),
+        .describe("(create, update) Short code for requirement numbering"),
     },
-    async ({ documentSlug, project, tenant, title, orderIndex, description, shortCode }) => {
+    async ({
+      action,
+      tenant,
+      project,
+      documentSlug,
+      sectionId,
+      title,
+      orderIndex,
+      description,
+      shortCode,
+    }) => {
       try {
-        const body: Record<string, unknown> = {
-          tenant,
-          projectKey: project,
-          documentSlug,
-          name: title,
-          order: orderIndex ?? 0,
-        };
-        if (description) body.description = description;
-        if (shortCode) body.shortCode = shortCode;
+        switch (action) {
+          case "create": {
+            if (!documentSlug || !title)
+              return ok("create requires 'documentSlug' and 'title'.");
 
-        const data = await client.post<{ section: SectionRecord }>("/sections", body);
-        const sec = data.section;
-        return ok(
-          `Section created.\n\n` +
-            `- **ID:** ${sec.id}\n` +
-            `- **Title:** ${sec.name ?? sec.title}\n` +
-            `- **Order:** ${sec.order ?? 0}\n` +
-            `- **Document:** ${documentSlug}\n` +
-            (sec.shortCode ? `- **Code:** ${sec.shortCode}\n` : ""),
-        );
+            const body: Record<string, unknown> = {
+              tenant,
+              projectKey: project,
+              documentSlug,
+              name: title,
+              order: orderIndex ?? 0,
+            };
+            if (description) body.description = description;
+            if (shortCode) body.shortCode = shortCode;
+
+            const data = await client.post<{ section: SectionRecord }>("/sections", body);
+            const sec = data.section;
+            return ok(
+              `Section created.\n\n` +
+                `- **ID:** ${sec.id}\n` +
+                `- **Title:** ${sec.name ?? sec.title}\n` +
+                `- **Order:** ${sec.order ?? 0}\n` +
+                `- **Document:** ${documentSlug}\n` +
+                (sec.shortCode ? `- **Code:** ${sec.shortCode}\n` : ""),
+            );
+          }
+
+          case "update": {
+            if (!sectionId) return ok("update requires 'sectionId'.");
+
+            const body: Record<string, unknown> = { tenant };
+            if (title !== undefined) body.name = title;
+            if (orderIndex !== undefined) body.order = orderIndex;
+            if (description !== undefined) body.description = description;
+            if (shortCode !== undefined) body.shortCode = shortCode;
+
+            const data = await client.patch<{ section: SectionRecord }>(
+              `/sections/${sectionId}`,
+              body,
+            );
+            const sec = data.section;
+            return ok(
+              `Section updated.\n\n` +
+                `- **ID:** ${sec.id}\n` +
+                `- **Title:** ${sec.name ?? sec.title}\n` +
+                `- **Order:** ${sec.order ?? 0}\n` +
+                (sec.shortCode ? `- **Code:** ${sec.shortCode}\n` : ""),
+            );
+          }
+
+          case "delete": {
+            if (!sectionId) return ok("delete requires 'sectionId'.");
+            await client.delete(`/sections/${sectionId}`);
+            return ok(`Section '${sectionId}' deleted.`);
+          }
+        }
       } catch (err) {
         return formatError(err);
       }
     },
   );
 
-  // ── update_section ──────────────────────────────────────────
-  server.tool(
-    "update_section",
-    "Rename, reorder, or update a section.",
-    {
-      sectionId: z.string().describe("Section ID"),
-      documentSlug: z.string().describe("Parent document slug (for context)"),
-      project: z.string().describe("Project slug"),
-      tenant: z.string().describe("Tenant slug"),
-      title: z.string().optional().describe("New title"),
-      orderIndex: z.number().optional().describe("New position within parent"),
-      description: z.string().optional().describe("New description"),
-      shortCode: z.string().optional().describe("New short code"),
-    },
-    async ({ sectionId, tenant, title, orderIndex, description, shortCode }) => {
-      try {
-        const body: Record<string, unknown> = { tenant };
-        if (title !== undefined) body.name = title;
-        if (orderIndex !== undefined) body.order = orderIndex;
-        if (description !== undefined) body.description = description;
-        if (shortCode !== undefined) body.shortCode = shortCode;
-
-        const data = await client.patch<{ section: SectionRecord }>(
-          `/sections/${sectionId}`,
-          body,
-        );
-        const sec = data.section;
-        return ok(
-          `Section updated.\n\n` +
-            `- **ID:** ${sec.id}\n` +
-            `- **Title:** ${sec.name ?? sec.title}\n` +
-            `- **Order:** ${sec.order ?? 0}\n` +
-            (sec.shortCode ? `- **Code:** ${sec.shortCode}\n` : ""),
-        );
-      } catch (err) {
-        return formatError(err);
-      }
-    },
-  );
-
-  // ── delete_section ──────────────────────────────────────────
-  server.tool(
-    "delete_section",
-    "Delete a section from a document. Requirements in the section become unassigned (not deleted).",
-    {
-      sectionId: z.string().describe("Section ID"),
-      documentSlug: z.string().describe("Parent document slug (for context)"),
-      project: z.string().describe("Project slug"),
-      tenant: z.string().describe("Tenant slug"),
-    },
-    async ({ sectionId, tenant }) => {
-      try {
-        await client.delete(`/sections/${sectionId}`);
-        return ok(`Section '${sectionId}' deleted.`);
-      } catch (err) {
-        return formatError(err);
-      }
-    },
-  );
-
-  // ── move_requirement ────────────────────────────────────────
+  // ── move_requirement ──────────────────────────────────────────
   server.tool(
     "move_requirement",
-    "Move a requirement to a different document and/or section. Provide the target section ID — the requirement will be reassigned to that section (and its parent document).",
+    "Move a requirement to a different document and/or section.",
     {
       requirementId: z.string().describe("Requirement node ID"),
       project: z.string().describe("Project slug"),
       tenant: z.string().describe("Tenant slug"),
-      targetDocumentSlug: z
-        .string()
-        .describe("Destination document slug"),
+      targetDocumentSlug: z.string().describe("Destination document slug"),
       targetSectionId: z
         .string()
         .optional()
-        .describe(
-          "Destination section ID. If omitted, the first section of the target document is used.",
-        ),
+        .describe("Destination section ID. If omitted, uses the first section of the target document."),
     },
     async ({ requirementId, project, tenant, targetDocumentSlug, targetSectionId }) => {
       try {
         let sectionId = targetSectionId;
 
-        // If no section specified, find the first section of the target document
         if (!sectionId) {
           const secData = await client.get<{
             sections: Array<{ id: string; name?: string; order?: number }>;
@@ -262,10 +241,9 @@ export function registerDocumentManagementTools(
           if (sections.length === 0) {
             return ok(
               `Document '${targetDocumentSlug}' has no sections. ` +
-                `Create a section first with create_section, then move the requirement into it.`,
+                `Create a section first with manage_section, then move the requirement into it.`,
             );
           }
-          // Pick the section with lowest order
           sections.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
           sectionId = sections[0].id;
         }

@@ -18,7 +18,7 @@ function parseCsv(content: string): { headers: string[]; rows: string[][] } {
     if (inQuotes) {
       if (ch === '"' && next === '"') {
         field += '"';
-        i++; // skip escaped quote
+        i++;
       } else if (ch === '"') {
         inQuotes = false;
       } else {
@@ -35,13 +35,12 @@ function parseCsv(content: string): { headers: string[]; rows: string[][] } {
         if (current.some((c) => c !== "")) result.push(current);
         current = [];
         field = "";
-        if (ch === "\r") i++; // skip \n after \r
+        if (ch === "\r") i++;
       } else {
         field += ch;
       }
     }
   }
-  // Last field
   current.push(field.trim());
   if (current.some((c) => c !== "")) result.push(current);
 
@@ -82,7 +81,6 @@ function extractReqifSpecObjects(
 ): Array<{ text: string; externalId?: string; rationale?: string }> {
   const results: Array<{ text: string; externalId?: string; rationale?: string }> = [];
 
-  // Simple regex-based extraction of SPEC-OBJECT elements
   const specObjectRegex = /<SPEC-OBJECT[\s\S]*?<\/SPEC-OBJECT>/g;
   let match;
   while ((match = specObjectRegex.exec(xml)) !== null) {
@@ -91,7 +89,6 @@ function extractReqifSpecObjects(
       text: "",
     };
 
-    // Extract attribute values by definition ref
     const attrValueRegex =
       /<ATTRIBUTE-VALUE-STRING[\s\S]*?<\/ATTRIBUTE-VALUE-STRING>/g;
     let attrMatch;
@@ -112,7 +109,6 @@ function extractReqifSpecObjects(
       }
     }
 
-    // Also check XHTML content
     const xhtmlRegex =
       /<ATTRIBUTE-VALUE-XHTML[\s\S]*?<\/ATTRIBUTE-VALUE-XHTML>/g;
     let xhtmlMatch;
@@ -120,7 +116,6 @@ function extractReqifSpecObjects(
       const xhtmlBlock = xhtmlMatch[0];
       const defRef =
         xhtmlBlock.match(/ATTRIBUTE-DEFINITION-XHTML-REF>([^<]*)</)?.[1] ?? "";
-      // Strip HTML tags to get plain text
       const content = xhtmlBlock
         .match(/<THE-VALUE>([\s\S]*?)<\/THE-VALUE>/)?.[1]
         ?.replace(/<[^>]+>/g, "")
@@ -199,38 +194,41 @@ export function registerImportExportTools(
   server: McpServer,
   client: AirgenClient,
 ) {
-  // ── import_requirements_csv ─────────────────────────────────
+  // ── import_requirements ───────────────────────────────────────
   server.tool(
-    "import_requirements_csv",
-    "Bulk import requirements from CSV data. First row must be headers. Supports dry-run mode for validation.",
+    "import_requirements",
+    "Import requirements from CSV or ReqIF format. Supports dry-run mode for validation before committing.",
     {
       projectKey: z.string().describe("Project slug"),
       tenant: z.string().describe("Tenant slug"),
-      csvContent: z
+      format: z
+        .enum(["csv", "reqif"])
+        .describe("Import format: 'csv' or 'reqif'"),
+      content: z
         .string()
-        .describe("CSV content as a string. First row must be headers."),
+        .describe("File content as a string (CSV text or ReqIF XML)"),
+      // CSV-specific
       columnMapping: z
         .object({
-          text: z.string().describe("Column name for requirement text (required)"),
-          externalId: z
-            .string()
-            .optional()
-            .describe("Column name for external ID"),
-          pattern: z.string().optional().describe("Column name for EARS pattern"),
-          verification: z
-            .string()
-            .optional()
-            .describe("Column name for verification method"),
-          tags: z
-            .string()
-            .optional()
-            .describe("Column name for tags (comma-separated)"),
-          rationale: z
-            .string()
-            .optional()
-            .describe("Column name for rationale"),
+          text: z.string().describe("Column name for requirement text"),
+          externalId: z.string().optional(),
+          pattern: z.string().optional(),
+          verification: z.string().optional(),
+          tags: z.string().optional().describe("Column for tags (comma-separated)"),
+          rationale: z.string().optional(),
         })
-        .describe("Maps CSV column headers to AIRGen fields"),
+        .optional()
+        .describe("(csv) Maps CSV column headers to AIRGen fields"),
+      // ReqIF-specific
+      attributeMapping: z
+        .object({
+          text: z.string().describe("ReqIF attribute name for requirement text"),
+          externalId: z.string().optional(),
+          rationale: z.string().optional(),
+        })
+        .optional()
+        .describe("(reqif) Maps ReqIF attributes to AIRGen fields"),
+      // Shared options
       documentSlug: z
         .string()
         .optional()
@@ -238,473 +236,385 @@ export function registerImportExportTools(
       sectionId: z
         .string()
         .optional()
-        .describe("Assign all imported requirements to this section"),
+        .describe("(csv) Assign all imported requirements to this section"),
       tagAll: z
         .array(z.string())
         .optional()
-        .describe("Apply these tags to all imported requirements"),
+        .describe("(csv) Apply these tags to all imported requirements"),
       dryRun: z
         .boolean()
         .optional()
-        .describe(
-          "If true, validate without creating. Default: false",
-        ),
+        .describe("Validate without creating. Default: false"),
     },
-    async ({
-      projectKey,
-      tenant,
-      csvContent,
-      columnMapping,
-      documentSlug,
-      sectionId,
-      tagAll,
-      dryRun,
-    }) => {
+    async (params) => {
       try {
-        const isDryRun = dryRun ?? false;
-        const { headers, rows } = parseCsv(csvContent);
-
-        if (headers.length === 0) {
-          return ok("CSV is empty or has no headers.");
+        if (params.format === "csv") {
+          return await importCsv(client, params);
+        } else {
+          return await importReqif(client, params);
         }
-
-        // Resolve column indices
-        const textIdx = headers.indexOf(columnMapping.text);
-        if (textIdx === -1) {
-          return ok(
-            `Column '${columnMapping.text}' not found in CSV headers: ${headers.join(", ")}`,
-          );
-        }
-
-        const extIdIdx = columnMapping.externalId
-          ? headers.indexOf(columnMapping.externalId)
-          : -1;
-        const patternIdx = columnMapping.pattern
-          ? headers.indexOf(columnMapping.pattern)
-          : -1;
-        const verificationIdx = columnMapping.verification
-          ? headers.indexOf(columnMapping.verification)
-          : -1;
-        const tagsIdx = columnMapping.tags
-          ? headers.indexOf(columnMapping.tags)
-          : -1;
-        const rationaleIdx = columnMapping.rationale
-          ? headers.indexOf(columnMapping.rationale)
-          : -1;
-
-        const created: ReqResult[] = [];
-        const skipped: Array<{ row: number; reason: string }> = [];
-        const errors: Array<{ row: number; error: string }> = [];
-
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          const rowNum = i + 2; // 1-indexed + header
-
-          const text = row[textIdx]?.trim();
-          if (!text) {
-            skipped.push({ row: rowNum, reason: "Empty text field" });
-            continue;
-          }
-
-          const body: Record<string, unknown> = {
-            tenant,
-            projectKey,
-            text,
-          };
-
-          if (documentSlug) body.documentSlug = documentSlug;
-          if (sectionId) body.sectionId = sectionId;
-
-          // Pattern
-          if (patternIdx >= 0 && row[patternIdx]) {
-            const p = row[patternIdx].trim().toLowerCase();
-            const valid = ["ubiquitous", "event", "state", "unwanted", "optional"];
-            if (valid.includes(p)) body.pattern = p;
-          }
-
-          // Verification
-          if (verificationIdx >= 0 && row[verificationIdx]) {
-            const v = row[verificationIdx].trim();
-            const valid = ["Test", "Analysis", "Inspection", "Demonstration"];
-            const match = valid.find(
-              (m) => m.toLowerCase() === v.toLowerCase(),
-            );
-            if (match) body.verification = match;
-          }
-
-          // Tags
-          const rowTags: string[] = [...(tagAll ?? [])];
-          if (tagsIdx >= 0 && row[tagsIdx]) {
-            rowTags.push(
-              ...row[tagsIdx]
-                .split(",")
-                .map((t) => t.trim())
-                .filter(Boolean),
-            );
-          }
-          if (rowTags.length > 0) body.tags = rowTags;
-
-          // Rationale
-          if (rationaleIdx >= 0 && row[rationaleIdx]) {
-            body.rationale = row[rationaleIdx].trim();
-          }
-
-          if (isDryRun) {
-            created.push({ text, ref: `(dry-run-${rowNum})` });
-            continue;
-          }
-
-          try {
-            const data = await client.post<{ requirement: ReqResult }>(
-              "/requirements",
-              body,
-            );
-            created.push(data.requirement);
-          } catch (err) {
-            errors.push({
-              row: rowNum,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-
-        const lines = [
-          `## CSV Import ${isDryRun ? "(DRY RUN)" : "Results"}\n`,
-          `- **${isDryRun ? "Would import" : "Imported"}:** ${created.length}`,
-          `- **Skipped:** ${skipped.length}`,
-          `- **Failed:** ${errors.length}`,
-          `- **Total rows:** ${rows.length}\n`,
-        ];
-
-        if (skipped.length > 0) {
-          lines.push(`### Skipped Rows\n`);
-          for (const s of skipped) {
-            lines.push(`- Row ${s.row}: ${s.reason}`);
-          }
-        }
-
-        if (errors.length > 0) {
-          lines.push(`\n### Errors\n`);
-          for (const e of errors) {
-            lines.push(`- Row ${e.row}: ${e.error}`);
-          }
-        }
-
-        if (!isDryRun && created.length > 0) {
-          lines.push(`\n### Created Requirements\n`);
-          for (const r of created.slice(0, 20)) {
-            const score = r.qaScore != null ? ` (QA: ${r.qaScore})` : "";
-            lines.push(`- **${r.ref ?? "?"}**${score}: ${truncate(r.text ?? "", 80)}`);
-          }
-          if (created.length > 20)
-            lines.push(`_... and ${created.length - 20} more_`);
-        }
-
-        return ok(lines.join("\n"));
       } catch (err) {
         return formatError(err);
       }
     },
   );
 
-  // ── export_requirements_csv ─────────────────────────────────
+  // ── export_requirements ───────────────────────────────────────
   server.tool(
-    "export_requirements_csv",
-    "Export requirements as CSV. Returns the CSV content as text.",
+    "export_requirements",
+    "Export requirements as CSV, ReqIF, or Markdown. Returns the file content as text.",
     {
       project: z.string().describe("Project slug"),
       tenant: z.string().describe("Tenant slug"),
+      format: z
+        .enum(["csv", "reqif", "markdown"])
+        .describe("Export format"),
       documentSlug: z
         .string()
         .optional()
         .describe("Export only this document. Omit for all."),
+      // CSV options
       includeFields: z
         .array(z.string())
         .optional()
         .describe(
-          "Fields to include. Options: ref, text, pattern, verification, tags, qaScore, complianceStatus, complianceRationale, rationale, documentSlug, createdAt, updatedAt. Default: all.",
+          "(csv) Fields to include: ref, text, pattern, verification, tags, qaScore, complianceStatus, complianceRationale, rationale, documentSlug, createdAt, updatedAt. Default: all.",
         ),
       includeTraceLinks: z
         .boolean()
         .optional()
-        .describe("Add columns for trace links. Default: false"),
+        .describe("(csv, reqif) Include trace link data. Default: false for csv, true for reqif"),
     },
-    async ({ project, tenant, documentSlug, includeFields, includeTraceLinks }) => {
+    async (params) => {
       try {
-        let requirements: FullRequirement[];
-        if (documentSlug) {
-          const secData = await client.get<{
-            sections: Array<{
-              id: string;
-              title?: string;
-              name?: string;
-              requirements?: Array<FullRequirement>;
-            }>;
-          }>(`/sections/${tenant}/${project}/${documentSlug}/full`);
-          requirements = [];
-          for (const sec of secData.sections ?? []) {
-            for (const r of sec.requirements ?? []) {
-              requirements.push({ ...r, documentSlug });
-            }
-          }
-        } else {
-          requirements = await fetchAllRequirements(client, tenant, project);
+        switch (params.format) {
+          case "csv":
+            return await exportCsv(client, params);
+          case "reqif":
+            return await exportReqif(client, params);
+          case "markdown":
+            return await exportMarkdown(client, params);
         }
-
-        if (requirements.length === 0) {
-          return ok("No requirements to export.");
-        }
-
-        // Determine fields
-        const allFields = [
-          "ref",
-          "text",
-          "pattern",
-          "verification",
-          "tags",
-          "qaScore",
-          "complianceStatus",
-          "complianceRationale",
-          "rationale",
-          "documentSlug",
-          "createdAt",
-          "updatedAt",
-        ];
-        const fields = includeFields?.length ? includeFields : allFields;
-
-        // Build trace link columns if requested
-        let linkMap: Map<string, string[]> | undefined;
-        if (includeTraceLinks) {
-          const linkData = await client.get<{ traceLinks: TraceLink[] }>(
-            `/trace-links/${tenant}/${project}`,
-          );
-          linkMap = new Map();
-          for (const link of linkData.traceLinks ?? []) {
-            const src = link.sourceRequirementId ?? "";
-            const tgt = link.targetRequirementId ?? "";
-            const lt = link.linkType ?? "";
-            if (!linkMap.has(src))
-              linkMap.set(src, []);
-            linkMap.get(src)!.push(`${lt}→${tgt}`);
-            if (!linkMap.has(tgt))
-              linkMap.set(tgt, []);
-            linkMap.get(tgt)!.push(`${lt}←${src}`);
-          }
-        }
-
-        const headers = [...fields];
-        if (includeTraceLinks) headers.push("traceLinks");
-
-        const rows = requirements.map((r) => {
-          const row = fields.map((f) => {
-            const val = (r as Record<string, unknown>)[f];
-            if (Array.isArray(val)) return val.join(", ");
-            if (val == null) return "";
-            return String(val);
-          });
-          if (includeTraceLinks) {
-            row.push((linkMap?.get(r.id ?? "") ?? []).join("; "));
-          }
-          return row;
-        });
-
-        const csv = generateCsv(headers, rows);
-        return ok(csv);
       } catch (err) {
         return formatError(err);
       }
     },
   );
+}
 
-  // ── import_reqif ────────────────────────────────────────────
-  server.tool(
-    "import_reqif",
-    "Import requirements from ReqIF XML format (standard interchange for DOORS, Polarion, etc.). Supports dry-run mode.",
-    {
-      projectKey: z.string().describe("Project slug"),
-      tenant: z.string().describe("Tenant slug"),
-      reqifContent: z
-        .string()
-        .describe("ReqIF XML content as a string"),
-      attributeMapping: z
-        .object({
-          text: z
-            .string()
-            .describe(
-              "ReqIF attribute name for requirement text (e.g. 'ReqIF.Text', 'Object Text')",
-            ),
-          externalId: z
-            .string()
-            .optional()
-            .describe("ReqIF attribute for ID"),
-          rationale: z
-            .string()
-            .optional()
-            .describe("ReqIF attribute for rationale"),
-        })
-        .describe("Maps ReqIF attributes to AIRGen fields"),
-      documentSlug: z
-        .string()
-        .optional()
-        .describe("Assign all imported requirements to this document"),
-      dryRun: z
-        .boolean()
-        .optional()
-        .describe("Validate without importing. Default: false"),
-    },
-    async ({
-      projectKey,
-      tenant,
-      reqifContent,
-      attributeMapping,
-      documentSlug,
-      dryRun,
-    }) => {
-      try {
-        const isDryRun = dryRun ?? false;
+// ── Import handlers ──────────────────────────────────────────
 
-        const items = extractReqifSpecObjects(
-          reqifContent,
-          attributeMapping.text,
-          attributeMapping.externalId,
-          attributeMapping.rationale,
-        );
+async function importCsv(client: AirgenClient, params: {
+  projectKey: string;
+  tenant: string;
+  content: string;
+  columnMapping?: { text: string; externalId?: string; pattern?: string; verification?: string; tags?: string; rationale?: string };
+  documentSlug?: string;
+  sectionId?: string;
+  tagAll?: string[];
+  dryRun?: boolean;
+}) {
+  const isDryRun = params.dryRun ?? false;
 
-        if (items.length === 0) {
-          return ok(
-            "No requirements found in ReqIF content. Check that the attributeMapping.text matches the correct attribute definition identifier.",
-          );
-        }
+  if (!params.columnMapping) {
+    return ok("CSV import requires columnMapping with at least a 'text' field.");
+  }
 
-        const created: ReqResult[] = [];
-        const errors: Array<{ index: number; error: string }> = [];
+  const { headers, rows } = parseCsv(params.content);
+  if (headers.length === 0) return ok("CSV is empty or has no headers.");
 
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          if (!item.text.trim()) continue;
+  const textIdx = headers.indexOf(params.columnMapping.text);
+  if (textIdx === -1) {
+    return ok(`Column '${params.columnMapping.text}' not found in CSV headers: ${headers.join(", ")}`);
+  }
 
-          if (isDryRun) {
-            created.push({
-              text: item.text,
-              ref: `(dry-run-${i + 1})`,
-            });
-            continue;
-          }
+  const extIdIdx = params.columnMapping.externalId ? headers.indexOf(params.columnMapping.externalId) : -1;
+  const patternIdx = params.columnMapping.pattern ? headers.indexOf(params.columnMapping.pattern) : -1;
+  const verificationIdx = params.columnMapping.verification ? headers.indexOf(params.columnMapping.verification) : -1;
+  const tagsIdx = params.columnMapping.tags ? headers.indexOf(params.columnMapping.tags) : -1;
+  const rationaleIdx = params.columnMapping.rationale ? headers.indexOf(params.columnMapping.rationale) : -1;
 
-          try {
-            const body: Record<string, unknown> = {
-              tenant,
-              projectKey,
-              text: item.text,
-            };
-            if (item.rationale) body.rationale = item.rationale;
-            if (documentSlug) body.documentSlug = documentSlug;
-            if (item.externalId) {
-              body.tags = [`external:${item.externalId}`];
-            }
+  const created: ReqResult[] = [];
+  const skipped: Array<{ row: number; reason: string }> = [];
+  const errors: Array<{ row: number; error: string }> = [];
 
-            const data = await client.post<{ requirement: ReqResult }>(
-              "/requirements",
-              body,
-            );
-            created.push(data.requirement);
-          } catch (err) {
-            errors.push({
-              index: i,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 2;
 
-        const lines = [
-          `## ReqIF Import ${isDryRun ? "(DRY RUN)" : "Results"}\n`,
-          `- **Parsed spec objects:** ${items.length}`,
-          `- **${isDryRun ? "Would import" : "Imported"}:** ${created.length}`,
-          `- **Failed:** ${errors.length}\n`,
-        ];
+    const text = row[textIdx]?.trim();
+    if (!text) {
+      skipped.push({ row: rowNum, reason: "Empty text field" });
+      continue;
+    }
 
-        if (errors.length > 0) {
-          lines.push(`### Errors\n`);
-          for (const e of errors.slice(0, 10)) {
-            lines.push(`- Item ${e.index}: ${e.error}`);
-          }
-          if (errors.length > 10)
-            lines.push(`_... and ${errors.length - 10} more_`);
-        }
+    const body: Record<string, unknown> = {
+      tenant: params.tenant,
+      projectKey: params.projectKey,
+      text,
+    };
 
-        if (!isDryRun && created.length > 0) {
-          lines.push(`\n### Created\n`);
-          for (const r of created.slice(0, 20)) {
-            const score = r.qaScore != null ? ` (QA: ${r.qaScore})` : "";
-            lines.push(`- **${r.ref ?? "?"}**${score}: ${truncate(r.text ?? "", 80)}`);
-          }
-          if (created.length > 20)
-            lines.push(`_... and ${created.length - 20} more_`);
-        }
+    if (params.documentSlug) body.documentSlug = params.documentSlug;
+    if (params.sectionId) body.sectionId = params.sectionId;
 
-        return ok(lines.join("\n"));
-      } catch (err) {
-        return formatError(err);
-      }
-    },
+    if (patternIdx >= 0 && row[patternIdx]) {
+      const p = row[patternIdx].trim().toLowerCase();
+      const valid = ["ubiquitous", "event", "state", "unwanted", "optional"];
+      if (valid.includes(p)) body.pattern = p;
+    }
+
+    if (verificationIdx >= 0 && row[verificationIdx]) {
+      const v = row[verificationIdx].trim();
+      const valid = ["Test", "Analysis", "Inspection", "Demonstration"];
+      const match = valid.find((m) => m.toLowerCase() === v.toLowerCase());
+      if (match) body.verification = match;
+    }
+
+    const rowTags: string[] = [...(params.tagAll ?? [])];
+    if (tagsIdx >= 0 && row[tagsIdx]) {
+      rowTags.push(...row[tagsIdx].split(",").map((t) => t.trim()).filter(Boolean));
+    }
+    if (rowTags.length > 0) body.tags = rowTags;
+
+    if (rationaleIdx >= 0 && row[rationaleIdx]) {
+      body.rationale = row[rationaleIdx].trim();
+    }
+
+    if (isDryRun) {
+      created.push({ text, ref: `(dry-run-${rowNum})` });
+      continue;
+    }
+
+    try {
+      const data = await client.post<{ requirement: ReqResult }>("/requirements", body);
+      created.push(data.requirement);
+    } catch (err) {
+      errors.push({ row: rowNum, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  const lines = [
+    `## CSV Import ${isDryRun ? "(DRY RUN)" : "Results"}\n`,
+    `- **${isDryRun ? "Would import" : "Imported"}:** ${created.length}`,
+    `- **Skipped:** ${skipped.length}`,
+    `- **Failed:** ${errors.length}`,
+    `- **Total rows:** ${rows.length}\n`,
+  ];
+
+  if (skipped.length > 0) {
+    lines.push(`### Skipped Rows\n`);
+    for (const s of skipped) lines.push(`- Row ${s.row}: ${s.reason}`);
+  }
+
+  if (errors.length > 0) {
+    lines.push(`\n### Errors\n`);
+    for (const e of errors) lines.push(`- Row ${e.row}: ${e.error}`);
+  }
+
+  if (!isDryRun && created.length > 0) {
+    lines.push(`\n### Created Requirements\n`);
+    for (const r of created.slice(0, 20)) {
+      const score = r.qaScore != null ? ` (QA: ${r.qaScore})` : "";
+      lines.push(`- **${r.ref ?? "?"}**${score}: ${truncate(r.text ?? "", 80)}`);
+    }
+    if (created.length > 20) lines.push(`_... and ${created.length - 20} more_`);
+  }
+
+  return ok(lines.join("\n"));
+}
+
+async function importReqif(client: AirgenClient, params: {
+  projectKey: string;
+  tenant: string;
+  content: string;
+  attributeMapping?: { text: string; externalId?: string; rationale?: string };
+  documentSlug?: string;
+  dryRun?: boolean;
+}) {
+  const isDryRun = params.dryRun ?? false;
+
+  if (!params.attributeMapping) {
+    return ok("ReqIF import requires attributeMapping with at least a 'text' field.");
+  }
+
+  const items = extractReqifSpecObjects(
+    params.content,
+    params.attributeMapping.text,
+    params.attributeMapping.externalId,
+    params.attributeMapping.rationale,
   );
 
-  // ── export_reqif ────────────────────────────────────────────
-  server.tool(
-    "export_reqif",
-    "Export requirements as ReqIF XML for interchange with DOORS, Polarion, and other RM tools.",
-    {
-      project: z.string().describe("Project slug"),
-      tenant: z.string().describe("Tenant slug"),
-      documentSlug: z
-        .string()
-        .optional()
-        .describe("Export this document. Omit for entire project."),
-      includeTraceLinks: z
-        .boolean()
-        .optional()
-        .describe("Include trace links as SpecRelations. Default: true"),
-    },
-    async ({ project, tenant, documentSlug, includeTraceLinks }) => {
-      try {
-        const withLinks = includeTraceLinks !== false;
+  if (items.length === 0) {
+    return ok("No requirements found in ReqIF content. Check that attributeMapping.text matches the correct attribute definition identifier.");
+  }
 
-        let requirements: FullRequirement[];
-        if (documentSlug) {
-          const secData = await client.get<{
-            sections: Array<{ requirements?: Array<FullRequirement> }>;
-          }>(`/sections/${tenant}/${project}/${documentSlug}/full`);
-          requirements = [];
-          for (const sec of secData.sections ?? []) {
-            requirements.push(...(sec.requirements ?? []));
-          }
-        } else {
-          requirements = await fetchAllRequirements(client, tenant, project);
-        }
+  const created: ReqResult[] = [];
+  const errors: Array<{ index: number; error: string }> = [];
 
-        let links: TraceLink[] = [];
-        if (withLinks) {
-          const linkData = await client.get<{ traceLinks: TraceLink[] }>(
-            `/trace-links/${tenant}/${project}`,
-          );
-          links = linkData.traceLinks ?? [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item.text.trim()) continue;
 
-          // Filter to only links involving exported requirements
-          const exportedIds = new Set(requirements.map((r) => r.id));
-          links = links.filter(
-            (l) =>
-              exportedIds.has(l.sourceRequirementId ?? "") ||
-              exportedIds.has(l.targetRequirementId ?? ""),
-          );
-        }
+    if (isDryRun) {
+      created.push({ text: item.text, ref: `(dry-run-${i + 1})` });
+      continue;
+    }
 
-        const now = new Date().toISOString();
-        const docTitle = documentSlug ?? project;
+    try {
+      const body: Record<string, unknown> = {
+        tenant: params.tenant,
+        projectKey: params.projectKey,
+        text: item.text,
+      };
+      if (item.rationale) body.rationale = item.rationale;
+      if (params.documentSlug) body.documentSlug = params.documentSlug;
+      if (item.externalId) body.tags = [`external:${item.externalId}`];
 
-        // Generate ReqIF XML
-        const specObjects = requirements
-          .map(
-            (r) => `      <SPEC-OBJECT IDENTIFIER="${escapeXml(r.id ?? "")}" LAST-CHANGE="${now}">
+      const data = await client.post<{ requirement: ReqResult }>("/requirements", body);
+      created.push(data.requirement);
+    } catch (err) {
+      errors.push({ index: i, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  const lines = [
+    `## ReqIF Import ${isDryRun ? "(DRY RUN)" : "Results"}\n`,
+    `- **Parsed spec objects:** ${items.length}`,
+    `- **${isDryRun ? "Would import" : "Imported"}:** ${created.length}`,
+    `- **Failed:** ${errors.length}\n`,
+  ];
+
+  if (errors.length > 0) {
+    lines.push(`### Errors\n`);
+    for (const e of errors.slice(0, 10)) lines.push(`- Item ${e.index}: ${e.error}`);
+    if (errors.length > 10) lines.push(`_... and ${errors.length - 10} more_`);
+  }
+
+  if (!isDryRun && created.length > 0) {
+    lines.push(`\n### Created\n`);
+    for (const r of created.slice(0, 20)) {
+      const score = r.qaScore != null ? ` (QA: ${r.qaScore})` : "";
+      lines.push(`- **${r.ref ?? "?"}**${score}: ${truncate(r.text ?? "", 80)}`);
+    }
+    if (created.length > 20) lines.push(`_... and ${created.length - 20} more_`);
+  }
+
+  return ok(lines.join("\n"));
+}
+
+// ── Export handlers ──────────────────────────────────────────
+
+async function exportCsv(client: AirgenClient, params: {
+  project: string;
+  tenant: string;
+  documentSlug?: string;
+  includeFields?: string[];
+  includeTraceLinks?: boolean;
+}) {
+  let requirements: FullRequirement[];
+  if (params.documentSlug) {
+    const secData = await client.get<{
+      sections: Array<{
+        id: string;
+        requirements?: Array<FullRequirement>;
+      }>;
+    }>(`/sections/${params.tenant}/${params.project}/${params.documentSlug}/full`);
+    requirements = [];
+    for (const sec of secData.sections ?? []) {
+      for (const r of sec.requirements ?? []) {
+        requirements.push({ ...r, documentSlug: params.documentSlug });
+      }
+    }
+  } else {
+    requirements = await fetchAllRequirements(client, params.tenant, params.project);
+  }
+
+  if (requirements.length === 0) return ok("No requirements to export.");
+
+  const allFields = [
+    "ref", "text", "pattern", "verification", "tags", "qaScore",
+    "complianceStatus", "complianceRationale", "rationale",
+    "documentSlug", "createdAt", "updatedAt",
+  ];
+  const fields = params.includeFields?.length ? params.includeFields : allFields;
+
+  let linkMap: Map<string, string[]> | undefined;
+  if (params.includeTraceLinks) {
+    const linkData = await client.get<{ traceLinks: TraceLink[] }>(
+      `/trace-links/${params.tenant}/${params.project}`,
+    );
+    linkMap = new Map();
+    for (const link of linkData.traceLinks ?? []) {
+      const src = link.sourceRequirementId ?? "";
+      const tgt = link.targetRequirementId ?? "";
+      const lt = link.linkType ?? "";
+      if (!linkMap.has(src)) linkMap.set(src, []);
+      linkMap.get(src)!.push(`${lt}\u2192${tgt}`);
+      if (!linkMap.has(tgt)) linkMap.set(tgt, []);
+      linkMap.get(tgt)!.push(`${lt}\u2190${src}`);
+    }
+  }
+
+  const headers = [...fields];
+  if (params.includeTraceLinks) headers.push("traceLinks");
+
+  const rows = requirements.map((r) => {
+    const row = fields.map((f) => {
+      const val = (r as Record<string, unknown>)[f];
+      if (Array.isArray(val)) return val.join(", ");
+      if (val == null) return "";
+      return String(val);
+    });
+    if (params.includeTraceLinks) {
+      row.push((linkMap?.get(r.id ?? "") ?? []).join("; "));
+    }
+    return row;
+  });
+
+  return ok(generateCsv(headers, rows));
+}
+
+async function exportReqif(client: AirgenClient, params: {
+  project: string;
+  tenant: string;
+  documentSlug?: string;
+  includeTraceLinks?: boolean;
+}) {
+  const withLinks = params.includeTraceLinks !== false;
+
+  let requirements: FullRequirement[];
+  if (params.documentSlug) {
+    const secData = await client.get<{
+      sections: Array<{ requirements?: Array<FullRequirement> }>;
+    }>(`/sections/${params.tenant}/${params.project}/${params.documentSlug}/full`);
+    requirements = [];
+    for (const sec of secData.sections ?? []) {
+      requirements.push(...(sec.requirements ?? []));
+    }
+  } else {
+    requirements = await fetchAllRequirements(client, params.tenant, params.project);
+  }
+
+  let links: TraceLink[] = [];
+  if (withLinks) {
+    const linkData = await client.get<{ traceLinks: TraceLink[] }>(
+      `/trace-links/${params.tenant}/${params.project}`,
+    );
+    links = linkData.traceLinks ?? [];
+    const exportedIds = new Set(requirements.map((r) => r.id));
+    links = links.filter(
+      (l) =>
+        exportedIds.has(l.sourceRequirementId ?? "") ||
+        exportedIds.has(l.targetRequirementId ?? ""),
+    );
+  }
+
+  const now = new Date().toISOString();
+  const docTitle = params.documentSlug ?? params.project;
+
+  const specObjects = requirements
+    .map(
+      (r) => `      <SPEC-OBJECT IDENTIFIER="${escapeXml(r.id ?? "")}" LAST-CHANGE="${now}">
         <VALUES>
           <ATTRIBUTE-VALUE-STRING THE-VALUE="${escapeXml(r.ref ?? "")}">
             <DEFINITION><ATTRIBUTE-DEFINITION-STRING-REF>attr-ref</ATTRIBUTE-DEFINITION-STRING-REF></DEFINITION>
@@ -722,30 +632,30 @@ export function registerImportExportTools(
         </VALUES>
         <TYPE><SPEC-OBJECT-TYPE-REF>req-type</SPEC-OBJECT-TYPE-REF></TYPE>
       </SPEC-OBJECT>`,
-          )
-          .join("\n");
+    )
+    .join("\n");
 
-        const specRelations = links
-          .map(
-            (l, i) => `      <SPEC-RELATION IDENTIFIER="rel-${i}" LAST-CHANGE="${now}">
+  const specRelations = links
+    .map(
+      (l, i) => `      <SPEC-RELATION IDENTIFIER="rel-${i}" LAST-CHANGE="${now}">
         <SOURCE><SPEC-OBJECT-REF>${escapeXml(l.sourceRequirementId ?? "")}</SPEC-OBJECT-REF></SOURCE>
         <TARGET><SPEC-OBJECT-REF>${escapeXml(l.targetRequirementId ?? "")}</SPEC-OBJECT-REF></TARGET>
         <TYPE><SPEC-RELATION-TYPE-REF>trace-link-type</SPEC-RELATION-TYPE-REF></TYPE>
       </SPEC-RELATION>`,
-          )
-          .join("\n");
+    )
+    .join("\n");
 
-        const specHierarchy = requirements
-          .map(
-            (r) =>
-              `          <SPEC-HIERARCHY IDENTIFIER="hier-${escapeXml(r.id ?? "")}"><OBJECT><SPEC-OBJECT-REF>${escapeXml(r.id ?? "")}</SPEC-OBJECT-REF></OBJECT></SPEC-HIERARCHY>`,
-          )
-          .join("\n");
+  const specHierarchy = requirements
+    .map(
+      (r) =>
+        `          <SPEC-HIERARCHY IDENTIFIER="hier-${escapeXml(r.id ?? "")}"><OBJECT><SPEC-OBJECT-REF>${escapeXml(r.id ?? "")}</SPEC-OBJECT-REF></OBJECT></SPEC-HIERARCHY>`,
+    )
+    .join("\n");
 
-        const reqif = `<?xml version="1.0" encoding="UTF-8"?>
+  const reqif = `<?xml version="1.0" encoding="UTF-8"?>
 <REQ-IF xmlns="http://www.omg.org/spec/ReqIF/20110401/reqif.xsd">
   <THE-HEADER>
-    <REQ-IF-HEADER IDENTIFIER="header-${project}">
+    <REQ-IF-HEADER IDENTIFIER="header-${params.project}">
       <CREATION-TIME>${now}</CREATION-TIME>
       <REQ-IF-TOOL-ID>AIRGen</REQ-IF-TOOL-ID>
       <REQ-IF-VERSION>1.0</REQ-IF-VERSION>
@@ -793,10 +703,26 @@ ${specHierarchy}
   </CORE-CONTENT>
 </REQ-IF>`;
 
-        return ok(reqif);
-      } catch (err) {
-        return formatError(err);
-      }
-    },
-  );
+  return ok(reqif);
+}
+
+async function exportMarkdown(client: AirgenClient, params: {
+  project: string;
+  tenant: string;
+  documentSlug?: string;
+}) {
+  if (!params.documentSlug) {
+    return ok("Markdown export requires documentSlug — specify which document to export.");
+  }
+
+  const data = await client.get<{
+    content: string;
+    document?: { name: string; slug: string; kind: string };
+    draft?: boolean;
+  }>(`/markdown/${params.tenant}/${params.project}/${params.documentSlug}/content`);
+
+  const header = data.document
+    ? `# ${data.document.name}${data.draft ? " (DRAFT)" : ""}\n\n`
+    : "";
+  return ok(header + (data.content ?? ""));
 }

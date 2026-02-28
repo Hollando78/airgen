@@ -1,7 +1,10 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AirgenClient } from "../client.js";
-import { ok, formatError, formatRequirement, formatRequirementList } from "../format.js";
+import { ok, formatError, formatRequirement, formatRequirementList, truncate } from "../format.js";
+
+const EARS_PATTERNS = ["ubiquitous", "event", "state", "unwanted", "optional"] as const;
+const VERIFICATION_METHODS = ["Test", "Analysis", "Inspection", "Demonstration"] as const;
 
 export function registerRequirementsTools(server: McpServer, client: AirgenClient) {
   server.tool(
@@ -54,21 +57,83 @@ export function registerRequirementsTools(server: McpServer, client: AirgenClien
 
   server.tool(
     "create_requirement",
-    "Create a new requirement in a project. Returns the created requirement with its generated reference ID.",
+    "Create one or more requirements. For single: provide text directly. For batch: provide the batch array instead.",
     {
       tenant: z.string().describe("Tenant slug"),
       projectKey: z.string().describe("Project slug/key"),
-      text: z.string().describe("Requirement text (e.g. 'The system shall...')"),
-      pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional()
-        .describe("EARS requirement pattern"),
-      verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional()
-        .describe("Verification method"),
+      text: z.string().optional().describe("Requirement text for single creation"),
+      pattern: z.enum(EARS_PATTERNS).optional().describe("EARS requirement pattern"),
+      verification: z.enum(VERIFICATION_METHODS).optional().describe("Verification method"),
       documentSlug: z.string().optional().describe("Assign to this document"),
-      sectionId: z.string().optional().describe("Assign to this section within the document"),
+      sectionId: z.string().optional().describe("Assign to this section"),
       tags: z.array(z.string()).optional().describe("Tags to attach"),
+      batch: z
+        .array(
+          z.object({
+            text: z.string(),
+            pattern: z.enum(EARS_PATTERNS).optional(),
+            verification: z.enum(VERIFICATION_METHODS).optional(),
+            documentSlug: z.string().optional(),
+            sectionId: z.string().optional(),
+            tags: z.array(z.string()).optional(),
+          }),
+        )
+        .optional()
+        .describe("Batch mode: array of requirements to create. Overrides single-item params."),
     },
-    async (args) => {
+    async ({ tenant, projectKey, text, pattern, verification, documentSlug, sectionId, tags, batch }) => {
       try {
+        // Batch mode
+        if (batch && batch.length > 0) {
+          const created: Array<{ ref?: string; text?: string; qaScore?: number }> = [];
+          const errors: Array<{ index: number; error: string }> = [];
+
+          for (let i = 0; i < batch.length; i++) {
+            const r = batch[i];
+            try {
+              const body: Record<string, unknown> = { tenant, projectKey, text: r.text };
+              if (r.pattern) body.pattern = r.pattern;
+              if (r.verification) body.verification = r.verification;
+              if (r.tags) body.tags = r.tags;
+              if (r.documentSlug) body.documentSlug = r.documentSlug;
+              if (r.sectionId) body.sectionId = r.sectionId;
+
+              const data = await client.post<{ requirement: Record<string, unknown> }>("/requirements", body);
+              created.push(data.requirement as any);
+            } catch (err) {
+              errors.push({ index: i, error: err instanceof Error ? err.message : String(err) });
+            }
+          }
+
+          const lines = [
+            `## Batch Create Results\n`,
+            `- **Created:** ${created.length}`,
+            `- **Failed:** ${errors.length}`,
+            `- **Total:** ${batch.length}\n`,
+          ];
+          if (created.length > 0) {
+            lines.push(`### Created\n`);
+            for (const r of created) {
+              const score = r.qaScore != null ? ` (QA: ${r.qaScore})` : "";
+              lines.push(`- **${r.ref ?? "?"}**${score}: ${truncate(r.text ?? "", 100)}`);
+            }
+          }
+          if (errors.length > 0) {
+            lines.push(`\n### Errors\n`);
+            for (const e of errors) lines.push(`- Row ${e.index}: ${e.error}`);
+          }
+          return ok(lines.join("\n"));
+        }
+
+        // Single mode
+        if (!text) return ok("Provide 'text' for single creation or 'batch' for multiple.");
+        const args: Record<string, unknown> = { tenant, projectKey, text };
+        if (pattern) args.pattern = pattern;
+        if (verification) args.verification = verification;
+        if (documentSlug) args.documentSlug = documentSlug;
+        if (sectionId) args.sectionId = sectionId;
+        if (tags) args.tags = tags;
+
         const data = await client.post<{ requirement?: Record<string, unknown>; record?: Record<string, unknown> }>("/requirements", args);
         const req = data.requirement ?? data.record ?? data;
         return ok("Requirement created:\n\n" + formatRequirement(req as any));
@@ -80,25 +145,79 @@ export function registerRequirementsTools(server: McpServer, client: AirgenClien
 
   server.tool(
     "update_requirement",
-    "Update an existing requirement's text, pattern, verification method, or other fields",
+    "Update one or more requirements. For single: provide requirementId + fields. For batch: provide the batch array.",
     {
       tenant: z.string().describe("Tenant slug"),
       project: z.string().describe("Project slug"),
-      requirementId: z.string().describe("Requirement node ID"),
+      requirementId: z.string().optional().describe("Requirement node ID (single mode)"),
       text: z.string().optional().describe("New requirement text"),
-      pattern: z.enum(["ubiquitous", "event", "state", "unwanted", "optional"]).optional()
-        .describe("New EARS pattern"),
-      verification: z.enum(["Test", "Analysis", "Inspection", "Demonstration"]).optional()
-        .describe("New verification method"),
-      rationale: z.string().optional().describe("Rationale for the requirement"),
-      complianceStatus: z.enum(["N/A", "Compliant", "Compliance Risk", "Non-Compliant"]).optional()
-        .describe("Compliance status"),
-      complianceRationale: z.string().optional().describe("Compliance rationale"),
+      pattern: z.enum(EARS_PATTERNS).optional().describe("New EARS pattern"),
+      verification: z.enum(VERIFICATION_METHODS).optional().describe("New verification method"),
+      rationale: z.string().optional().describe("Rationale"),
+      complianceStatus: z.enum(["N/A", "Compliant", "Compliance Risk", "Non-Compliant"]).optional(),
+      complianceRationale: z.string().optional(),
       sectionId: z.string().optional().describe("Move to a different section"),
-      tags: z.array(z.string()).optional().describe("Tags to attach to the requirement"),
+      tags: z.array(z.string()).optional(),
+      batch: z
+        .array(
+          z.object({
+            requirementId: z.string(),
+            text: z.string().optional(),
+            pattern: z.enum(EARS_PATTERNS).optional(),
+            verification: z.enum(VERIFICATION_METHODS).optional(),
+            tags: z.array(z.string()).optional(),
+            complianceStatus: z.enum(["N/A", "Compliant", "Compliance Risk", "Non-Compliant"]).optional(),
+            complianceRationale: z.string().optional(),
+            rationale: z.string().optional(),
+            sectionId: z.string().optional(),
+          }),
+        )
+        .optional()
+        .describe("Batch mode: array of updates. Each must include requirementId."),
     },
-    async ({ tenant, project, requirementId, ...updates }) => {
+    async ({ tenant, project, requirementId, batch, ...updates }) => {
       try {
+        // Batch mode
+        if (batch && batch.length > 0) {
+          let updated = 0;
+          const errors: Array<{ requirementId: string; error: string }> = [];
+
+          for (const u of batch) {
+            try {
+              const body: Record<string, unknown> = {};
+              if (u.text !== undefined) body.text = u.text;
+              if (u.pattern !== undefined) body.pattern = u.pattern;
+              if (u.verification !== undefined) body.verification = u.verification;
+              if (u.tags !== undefined) body.tags = u.tags;
+              if (u.complianceStatus !== undefined) body.complianceStatus = u.complianceStatus;
+              if (u.complianceRationale !== undefined) body.complianceRationale = u.complianceRationale;
+              if (u.rationale !== undefined) body.rationale = u.rationale;
+              if (u.sectionId !== undefined) body.sectionId = u.sectionId;
+
+              await client.patch(`/requirements/${tenant}/${project}/${u.requirementId}`, body);
+              updated++;
+            } catch (err) {
+              errors.push({
+                requirementId: u.requirementId,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
+
+          const lines = [
+            `## Batch Update Results\n`,
+            `- **Updated:** ${updated}`,
+            `- **Failed:** ${errors.length}`,
+          ];
+          if (errors.length > 0) {
+            lines.push(`\n### Errors\n`);
+            for (const e of errors) lines.push(`- ${e.requirementId}: ${e.error}`);
+          }
+          return ok(lines.join("\n"));
+        }
+
+        // Single mode
+        if (!requirementId) return ok("Provide 'requirementId' for single update or 'batch' for multiple.");
         const data = await client.patch<{ requirement?: Record<string, unknown>; record?: Record<string, unknown> }>(
           `/requirements/${tenant}/${project}/${requirementId}`,
           updates,
@@ -113,14 +232,49 @@ export function registerRequirementsTools(server: McpServer, client: AirgenClien
 
   server.tool(
     "delete_requirement",
-    "Soft-delete a requirement (can be restored later by an admin)",
+    "Soft-delete one or more requirements. For single: provide requirementId. For batch: provide requirementIds array.",
     {
       tenant: z.string().describe("Tenant slug"),
       project: z.string().describe("Project slug"),
-      requirementId: z.string().describe("Requirement node ID"),
+      requirementId: z.string().optional().describe("Single requirement node ID"),
+      requirementIds: z
+        .array(z.string())
+        .optional()
+        .describe("Batch mode: array of requirement node IDs to delete"),
     },
-    async ({ tenant, project, requirementId }) => {
+    async ({ tenant, project, requirementId, requirementIds }) => {
       try {
+        // Batch mode
+        if (requirementIds && requirementIds.length > 0) {
+          let deleted = 0;
+          const errors: Array<{ requirementId: string; error: string }> = [];
+
+          for (const id of requirementIds) {
+            try {
+              await client.delete(`/requirements/${tenant}/${project}/${id}`);
+              deleted++;
+            } catch (err) {
+              errors.push({
+                requirementId: id,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
+
+          const lines = [
+            `## Batch Delete Results\n`,
+            `- **Deleted:** ${deleted}`,
+            `- **Failed:** ${errors.length}`,
+          ];
+          if (errors.length > 0) {
+            lines.push(`\n### Errors\n`);
+            for (const e of errors) lines.push(`- ${e.requirementId}: ${e.error}`);
+          }
+          return ok(lines.join("\n"));
+        }
+
+        // Single mode
+        if (!requirementId) return ok("Provide 'requirementId' or 'requirementIds'.");
         await client.delete(`/requirements/${tenant}/${project}/${requirementId}`);
         return ok(`Requirement ${requirementId} deleted.`);
       } catch (err) {

@@ -48,23 +48,77 @@ export function registerTraceabilityTools(server: McpServer, client: AirgenClien
 
   server.tool(
     "create_trace_link",
-    "Create a traceability link between two requirements. Link types: satisfies, derives, verifies, implements, refines, conflicts.",
+    "Create one or more traceability links. For single: provide source/target/linkType directly. For batch: provide the batch array.",
     {
       tenant: z.string().describe("Tenant slug"),
       projectKey: z.string().describe("Project slug/key"),
-      sourceRequirementId: z.string().describe("Source requirement ID"),
-      targetRequirementId: z.string().describe("Target requirement ID"),
+      sourceRequirementId: z.string().optional().describe("Source requirement ID (single mode)"),
+      targetRequirementId: z.string().optional().describe("Target requirement ID (single mode)"),
       linkType: z.enum(["satisfies", "derives", "verifies", "implements", "refines", "conflicts"])
-        .describe("Type of traceability relationship"),
-      description: z.string().optional().describe("Optional description of the link"),
+        .optional()
+        .describe("Type of traceability relationship (single mode)"),
+      description: z.string().optional().describe("Optional description (single mode)"),
+      batch: z
+        .array(
+          z.object({
+            sourceRequirementId: z.string(),
+            targetRequirementId: z.string(),
+            linkType: z.enum(["satisfies", "derives", "verifies", "implements", "refines", "conflicts"]),
+            description: z.string().optional(),
+          }),
+        )
+        .optional()
+        .describe("Batch mode: array of trace links to create"),
     },
-    async (args) => {
+    async ({ tenant, projectKey, sourceRequirementId, targetRequirementId, linkType, description, batch }) => {
       try {
+        // Batch mode
+        if (batch && batch.length > 0) {
+          let created = 0;
+          const errors: Array<{ index: number; error: string }> = [];
+
+          for (let i = 0; i < batch.length; i++) {
+            const link = batch[i];
+            try {
+              await client.post("/trace-links", {
+                tenant,
+                projectKey,
+                sourceRequirementId: link.sourceRequirementId,
+                targetRequirementId: link.targetRequirementId,
+                linkType: link.linkType,
+                description: link.description,
+              });
+              created++;
+            } catch (err) {
+              errors.push({ index: i, error: err instanceof Error ? err.message : String(err) });
+            }
+          }
+
+          const lines = [
+            `## Batch Trace Link Results\n`,
+            `- **Created:** ${created}`,
+            `- **Failed:** ${errors.length}`,
+          ];
+          if (errors.length > 0) {
+            lines.push(`\n### Errors\n`);
+            for (const e of errors) {
+              const link = batch[e.index];
+              lines.push(`- Link ${e.index} (${link.sourceRequirementId} → ${link.targetRequirementId}): ${e.error}`);
+            }
+          }
+          return ok(lines.join("\n"));
+        }
+
+        // Single mode
+        if (!sourceRequirementId || !targetRequirementId || !linkType) {
+          return ok("Provide sourceRequirementId, targetRequirementId, and linkType for single creation, or batch for multiple.");
+        }
+        const args = { tenant, projectKey, sourceRequirementId, targetRequirementId, linkType, description };
         const data = await client.post<{ traceLink: Record<string, unknown> }>("/trace-links", args);
         const link = data.traceLink;
         return ok(
-          `Trace link created: ${(link as any).sourceRef ?? args.sourceRequirementId} ` +
-          `—[${args.linkType}]→ ${(link as any).targetRef ?? args.targetRequirementId}`,
+          `Trace link created: ${(link as any).sourceRef ?? sourceRequirementId} ` +
+          `—[${linkType}]→ ${(link as any).targetRef ?? targetRequirementId}`,
         );
       } catch (err) {
         return formatError(err);

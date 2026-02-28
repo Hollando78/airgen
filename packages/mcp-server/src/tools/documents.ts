@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AirgenClient } from "../client.js";
 import { ok, formatError, formatTable, truncate } from "../format.js";
+// Note: Markdown export is available via export_requirements(format: "markdown")
 
 export function registerDocumentsTools(server: McpServer, client: AirgenClient) {
   server.tool(
@@ -109,28 +110,6 @@ export function registerDocumentsTools(server: McpServer, client: AirgenClient) 
     },
   );
 
-  server.tool(
-    "export_document_markdown",
-    "Export a document as markdown. Returns the full markdown content of a specific document.",
-    {
-      tenant: z.string().describe("Tenant slug"),
-      project: z.string().describe("Project slug"),
-      documentSlug: z.string().describe("Document slug to export"),
-    },
-    async ({ tenant, project, documentSlug }) => {
-      try {
-        const data = await client.get<{
-          content: string;
-          document?: { name: string; slug: string; kind: string };
-          draft?: boolean;
-        }>(`/markdown/${tenant}/${project}/${documentSlug}/content`);
-        const header = data.document ? `# ${data.document.name}${data.draft ? " (DRAFT)" : ""}\n\n` : "";
-        return ok(header + (data.content ?? ""));
-      } catch (err) {
-        return formatError(err);
-      }
-    },
-  );
 }
 
 function inferSubtype(slug: string, kind: string, description?: string): string {
