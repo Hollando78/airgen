@@ -1,0 +1,28 @@
+{
+  "name": "@airgen/mcp-server",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "airgen-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "dagre": "^0.8.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/dagre": "^0.7.54",
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "vitest": "^1.6.0"
+  }
+}
