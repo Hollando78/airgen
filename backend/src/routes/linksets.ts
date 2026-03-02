@@ -140,7 +140,7 @@ export async function linksetRoutes(fastify: FastifyInstance) {
         201: {
           type: "object",
           properties: {
-            linkset: { type: "object" }
+            linkset: { type: "object", additionalProperties: true }
           }
         },
         403: {
@@ -160,10 +160,6 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    if (!request.currentUser?.roles.includes('admin')) {
-      return reply.status(403).send({ error: "Admin access required to create linksets" });
-    }
-
     try {
       const { tenant, project } = request.params;
       const { sourceDocumentSlug, targetDocumentSlug, links } = request.body;
@@ -227,7 +223,7 @@ export async function linksetRoutes(fastify: FastifyInstance) {
         200: {
           type: "object",
           properties: {
-            linkset: { type: "object" }
+            linkset: { type: "object", additionalProperties: true }
           }
         },
         403: {
@@ -247,10 +243,6 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    if (!request.currentUser?.roles.includes('admin')) {
-      return reply.status(403).send({ error: "Admin access required to update linksets" });
-    }
-
     try {
       const { tenant, project, linksetId } = request.params;
       const { defaultLinkType } = request.body;
@@ -319,7 +311,7 @@ export async function linksetRoutes(fastify: FastifyInstance) {
         200: {
           type: "object",
           properties: {
-            linkset: { type: "object" }
+            linkset: { type: "object", additionalProperties: true }
           }
         },
         500: {
@@ -384,7 +376,7 @@ export async function linksetRoutes(fastify: FastifyInstance) {
         200: {
           type: "object",
           properties: {
-            linkset: { type: "object" }
+            linkset: { type: "object", additionalProperties: true }
           }
         },
         500: {
@@ -463,10 +455,6 @@ export async function linksetRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request, reply) => {
-    if (!request.currentUser?.roles.includes('admin')) {
-      return reply.status(403).send({ error: "Admin access required to delete linksets" });
-    }
-
     try {
       const { tenant, project, linksetId } = request.params;
 

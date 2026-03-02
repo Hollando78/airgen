@@ -189,7 +189,7 @@ export async function registerVersionRoutes(app: FastifyInstance): Promise<void>
         200: {
           type: "object",
           properties: {
-            requirement: { type: "object" },
+            requirement: { type: "object", additionalProperties: true },
             restoredFrom: { type: "integer" }
           }
         },

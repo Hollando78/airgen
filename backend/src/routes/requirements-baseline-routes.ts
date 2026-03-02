@@ -39,7 +39,7 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
         200: {
           type: "object",
           properties: {
-            baseline: { type: "object" }
+            baseline: { type: "object", additionalProperties: true }
           }
         }
       }
@@ -97,17 +97,17 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
         200: {
           type: "object",
           properties: {
-            baseline: { type: "object" },
-            requirementVersions: { type: "array", items: { type: "object" } },
-            documentVersions: { type: "array", items: { type: "object" } },
-            documentSectionVersions: { type: "array", items: { type: "object" } },
-            infoVersions: { type: "array", items: { type: "object" } },
-            surrogateReferenceVersions: { type: "array", items: { type: "object" } },
-            traceLinkVersions: { type: "array", items: { type: "object" } },
-            linksetVersions: { type: "array", items: { type: "object" } },
-            diagramVersions: { type: "array", items: { type: "object" } },
-            blockVersions: { type: "array", items: { type: "object" } },
-            connectorVersions: { type: "array", items: { type: "object" } }
+            baseline: { type: "object", additionalProperties: true },
+            requirementVersions: { type: "array", items: { type: "object", additionalProperties: true } },
+            documentVersions: { type: "array", items: { type: "object", additionalProperties: true } },
+            documentSectionVersions: { type: "array", items: { type: "object", additionalProperties: true } },
+            infoVersions: { type: "array", items: { type: "object", additionalProperties: true } },
+            surrogateReferenceVersions: { type: "array", items: { type: "object", additionalProperties: true } },
+            traceLinkVersions: { type: "array", items: { type: "object", additionalProperties: true } },
+            linksetVersions: { type: "array", items: { type: "object", additionalProperties: true } },
+            diagramVersions: { type: "array", items: { type: "object", additionalProperties: true } },
+            blockVersions: { type: "array", items: { type: "object", additionalProperties: true } },
+            connectorVersions: { type: "array", items: { type: "object", additionalProperties: true } }
           }
         },
         404: {
@@ -211,18 +211,18 @@ export async function registerBaselineRoutes(app: FastifyInstance): Promise<void
         200: {
           type: "object",
           properties: {
-            fromBaseline: { type: "object" },
-            toBaseline: { type: "object" },
-            requirements: { type: "object" },
-            documents: { type: "object" },
-            documentSections: { type: "object" },
-            infos: { type: "object" },
-            surrogateReferences: { type: "object" },
-            traceLinks: { type: "object" },
-            linksets: { type: "object" },
-            diagrams: { type: "object" },
-            blocks: { type: "object" },
-            connectors: { type: "object" }
+            fromBaseline: { type: "object", additionalProperties: true },
+            toBaseline: { type: "object", additionalProperties: true },
+            requirements: { type: "object", additionalProperties: true },
+            documents: { type: "object", additionalProperties: true },
+            documentSections: { type: "object", additionalProperties: true },
+            infos: { type: "object", additionalProperties: true },
+            surrogateReferences: { type: "object", additionalProperties: true },
+            traceLinks: { type: "object", additionalProperties: true },
+            linksets: { type: "object", additionalProperties: true },
+            diagrams: { type: "object", additionalProperties: true },
+            blocks: { type: "object", additionalProperties: true },
+            connectors: { type: "object", additionalProperties: true }
           }
         },
         400: {

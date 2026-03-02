@@ -81,6 +81,7 @@ export const requirementUpdateSchema = z.object({
   complianceStatus: z.enum(["N/A", "Compliant", "Compliance Risk", "Non-Compliant"]).optional(),
   complianceRationale: z.string().optional(),
   sectionId: z.string().optional(),
+  tags: z.array(z.string()).optional(),
   attributes: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional()
 });
 
@@ -148,7 +149,8 @@ export const requirementUpdateBodySchema = {
       description: "Compliance status"
     },
     complianceRationale: { type: "string" as const, description: "Compliance rationale" },
-    sectionId: { type: "string" as const, description: "Section ID to move the requirement to" }
+    sectionId: { type: "string" as const, description: "Section ID to move the requirement to" },
+    tags: { type: "array" as const, items: { type: "string" as const }, description: "Requirement tags" }
   }
 };
 

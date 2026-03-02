@@ -617,85 +617,42 @@ export async function getBaselineDetails(
   const session = getSession();
 
   try {
-    const result = await session.run(
-      `
-        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_BASELINE]->(baseline:Baseline {ref: $baselineRef})
-
-        // Get all version snapshots
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_REQUIREMENT]->(reqVer:RequirementVersion)
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_DOCUMENT]->(docVer:DocumentVersion)
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_SECTION]->(secVer:DocumentSectionVersion)
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_INFO]->(infoVer:InfoVersion)
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_SURROGATE]->(surVer:SurrogateReferenceVersion)
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_TRACE_LINK]->(linkVer:TraceLinkVersion)
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_LINKSET]->(linksetVer:DocumentLinksetVersion)
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_DIAGRAM]->(diagVer:ArchitectureDiagramVersion)
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_BLOCK]->(blockVer:ArchitectureBlockVersion)
-        OPTIONAL MATCH (baseline)-[:SNAPSHOT_OF_CONNECTOR]->(connVer:ArchitectureConnectorVersion)
-
-        RETURN baseline,
-               collect(DISTINCT reqVer) AS requirementVersions,
-               collect(DISTINCT docVer) AS documentVersions,
-               collect(DISTINCT secVer) AS documentSectionVersions,
-               collect(DISTINCT infoVer) AS infoVersions,
-               collect(DISTINCT surVer) AS surrogateReferenceVersions,
-               collect(DISTINCT linkVer) AS traceLinkVersions,
-               collect(DISTINCT linksetVer) AS linksetVersions,
-               collect(DISTINCT diagVer) AS diagramVersions,
-               collect(DISTINCT blockVer) AS blockVersions,
-               collect(DISTINCT connVer) AS connectorVersions
-      `,
+    // Step 1: Get the baseline node
+    const baselineResult = await session.run(
+      `MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_BASELINE]->(baseline:Baseline {ref: $baselineRef})
+       RETURN baseline`,
       { tenantSlug, projectSlug, baselineRef }
     );
 
-    if (result.records.length === 0) {
+    if (baselineResult.records.length === 0) {
       throw new Error(`Baseline not found: ${baselineRef}`);
     }
 
-    const record = result.records[0];
-    const baselineNode = record.get("baseline") as Neo4jNode;
+    const baselineNode = baselineResult.records[0].get("baseline") as Neo4jNode;
     const baseline = mapBaseline(baselineNode);
+    const baselineId = String(baselineNode.properties.id);
 
-    // Map all version nodes
-    const requirementVersions = (record.get("requirementVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapRequirementVersion);
+    // Step 2: Fetch each version type separately to avoid Cartesian product
+    async function fetchVersions<T>(relType: string, mapper: (n: Neo4jNode) => T): Promise<T[]> {
+      const res = await session.run(
+        `MATCH (b:Baseline {id: $baselineId})-[:${relType}]->(v) RETURN collect(v) AS versions`,
+        { baselineId }
+      );
+      const nodes = (res.records[0]?.get("versions") ?? []) as Neo4jNode[];
+      return nodes.filter(n => n !== null).map(mapper);
+    }
 
-    const documentVersions = (record.get("documentVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapDocumentVersion);
-
-    const documentSectionVersions = (record.get("documentSectionVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapDocumentSectionVersion);
-
-    const infoVersions = (record.get("infoVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapInfoVersion);
-
-    const surrogateReferenceVersions = (record.get("surrogateReferenceVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapSurrogateReferenceVersion);
-
-    const traceLinkVersions = (record.get("traceLinkVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapTraceLinkVersion);
-
-    const linksetVersions = (record.get("linksetVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapDocumentLinksetVersion);
-
-    const diagramVersions = (record.get("diagramVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapArchitectureDiagramVersion);
-
-    const blockVersions = (record.get("blockVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapArchitectureBlockVersion);
-
-    const connectorVersions = (record.get("connectorVersions") as Neo4jNode[])
-      .filter(node => node !== null)
-      .map(mapArchitectureConnectorVersion);
+    // Run sequentially — Neo4j sessions don't support concurrent queries
+    const requirementVersions = await fetchVersions("SNAPSHOT_OF_REQUIREMENT", mapRequirementVersion);
+    const documentVersions = await fetchVersions("SNAPSHOT_OF_DOCUMENT", mapDocumentVersion);
+    const documentSectionVersions = await fetchVersions("SNAPSHOT_OF_SECTION", mapDocumentSectionVersion);
+    const infoVersions = await fetchVersions("SNAPSHOT_OF_INFO", mapInfoVersion);
+    const surrogateReferenceVersions = await fetchVersions("SNAPSHOT_OF_SURROGATE", mapSurrogateReferenceVersion);
+    const traceLinkVersions = await fetchVersions("SNAPSHOT_OF_TRACE_LINK", mapTraceLinkVersion);
+    const linksetVersions = await fetchVersions("SNAPSHOT_OF_LINKSET", mapDocumentLinksetVersion);
+    const diagramVersions = await fetchVersions("SNAPSHOT_OF_DIAGRAM", mapArchitectureDiagramVersion);
+    const blockVersions = await fetchVersions("SNAPSHOT_OF_BLOCK", mapArchitectureBlockVersion);
+    const connectorVersions = await fetchVersions("SNAPSHOT_OF_CONNECTOR", mapArchitectureConnectorVersion);
 
     return {
       baseline,

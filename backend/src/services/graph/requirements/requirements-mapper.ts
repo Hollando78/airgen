@@ -69,8 +69,14 @@ export function mapRequirement(node: Neo4jNode, documentSlug?: string): Requirem
     qaVerdict: props.qaVerdict ? String(props.qaVerdict) : undefined,
     suggestions: Array.isArray(props.suggestions)
       ? (props.suggestions as string[])
-      : [],
-    tags: Array.isArray(props.tags) ? (props.tags as string[]) : [],
+      : typeof props.suggestions === "string"
+        ? (JSON.parse(props.suggestions as string) as string[])
+        : [],
+    tags: Array.isArray(props.tags)
+      ? (props.tags as string[])
+      : typeof props.tags === "string"
+        ? (JSON.parse(props.tags as string) as string[])
+        : [],
     path: String(props.path),
     documentSlug,
     order: props.order !== undefined && props.order !== null ? toNumber(props.order) : undefined,

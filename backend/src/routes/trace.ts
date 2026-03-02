@@ -45,17 +45,25 @@ export default async function registerTraceRoutes(app: FastifyInstance): Promise
   }, async (req, reply) => {
     const payload = traceLinkSchema.parse(req.body);
 
-    const traceLink = await createTraceLink({
-      tenant: payload.tenant,
-      projectKey: payload.projectKey,
-      sourceRequirementId: payload.sourceRequirementId,
-      targetRequirementId: payload.targetRequirementId,
-      linkType: payload.linkType,
-      description: payload.description,
-      userId: req.currentUser!.sub
-    });
+    try {
+      const traceLink = await createTraceLink({
+        tenant: payload.tenant,
+        projectKey: payload.projectKey,
+        sourceRequirementId: payload.sourceRequirementId,
+        targetRequirementId: payload.targetRequirementId,
+        linkType: payload.linkType,
+        description: payload.description,
+        userId: req.currentUser!.sub
+      });
 
-    return { traceLink };
+      return { traceLink };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes("No linkset exists") || msg.includes("Requirements not found") || msg.includes("must be contained in documents")) {
+        return reply.status(400).send({ error: msg });
+      }
+      throw error;
+    }
   });
 
   app.get("/trace-links/:tenant/:project", {

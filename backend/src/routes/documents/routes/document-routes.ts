@@ -182,7 +182,7 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
         200: {
           type: "object",
           properties: {
-            document: { type: "object" }
+            document: { type: "object", additionalProperties: true }
           }
         }
       }
@@ -502,7 +502,7 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
         200: {
           type: "object",
           properties: {
-            document: { type: "object" }
+            document: { type: "object", additionalProperties: true }
           }
         },
         404: {
