@@ -329,7 +329,15 @@ User Browser → Traefik:443 → Fastify:8787 → Neo4j:7687 (fetch block data)
 - Redis has no persistence (by design) - can be recreated
 - PostgreSQL and Neo4j have persistent volumes
 - Traefik uses Let's Encrypt with automatic renewal
-- All services configured with `restart: unless-stopped`
+- All services configured with `restart: unless-stopped` for automatic recovery after server reboots
+  - Traefik (reverse proxy)
+  - PostgreSQL (database)
+  - Redis (cache)
+  - Neo4j (graph database)
+  - API (Fastify backend)
+  - Frontend (Nginx)
+- Docker daemon enabled via systemd to start on boot
+- No manual intervention required after server restart
 
 ## Future Considerations
 
