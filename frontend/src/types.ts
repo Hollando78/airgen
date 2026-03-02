@@ -790,6 +790,212 @@ export type ArchitectureDiagramResponse = {
   diagram: ArchitectureDiagramRecord;
 };
 
+// SysML Types
+export type SysmlPackageKind = "model" | "view" | "library";
+
+export type SysmlPackageRecord = {
+  id: string;
+  name: string;
+  packageKind: SysmlPackageKind;
+  parentId: string | null;
+  tenant: string;
+  projectKey: string;
+  isRoot?: boolean;
+  defaultViewpoints?: string[];
+  lifecycleState?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SysmlPackagesResponse = {
+  packages: SysmlPackageRecord[];
+  meta?: { implementationPhase?: string; message?: string };
+};
+
+export type SysmlPackageResponse = {
+  package: SysmlPackageRecord;
+};
+
+export type SysmlBlockData = {
+  blockKind?: string | null;
+  isAbstract?: boolean | null;
+  defaultSize?: { width?: number | null; height?: number | null } | null;
+  defaultStyle?: Record<string, unknown> | null;
+};
+
+export type SysmlInterfaceData = {
+  protocol?: string | null;
+  direction?: string | null;
+  rate?: number | null;
+};
+
+export type SysmlPortData = {
+  direction?: string | null;
+  portType?: string | null;
+  isConjugated?: boolean | null;
+  typeRef?: string | null;
+  protocol?: string | null;
+  rate?: number | null;
+};
+
+export type SysmlElementType = "block" | "interface" | "port" | "activity" | "state" | "requirement" | "diagram";
+
+export type SysmlElementRecord = {
+  id: string;
+  sysmlId: string;
+  name: string;
+  elementType: SysmlElementType;
+  packageId: string | null;
+  tenant: string;
+  projectKey: string;
+  lifecycleState: string;
+  stereotype?: string | null;
+  documentation?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  block?: SysmlBlockData | null;
+  interface?: SysmlInterfaceData | null;
+  port?: SysmlPortData | null;
+};
+
+export type SysmlRelationshipRecord = {
+  id?: string;
+  type: string;
+  direction: "outgoing" | "incoming";
+  targetId: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type SysmlElementListResponse = {
+  elements: SysmlElementRecord[];
+  meta?: { implementationPhase?: string; message?: string; count?: number };
+};
+
+export type SysmlElementResponse = {
+  element: SysmlElementRecord;
+};
+
+export type SysmlElementDetailResponse = {
+  element: SysmlElementRecord;
+  relationships: SysmlRelationshipRecord[];
+};
+
+export type SysmlRelationshipResponse = {
+  relationship: SysmlRelationshipRecord;
+};
+
+export type SysmlDiagramType = "bdd" | "ibd" | "deployment" | "requirements";
+
+export type SysmlDiagramRecord = {
+  id: string;
+  name: string;
+  description?: string | null;
+  diagramType: SysmlDiagramType;
+  tenant: string;
+  projectKey: string;
+  packageId?: string | null;
+  layoutEngine?: "manual" | "dagre" | "fcose";
+  viewport?: { x: number; y: number; zoom: number } | null;
+  lifecycleState?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SysmlDiagramNodeLayout = {
+  elementId: string;
+  position?: { x?: number | null; y?: number | null } | null;
+  size?: { width?: number | null; height?: number | null } | null;
+  styleOverrides?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type SysmlDiagramEdgeLayout = {
+  connectionId: string;
+  sourceId: string;
+  targetId: string;
+  controlPoints?: Array<{ x: number; y: number }> | null;
+  style?: Record<string, unknown> | null;
+};
+
+export type SysmlDiagramsResponse = {
+  diagrams: SysmlDiagramRecord[];
+  meta?: { implementationPhase?: string; message?: string; count?: number };
+};
+
+export type SysmlDiagramResponse = {
+  diagram: SysmlDiagramRecord;
+};
+
+export type SysmlDiagramDetailResponse = {
+  diagram: SysmlDiagramRecord;
+  nodes: SysmlDiagramNodeLayout[];
+  connections: SysmlDiagramEdgeLayout[];
+};
+
+export type CreateSysmlPackageRequest = {
+  name: string;
+  packageKind?: SysmlPackageKind;
+  parentId?: string | null;
+  defaultViewpoints?: string[];
+  metadata?: Record<string, unknown> | null;
+};
+
+export type UpdateSysmlPackageRequest = {
+  name?: string;
+  packageKind?: SysmlPackageKind;
+  defaultViewpoints?: string[];
+  metadata?: Record<string, unknown> | null;
+};
+
+export type CreateSysmlElementRequest = {
+  elementType: SysmlElementType;
+  name: string;
+  packageId?: string;
+  stereotype?: string | null;
+  documentation?: string | null;
+  metadata?: Record<string, unknown> | null;
+  block?: SysmlBlockData;
+  interface?: SysmlInterfaceData;
+  port?: SysmlPortData;
+};
+
+export type UpdateSysmlElementRequest = {
+  name?: string;
+  stereotype?: string | null;
+  documentation?: string | null;
+  metadata?: Record<string, unknown> | null;
+  block?: SysmlBlockData | null;
+  interface?: SysmlInterfaceData | null;
+  port?: SysmlPortData | null;
+};
+
+export type CreateSysmlRelationshipRequest = {
+  targetElementId: string;
+  type: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type CreateSysmlDiagramRequest = {
+  name: string;
+  diagramType: SysmlDiagramType;
+  packageId?: string;
+  description?: string | null;
+  layoutEngine?: "manual" | "dagre" | "fcose";
+  viewport?: { x: number; y: number; zoom: number } | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type UpdateSysmlDiagramRequest = {
+  name?: string;
+  description?: string | null;
+  layoutEngine?: "manual" | "dagre" | "fcose" | null;
+  viewport?: { x: number; y: number; zoom: number } | null;
+  metadata?: Record<string, unknown> | null;
+};
+
 export type DevUser = {
   id: string;
   email: string;

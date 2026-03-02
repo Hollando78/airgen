@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useQuickStart } from '../contexts/QuickStartContext';
 
 export function UserMenu(): JSX.Element {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+
+  const quickStart = useQuickStart();
 
   if (!user) {return <></>;}
 
@@ -16,6 +19,15 @@ export function UserMenu(): JSX.Element {
 
   const handleSettings = () => {
     navigate('/settings');
+    setIsOpen(false);
+  };
+
+  const handleToggleQuickStart = () => {
+    if (quickStart.state.isEnabled) {
+      quickStart.disableGuide();
+    } else {
+      quickStart.enableGuide();
+    }
     setIsOpen(false);
   };
 
@@ -117,6 +129,32 @@ export function UserMenu(): JSX.Element {
             >
               <span>⚙️</span>
               Settings
+            </button>
+            <button
+              onClick={handleToggleQuickStart}
+              style={{
+                width: '100%',
+                padding: '0.5rem 0.75rem',
+                background: 'none',
+                border: 'none',
+                borderRadius: '0.375rem',
+                color: '#1c2530',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.background = '#f1f4f8';
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.background = 'none';
+              }}
+            >
+              <span>🎯</span>
+              {quickStart.state.isEnabled ? 'Hide Quick Start' : 'Show Quick Start'}
             </button>
             <button
               onClick={handleLogout}

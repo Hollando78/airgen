@@ -28,6 +28,7 @@ function canPreviewInline(mimeType?: string | null): boolean {
   if (!mimeType) {return false;}
   const normalized = mimeType.toLowerCase();
   if (normalized.startsWith("image/")) {return true;}
+  if (normalized.startsWith("video/")) {return true;}
   if (["application/pdf", "text/plain", "text/markdown", "text/csv", "text/html"].includes(normalized)) {
     return true;
   }
@@ -621,6 +622,22 @@ export function FloatingSurrogateDocumentWindow({
                   alt={documentName}
                   style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "8px", boxShadow: "0 1px 4px rgba(15, 23, 42, 0.15)" }}
                 />
+              ) : previewMime?.startsWith("video/") && objectUrl ? (
+                <video
+                  src={objectUrl}
+                  controls
+                  preload="metadata"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: `${(size.height - 150) / zoom}px`,
+                    borderRadius: "8px",
+                    boxShadow: "0 1px 4px rgba(15, 23, 42, 0.15)",
+                    backgroundColor: "#000"
+                  }}
+                >
+                  <source src={objectUrl} type={previewMime} />
+                  Your browser does not support video playback.
+                </video>
               ) : objectUrl ? (
                 <iframe
                   src={objectUrl}
