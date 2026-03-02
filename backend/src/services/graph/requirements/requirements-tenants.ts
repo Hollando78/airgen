@@ -20,6 +20,9 @@ function mapProject(node: Neo4jNode, requirementCount: number): ProjectRecord {
     slug: String(props.slug),
     tenantSlug: String(props.tenantSlug),
     key: props.key ? String(props.key) : null,
+    name: props.name ? String(props.name) : null,
+    description: props.description ? String(props.description) : null,
+    code: props.code ? String(props.code) : null,
     createdAt: props.createdAt ? String(props.createdAt) : null,
     requirementCount
   };
@@ -132,7 +135,10 @@ export async function createTenant(input: { slug: string; name?: string }): Prom
 export async function createProject(input: {
   tenantSlug: string;
   slug: string;
-  key?: string
+  key?: string;
+  name?: string;
+  description?: string;
+  code?: string;
 }): Promise<ProjectRecord> {
   const tenantSlug = slugify(input.tenantSlug);
   const projectSlug = slugify(input.slug);
@@ -147,6 +153,9 @@ export async function createProject(input: {
           slug: $projectSlug,
           tenantSlug: $tenantSlug,
           key: $key,
+          name: $name,
+          description: $description,
+          code: $code,
           createdAt: $now
         })
         RETURN project
@@ -156,6 +165,9 @@ export async function createProject(input: {
         tenantSlug,
         projectSlug,
         key: input.key || null,
+        name: input.name || null,
+        description: input.description || null,
+        code: input.code || null,
         now
       });
 
@@ -167,6 +179,72 @@ export async function createProject(input: {
     });
 
     return mapProject(result, 0);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function updateProject(
+  tenantSlug: string,
+  projectSlug: string,
+  updates: { name?: string; description?: string; code?: string; key?: string },
+): Promise<ProjectRecord> {
+  const normalizedTenant = slugify(tenantSlug);
+  const normalizedProject = slugify(projectSlug);
+
+  const setClauses: string[] = [];
+  const params: Record<string, unknown> = {
+    tenantSlug: normalizedTenant,
+    projectSlug: normalizedProject,
+  };
+
+  if (updates.name !== undefined) {
+    setClauses.push("project.name = $name");
+    params.name = updates.name;
+  }
+  if (updates.description !== undefined) {
+    setClauses.push("project.description = $description");
+    params.description = updates.description;
+  }
+  if (updates.code !== undefined) {
+    setClauses.push("project.code = $code");
+    params.code = updates.code;
+  }
+  if (updates.key !== undefined) {
+    setClauses.push("project.key = $key");
+    params.key = updates.key;
+  }
+
+  if (setClauses.length === 0) {
+    throw new Error("No fields to update");
+  }
+
+  const session = getSession();
+  try {
+    const result = await session.executeWrite(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+        SET ${setClauses.join(", ")}
+        WITH project
+        OPTIONAL MATCH (project)-[:CONTAINS]->(directReq:Requirement)
+        OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
+        WITH project, collect(DISTINCT directReq) + collect(DISTINCT docReq) AS reqs
+        RETURN project, size([r IN reqs WHERE r IS NOT NULL]) AS requirementCount
+      `;
+
+      const updateResult = await tx.run(query, params);
+
+      if (updateResult.records.length === 0) {
+        throw new Error("Project not found");
+      }
+
+      return {
+        node: updateResult.records[0]!.get("project") as Neo4jNode,
+        count: Number(updateResult.records[0]!.get("requirementCount")) || 0,
+      };
+    });
+
+    return mapProject(result.node, result.count);
   } finally {
     await session.close();
   }

@@ -4,6 +4,7 @@ import { getErrorMessage } from "../lib/type-guards.js";
 import {
   getProjectListForTenant,
   createProjectInTenant,
+  updateProjectInTenant,
   deleteProjectFromTenant,
   isProjectOwner,
   validateProjectAccess
@@ -11,12 +12,15 @@ import {
 import {
   tenantParamSchema,
   projectParamSchema,
-  createProjectSchema
+  createProjectSchema,
+  updateProjectSchema
 } from "../validation/core-routes.schemas.js";
 import {
   listProjectsResponseSchema,
   createProjectRequestSchema,
   createProjectResponseSchema,
+  updateProjectRequestSchema,
+  updateProjectResponseSchema,
   deleteProjectResponseSchema,
   errorResponseSchema
 } from "../schemas/core-api.schemas.js";
@@ -95,8 +99,10 @@ export default async function registerProjectRoutes(app: FastifyInstance): Promi
 
     const params = tenantParamSchema.parse(req.params);
 
-    if (!isProjectOwner(user, params.tenant)) {
-      return reply.status(403).send({ error: "Only the tenant owner can create projects" });
+    try {
+      validateProjectAccess(user, params.tenant);
+    } catch (error) {
+      return reply.status(403).send({ error: getErrorMessage(error) });
     }
 
     const body = createProjectSchema.parse(req.body);
@@ -106,6 +112,60 @@ export default async function registerProjectRoutes(app: FastifyInstance): Promi
       return { project };
     } catch (error) {
       return reply.status(400).send({ error: getErrorMessage(error) });
+    }
+  });
+
+  // Update a project
+  app.patch("/tenants/:tenant/projects/:project", {
+    preHandler: [app.authenticate],
+    schema: {
+      tags: ["projects"],
+      summary: "Update a project",
+      description: "Updates a project's metadata (owner only)",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        required: ["tenant", "project"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" }
+        }
+      },
+      body: updateProjectRequestSchema,
+      response: {
+        200: updateProjectResponseSchema,
+        400: errorResponseSchema,
+        401: errorResponseSchema,
+        403: errorResponseSchema,
+        404: errorResponseSchema,
+        500: errorResponseSchema
+      }
+    }
+  }, async (req, reply) => {
+    const user = req.currentUser as AuthUser | undefined;
+    if (!user) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+
+    const params = projectParamSchema.parse(req.params);
+
+    try {
+      validateProjectAccess(user, params.tenant);
+    } catch (error) {
+      return reply.status(403).send({ error: getErrorMessage(error) });
+    }
+
+    const body = updateProjectSchema.parse(req.body);
+
+    try {
+      const project = await updateProjectInTenant(params.tenant, params.project, body);
+      return { project };
+    } catch (error) {
+      const msg = getErrorMessage(error);
+      if (msg === "Project not found") {
+        return reply.status(404).send({ error: msg });
+      }
+      return reply.status(400).send({ error: msg });
     }
   });
 

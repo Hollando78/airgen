@@ -36,6 +36,7 @@ export {
   listProjects,
   createTenant,
   createProject,
+  updateProject,
   deleteTenant,
   deleteProject
 } from "./requirements-tenants.js";

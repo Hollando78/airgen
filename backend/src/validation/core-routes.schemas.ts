@@ -31,7 +31,17 @@ export const projectParamSchema = z.object({
 
 export const createProjectSchema = z.object({
   slug: z.string().min(1, "Project slug is required"),
-  key: z.string().optional()
+  key: z.string().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  code: z.string().optional(),
+});
+
+export const updateProjectSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  code: z.string().optional(),
+  key: z.string().optional(),
 });
 
 // ====================

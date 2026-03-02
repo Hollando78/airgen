@@ -32,6 +32,8 @@ export function registerNavigationTools(server: McpServer, client: AirgenClient)
             slug: string;
             name?: string;
             key?: string;
+            code?: string;
+            description?: string;
             requirementCount?: number;
             documentCount?: number;
           }>;
@@ -41,10 +43,11 @@ export function registerNavigationTools(server: McpServer, client: AirgenClient)
         const rows = projects.map(p => [
           p.slug,
           p.name ?? p.slug,
+          p.code ?? "",
           String(p.requirementCount ?? 0),
           String(p.documentCount ?? 0),
         ]);
-        return ok(formatTable(["Slug", "Name", "Requirements", "Documents"], rows));
+        return ok(formatTable(["Slug", "Name", "Code", "Requirements", "Documents"], rows));
       } catch (err) {
         return formatError(err);
       }

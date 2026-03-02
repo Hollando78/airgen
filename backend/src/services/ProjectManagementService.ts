@@ -9,7 +9,7 @@
 
 import type { AuthUser } from "../lib/authorization.js";
 import { slugify, type ProjectRecord } from "./workspace.js";
-import { listProjects, createProject, deleteProject } from "./graph.js";
+import { listProjects, createProject, updateProject, deleteProject } from "./graph.js";
 import { isTenantOwner as checkTenantOwnership } from "./TenantManagementService.js";
 
 /**
@@ -26,13 +26,27 @@ export async function getProjectListForTenant(tenantSlug: string): Promise<Proje
  */
 export async function createProjectInTenant(
   tenantSlug: string,
-  input: { slug: string; key?: string }
+  input: { slug: string; key?: string; name?: string; description?: string; code?: string }
 ): Promise<ProjectRecord> {
   return await createProject({
     tenantSlug,
     slug: input.slug,
-    key: input.key
+    key: input.key,
+    name: input.name,
+    description: input.description,
+    code: input.code,
   });
+}
+
+/**
+ * Update a project's metadata
+ */
+export async function updateProjectInTenant(
+  tenantSlug: string,
+  projectSlug: string,
+  updates: { name?: string; description?: string; code?: string; key?: string }
+): Promise<ProjectRecord> {
+  return await updateProject(tenantSlug, projectSlug, updates);
 }
 
 /**

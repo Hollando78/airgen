@@ -122,10 +122,14 @@ export const deleteTenantResponseSchema = {
 
 export const projectSchema = {
   type: "object",
+  additionalProperties: true,
   properties: {
     slug: { type: "string" },
     tenantSlug: { type: "string" },
     key: { type: "string", nullable: true },
+    name: { type: "string", nullable: true },
+    description: { type: "string", nullable: true },
+    code: { type: "string", nullable: true },
     createdAt: { type: "string", nullable: true },
     requirementCount: { type: "number" }
   }
@@ -146,7 +150,27 @@ export const createProjectRequestSchema = {
   required: ["slug"],
   properties: {
     slug: { type: "string", minLength: 1, description: "Project slug identifier" },
-    key: { type: "string", description: "Project key (e.g., PROJ)" }
+    key: { type: "string", description: "Project key (e.g., PROJ)" },
+    name: { type: "string", description: "Display name for the project" },
+    description: { type: "string", description: "Project description" },
+    code: { type: "string", description: "Short project code" }
+  }
+} as const;
+
+export const updateProjectRequestSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string", description: "Display name for the project" },
+    description: { type: "string", description: "Project description" },
+    code: { type: "string", description: "Short project code" },
+    key: { type: "string", description: "Project key" }
+  }
+} as const;
+
+export const updateProjectResponseSchema = {
+  type: "object",
+  properties: {
+    project: projectSchema
   }
 } as const;
 
@@ -224,17 +248,24 @@ export const qaAnalysisRequestSchema = {
 export const qaAnalysisResponseSchema = {
   type: "object",
   properties: {
-    quality: { type: "string", description: "Quality rating" },
-    issues: {
+    score: { type: "number", description: "Quality score 0-100" },
+    verdict: { type: "string", description: "Overall verdict" },
+    pattern: { type: "string", description: "Detected EARS pattern" },
+    verification: { type: "string", description: "Suggested verification method" },
+    hits: {
       type: "array",
       items: {
         type: "object",
         properties: {
-          type: { type: "string" },
-          message: { type: "string" },
-          severity: { type: "string" }
+          rule: { type: "string" },
+          ok: { type: "boolean" },
+          message: { type: "string" }
         }
       }
+    },
+    suggestions: {
+      type: "array",
+      items: { type: "string" }
     }
   }
 } as const;
