@@ -38,15 +38,19 @@ async function fetchAllRequirements(
   const all: Requirement[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     const data = await client.get<{
-      items: Requirement[];
-      total: number;
-      pages: number;
+      data: Requirement[];
+      meta: { totalPages: number };
+      // Legacy shape fallback
+      items?: Requirement[];
+      pages?: number;
     }>(`/requirements/${tenant}/${project}`, {
       page: String(page),
       limit: String(PAGE_SIZE),
     });
-    all.push(...(data.items ?? []));
-    if (page >= (data.pages ?? 1)) break;
+    const items = data.data ?? data.items ?? [];
+    all.push(...items);
+    const totalPages = data.meta?.totalPages ?? data.pages ?? 1;
+    if (page >= totalPages) break;
   }
   return all.filter((r) => !r.deleted && !r.deletedAt);
 }

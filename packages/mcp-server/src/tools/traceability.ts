@@ -167,13 +167,83 @@ export function registerTraceabilityTools(server: McpServer, client: AirgenClien
         if (linksets.length === 0) return ok("No linksets found.");
 
         const rows = linksets.map(l => [
+          l.id,
           l.sourceDocumentSlug,
           "↔",
           l.targetDocumentSlug,
           l.defaultLinkType ?? "",
           String(l.linkCount ?? "?"),
         ]);
-        return ok(formatTable(["Source Doc", "", "Target Doc", "Default Type", "Links"], rows));
+        return ok(formatTable(["ID", "Source Doc", "", "Target Doc", "Default Type", "Links"], rows));
+      } catch (err) {
+        return formatError(err);
+      }
+    },
+  );
+
+  server.tool(
+    "manage_linkset",
+    "Create or delete a document linkset. A linkset must exist between two documents before cross-document trace links can be created. Action 'create' requires sourceDocumentSlug and targetDocumentSlug. Action 'delete' requires linksetId.",
+    {
+      action: z.enum(["create", "delete"]).describe("Operation to perform"),
+      tenant: z.string().describe("Tenant slug"),
+      project: z.string().describe("Project slug"),
+      sourceDocumentSlug: z
+        .string()
+        .optional()
+        .describe("(create) Source document slug"),
+      targetDocumentSlug: z
+        .string()
+        .optional()
+        .describe("(create) Target document slug"),
+      defaultLinkType: z
+        .enum(["satisfies", "derives", "verifies", "implements", "refines", "conflicts"])
+        .optional()
+        .describe("(create) Default link type for new links in this linkset"),
+      linksetId: z
+        .string()
+        .optional()
+        .describe("(delete) Linkset ID to delete"),
+    },
+    async ({ action, tenant, project, sourceDocumentSlug, targetDocumentSlug, defaultLinkType, linksetId }) => {
+      try {
+        switch (action) {
+          case "create": {
+            if (!sourceDocumentSlug || !targetDocumentSlug) {
+              return ok("create requires 'sourceDocumentSlug' and 'targetDocumentSlug'.");
+            }
+            const body: Record<string, unknown> = {
+              sourceDocumentSlug,
+              targetDocumentSlug,
+            };
+            if (defaultLinkType) body.defaultLinkType = defaultLinkType;
+
+            const data = await client.post<{
+              linkset: {
+                id: string;
+                sourceDocumentSlug: string;
+                targetDocumentSlug: string;
+                defaultLinkType?: string;
+                linkCount?: number;
+              };
+            }>(`/linksets/${tenant}/${project}`, body);
+
+            const ls = data.linkset;
+            return ok(
+              `Linkset created.\n\n` +
+                `- **ID:** ${ls.id}\n` +
+                `- **Source:** ${ls.sourceDocumentSlug}\n` +
+                `- **Target:** ${ls.targetDocumentSlug}\n` +
+                (ls.defaultLinkType ? `- **Default type:** ${ls.defaultLinkType}\n` : ""),
+            );
+          }
+
+          case "delete": {
+            if (!linksetId) return ok("delete requires 'linksetId'.");
+            await client.delete(`/linksets/${tenant}/${project}/${linksetId}`);
+            return ok(`Linkset '${linksetId}' deleted.`);
+          }
+        }
       } catch (err) {
         return formatError(err);
       }

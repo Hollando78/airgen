@@ -88,6 +88,77 @@ export function registerQualityTools(server: McpServer, client: AirgenClient) {
     },
   );
 
+  // ── Background QA Scorer ──────────────────────────────────────
+  server.tool(
+    "score_project_quality",
+    "Start, check status, or stop the background QA scorer that analyses all requirements in a project. Action 'start' kicks off scoring (fire-and-forget). Action 'status' returns progress. Action 'stop' cancels a running job.",
+    {
+      action: z.enum(["start", "status", "stop"]).describe("Operation to perform"),
+      tenant: z.string().optional().describe("(start) Tenant slug"),
+      project: z.string().optional().describe("(start) Project slug"),
+    },
+    async ({ action, tenant, project }) => {
+      try {
+        switch (action) {
+          case "start": {
+            if (!tenant || !project) return ok("start requires 'tenant' and 'project'.");
+            const data = await client.post<{
+              message: string;
+              status: {
+                isRunning: boolean;
+                processedCount: number;
+                totalCount: number;
+                currentRequirement?: string;
+              };
+            }>("/workers/qa-scorer/start", { tenant, project });
+
+            const s = data.status;
+            return ok(
+              `QA scoring started.\n\n` +
+                `- **Status:** ${s.isRunning ? "running" : "queued"}\n` +
+                `- **Total requirements:** ${s.totalCount}\n` +
+                `- **Message:** ${data.message}`,
+            );
+          }
+
+          case "status": {
+            const data = await client.get<{
+              isRunning: boolean;
+              processedCount: number;
+              totalCount: number;
+              currentRequirement?: string | null;
+              lastError?: string | null;
+              startedAt?: string | null;
+              completedAt?: string | null;
+            }>("/workers/qa-scorer/status");
+
+            const pct = data.totalCount > 0
+              ? ((data.processedCount / data.totalCount) * 100).toFixed(1) + "%"
+              : "N/A";
+
+            const lines = [
+              `## QA Scorer Status\n`,
+              `- **Running:** ${data.isRunning ? "yes" : "no"}`,
+              `- **Progress:** ${data.processedCount}/${data.totalCount} (${pct})`,
+            ];
+            if (data.currentRequirement) lines.push(`- **Current:** ${data.currentRequirement}`);
+            if (data.lastError) lines.push(`- **Last error:** ${data.lastError}`);
+            if (data.startedAt) lines.push(`- **Started:** ${data.startedAt}`);
+            if (data.completedAt) lines.push(`- **Completed:** ${data.completedAt}`);
+            return ok(lines.join("\n"));
+          }
+
+          case "stop": {
+            const data = await client.post<{ message: string }>("/workers/qa-scorer/stop", {});
+            return ok(data.message ?? "QA scorer stop requested.");
+          }
+        }
+      } catch (err) {
+        return formatError(err);
+      }
+    },
+  );
+
   server.tool(
     "draft_requirements",
     "Generate multiple candidate requirement texts from a natural language description. Uses AIRGen's heuristic drafting engine with optional LLM enhancement. Returns candidates with quality scores.",

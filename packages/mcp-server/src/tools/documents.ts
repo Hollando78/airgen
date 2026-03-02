@@ -22,6 +22,7 @@ export function registerDocumentsTools(server: McpServer, client: AirgenClient) 
             type?: string;
             kind?: string;
             shortCode?: string;
+            requirementCount?: number;
           }>;
         }>(`/documents/${tenant}/${project}`);
         const docs = data.documents ?? [];
@@ -35,10 +36,11 @@ export function registerDocumentsTools(server: McpServer, client: AirgenClient) 
             type,
             subtype,
             d.shortCode ?? "",
-            truncate(d.description ?? "", 60),
+            String(d.requirementCount ?? 0),
+            truncate(d.description ?? "", 50),
           ];
         });
-        return ok(formatTable(["Slug", "Name", "Type", "Subtype", "Code", "Description"], rows));
+        return ok(formatTable(["Slug", "Name", "Type", "Subtype", "Code", "Reqs", "Description"], rows));
       } catch (err) {
         return formatError(err);
       }

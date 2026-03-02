@@ -62,8 +62,8 @@ export function registerDocumentManagementTools(
             if (code) body.shortCode = code;
             if (description) body.description = description;
 
-            const data = await client.post<{ document: DocRecord }>("/documents", body);
-            const doc = data.document;
+            const data = await client.post<{ document?: DocRecord } & DocRecord>("/documents", body);
+            const doc = data.document ?? data;
             return ok(
               `Document created.\n\n` +
                 `- **Slug:** ${doc.slug}\n` +
@@ -81,11 +81,11 @@ export function registerDocumentManagementTools(
             if (code !== undefined) body.shortCode = code;
             if (description !== undefined) body.description = description;
 
-            const data = await client.patch<{ document: DocRecord }>(
+            const data = await client.patch<{ document?: DocRecord } & DocRecord>(
               `/documents/${tenant}/${project}/${documentSlug}`,
               body,
             );
-            const doc = data.document;
+            const doc = data.document ?? data;
             return ok(
               `Document updated.\n\n` +
                 `- **Slug:** ${doc.slug}\n` +
@@ -204,7 +204,7 @@ export function registerDocumentManagementTools(
 
           case "delete": {
             if (!sectionId) return ok("delete requires 'sectionId'.");
-            await client.delete(`/sections/${sectionId}`);
+            await client.delete(`/sections/${sectionId}`, { tenant });
             return ok(`Section '${sectionId}' deleted.`);
           }
         }
@@ -217,22 +217,31 @@ export function registerDocumentManagementTools(
   // ── move_requirement ──────────────────────────────────────────
   server.tool(
     "move_requirement",
-    "Move a requirement to a different document and/or section.",
+    "Move one or more requirements to a different document/section. For single: provide requirementId. For batch: provide batch array of {requirementId, targetSectionId?}. All share the same targetDocumentSlug.",
     {
-      requirementId: z.string().describe("Requirement node ID"),
-      project: z.string().describe("Project slug"),
       tenant: z.string().describe("Tenant slug"),
+      project: z.string().describe("Project slug"),
       targetDocumentSlug: z.string().describe("Destination document slug"),
       targetSectionId: z
         .string()
         .optional()
         .describe("Destination section ID. If omitted, uses the first section of the target document."),
+      requirementId: z.string().optional().describe("(single mode) Requirement node ID"),
+      batch: z
+        .array(
+          z.object({
+            requirementId: z.string(),
+            targetSectionId: z.string().optional(),
+          }),
+        )
+        .optional()
+        .describe("(batch mode) Array of requirements to move. Each can specify its own targetSectionId."),
     },
-    async ({ requirementId, project, tenant, targetDocumentSlug, targetSectionId }) => {
+    async ({ tenant, project, targetDocumentSlug, targetSectionId, requirementId, batch }) => {
       try {
-        let sectionId = targetSectionId;
-
-        if (!sectionId) {
+        // Resolve default section if needed
+        let defaultSectionId = targetSectionId;
+        if (!defaultSectionId) {
           const secData = await client.get<{
             sections: Array<{ id: string; name?: string; order?: number }>;
           }>(`/sections/${tenant}/${project}/${targetDocumentSlug}`);
@@ -245,13 +254,56 @@ export function registerDocumentManagementTools(
             );
           }
           sections.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-          sectionId = sections[0].id;
+          defaultSectionId = sections[0].id;
+        }
+
+        // Batch mode
+        if (batch && batch.length > 0) {
+          let moved = 0;
+          const errors: Array<{ index: number; id: string; error: string }> = [];
+
+          for (let i = 0; i < batch.length; i++) {
+            const item = batch[i];
+            const secId = item.targetSectionId ?? defaultSectionId;
+            try {
+              await client.patch(
+                `/requirements/${tenant}/${project}/${item.requirementId}`,
+                { sectionId: secId },
+              );
+              moved++;
+            } catch (err) {
+              errors.push({
+                index: i,
+                id: item.requirementId,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
+
+          const lines = [
+            `## Batch Move Results\n`,
+            `- **Moved:** ${moved}`,
+            `- **Failed:** ${errors.length}`,
+            `- **Target document:** ${targetDocumentSlug}`,
+          ];
+          if (errors.length > 0) {
+            lines.push(`\n### Errors\n`);
+            for (const e of errors) {
+              lines.push(`- ${e.id}: ${e.error}`);
+            }
+          }
+          return ok(lines.join("\n"));
+        }
+
+        // Single mode
+        if (!requirementId) {
+          return ok("Provide 'requirementId' for single mode or 'batch' for batch mode.");
         }
 
         const data = await client.patch<{
           requirement: { id: string; ref?: string; text?: string };
         }>(`/requirements/${tenant}/${project}/${requirementId}`, {
-          sectionId,
+          sectionId: defaultSectionId,
         });
 
         const req = data.requirement;
@@ -259,7 +311,7 @@ export function registerDocumentManagementTools(
           `Requirement moved.\n\n` +
             `- **Ref:** ${req.ref ?? requirementId}\n` +
             `- **Target document:** ${targetDocumentSlug}\n` +
-            `- **Target section:** ${sectionId}\n`,
+            `- **Target section:** ${defaultSectionId}\n`,
         );
       } catch (err) {
         return formatError(err);
