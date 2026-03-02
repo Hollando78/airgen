@@ -68,10 +68,18 @@ function verifyPkce(codeVerifier: string, codeChallenge: string, method: string)
   return codeVerifier === codeChallenge;
 }
 
+/** Static API key from MCP_API_KEY env var — bypasses OAuth when set */
+const STATIC_API_KEY = process.env.MCP_API_KEY ?? null;
+
 function isValidToken(req: import("node:http").IncomingMessage): boolean {
   const auth = req.headers["authorization"];
   if (!auth?.startsWith("Bearer ")) return false;
   const token = auth.slice(7);
+
+  // Check static API key first
+  if (STATIC_API_KEY && token === STATIC_API_KEY) return true;
+
+  // Then check OAuth-issued tokens
   const entry = accessTokens.get(token);
   return !!entry && entry.expiresAt > Date.now();
 }

@@ -42,8 +42,8 @@ export class AirgenClient {
     return this.request<T>("PATCH", path, body);
   }
 
-  async delete<T = unknown>(path: string): Promise<T> {
-    return this.request<T>("DELETE", path);
+  async delete<T = unknown>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>("DELETE", path, body);
   }
 
   /** Fetch binary content from an API path (e.g. document file download). */

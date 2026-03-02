@@ -11,6 +11,9 @@ services:
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --accesslog=true
+      - --accesslog.filepath=/var/log/traefik/access.log
+      - --accesslog.bufferingsize=100
     ports:
       - "80:80"
       - "443:443"
@@ -19,6 +22,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./letsencrypt:/letsencrypt
+      - ./traefik-logs:/var/log/traefik
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.rule=Host(`airgen.studio`) && PathPrefix(`/traefik`)"
@@ -174,6 +178,30 @@ services:
       - api
     restart: unless-stopped
 
+  mcp:
+    build:
+      context: .
+      dockerfile: packages/mcp-server/Dockerfile
+    environment:
+      AIRGEN_API_URL: "http://api:8787/api"
+      MCP_PORT: "3100"
+      MCP_EXTERNAL_URL: "https://mcp.airgen.studio"
+      MCP_API_KEY: "${MCP_API_KEY}"
+    secrets:
+      - mcp_email
+      - mcp_password
+    entrypoint: ["/bin/sh", "-c", "export AIRGEN_EMAIL=$$(cat /run/secrets/mcp_email) AIRGEN_PASSWORD=$$(cat /run/secrets/mcp_password) && exec node dist/index.js"]
+    depends_on:
+      - api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mcp.rule=Host(`mcp.airgen.studio`)"
+      - "traefik.http.routers.mcp.entrypoints=websecure"
+      - "traefik.http.routers.mcp.tls=true"
+      - "traefik.http.routers.mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mcp.loadbalancer.server.port=3100"
+    restart: unless-stopped
+
   docs:
     build:
       context: ./docs-site
@@ -208,5 +236,9 @@ secrets:
     file: /root/airgen-secrets/restic_password
   aws_secret_access_key:
     file: /root/airgen-secrets/aws_secret_access_key
+  mcp_email:
+    file: /root/airgen-secrets/mcp_email
+  mcp_password:
+    file: /root/airgen-secrets/mcp_password
   traefik_basic_auth_users:
     file: /root/airgen-secrets/traefik_basic_auth_users
