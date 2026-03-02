@@ -16,9 +16,11 @@ import { registerAiTools } from "./tools/ai.js";
 import { registerActivityTools } from "./tools/activity.js";
 import { registerImagineTools } from "./tools/imagine.js";
 import { registerDocumentManagementTools } from "./tools/document-management.js";
+import { registerProjectManagementTools } from "./tools/project-management.js";
 import { registerFilteringTools } from "./tools/filtering.js";
 import { registerReportingTools } from "./tools/reporting.js";
 import { registerImportExportTools } from "./tools/import-export.js";
+import { registerImplementationTools } from "./tools/implementation.js";
 
 export function createServer(client: AirgenClient): McpServer {
   const server = new McpServer({
@@ -38,9 +40,11 @@ export function createServer(client: AirgenClient): McpServer {
   registerActivityTools(server, client);
   registerImagineTools(server, client);
   registerDocumentManagementTools(server, client);
+  registerProjectManagementTools(server, client);
   registerFilteringTools(server, client);
   registerReportingTools(server, client);
   registerImportExportTools(server, client);
+  registerImplementationTools(server, client);
 
   return server;
 }
