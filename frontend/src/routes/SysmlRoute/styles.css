@@ -1,0 +1,141 @@
+.sysml-workspace {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sysml-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.sysml-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.sysml-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sysml-panel h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.sysml-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.sysml-list button,
+.sysml-list .sysml-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sysml-list button.active {
+  border-color: #2563eb;
+  background: #eef2ff;
+}
+
+.sysml-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sysml-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sysml-form-row input,
+.sysml-form-row select,
+.sysml-form-row textarea {
+  flex: 1 1 140px;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #cbd5f5;
+  font-size: 0.9rem;
+}
+
+.sysml-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sysml-action-bar button,
+.sysml-form button {
+  background: #1d4ed8;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sysml-action-bar button.secondary,
+.sysml-form button.secondary {
+  background: #64748b;
+}
+
+.sysml-action-bar button.danger,
+.sysml-list button.danger {
+  background: #dc2626;
+}
+
+.sysml-panel section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sysml-detail-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sysml-empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #475569;
+}
+
+@media (max-width: 768px) {
+  .sysml-columns {
+    grid-template-columns: 1fr;
+  }
+}

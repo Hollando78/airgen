@@ -1,0 +1,30 @@
+# SysML-focused dev stack (Phase 0 scaffold)
+# Provides Neo4j + Redis containers without the full application API.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: airgen-sysml-redis
+    ports:
+      - "${SYSML_REDIS_PORT:-6380}:6379"
+
+  neo4j:
+    image: neo4j:5.25
+    container_name: airgen-sysml-neo4j
+    environment:
+      NEO4J_AUTH: "${GRAPH_USERNAME:-neo4j}/${GRAPH_PASSWORD:-airgen-graph}"
+      NEO4J_dbms_memory_pagecache_size: 256M
+      NEO4J_dbms_tx_log_rotation_retention_policy: "2 days"
+    ports:
+      - "${SYSML_GRAPH_BOLT_PORT:-8687}:7687"
+      - "${SYSML_GRAPH_HTTP_PORT:-8484}:7474"
+    volumes:
+      - sysml_neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${GRAPH_PASSWORD:-airgen-graph} \"RETURN 1\""]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  sysml_neo4j_data:
