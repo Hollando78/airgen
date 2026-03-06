@@ -47,6 +47,7 @@ import semanticSearchRoutes from "./routes/semantic-search.js";
 // import snapdraftRoutes from "./routes/snapdraft-routes.js";
 import imagineRoutes from "./routes/imagine-routes.js";
 import activityRoutes from "./routes/activity-routes.js";
+import verificationRoutes from "./routes/verification-routes.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -328,6 +329,7 @@ await app.register(workersRoutes, { prefix: "/api" });
 // await app.register(snapdraftRoutes, { prefix: "/api" });
 await app.register(imagineRoutes, { prefix: "/api" });
 await app.register(activityRoutes, { prefix: "/api" });
+await app.register(verificationRoutes, { prefix: "/api" });
 
 if (config.features.sysmlBetaEnabled) {
   const sysmlRoutes = await import("./routes/sysml.js");

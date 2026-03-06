@@ -141,14 +141,7 @@ export function registerMfaVerifyRoute(app: FastifyInstance) {
       authMethod: "postgresql"
     }, "MFA verification successful");
 
-    sendLoginNotification(postgresUser.email, postgresUser.name || postgresUser.email, req.ip, true)
-      .catch(emailError => {
-        app.log.error({ err: emailError }, "Failed to send login notification");
-      });
-    sendLoginAlertEmail(postgresUser.email, postgresUser.name || postgresUser.email, req.ip, true)
-      .catch(emailError => {
-        app.log.error({ err: emailError }, "Failed to send login alert");
-      });
+    // Login email notifications disabled — too noisy
 
     if (usedBackupCode) {
       sendMfaBackupCodeUsedEmail(postgresUser.email, postgresUser.name || undefined, remainingBackupCodes)

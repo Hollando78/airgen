@@ -134,12 +134,32 @@ export async function startHttpServer(client: AirgenClient, port: number): Promi
           issuer: externalOrigin,
           authorization_endpoint: `${externalOrigin}/authorize`,
           token_endpoint: `${externalOrigin}/token`,
+          registration_endpoint: `${externalOrigin}/register`,
           response_types_supported: ["code"],
           grant_types_supported: ["authorization_code"],
           code_challenge_methods_supported: ["S256", "plain"],
           token_endpoint_auth_methods_supported: ["none"],
         }),
       );
+      return;
+    }
+
+    // ── OAuth dynamic client registration ────────────────
+    if (pathname === "/register" && req.method === "POST") {
+      const regBody = (await readJsonBody(req)) as Record<string, unknown> | undefined;
+      const clientId = randomUUID();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          client_id: clientId,
+          client_name: regBody?.client_name ?? "claude-code",
+          redirect_uris: regBody?.redirect_uris ?? [],
+          grant_types: ["authorization_code"],
+          response_types: ["code"],
+          token_endpoint_auth_method: "none",
+        }),
+      );
+      console.error(`OAuth: registered client ${clientId}`);
       return;
     }
 

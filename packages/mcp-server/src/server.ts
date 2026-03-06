@@ -21,6 +21,7 @@ import { registerFilteringTools } from "./tools/filtering.js";
 import { registerReportingTools } from "./tools/reporting.js";
 import { registerImportExportTools } from "./tools/import-export.js";
 import { registerImplementationTools } from "./tools/implementation.js";
+import { registerSectionContentTools } from "./tools/section-content.js";
 
 export function createServer(client: AirgenClient): McpServer {
   const server = new McpServer({
@@ -45,6 +46,7 @@ export function createServer(client: AirgenClient): McpServer {
   registerReportingTools(server, client);
   registerImportExportTools(server, client);
   registerImplementationTools(server, client);
+  registerSectionContentTools(server, client);
 
   return server;
 }

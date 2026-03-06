@@ -8,3 +8,4 @@ export * from "./graph/sysml/index.js";
 export * from "./graph/trace.js";
 export * from "./graph/infos.js";
 export * from "./graph/surrogates.js";
+export * from "./graph/verification.js";

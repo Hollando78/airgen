@@ -8,12 +8,15 @@ import {
 import {
   listSectionInfos,
   createInfo,
+  updateInfo,
+  deleteInfo,
   reorderInfos,
   reorderInfosWithOrder
 } from "../../../services/graph/infos.js";
 import {
   listSectionSurrogateReferences,
   createSurrogateReference,
+  deleteSurrogateReference,
   reorderSurrogateReferences,
   reorderSurrogateReferencesWithOrder
 } from "../../../services/graph/surrogates.js";
@@ -200,6 +203,152 @@ export async function registerSectionContentRoutes(app: FastifyInstance): Promis
     });
 
     return { surrogate: record };
+  });
+
+  // ============================
+  // Content Update/Delete Routes
+  // ============================
+
+  // Update an info
+  app.patch("/infos/:tenant/:project/:infoRef", {
+    onRequest: [app.authenticate],
+    schema: {
+      tags: ["infos"],
+      summary: "Update an info",
+      description: "Updates an info item's text or title",
+      params: {
+        type: "object",
+        required: ["tenant", "project", "infoRef"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" },
+          infoRef: { type: "string", description: "Info ref (e.g. INFO-1708999123)" }
+        }
+      },
+      body: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "New text content" },
+          title: { type: "string", description: "New title" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            info: { type: "object", additionalProperties: true }
+          }
+        },
+        404: {
+          type: "object",
+          properties: {
+            error: { type: "string" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      infoRef: z.string().min(1)
+    });
+    const bodySchema = z.object({
+      text: z.string().optional(),
+      title: z.string().optional()
+    });
+    const params = paramsSchema.parse(req.params);
+    const body = bodySchema.parse(req.body);
+
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
+    try {
+      const info = await updateInfo(params.tenant, params.project, params.infoRef, body, req.currentUser!.sub);
+      return { info };
+    } catch (err) {
+      if (err instanceof Error && err.message === "Info not found") {
+        return reply.status(404).send({ error: "Info not found" });
+      }
+      throw err;
+    }
+  });
+
+  // Delete an info
+  app.delete("/infos/:tenant/:project/:infoRef", {
+    onRequest: [app.authenticate],
+    schema: {
+      tags: ["infos"],
+      summary: "Delete an info",
+      description: "Permanently deletes an info item",
+      params: {
+        type: "object",
+        required: ["tenant", "project", "infoRef"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" },
+          infoRef: { type: "string", description: "Info ref (e.g. INFO-1708999123)" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      infoRef: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
+    await deleteInfo(params.tenant, params.project, params.infoRef, req.currentUser!.sub);
+    return { success: true };
+  });
+
+  // Delete a surrogate reference
+  app.delete("/surrogates/:tenant/:project/:surrogateId", {
+    onRequest: [app.authenticate],
+    schema: {
+      tags: ["surrogates"],
+      summary: "Delete a surrogate reference",
+      description: "Permanently deletes a surrogate reference",
+      params: {
+        type: "object",
+        required: ["tenant", "project", "surrogateId"],
+        properties: {
+          tenant: { type: "string", description: "Tenant slug" },
+          project: { type: "string", description: "Project slug" },
+          surrogateId: { type: "string", description: "Surrogate reference ID" }
+        }
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" }
+          }
+        }
+      }
+    }
+  }, async (req, reply) => {
+    const paramsSchema = z.object({
+      tenant: z.string().min(1),
+      project: z.string().min(1),
+      surrogateId: z.string().min(1)
+    });
+    const params = paramsSchema.parse(req.params);
+
+    requireTenantAccess(req.currentUser as AuthUser, params.tenant, reply);
+
+    await deleteSurrogateReference(params.tenant, params.project, params.surrogateId, req.currentUser!.sub);
+    return { success: true };
   });
 
   // ============================

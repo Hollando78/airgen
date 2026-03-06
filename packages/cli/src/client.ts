@@ -2,7 +2,14 @@
  * AIRGen HTTP API client with JWT authentication.
  *
  * Handles login, token caching, and automatic refresh.
+ * Persists session tokens to ~/.airgen-session for reuse across CLI invocations.
  */
+
+import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+
+const SESSION_FILE = join(homedir(), ".airgen-session");
 
 export interface ClientConfig {
   apiUrl: string;
@@ -25,7 +32,44 @@ export class AirgenClient {
   };
   private loginPromise: Promise<void> | null = null;
 
-  constructor(private config: ClientConfig) {}
+  constructor(private config: ClientConfig) {
+    this.loadSession();
+  }
+
+  private loadSession(): void {
+    try {
+      const raw = readFileSync(SESSION_FILE, "utf-8");
+      const session = JSON.parse(raw) as AuthState & { apiUrl?: string; email?: string };
+      // Only reuse session if it matches current config
+      if (session.apiUrl === this.config.apiUrl && session.email === this.config.email) {
+        this.auth = {
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
+          tokenExpiresAt: session.tokenExpiresAt,
+        };
+      }
+    } catch {
+      // No session file or invalid — start fresh
+    }
+  }
+
+  private saveSession(): void {
+    try {
+      writeFileSync(SESSION_FILE, JSON.stringify({
+        apiUrl: this.config.apiUrl,
+        email: this.config.email,
+        accessToken: this.auth.accessToken,
+        refreshToken: this.auth.refreshToken,
+        tokenExpiresAt: this.auth.tokenExpiresAt,
+      }), { mode: 0o600 });
+    } catch {
+      // Non-fatal — session just won't persist
+    }
+  }
+
+  private clearSession(): void {
+    try { unlinkSync(SESSION_FILE); } catch { /* ignore */ }
+  }
 
   /** The base API URL this client is configured for. */
   get apiUrl(): string {
@@ -85,7 +129,7 @@ export class AirgenClient {
       headers["Authorization"] = `Bearer ${this.auth.accessToken}`;
     }
     if (this.auth.refreshToken) {
-      headers["Cookie"] = `airgen_refresh=${this.auth.refreshToken}`;
+      headers["Cookie"] = `refreshToken=${this.auth.refreshToken}`;
     }
 
     const url = `${this.config.apiUrl}${path}`;
@@ -146,7 +190,7 @@ export class AirgenClient {
       headers["Content-Type"] = "application/json";
     }
     if (this.auth.refreshToken) {
-      headers["Cookie"] = `airgen_refresh=${this.auth.refreshToken}`;
+      headers["Cookie"] = `refreshToken=${this.auth.refreshToken}`;
     }
 
     const url = `${this.config.apiUrl}${path}`;
@@ -252,12 +296,13 @@ export class AirgenClient {
     this.auth.accessToken = data.token;
     this.auth.tokenExpiresAt = decodeTokenExpiry(data.token);
     this.auth.refreshToken = extractRefreshToken(res);
+    this.saveSession();
   }
 
   private async refresh(): Promise<void> {
     const headers: Record<string, string> = {};
     if (this.auth.refreshToken) {
-      headers["Cookie"] = `airgen_refresh=${this.auth.refreshToken}`;
+      headers["Cookie"] = `refreshToken=${this.auth.refreshToken}`;
     }
 
     const res = await globalThis.fetch(`${this.config.apiUrl}/auth/refresh`, {
@@ -268,6 +313,7 @@ export class AirgenClient {
     if (!res.ok) {
       // Refresh failed — clear state and re-login
       this.auth = { accessToken: null, refreshToken: null, tokenExpiresAt: 0 };
+      this.clearSession();
       await this.login();
       return;
     }
@@ -280,6 +326,7 @@ export class AirgenClient {
     if (newRefresh) {
       this.auth.refreshToken = newRefresh;
     }
+    this.saveSession();
   }
 }
 
@@ -313,8 +360,8 @@ function extractRefreshToken(res: Response): string | null {
   const setCookie = res.headers.get("set-cookie");
   if (!setCookie) return null;
 
-  // Parse airgen_refresh cookie value
-  const match = setCookie.match(/airgen_refresh=([^;]+)/);
+  // Parse refreshToken cookie value
+  const match = setCookie.match(/refreshToken=([^;]+)/);
   return match ? match[1] : null;
 }
 

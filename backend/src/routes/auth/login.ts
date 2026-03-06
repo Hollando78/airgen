@@ -148,14 +148,7 @@ export function registerLoginRoute(app: FastifyInstance) {
         authMethod: "postgresql"
       }, "User logged in successfully via PostgreSQL");
 
-      sendLoginNotification(postgresUser.email, postgresUser.name || postgresUser.email, req.ip, false)
-        .catch(emailError => {
-          app.log.error({ err: emailError }, "Failed to send login notification");
-        });
-      sendLoginAlertEmail(postgresUser.email, postgresUser.name || postgresUser.email, req.ip, false)
-        .catch(emailError => {
-          app.log.error({ err: emailError }, "Failed to send login alert");
-        });
+      // Login email notifications disabled — too noisy, especially with MCP/CLI auth
 
       return {
         token,

@@ -1,0 +1,46 @@
+{
+  "name": "airgen-cli",
+  "version": "0.3.1",
+  "description": "AIRGen CLI — requirements engineering from the command line",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "airgen": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "package.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "airgen",
+    "requirements",
+    "engineering",
+    "cli",
+    "requirements-management",
+    "systems-engineering",
+    "traceability",
+    "sysml",
+    "mbse",
+    "uht"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/airgen-studio/airgen.git",
+    "directory": "packages/cli"
+  },
+  "dependencies": {
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}
