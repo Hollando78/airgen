@@ -291,6 +291,4 @@ Supports DigitalOcean Spaces, AWS S3, Backblaze B2, and SFTP. See [docs/guides/B
 
 ## License
 
-Proprietary — Copyright (c) 2025 Why Aye Pet Limited. All rights reserved.
-
-See [LICENSE](LICENSE) for details. For licensing inquiries, contact Why Aye Pet Limited.
+MIT — Copyright (c) 2025 Why Aye Pet Limited. See [LICENSE](LICENSE) for details.
