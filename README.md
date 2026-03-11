@@ -291,4 +291,4 @@ Supports DigitalOcean Spaces, AWS S3, Backblaze B2, and SFTP. See [docs/guides/B
 
 ## License
 
-MIT — Copyright (c) 2025 Why Aye Pet Limited. See [LICENSE](LICENSE) for details.
+MIT — Copyright (c) 2025 Steven Holland. See [LICENSE](LICENSE) for details.
