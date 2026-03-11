@@ -363,6 +363,9 @@ export type ProjectRecord = {
   slug: string;
   tenantSlug: string;
   key: string | null;
+  name: string | null;
+  description: string | null;
+  code: string | null;
   createdAt: string | null;
   requirementCount: number;
 };

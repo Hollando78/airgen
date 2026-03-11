@@ -173,8 +173,17 @@ export const paginationQuerySchema = {
   type: "object" as const,
   properties: {
     page: { type: "integer" as const, minimum: 1, default: 1, description: "Page number" },
-    limit: { type: "integer" as const, minimum: 1, maximum: 100, default: 20, description: "Items per page" },
+    limit: { type: "integer" as const, minimum: 1, maximum: 500, default: 20, description: "Items per page" },
     sortBy: { type: "string" as const, enum: ["createdAt", "ref", "qaScore"], description: "Field to sort by" },
-    sortOrder: { type: "string" as const, enum: ["asc", "desc"], default: "desc", description: "Sort direction" }
+    sortOrder: { type: "string" as const, enum: ["asc", "desc"], default: "desc", description: "Sort direction" },
+    tags: { type: "string" as const, description: "Comma-separated tags to filter by" },
+    documentSlug: { type: "string" as const, description: "Filter by document slug" },
+    sectionId: { type: "string" as const, description: "Filter by section ID" },
+    pattern: { type: "string" as const, enum: ["ubiquitous", "event", "state", "unwanted", "optional"], description: "Filter by EARS pattern" },
+    verification: { type: "string" as const, enum: ["Test", "Analysis", "Inspection", "Demonstration"], description: "Filter by verification method" },
+    textContains: { type: "string" as const, description: "Filter by text substring (case-insensitive)" },
+    complianceStatus: { type: "string" as const, description: "Filter by compliance status" },
+    qaScoreMin: { type: "integer" as const, minimum: 0, maximum: 100, description: "Minimum QA score" },
+    qaScoreMax: { type: "integer" as const, minimum: 0, maximum: 100, description: "Maximum QA score" }
   }
 };

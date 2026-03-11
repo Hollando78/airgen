@@ -27,7 +27,12 @@ export async function updateRequirementRefsForDocument(
     WITH requirement, document, section,
          CASE
            WHEN section IS NOT NULL THEN
-             coalesce(document.shortCode, toUpper(document.slug)) + '-' + coalesce(section.shortCode, toUpper(replace(section.name, ' ', '')))
+             coalesce(document.shortCode, toUpper(document.slug)) + '-' +
+             CASE
+               WHEN coalesce(section.shortCode, toUpper(replace(section.name, ' ', ''))) = coalesce(document.shortCode, toUpper(document.slug))
+               THEN 'REQ'
+               ELSE coalesce(section.shortCode, toUpper(replace(section.name, ' ', '')))
+             END
            ELSE
              coalesce(document.shortCode, toUpper(document.slug))
          END AS newPrefix,
@@ -65,7 +70,12 @@ export async function updateRequirementRefsForSection(
     MATCH (section:DocumentSection {id: $sectionId})<-[:HAS_SECTION]-(document:Document)<-[:HAS_DOCUMENT]-(project:Project)
     MATCH (section)-[:CONTAINS]->(requirement:Requirement)
     WITH requirement, document, section,
-         coalesce(document.shortCode, toUpper(document.slug)) + '-' + coalesce(section.shortCode, toUpper(replace(section.name, ' ', ''))) AS newPrefix,
+         coalesce(document.shortCode, toUpper(document.slug)) + '-' +
+         CASE
+           WHEN coalesce(section.shortCode, toUpper(replace(section.name, ' ', ''))) = coalesce(document.shortCode, toUpper(document.slug))
+           THEN 'REQ'
+           ELSE coalesce(section.shortCode, toUpper(replace(section.name, ' ', '')))
+         END AS newPrefix,
          split(requirement.ref, '-') AS refParts
     WITH requirement, newPrefix,
          newPrefix + '-' + refParts[size(refParts)-1] AS newRef

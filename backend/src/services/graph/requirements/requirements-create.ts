@@ -85,7 +85,12 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
                CASE
                  WHEN document IS NOT NULL THEN
                    CASE WHEN section IS NOT NULL THEN
-                     coalesce(document.shortCode, toUpper(document.slug)) + '-' + coalesce(section.shortCode, toUpper(replace(section.name, ' ', '')))
+                     coalesce(document.shortCode, toUpper(document.slug)) + '-' +
+                     CASE
+                       WHEN coalesce(section.shortCode, toUpper(replace(section.name, ' ', ''))) = coalesce(document.shortCode, toUpper(document.slug))
+                       THEN 'REQ'
+                       ELSE coalesce(section.shortCode, toUpper(replace(section.name, ' ', '')))
+                     END
                    ELSE
                      coalesce(document.shortCode, toUpper(document.slug))
                    END

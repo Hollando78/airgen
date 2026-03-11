@@ -18,6 +18,8 @@ import { CreateProjectModal } from "../components/dashboard/modals/CreateProject
 import { InviteUserDialog } from "../components/dashboard/modals/InviteUserDialog";
 import { DeleteTenantDialog } from "../components/dashboard/modals/DeleteTenantDialog";
 import { DeleteProjectDialog } from "../components/dashboard/modals/DeleteProjectDialog";
+import { EditProjectDialog } from "../components/dashboard/modals/EditProjectDialog";
+import { ProjectsTable } from "../components/dashboard/ProjectsTable";
 
 /**
  * Dashboard route component - orchestrates data fetching and rendering
@@ -96,6 +98,28 @@ export function DashboardRoute(): JSX.Element {
           deleteTenantMutation={tenantManagement.deleteTenantMutation}
         />
       </div>
+
+      {/* Projects for Selected Tenant */}
+      {state.tenant && (
+        <>
+          <PageHeader
+            title="Projects"
+            description={`Projects in tenant "${state.tenant}"`}
+            actions={
+              <Button onClick={() => projectManagement.openCreateProjectDialog(state.tenant!)}>
+                + Create Project
+              </Button>
+            }
+          />
+          <div className="mb-8">
+            <ProjectsTable
+              projectsQuery={projectManagement.projectsQuery}
+              onEdit={(project) => projectManagement.openEditProjectDialog(state.tenant!, project)}
+              onDelete={(project) => projectManagement.setProjectPendingDeletion({ tenant: state.tenant!, project: project.slug })}
+            />
+          </div>
+        </>
+      )}
 
       {/* QA Scorer Worker */}
       <PageHeader
@@ -190,6 +214,15 @@ export function DashboardRoute(): JSX.Element {
         onClose={() => tenantManagement.setTenantSlugPendingDeletion(null)}
         onConfirm={tenantManagement.handleDeleteTenant}
         deleteTenantMutation={tenantManagement.deleteTenantMutation}
+      />
+
+      <EditProjectDialog
+        projectInfo={projectManagement.projectPendingEdit}
+        onClose={projectManagement.closeEditProjectDialog}
+        onSubmit={projectManagement.handleUpdateProject}
+        editData={projectManagement.editProjectData}
+        setEditData={projectManagement.setEditProjectData}
+        updateProjectMutation={projectManagement.updateProjectMutation}
       />
 
       <DeleteProjectDialog

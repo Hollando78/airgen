@@ -28,17 +28,31 @@ export function registerRequirementCommands(program: Command, client: AirgenClie
 
   cmd
     .command("list")
-    .description("List requirements with pagination")
+    .description("List requirements with pagination and optional filters")
     .argument("<tenant>", "Tenant slug")
     .argument("<project>", "Project slug")
     .option("-p, --page <n>", "Page number", "1")
     .option("-l, --limit <n>", "Items per page", "25")
     .option("--sort <field>", "Sort by: ref, createdAt, qaScore")
     .option("--order <dir>", "Sort order: asc, desc")
-    .action(async (tenant: string, project: string, opts: { page: string; limit: string; sort?: string; order?: string }) => {
+    .option("--tags <tags>", "Comma-separated tags to filter by (server-side)")
+    .option("--document <slug>", "Filter by document slug (server-side)")
+    .action(async (tenant: string, project: string, opts: {
+      page: string; limit: string; sort?: string; order?: string;
+      tags?: string; document?: string;
+    }) => {
+      const params: Record<string, string | undefined> = {
+        page: opts.page,
+        limit: opts.limit,
+        sortBy: opts.sort,
+        sortOrder: opts.order,
+      };
+      if (opts.tags) params.tags = opts.tags;
+      if (opts.document) params.documentSlug = opts.document;
+
       const data = await client.get<ListResponse>(
         `/requirements/${tenant}/${project}`,
-        { page: opts.page, limit: opts.limit, sortBy: opts.sort, sortOrder: opts.order },
+        params,
       );
       const reqs = data.data ?? [];
       const meta = data.meta;
@@ -213,7 +227,7 @@ export function registerRequirementCommands(program: Command, client: AirgenClie
 
   cmd
     .command("filter")
-    .description("Advanced filtering with multiple criteria")
+    .description("Advanced server-side filtering with multiple criteria")
     .argument("<tenant>", "Tenant slug")
     .argument("<project>", "Project slug")
     .option("--tags <tags>", "Comma-separated tags")
@@ -224,36 +238,37 @@ export function registerRequirementCommands(program: Command, client: AirgenClie
     .option("--qa-max <n>", "Max QA score")
     .option("--document <slug>", "Document slug")
     .option("--section <id>", "Section ID")
-    .option("--contains <text>", "Text contains")
+    .option("--contains <text>", "Text contains (case-insensitive)")
     .option("-p, --page <n>", "Page number", "1")
     .option("-l, --limit <n>", "Items per page", "50")
+    .option("--sort <field>", "Sort by: ref, createdAt, qaScore")
+    .option("--order <dir>", "Sort order: asc, desc")
     .action(async (tenant: string, project: string, opts: {
       tags?: string; pattern?: string; verification?: string; compliance?: string;
       qaMin?: string; qaMax?: string; document?: string; section?: string;
-      contains?: string; page: string; limit: string;
+      contains?: string; page: string; limit: string; sort?: string; order?: string;
     }) => {
-      // Fetch requirements and filter client-side (matching MCP approach)
+      const params: Record<string, string | undefined> = {
+        page: opts.page,
+        limit: opts.limit,
+        sortBy: opts.sort,
+        sortOrder: opts.order,
+      };
+      if (opts.tags) params.tags = opts.tags;
+      if (opts.pattern) params.pattern = opts.pattern;
+      if (opts.verification) params.verification = opts.verification;
+      if (opts.compliance) params.complianceStatus = opts.compliance;
+      if (opts.qaMin) params.qaScoreMin = opts.qaMin;
+      if (opts.qaMax) params.qaScoreMax = opts.qaMax;
+      if (opts.document) params.documentSlug = opts.document;
+      if (opts.section) params.sectionId = opts.section;
+      if (opts.contains) params.textContains = opts.contains;
+
       const data = await client.get<ListResponse>(
         `/requirements/${tenant}/${project}`,
-        { page: opts.page, limit: opts.limit },
+        params,
       );
-      let reqs = data.data ?? [];
-
-      if (opts.tags) {
-        const filterTags = opts.tags.split(",").map(t => t.trim().toLowerCase());
-        reqs = reqs.filter(r => r.tags?.some(t => filterTags.includes(t.toLowerCase())));
-      }
-      if (opts.pattern) reqs = reqs.filter(r => r.pattern === opts.pattern);
-      if (opts.verification) reqs = reqs.filter(r => r.verification === opts.verification);
-      if (opts.compliance) reqs = reqs.filter(r => r.complianceStatus === opts.compliance);
-      if (opts.qaMin) reqs = reqs.filter(r => (r.qaScore ?? 0) >= parseInt(opts.qaMin!, 10));
-      if (opts.qaMax) reqs = reqs.filter(r => (r.qaScore ?? 0) <= parseInt(opts.qaMax!, 10));
-      if (opts.document) reqs = reqs.filter(r => r.documentSlug === opts.document);
-      if (opts.section) reqs = reqs.filter(r => r.sectionId === opts.section);
-      if (opts.contains) {
-        const term = opts.contains.toLowerCase();
-        reqs = reqs.filter(r => r.text?.toLowerCase().includes(term));
-      }
+      const reqs = data.data ?? [];
 
       if (isJsonMode()) {
         output(reqs);

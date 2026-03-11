@@ -3,6 +3,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useApiClient } from "../lib/client";
 import { useTenantProject } from "./useTenantProject";
+import type { ProjectRecord } from "../types";
+
+export interface EditProjectData {
+  name: string;
+  description: string;
+  code: string;
+  key: string;
+}
 
 /**
  * Custom hook for project management operations
@@ -10,6 +18,7 @@ import { useTenantProject } from "./useTenantProject";
  * Handles:
  * - Listing projects for a tenant
  * - Creating new projects
+ * - Updating/renaming projects
  * - Deleting projects
  * - Active project selection
  */
@@ -26,6 +35,16 @@ export function useProjectManagement() {
     tenant: string;
     project: string;
   } | null>(null);
+  const [projectPendingEdit, setProjectPendingEdit] = useState<{
+    tenant: string;
+    project: ProjectRecord;
+  } | null>(null);
+  const [editProjectData, setEditProjectData] = useState<EditProjectData>({
+    name: "",
+    description: "",
+    code: "",
+    key: ""
+  });
 
   // Queries
   const projectsQuery = useQuery({
@@ -43,6 +62,7 @@ export function useProjectManagement() {
       }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["projects", variables.tenant] });
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
       setShowCreateProject(false);
       setSelectedTenantForProject(null);
       setNewProjectData({ slug: "", key: "" });
@@ -54,10 +74,31 @@ export function useProjectManagement() {
     }
   });
 
+  const updateProjectMutation = useMutation<unknown, Error, { tenant: string; project: string; data: Partial<EditProjectData> }>({
+    mutationFn: ({ tenant, project, data }) => {
+      const payload: Record<string, string> = {};
+      if (data.name?.trim()) payload.name = data.name.trim();
+      if (data.description?.trim()) payload.description = data.description.trim();
+      if (data.code?.trim()) payload.code = data.code.trim();
+      if (data.key?.trim()) payload.key = data.key.trim();
+      return api.updateProject(tenant, project, payload);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["projects", variables.tenant] });
+      setProjectPendingEdit(null);
+      toast.success("Project updated successfully");
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Failed to update project";
+      toast.error(message);
+    }
+  });
+
   const deleteProjectMutation = useMutation<unknown, Error, { tenant: string; project: string }>({
     mutationFn: ({ tenant, project }) => api.deleteProject(tenant, project),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["projects", variables.tenant] });
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
       setProjectPendingDeletion(null);
       toast.success("Project deleted successfully");
     },
@@ -81,6 +122,17 @@ export function useProjectManagement() {
     });
   }, [selectedTenantForProject, newProjectData, createProjectMutation]);
 
+  const handleUpdateProject = useCallback(() => {
+    if (!projectPendingEdit) {
+      return;
+    }
+    updateProjectMutation.mutate({
+      tenant: projectPendingEdit.tenant,
+      project: projectPendingEdit.project.slug,
+      data: editProjectData
+    });
+  }, [projectPendingEdit, editProjectData, updateProjectMutation]);
+
   const handleDeleteProject = useCallback(() => {
     if (!projectPendingDeletion) {
       return;
@@ -99,6 +151,21 @@ export function useProjectManagement() {
     setNewProjectData({ slug: "", key: "" });
   }, []);
 
+  const openEditProjectDialog = useCallback((tenantSlug: string, project: ProjectRecord) => {
+    setProjectPendingEdit({ tenant: tenantSlug, project });
+    setEditProjectData({
+      name: project.name ?? "",
+      description: project.description ?? "",
+      code: project.code ?? "",
+      key: project.key ?? ""
+    });
+  }, []);
+
+  const closeEditProjectDialog = useCallback(() => {
+    setProjectPendingEdit(null);
+    setEditProjectData({ name: "", description: "", code: "", key: "" });
+  }, []);
+
   // Derived state
   const activeProject = useMemo(() => {
     if (!state.project || !projectsQuery.data) {
@@ -114,6 +181,7 @@ export function useProjectManagement() {
 
     // Mutations
     createProjectMutation,
+    updateProjectMutation,
     deleteProjectMutation,
 
     // UI State
@@ -124,11 +192,17 @@ export function useProjectManagement() {
     setNewProjectData,
     projectPendingDeletion,
     setProjectPendingDeletion,
+    projectPendingEdit,
+    editProjectData,
+    setEditProjectData,
 
     // Handlers
     handleCreateProject,
+    handleUpdateProject,
     handleDeleteProject,
     openCreateProjectDialog,
-    closeCreateProjectDialog
+    closeCreateProjectDialog,
+    openEditProjectDialog,
+    closeEditProjectDialog
   };
 }

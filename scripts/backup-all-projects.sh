@@ -196,7 +196,7 @@ log_info ""
 if [[ -z "$NEO4J_PASSWORD" ]]; then
   # Try to read from environment file
   if [[ -f "$PROJECT_ROOT/.env.production" ]]; then
-    NEO4J_PASSWORD=$(grep GRAPH_PASSWORD "$PROJECT_ROOT/.env.production" | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    NEO4J_PASSWORD=$(grep '^GRAPH_PASSWORD=' "$PROJECT_ROOT/.env.production" | cut -d '=' -f2 | tr -d '"' | tr -d "'")
   fi
 
   if [[ -z "$NEO4J_PASSWORD" ]]; then

@@ -83,8 +83,8 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
     }
   }, async (req, reply) => {
     const params = tenantProjectParamsSchema.parse(req.params);
-
     const pagination = parsePaginationParams(req.query);
+    const query = (req.query ?? {}) as Record<string, string | undefined>;
 
     const { skip, limit } = getSkipLimit(pagination.page, pagination.limit);
     const orderBy = (pagination.sortBy as "createdAt" | "ref" | "qaScore" | undefined) ?? "ref";
@@ -92,12 +92,27 @@ export async function registerCrudRoutes(app: FastifyInstance): Promise<void> {
       ? (pagination.sortOrder === "asc" ? "ASC" : "DESC")
       : "ASC";
 
+    // Parse filter params from querystring
+    const filters: Record<string, unknown> = {};
+    if (query.tags) filters.tags = query.tags.split(",").map(t => t.trim());
+    if (query.documentSlug) filters.documentSlug = query.documentSlug;
+    if (query.sectionId) filters.sectionId = query.sectionId;
+    if (query.pattern) filters.pattern = query.pattern;
+    if (query.verification) filters.verification = query.verification;
+    if (query.textContains) filters.textContains = query.textContains;
+    if (query.complianceStatus) filters.complianceStatus = query.complianceStatus;
+    if (query.qaScoreMin) filters.qaScoreMin = parseInt(query.qaScoreMin, 10);
+    if (query.qaScoreMax) filters.qaScoreMax = parseInt(query.qaScoreMax, 10);
+
+    const hasFilters = Object.keys(filters).length > 0;
+
     const [items, total] = await Promise.all([
       listRequirements(params.tenant, params.project, {
         limit,
         offset: skip,
         orderBy,
-        orderDirection
+        orderDirection,
+        filters: hasFilters ? filters as any : undefined
       }),
       countRequirements(params.tenant, params.project)
     ]);

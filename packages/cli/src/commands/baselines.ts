@@ -19,10 +19,10 @@ export function registerBaselineCommands(program: Command, client: AirgenClient)
     .argument("<tenant>", "Tenant slug")
     .argument("<project>", "Project slug")
     .action(async (tenant: string, project: string) => {
-      const data = await client.get<{ baselines: Baseline[] }>(
+      const data = await client.get<{ items: Baseline[] }>(
         `/baselines/${tenant}/${project}`,
       );
-      const baselines = data.baselines ?? [];
+      const baselines = data.items ?? [];
       if (isJsonMode()) {
         output(baselines);
       } else {

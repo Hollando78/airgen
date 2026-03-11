@@ -1,6 +1,6 @@
 {
   "name": "airgen-cli",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "AIRGen CLI — requirements engineering from the command line",
   "type": "module",
   "main": "dist/index.js",

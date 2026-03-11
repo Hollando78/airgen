@@ -70,13 +70,17 @@ export async function createTraceLink(params: {
   const session = getSession();
 
   // Get document slugs from requirements
+  // Check both paths: section-based (Document->Section->Requirement) and direct (Document->Requirement)
   const docResult = await session.executeRead(async (tx: ManagedTransaction) => {
     const query = `
       MATCH (source:Requirement {id: $sourceRequirementId})
       MATCH (target:Requirement {id: $targetRequirementId})
-      OPTIONAL MATCH (sourceDoc:Document)-[:HAS_SECTION]->(sourceSection:DocumentSection)-[:CONTAINS]->(source)
-      OPTIONAL MATCH (targetDoc:Document)-[:HAS_SECTION]->(targetSection:DocumentSection)-[:CONTAINS]->(target)
-      RETURN sourceDoc.slug AS sourceDocSlug, targetDoc.slug AS targetDocSlug
+      OPTIONAL MATCH (sourceDocViaSection:Document)-[:HAS_SECTION]->(sourceSection:DocumentSection)-[:CONTAINS]->(source)
+      OPTIONAL MATCH (targetDocViaSection:Document)-[:HAS_SECTION]->(targetSection:DocumentSection)-[:CONTAINS]->(target)
+      OPTIONAL MATCH (sourceDocDirect:Document)-[:CONTAINS]->(source)
+      OPTIONAL MATCH (targetDocDirect:Document)-[:CONTAINS]->(target)
+      RETURN coalesce(sourceDocViaSection.slug, sourceDocDirect.slug) AS sourceDocSlug,
+             coalesce(targetDocViaSection.slug, targetDocDirect.slug) AS targetDocSlug
     `;
 
     return tx.run(query, {
@@ -237,7 +241,8 @@ export async function listTraceLinks(params: {
 
   const session = getSession();
   try {
-    const result = await session.executeRead(async (tx: ManagedTransaction) => {
+    // 1. Fetch TraceLink nodes (created via createTraceLink)
+    const nodeResult = await session.executeRead(async (tx: ManagedTransaction) => {
       // QUERY PROFILE: expected <100ms - optimized to avoid cartesian products with OPTIONAL MATCH
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink)
@@ -252,17 +257,60 @@ export async function listTraceLinks(params: {
       return tx.run(query, { tenantSlug, projectSlug });
     });
 
-    return result.records.map(record => {
+    const traceLinkNodeIds = new Set<string>();
+    const results: TraceLinkRecord[] = nodeResult.records.map(record => {
+      const link = record.get("link");
+      traceLinkNodeIds.add(String(link.properties.id));
       const sourceReq = record.get("sourceReq");
       const targetReq = record.get("targetReq");
       return mapTraceLink(
-        record.get("link"),
+        link,
         sourceReq ? mapRequirement(sourceReq) : null,
         targetReq ? mapRequirement(targetReq) : null,
         record.get("sourceDoc"),
         record.get("targetDoc")
       );
     });
+
+    // 2. Fetch links embedded in DocumentLinkset nodes (created via addLinkToLinkset)
+    const linksetResult = await session.executeRead(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_LINKSET]->(linkset:DocumentLinkset)
+        WHERE linkset.links IS NOT NULL AND size(linkset.links) > 0
+        RETURN linkset.links AS links, linkset.sourceDocumentSlug AS sourceDocSlug, linkset.targetDocumentSlug AS targetDocSlug
+      `;
+      return tx.run(query, { tenantSlug, projectSlug });
+    });
+
+    for (const record of linksetResult.records) {
+      const embeddedLinks = record.get("links") as any[];
+      if (!Array.isArray(embeddedLinks)) continue;
+
+      for (const link of embeddedLinks) {
+        const linkId = String(link.id);
+        // Skip if already present as a TraceLink node
+        if (traceLinkNodeIds.has(linkId)) continue;
+
+        const sourceReqId = String(link.sourceRequirementId);
+        const targetReqId = String(link.targetRequirementId);
+
+        results.push({
+          id: linkId,
+          sourceRequirementId: sourceReqId,
+          sourceRequirement: null,
+          targetRequirementId: targetReqId,
+          targetRequirement: null,
+          linkType: String(link.linkType) as TraceLinkRecord["linkType"],
+          description: link.description ? String(link.description) : null,
+          tenant: tenantSlug,
+          projectKey: projectSlug,
+          createdAt: String(link.createdAt ?? ""),
+          updatedAt: String(link.updatedAt ?? ""),
+        });
+      }
+    }
+
+    return results;
   } finally {
     await session.close();
   }
@@ -278,7 +326,8 @@ export async function listTraceLinksByRequirement(params: {
 
   const session = getSession();
   try {
-    const result = await session.executeRead(async (tx: ManagedTransaction) => {
+    // 1. Fetch TraceLink nodes
+    const nodeResult = await session.executeRead(async (tx: ManagedTransaction) => {
       // QUERY PROFILE: expected <50ms - optimized with OPTIONAL MATCH to avoid cartesian products
       const query = `
         MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_TRACE_LINK]->(link:TraceLink)
@@ -298,17 +347,62 @@ export async function listTraceLinksByRequirement(params: {
       });
     });
 
-    return result.records.map(record => {
+    const traceLinkNodeIds = new Set<string>();
+    const results: TraceLinkRecord[] = nodeResult.records.map(record => {
+      const link = record.get("link");
+      traceLinkNodeIds.add(String(link.properties.id));
       const sourceReq = record.get("sourceReq");
       const targetReq = record.get("targetReq");
       return mapTraceLink(
-        record.get("link"),
+        link,
         sourceReq ? mapRequirement(sourceReq) : null,
         targetReq ? mapRequirement(targetReq) : null,
         record.get("sourceDoc"),
         record.get("targetDoc")
       );
     });
+
+    // 2. Fetch matching links embedded in DocumentLinkset nodes
+    const linksetResult = await session.executeRead(async (tx: ManagedTransaction) => {
+      const query = `
+        MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})-[:HAS_LINKSET]->(linkset:DocumentLinkset)
+        WHERE linkset.links IS NOT NULL AND size(linkset.links) > 0
+        RETURN linkset.links AS links
+      `;
+      return tx.run(query, { tenantSlug, projectSlug });
+    });
+
+    for (const record of linksetResult.records) {
+      const embeddedLinks = record.get("links") as any[];
+      if (!Array.isArray(embeddedLinks)) continue;
+
+      for (const link of embeddedLinks) {
+        const linkId = String(link.id);
+        if (traceLinkNodeIds.has(linkId)) continue;
+
+        const sourceReqId = String(link.sourceRequirementId);
+        const targetReqId = String(link.targetRequirementId);
+
+        // Only include links that reference the requested requirement
+        if (sourceReqId !== params.requirementId && targetReqId !== params.requirementId) continue;
+
+        results.push({
+          id: linkId,
+          sourceRequirementId: sourceReqId,
+          sourceRequirement: null,
+          targetRequirementId: targetReqId,
+          targetRequirement: null,
+          linkType: String(link.linkType) as TraceLinkRecord["linkType"],
+          description: link.description ? String(link.description) : null,
+          tenant: tenantSlug,
+          projectKey: projectSlug,
+          createdAt: String(link.createdAt ?? ""),
+          updatedAt: String(link.updatedAt ?? ""),
+        });
+      }
+    }
+
+    return results;
   } finally {
     await session.close();
   }

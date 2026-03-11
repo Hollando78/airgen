@@ -40,6 +40,18 @@ export async function executeCypherQuery<T = unknown>(
  * Build a query to list requirements with pagination and sorting
  * Uses parameterized Cypher with CASE expression for safe ordering
  */
+export interface ListRequirementsFilters {
+  tags?: string[];
+  documentSlug?: string;
+  sectionId?: string;
+  pattern?: string;
+  verification?: string;
+  textContains?: string;
+  complianceStatus?: string;
+  qaScoreMin?: number;
+  qaScoreMax?: number;
+}
+
 export function buildListRequirementsQuery(params: {
   tenantSlug: string;
   projectSlug: string;
@@ -47,18 +59,72 @@ export function buildListRequirementsQuery(params: {
   orderDirection: "ASC" | "DESC";
   offset: number;
   limit: number;
+  filters?: ListRequirementsFilters;
 }): CypherQuery {
-  const cypher = `
+  const filters = params.filters;
+  const filterByDoc = filters?.documentSlug;
+  const filterBySection = filters?.sectionId;
+
+  // When filtering by document or section, use a targeted MATCH instead of the union approach
+  let matchClause: string;
+  if (filterBySection) {
+    matchClause = `
+    MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+    MATCH (section:DocumentSection {id: $filterSectionId})-[:CONTAINS]->(requirement:Requirement)
+    OPTIONAL MATCH (requirement)<-[:CONTAINS]-(doc:Document)<-[:HAS_DOCUMENT]-(project)
+    WITH requirement, doc.slug AS documentSlug, section.id AS sectionId`;
+  } else if (filterByDoc) {
+    matchClause = `
+    MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
+    MATCH (project)-[:HAS_DOCUMENT]->(doc:Document {slug: $filterDocSlug})-[:CONTAINS]->(requirement:Requirement)
+    OPTIONAL MATCH (requirement)<-[:CONTAINS]-(section:DocumentSection)
+    WITH requirement, doc.slug AS documentSlug, section.id AS sectionId`;
+  } else {
+    matchClause = `
     MATCH (tenant:Tenant {slug: $tenantSlug})-[:OWNS]->(project:Project {slug: $projectSlug})
     OPTIONAL MATCH (project)-[:CONTAINS]->(direct:Requirement)
-    OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(:Document)-[:CONTAINS]->(docReq:Requirement)
-    WITH project, collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs
+    OPTIONAL MATCH (project)-[:HAS_DOCUMENT]->(doc:Document)-[:CONTAINS]->(docReq:Requirement)
+    WITH project, collect(DISTINCT direct) + collect(DISTINCT docReq) AS reqs,
+         collect(DISTINCT {req: docReq, slug: doc.slug}) AS docMap
     UNWIND reqs AS requirement
-    WITH DISTINCT requirement
-    WHERE requirement IS NOT NULL
-      AND (requirement.deleted IS NULL OR requirement.deleted = false)
-      AND (requirement.archived IS NULL OR requirement.archived = false)
-    RETURN requirement
+    WITH DISTINCT requirement,
+         [x IN docMap WHERE x.req = requirement | x.slug][0] AS documentSlug,
+         null AS sectionId`;
+  }
+
+  // Build WHERE clauses
+  const whereClauses = [
+    'requirement IS NOT NULL',
+    '(requirement.deleted IS NULL OR requirement.deleted = false)',
+    '(requirement.archived IS NULL OR requirement.archived = false)'
+  ];
+
+  if (filters?.tags?.length) {
+    whereClauses.push('any(t IN $filterTags WHERE t IN coalesce(requirement.tags, []))');
+  }
+  if (filters?.pattern) {
+    whereClauses.push('requirement.pattern = $filterPattern');
+  }
+  if (filters?.verification) {
+    whereClauses.push('requirement.verification = $filterVerification');
+  }
+  if (filters?.complianceStatus) {
+    whereClauses.push('requirement.complianceStatus = $filterComplianceStatus');
+  }
+  if (filters?.textContains) {
+    whereClauses.push('toLower(requirement.text) CONTAINS $filterTextContains');
+  }
+  if (filters?.qaScoreMin !== undefined) {
+    whereClauses.push('coalesce(requirement.qaScore, 0) >= $filterQaScoreMin');
+  }
+  if (filters?.qaScoreMax !== undefined) {
+    whereClauses.push('coalesce(requirement.qaScore, 0) <= $filterQaScoreMax');
+  }
+
+  const cypher = `
+    ${matchClause}
+    WHERE ${whereClauses.join('\n      AND ')}
+    RETURN requirement, documentSlug, sectionId
     ORDER BY
       CASE $orderBy
         WHEN 'createdAt' THEN requirement.createdAt
@@ -70,16 +136,25 @@ export function buildListRequirementsQuery(params: {
     LIMIT $limit
   `;
 
-  return {
-    cypher,
-    params: {
-      tenantSlug: params.tenantSlug,
-      projectSlug: params.projectSlug,
-      orderBy: params.orderBy,
-      offset: neo4jInt(params.offset),
-      limit: neo4jInt(params.limit)
-    }
+  const queryParams: Record<string, unknown> = {
+    tenantSlug: params.tenantSlug,
+    projectSlug: params.projectSlug,
+    orderBy: params.orderBy,
+    offset: neo4jInt(params.offset),
+    limit: neo4jInt(params.limit)
   };
+
+  if (filters?.tags?.length) queryParams.filterTags = filters.tags;
+  if (filterByDoc) queryParams.filterDocSlug = filterByDoc;
+  if (filterBySection) queryParams.filterSectionId = filterBySection;
+  if (filters?.pattern) queryParams.filterPattern = filters.pattern;
+  if (filters?.verification) queryParams.filterVerification = filters.verification;
+  if (filters?.complianceStatus) queryParams.filterComplianceStatus = filters.complianceStatus;
+  if (filters?.textContains) queryParams.filterTextContains = filters.textContains.toLowerCase();
+  if (filters?.qaScoreMin !== undefined) queryParams.filterQaScoreMin = filters.qaScoreMin;
+  if (filters?.qaScoreMax !== undefined) queryParams.filterQaScoreMax = filters.qaScoreMax;
+
+  return { cypher, params: queryParams };
 }
 
 /**

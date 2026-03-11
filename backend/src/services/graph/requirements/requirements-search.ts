@@ -6,13 +6,14 @@ import { mapRequirement } from "./requirements-crud.js";
 import type { RequirementRecord } from "../../workspace.js";
 import { getCached, CacheKeys, CacheInvalidation } from "../../../lib/cache.js";
 import { logger } from "../../../lib/logger.js";
-import { buildListRequirementsQuery, buildSuggestLinksQuery, executeCypherQuery } from "../../../lib/neo4j-query-builder.js";
+import { buildListRequirementsQuery, buildSuggestLinksQuery, executeCypherQuery, type ListRequirementsFilters } from "../../../lib/neo4j-query-builder.js";
 
 export interface ListOptions {
   limit?: number;              // Default 100, max 1000
   offset?: number;             // Default 0
   orderBy?: "ref" | "createdAt" | "qaScore";
   orderDirection?: "ASC" | "DESC";
+  filters?: ListRequirementsFilters;
 }
 
 export async function listRequirements(
@@ -26,8 +27,10 @@ export async function listRequirements(
   const offset = parseInt(String(options?.offset ?? 0), 10);
   const orderBy = options?.orderBy ?? "ref";
   const orderDirection = options?.orderDirection === "DESC" ? "DESC" : "ASC";
+  const filters = options?.filters;
+  const hasFilters = filters && Object.values(filters).some(v => v !== undefined && v !== null && (!Array.isArray(v) || v.length > 0));
 
-  // Cache for 1 minute (60 seconds) - invalidate on update
+  // Cache for 1 minute (60 seconds) - skip cache when filters are active
   const cacheKey = CacheKeys.requirements(
     tenantSlug,
     projectSlug,
@@ -35,34 +38,38 @@ export async function listRequirements(
     offset
   ) + `:${orderBy}:${orderDirection}`;
 
-  return getCached(
-    cacheKey,
-    async () => {
-      const session = getSession();
-      try {
-        // QUERY PROFILE: expected <100ms for typical datasets with pagination
-        // Using @neo4j/cypher-builder for type-safe query construction and automatic parameterization
-        const query = buildListRequirementsQuery({
-          tenantSlug,
-          projectSlug,
-          orderBy,
-          orderDirection,
-          offset,
-          limit
-        });
+  const fetcher = async () => {
+    const session = getSession();
+    try {
+      const query = buildListRequirementsQuery({
+        tenantSlug,
+        projectSlug,
+        orderBy,
+        orderDirection,
+        offset,
+        limit,
+        filters
+      });
 
-        const result = await executeCypherQuery(session, query);
+      const result = await executeCypherQuery(session, query);
 
-        return result.records.map(record => {
-          const node = record.get("requirement") as Neo4jNode;
-          return mapRequirement(node);
-        });
-      } finally {
-        await session.close();
-      }
-    },
-    60 // 1 minute TTL
-  );
+      return result.records.map(record => {
+        const node = record.get("requirement") as Neo4jNode;
+        const docSlug = record.get("documentSlug");
+        const secId = record.get("sectionId");
+        return mapRequirement(node, docSlug ? String(docSlug) : undefined);
+      });
+    } finally {
+      await session.close();
+    }
+  };
+
+  // Skip cache when filters are active since the cache key doesn't include filter params
+  if (hasFilters) {
+    return fetcher();
+  }
+
+  return getCached(cacheKey, fetcher, 60);
 }
 
 export async function countRequirements(

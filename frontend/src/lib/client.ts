@@ -212,7 +212,9 @@ export function useApiClient() {
         request<{ success: boolean }>(`/tenants/${tenant}`, { method: "DELETE" }),
       createProject: (tenant: string, data: { slug: string; key?: string }) => 
         request<{ project: any }>(`/tenants/${tenant}/projects`, { method: "POST", body: JSON.stringify(data) }),
-      deleteProject: (tenant: string, project: string) => 
+      updateProject: (tenant: string, project: string, data: { name?: string; description?: string; code?: string; key?: string }) =>
+        request<{ project: any }>(`/tenants/${tenant}/projects/${project}`, { method: "PATCH", body: JSON.stringify(data) }),
+      deleteProject: (tenant: string, project: string) =>
         request<{ success: boolean }>(`/tenants/${tenant}/projects/${project}`, { method: "DELETE" }),
       draft: (body: DraftRequest) => request<DraftResponse>(`/draft`, { method: "POST", body: JSON.stringify(body) }),
       airgenChat: (body: AirGenChatRequest) =>
