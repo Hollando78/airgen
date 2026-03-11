@@ -17,6 +17,10 @@ workspace/env/
 !/backend/.env.*.example
 !/frontend/.env.*.example
 
+# Sensitive data files
+backend/workspace/dev/dev-users.json
+deploy/coming-soon/email-submissions.json
+
 # Logs
 npm-debug.log*
 pnpm-debug.log*
