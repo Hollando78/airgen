@@ -19,8 +19,8 @@ This comprehensive security audit of the AIRGen application reveals **strong sec
 **Location:** `/root/airgen/.env.production`
 
 **Issue:** The `.env.production` file contains actual production credentials:
-- OpenAI API key: `REDACTED_OPENAI_KEY`
-- SMTP password: `REDACTED_SMTP_PASSWORD`
+- OpenAI API key: `[REDACTED — rotated]`
+- SMTP password: `[REDACTED — rotated]`
 - Database passwords in plaintext
 - JWT secret
 

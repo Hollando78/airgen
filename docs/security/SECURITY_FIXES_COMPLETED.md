@@ -373,16 +373,16 @@ CORS_ORIGINS="https://airgen.studio"
 
 # LLM Configuration (OpenAI for AI-powered features)
 LLM_PROVIDER="openai"
-LLM_API_KEY="REDACTED_OPENAI_KEY"
+LLM_API_KEY="<your-openai-api-key>"
 LLM_MODEL="gpt-4o-mini"
 
 # Email Configuration (required for password reset, email verification)
 EMAIL_FROM="info@airgen.studio"
-SMTP_HOST="smtppro.zoho.eu"
+SMTP_HOST="<your-smtp-host>"
 SMTP_PORT=465
 SMTP_SECURE=true
-SMTP_USER="info@airgen.studio"
-SMTP_PASSWORD="REDACTED_SMTP_PASSWORD"
+SMTP_USER="<your-smtp-user>"
+SMTP_PASSWORD="<your-smtp-password>"
 
 # Rate Limiting (optional, with defaults)
 RATE_LIMIT_LLM_MAX="20"
